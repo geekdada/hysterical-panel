@@ -1,0 +1,9 @@
+node_modules
+dist
+.output
+.vinxi
+*.gen.ts
+!*routeTree.gen.ts
+
+# Generated API types (re-generate with: pnpm api:sync)
+src/api/schema.d.ts
