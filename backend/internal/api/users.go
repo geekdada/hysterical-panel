@@ -12,7 +12,6 @@ type userInput struct {
 	Role       *string `json:"role"`
 	QuotaBytes *int64  `json:"quota_bytes"`
 	Status     *string `json:"status"`
-	Enabled    *bool   `json:"enabled"`
 }
 
 func (h *Handlers) listUsers(e *core.RequestEvent) error {
@@ -52,13 +51,16 @@ func (h *Handlers) createUser(e *core.RequestEvent) error {
 	u.SetEmail(*in.Email)
 	u.SetPassword(*in.Password)
 	u.SetVerified(true)
+	status := strOr(in.Status, "active")
+	if !validUserStatus(status) {
+		return apis.NewBadRequestError("status must be active or disabled", nil)
+	}
 	u.Set("auth_string", *in.AuthString)
 	u.Set("role", strOr(in.Role, "admin"))
-	u.Set("status", strOr(in.Status, "active"))
+	u.Set("status", status)
 	if in.QuotaBytes != nil {
 		u.Set("quota_bytes", *in.QuotaBytes)
 	}
-	u.Set("enabled", boolOr(in.Enabled, true))
 	u.Set("used_tx", 0)
 	u.Set("used_rx", 0)
 	if err := h.app.Save(u); err != nil {
@@ -92,13 +94,13 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 		u.Set("role", *in.Role)
 	}
 	if in.Status != nil {
+		if !validUserStatus(*in.Status) {
+			return apis.NewBadRequestError("status must be active or disabled", nil)
+		}
 		u.Set("status", *in.Status)
 	}
 	if in.QuotaBytes != nil {
 		u.Set("quota_bytes", *in.QuotaBytes)
-	}
-	if in.Enabled != nil {
-		u.Set("enabled", *in.Enabled)
 	}
 	if err := h.app.Save(u); err != nil {
 		return apis.NewBadRequestError("failed to update user", err)
@@ -124,9 +126,8 @@ func strOr(p *string, def string) string {
 	return def
 }
 
-func boolOr(p *bool, def bool) bool {
-	if p != nil {
-		return *p
-	}
-	return def
+// validUserStatus mirrors the users.status select values. Keep in sync with the
+// migration that defines the field.
+func validUserStatus(s string) bool {
+	return s == "active" || s == "disabled"
 }

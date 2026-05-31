@@ -53,18 +53,16 @@ type PanelUser struct {
 	UsedTx     int64  `json:"used_tx"`
 	UsedRx     int64  `json:"used_rx"`
 	Status     string `json:"status"` // "active" | "disabled"
-	Enabled    bool   `json:"enabled"`
 }
 
 // UserCreateRequest is the body for POST /users.
 type UserCreateRequest struct {
-	Email      string `json:"email"`
-	Password   string `json:"password"`
-	AuthString string `json:"auth_string"`
+	Email      string  `json:"email"`
+	Password   string  `json:"password"`
+	AuthString string  `json:"auth_string"`
 	Role       *string `json:"role,omitempty"`
 	QuotaBytes *int64  `json:"quota_bytes,omitempty"`
 	Status     *string `json:"status,omitempty"`
-	Enabled    *bool   `json:"enabled,omitempty"`
 }
 
 // UserUpdateRequest is the body for PATCH /users/{id}.
@@ -75,7 +73,6 @@ type UserUpdateRequest struct {
 	Role       *string `json:"role,omitempty"`
 	QuotaBytes *int64  `json:"quota_bytes,omitempty"`
 	Status     *string `json:"status,omitempty"`
-	Enabled    *bool   `json:"enabled,omitempty"`
 }
 
 // ── Traffic ───────────────────────────────────────────────────────────────────
