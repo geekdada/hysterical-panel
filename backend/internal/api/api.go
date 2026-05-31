@@ -23,6 +23,8 @@ type Handlers struct {
 func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box) {
 	h := &Handlers{app: app, box: box}
 
+	bindAuthGate(app)
+
 	g := se.Router.Group("/api/panel")
 	g.Bind(apis.RequireAuth("users")) // must be a logged-in users-collection record
 	g.Bind(requireAdmin())
@@ -62,6 +64,18 @@ func requireAdmin() *hook.Handler[*core.RequestEvent] {
 	}
 }
 
+// bindAuthGate blocks authentication for any user whose status is not "active".
+// It fires on every auth response (password, refresh, OAuth2, OTP), so a
+// disabled user can neither sign in nor keep refreshing an existing token.
+func bindAuthGate(app core.App) {
+	app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
+		if e.Record == nil || e.Record.GetString("status") != "active" {
+			return apis.NewForbiddenError("account is disabled", nil)
+		}
+		return e.Next()
+	})
+}
+
 // nodesForUser is the single choke point for node visibility. Today every
 // enabled node is visible to every user; user-group filtering can be added here
 // later without touching callers.
@@ -99,7 +113,6 @@ func publicUser(u *core.Record) map[string]any {
 		"used_tx":     u.GetInt("used_tx"),
 		"used_rx":     u.GetInt("used_rx"),
 		"status":      u.GetString("status"),
-		"enabled":     u.GetBool("enabled"),
 	}
 }
 

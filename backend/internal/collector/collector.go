@@ -108,9 +108,16 @@ func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
 			// orphan auth string (deleted/unknown user) — skip silently
 			continue
 		}
+		// Always advance the cursor, even for disabled users, so re-enabling
+		// resumes from "now" instead of dumping the whole disabled-period
+		// counter into a single bucket.
 		dtx, drx, err := c.applyDelta(user, node, entry.Tx, entry.Rx)
 		if err != nil {
 			log.Printf("[collector] delta user=%s node=%s: %v", authStr, node.Id, err)
+			continue
+		}
+		// Disabled users keep their counter tracked but stop accruing usage.
+		if user.GetString("status") != "active" {
 			continue
 		}
 		if dtx == 0 && drx == 0 {
