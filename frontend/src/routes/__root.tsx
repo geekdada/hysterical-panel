@@ -3,14 +3,20 @@
 import type { ReactNode } from "react";
 import {
   Outlet,
-  createRootRoute,
+  createRootRouteWithContext,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { readAuthCookie, type Auth } from "~/api/auth";
 
 import "~/styles/globals.css";
 
-export const Route = createRootRoute({
+export interface RouterContext {
+  auth: Auth | null;
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
+  beforeLoad: () => ({ auth: readAuthCookie() }),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -20,6 +26,27 @@ export const Route = createRootRoute({
   }),
   component: RootComponent,
 });
+
+// Runs synchronously in <head> before the body paints: mirrors the OS
+// color-scheme onto <html> so the themed first paint never flashes, and keeps
+// it in sync when the user flips appearance mid-session (like Linear).
+const themeScript = `
+(function () {
+  try {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    function apply() {
+      var dark = mq.matches;
+      var el = document.documentElement;
+      el.classList.remove(dark ? "light" : "dark");
+      el.classList.add(dark ? "dark" : "light");
+      el.setAttribute("data-theme", dark ? "dark" : "light");
+      el.style.colorScheme = dark ? "dark" : "light";
+    }
+    apply();
+    mq.addEventListener("change", apply);
+  } catch (e) {}
+})();
+`;
 
 function RootComponent() {
   return (
@@ -31,11 +58,12 @@ function RootComponent() {
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <HeadContent />
       </head>
-      <body>
+      <body className="bg-(--background) text-(--foreground) antialiased">
         {children}
         <Scripts />
       </body>

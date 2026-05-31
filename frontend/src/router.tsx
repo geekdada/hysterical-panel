@@ -2,5 +2,9 @@ import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
-  return createRouter({ routeTree, scrollRestoration: true });
+  return createRouter({
+    routeTree,
+    scrollRestoration: true,
+    context: { auth: null }, // overwritten by the root beforeLoad on every load
+  });
 }
