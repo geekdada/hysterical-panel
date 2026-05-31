@@ -45,6 +45,9 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box) {
 	g.GET("/users/{id}/traffic/summary", h.trafficSummary)
 	g.GET("/users/{id}/traffic/series", h.trafficSeries)
 	g.GET("/users/{id}/live", h.userLive)
+
+	// openapi schema — no auth required (contains no secrets)
+	se.Router.GET("/api/openapi.json", handleOpenAPISpec)
 }
 
 // requireAdmin rejects any authenticated user whose role is not "admin".

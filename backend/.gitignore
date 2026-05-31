@@ -28,6 +28,9 @@ pb_data/
 dist/
 tmp/
 
+# Generated OpenAPI schema (re-generate with: go run . openapi-schema -o openapi.json)
+openapi.json
+
 # IDE
 .idea/
 .vscode/

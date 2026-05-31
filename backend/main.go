@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
+	"github.com/spf13/cobra"
 
 	_ "hysterical-panel/migrations"
 
@@ -24,6 +25,35 @@ func main() {
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
 		Automigrate: false, // migrations are committed by hand in ./migrations
 	})
+
+	// openapi-schema: generate openapi.json without starting the server
+	app.RootCmd.AddCommand(&cobra.Command{
+		Use:   "openapi-schema",
+		Short: "Generate openapi.json to stdout (or -o file)",
+		Run: func(cmd *cobra.Command, args []string) {
+			outPath, _ := cmd.Flags().GetString("output")
+			b, err := api.MarshalOpenAPISpec()
+			if err != nil {
+				log.Fatal(err)
+			}
+			if outPath != "" {
+				if err := os.WriteFile(outPath, b, 0o644); err != nil {
+					log.Fatal(err)
+				}
+				log.Printf("wrote %s", outPath)
+			} else {
+				cmd.OutOrStdout().Write(b)
+			}
+		},
+	})
+	_ = app.RootCmd // ensure cobra is initialized before flag parsing
+	// Register the --output flag for the openapi-schema command
+	for _, sub := range app.RootCmd.Commands() {
+		if sub.Use == "openapi-schema" {
+			sub.Flags().StringP("output", "o", "", "Write to file instead of stdout")
+			break
+		}
+	}
 
 	cfg, err := config.Load()
 	if err != nil {

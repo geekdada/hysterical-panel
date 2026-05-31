@@ -1,7 +1,7 @@
 # Hysterical Panel backend — PocketBase-based Go app
 # See README.md for env vars and API overview.
 
-.PHONY: help build run serve dev test vet fmt tidy clean migrate migrate-create
+.PHONY: help build run serve dev test vet fmt tidy clean migrate migrate-create openapi
 
 GO ?= go
 BIN_NAME ?= hysterical-panel
@@ -58,3 +58,6 @@ migrate: ## Apply database migrations
 migrate-create: ## Create migration (usage: make migrate-create name=add_foo)
 	@test -n "$(name)" || (echo "usage: make migrate-create name=<migration_name>" >&2; exit 1)
 	$(GO) run $(MAIN) migrate create "$(name)"
+
+openapi: ## Generate openapi.json
+	PANEL_MASTER_KEY=skip $(GO) run $(MAIN) openapi-schema -o openapi.json
