@@ -6,7 +6,7 @@
 ## 模型
 
 两层：
-- **users** — 既是登录面板的人（admin），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账（但不会断开其 Hysteria 连接——面板不踢节点）。
+- **users** — 既是登录面板的人（`admin` 或 `user`），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账（但不会断开其 Hysteria 连接——面板不踢节点）。
 - **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`）。
 
 所有 enabled 节点默认对所有用户生效（`nodesForUser()` 是唯一选择点，将来加用户组只改这里）。
@@ -44,7 +44,7 @@ make serve     # 或: go run . serve
 
 `/online` 与 `/dump/streams` 不进采集循环，由 live 接口实时穿透拉取。
 
-## 接口（前缀 `/api/panel/`，需登录 + admin）
+## 接口（前缀 `/api/panel/`，需登录；除标注外需 admin）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -55,10 +55,11 @@ make serve     # 或: go run . serve
 | POST | `/nodes/{id}/test` | 立即验证连通性 |
 | GET | `/users` | 列表 |
 | POST | `/users` | 新建（email+password+auth_string） |
-| GET/PATCH/DELETE | `/users/{id}` | 详情/改/删 |
-| GET | `/users/{id}/traffic/summary` | 累计用量，按节点拆分 |
-| GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（`from`/`to`/`bucket` 均为 **UTC**） |
-| GET | `/users/{id}/live` | 实时诊断（在线设备、活跃流、域名榜、设备维度） |
+| GET | `/users/{id}` | 详情（admin 或本人） |
+| PATCH/DELETE | `/users/{id}` | 改/删 |
+| GET | `/users/{id}/traffic/summary` | 累计用量，按节点拆分（admin 或本人） |
+| GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |
+| GET | `/users/{id}/live` | 实时诊断（admin 或本人；在线设备、活跃流、域名榜、设备维度） |
 
 所有返回 node 的接口都已剥除 `api_secret`。
 

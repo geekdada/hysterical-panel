@@ -51,12 +51,16 @@ func (h *Handlers) createUser(e *core.RequestEvent) error {
 	u.SetEmail(*in.Email)
 	u.SetPassword(*in.Password)
 	u.SetVerified(true)
+	role := strOr(in.Role, "admin")
+	if !validUserRole(role) {
+		return apis.NewBadRequestError("role must be admin or user", nil)
+	}
 	status := strOr(in.Status, "active")
 	if !validUserStatus(status) {
 		return apis.NewBadRequestError("status must be active or disabled", nil)
 	}
 	u.Set("auth_string", *in.AuthString)
-	u.Set("role", strOr(in.Role, "admin"))
+	u.Set("role", role)
 	u.Set("status", status)
 	if in.QuotaBytes != nil {
 		u.Set("quota_bytes", *in.QuotaBytes)
@@ -91,6 +95,9 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 		u.Set("auth_string", *in.AuthString)
 	}
 	if in.Role != nil {
+		if !validUserRole(*in.Role) {
+			return apis.NewBadRequestError("role must be admin or user", nil)
+		}
 		u.Set("role", *in.Role)
 	}
 	if in.Status != nil {
@@ -124,6 +131,12 @@ func strOr(p *string, def string) string {
 		return *p
 	}
 	return def
+}
+
+// validUserRole mirrors the users.role select values. Keep in sync with the
+// migration that defines the field.
+func validUserRole(s string) bool {
+	return s == "admin" || s == "user"
 }
 
 // validUserStatus mirrors the users.status select values. Keep in sync with the

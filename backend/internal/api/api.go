@@ -1,6 +1,6 @@
 // Package api registers the panel's custom HTTP routes under /api/panel.
-// All routes require an authenticated admin user. Node API secrets are never
-// returned to clients.
+// Routes require a logged-in users record; mutating/admin-wide routes additionally
+// require the admin role. Node API secrets are never returned to clients.
 package api
 
 import (
@@ -27,32 +27,33 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box) {
 
 	g := se.Router.Group("/api/panel")
 	g.Bind(apis.RequireAuth("users")) // must be a logged-in users-collection record
-	g.Bind(requireAdmin())
+	adminOnly := requireAdmin()
+	adminOrSelf := requireAdminOrSelf()
 
 	// nodes
-	g.GET("/nodes", h.listNodes)
-	g.POST("/nodes", h.createNode)
-	g.GET("/nodes/{id}", h.getNode)
-	g.PATCH("/nodes/{id}", h.updateNode)
-	g.DELETE("/nodes/{id}", h.deleteNode)
-	g.POST("/nodes/{id}/test", h.testNode)
+	g.GET("/nodes", h.listNodes).Bind(adminOnly)
+	g.POST("/nodes", h.createNode).Bind(adminOnly)
+	g.GET("/nodes/{id}", h.getNode).Bind(adminOnly)
+	g.PATCH("/nodes/{id}", h.updateNode).Bind(adminOnly)
+	g.DELETE("/nodes/{id}", h.deleteNode).Bind(adminOnly)
+	g.POST("/nodes/{id}/test", h.testNode).Bind(adminOnly)
 
 	// node-scoped traffic + live (node-wide, across all users)
-	g.GET("/nodes/{id}/traffic/summary", h.nodeTrafficSummary)
-	g.GET("/nodes/{id}/traffic/series", h.nodeTrafficSeries)
-	g.GET("/nodes/{id}/live", h.nodeLive)
+	g.GET("/nodes/{id}/traffic/summary", h.nodeTrafficSummary).Bind(adminOnly)
+	g.GET("/nodes/{id}/traffic/series", h.nodeTrafficSeries).Bind(adminOnly)
+	g.GET("/nodes/{id}/live", h.nodeLive).Bind(adminOnly)
 
 	// users
-	g.GET("/users", h.listUsers)
-	g.POST("/users", h.createUser)
-	g.GET("/users/{id}", h.getUser)
-	g.PATCH("/users/{id}", h.updateUser)
-	g.DELETE("/users/{id}", h.deleteUser)
+	g.GET("/users", h.listUsers).Bind(adminOnly)
+	g.POST("/users", h.createUser).Bind(adminOnly)
+	g.GET("/users/{id}", h.getUser).Bind(adminOrSelf)
+	g.PATCH("/users/{id}", h.updateUser).Bind(adminOnly)
+	g.DELETE("/users/{id}", h.deleteUser).Bind(adminOnly)
 
 	// traffic + live
-	g.GET("/users/{id}/traffic/summary", h.trafficSummary)
-	g.GET("/users/{id}/traffic/series", h.trafficSeries)
-	g.GET("/users/{id}/live", h.userLive)
+	g.GET("/users/{id}/traffic/summary", h.trafficSummary).Bind(adminOrSelf)
+	g.GET("/users/{id}/traffic/series", h.trafficSeries).Bind(adminOrSelf)
+	g.GET("/users/{id}/live", h.userLive).Bind(adminOrSelf)
 
 	// openapi schema — no auth required (contains no secrets)
 	se.Router.GET("/api/openapi.json", handleOpenAPISpec)
@@ -72,6 +73,22 @@ func requireAdmin() *hook.Handler[*core.RequestEvent] {
 				return apis.NewForbiddenError("admin role required", nil)
 			}
 			return e.Next()
+		},
+	}
+}
+
+// requireAdminOrSelf allows admins to view any record, and regular users to
+// view only the user id carried in the route path.
+func requireAdminOrSelf() *hook.Handler[*core.RequestEvent] {
+	return &hook.Handler[*core.RequestEvent]{
+		Func: func(e *core.RequestEvent) error {
+			if e.Auth == nil {
+				return apis.NewForbiddenError("user access required", nil)
+			}
+			if e.Auth.GetString("role") == "admin" || e.Auth.Id == e.Request.PathValue("id") {
+				return e.Next()
+			}
+			return apis.NewForbiddenError("admin or self access required", nil)
 		},
 	}
 }

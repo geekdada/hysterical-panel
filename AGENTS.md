@@ -26,8 +26,8 @@
 4. **节点接口走自定义 Go 路由，不裸用 PocketBase 自动 API。**
    纯粹为了在返回前剥掉 `api_secret`。PocketBase 自动 collection API 会把字段全返回，因此 nodes/users 一律走 `/api/panel/*`。
 
-5. **角色当前只有 `admin`。**
-   `users.role` 的 select 只配了 `["admin"]`，但代码已为将来的普通用户预留判断位置（`requireAdmin`）。
+5. **角色当前只有 `admin` / `user`。**
+   `admin` 可管理节点和用户；`user` 只能查看自己的账号详情、用量和实时诊断。新增管理接口默认走 `requireAdmin`；新增用户自查接口才走 admin-or-self 守卫。
 
 6. **`status` 是用户启停的单一来源，且真正生效。**
    `active`/`disabled` 两态。落地在两处：登录鉴权 `bindAuthGate`（`OnRecordAuthRequest("users")`，非 active 一律 403 `Account is disabled`，覆盖登录与 token 刷新）；采集器 `pollNode` 里非 active 用户**仍推进 cursor 但不计量**（避免重新启用时把停用期间的 counter 一次性灌进单个 bucket）。注意：面板不踢 Hysteria 连接，`disabled` 只挡面板登录 + 停止记账，不会断流。写 `status` 经 `validUserStatus` 校验。
@@ -55,7 +55,8 @@ hysterical-panel/
     │   ├── 1730000003_create_traffic_cursor.go
     │   ├── 1730000004_create_traffic_hourly.go
     │   ├── 1730000005_create_traffic_daily.go
-    │   └── 1730000006_drop_users_enabled.go 移除冗余 users.enabled
+    │   ├── 1730000006_drop_users_enabled.go 移除冗余 users.enabled
+    │   └── 1730000007_add_user_role.go     新增普通 user 角色
     ├── .env.example / .envrc   环境变量模板 + direnv（见 README）
     └── internal/
         ├── config/             环境变量（caarlos0/env）
@@ -74,7 +75,7 @@ hysterical-panel/
 
 `users`（扩展 PocketBase 内置 auth collection）：
 - `auth_string` (text, unique, required) — Hysteria auth key，= /traffic 返回的 key
-- `role` (select [admin])、`status` (select [active, disabled]) — `status` 是用户启停的单一来源（active = 启用）
+- `role` (select [admin, user])、`status` (select [active, disabled]) — `status` 是用户启停的单一来源（active = 启用）
 - `quota_bytes`、`used_tx`、`used_rx` (number, int64) — quota 当前不计费，仅留字段
 
 `nodes`：
@@ -108,11 +109,12 @@ hysterical-panel/
 - 失败时写 `node.last_error` 且**不更新 cursor**，下一轮自然补回（counter 模式特性）。
 - `/online` 和 `/dump/streams` **不进采集循环**，由 live 接口实时拉。
 
-## 接口（前缀 /api/panel/，需登录 + admin）
+## 接口（前缀 /api/panel/，需登录；除用户自查接口外需 admin）
 
 详见 backend/README.md。要点：
 - 凡是返回 node 的响应**必须经过 `publicNode()` 剥除 api_secret**。新增 node 相关接口时务必走这个函数。
 - `PATCH /nodes/{id}` 的 `api_secret`：**缺省=不变，传空字符串=报错**（防止误清空）。
+- `GET /users/{id}`、`GET /users/{id}/traffic/*`、`GET /users/{id}/live` 允许 admin 或本人访问；用户列表、创建、修改、删除仍仅 admin。
 - `live` 接口（`GET /users/{id}/live`）是实时诊断核心：并发拉所有可见节点的 `/dump/streams` + `/online`（5s 超时），按 `auth_string` 过滤，聚合出 `online_devices` / `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按设备分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。**
 
 ## 运行与安全

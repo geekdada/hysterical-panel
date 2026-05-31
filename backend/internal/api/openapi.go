@@ -64,7 +64,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		setEnum(s.Value.Properties, "health", []any{"ok", "error", "never"})
 	}
 	if s, ok := schemas["PanelUser"]; ok && s.Value != nil {
-		setEnum(s.Value.Properties, "role", []any{"admin"})
+		setEnum(s.Value.Properties, "role", []any{"admin", "user"})
 		setEnum(s.Value.Properties, "status", []any{"active", "disabled"})
 	}
 	if s, ok := schemas["TrafficSeriesResponse"]; ok && s.Value != nil {
@@ -125,7 +125,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		}
 	}
 	unauthorized := errRef(401, "Authentication required")
-	forbidden := errRef(403, "Admin role required")
+	forbidden := errRef(403, "Forbidden")
 	notFound := errRef(404, "Not found")
 	badRequest := errRef(400, "Bad request")
 
@@ -409,7 +409,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "getUser",
-				Summary:     "Get user detail",
+				Summary:     "Get user detail (admin or self)",
 				Tags:        []string{"users"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
@@ -468,7 +468,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "trafficSummary",
-				Summary:     "Get user traffic summary",
+				Summary:     "Get user traffic summary (admin or self)",
 				Tags:        []string{"traffic"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
@@ -489,7 +489,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "trafficSeries",
-				Summary:     "Get user traffic time series",
+				Summary:     "Get user traffic time series (admin or self)",
 				Tags:        []string{"traffic"},
 				Parameters: openapi3.Parameters{
 					{
@@ -550,7 +550,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "userLive",
-				Summary:     "Real-time diagnostics for a user",
+				Summary:     "Real-time diagnostics for a user (admin or self)",
 				Tags:        []string{"live"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{

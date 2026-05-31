@@ -47,7 +47,7 @@ type NodeTestResponse struct {
 type PanelUser struct {
 	ID         string `json:"id"`
 	Email      string `json:"email"`
-	Role       string `json:"role"` // currently "admin"
+	Role       string `json:"role"` // "admin" | "user"
 	AuthString string `json:"auth_string"`
 	QuotaBytes int64  `json:"quota_bytes"`
 	UsedTx     int64  `json:"used_tx"`
