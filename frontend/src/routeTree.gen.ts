@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as NodesNewRouteImport } from './routes/nodes/new'
+import { Route as NodesNodeIdRouteImport } from './routes/nodes/$nodeId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -28,34 +29,43 @@ const NodesNewRoute = NodesNewRouteImport.update({
   path: '/nodes/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NodesNodeIdRoute = NodesNodeIdRouteImport.update({
+  id: '/nodes/$nodeId',
+  path: '/nodes/$nodeId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/nodes/new'
+  fullPaths: '/' | '/login' | '/nodes/$nodeId' | '/nodes/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/nodes/new'
-  id: '__root__' | '/' | '/login' | '/nodes/new'
+  to: '/' | '/login' | '/nodes/$nodeId' | '/nodes/new'
+  id: '__root__' | '/' | '/login' | '/nodes/$nodeId' | '/nodes/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  NodesNodeIdRoute: typeof NodesNodeIdRoute
   NodesNewRoute: typeof NodesNewRoute
 }
 
@@ -82,12 +92,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NodesNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/nodes/$nodeId': {
+      id: '/nodes/$nodeId'
+      path: '/nodes/$nodeId'
+      fullPath: '/nodes/$nodeId'
+      preLoaderRoute: typeof NodesNodeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  NodesNodeIdRoute: NodesNodeIdRoute,
   NodesNewRoute: NodesNewRoute,
 }
 export const routeTree = rootRouteImport

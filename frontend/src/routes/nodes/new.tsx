@@ -138,7 +138,24 @@ function AddNodePage() {
               }}
               className="flex flex-col gap-5"
               noValidate
+              autoComplete="off"
             >
+              {/* Decoy inputs absorb Chrome's password-manager autofill,
+                  which ignores autocomplete="off" on real fields. */}
+              <div aria-hidden className="hidden">
+                <input
+                  type="text"
+                  name="username"
+                  tabIndex={-1}
+                  autoComplete="username"
+                />
+                <input
+                  type="password"
+                  name="password"
+                  tabIndex={-1}
+                  autoComplete="current-password"
+                />
+              </div>
               <form.Field
                 name="name"
                 validators={{
@@ -160,7 +177,14 @@ function AddNodePage() {
                     isRequired
                   >
                     <Label>Name</Label>
-                    <Input placeholder="hk-01" autoFocus />
+                    <Input
+                      placeholder="hk-01"
+                      autoFocus
+                      autoComplete="off"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      data-form-type="other"
+                    />
                     <FieldError>
                       {field.state.meta.errors.join(', ')}
                     </FieldError>
@@ -189,7 +213,8 @@ function AddNodePage() {
                       inputMode="url"
                       placeholder="http://203.0.113.10:9999"
                       className="font-mono text-[13px]"
-                      autoComplete="off"
+                      autoComplete="url"
+                      pattern="https?://.*"
                       data-1p-ignore
                       data-lpignore="true"
                       data-form-type="other"
@@ -240,7 +265,7 @@ function AddNodePage() {
                     <div className="relative">
                       <Input
                         type={showSecret ? 'text' : 'password'}
-                        autoComplete="off"
+                        autoComplete="new-password"
                         className="w-full pr-[4.5rem] font-mono text-[13px]"
                         data-1p-ignore
                         data-lpignore="true"
