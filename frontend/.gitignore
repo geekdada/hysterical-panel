@@ -4,6 +4,10 @@ dist
 .vinxi
 *.gen.ts
 !*routeTree.gen.ts
+.tanstack
 
 # Generated API types (re-generate with: pnpm api:sync)
 src/api/schema.d.ts
+.env
+.env.local
+.env.*.local
