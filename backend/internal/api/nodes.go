@@ -30,6 +30,14 @@ func (h *Handlers) listNodes(e *core.RequestEvent) error {
 	return ok(e, out)
 }
 
+func (h *Handlers) getNode(e *core.RequestEvent) error {
+	n, err := h.app.FindRecordById("nodes", e.Request.PathValue("id"))
+	if err != nil {
+		return apis.NewNotFoundError("node not found", err)
+	}
+	return ok(e, publicNode(n))
+}
+
 func (h *Handlers) createNode(e *core.RequestEvent) error {
 	var in nodeInput
 	if err := e.BindBody(&in); err != nil {

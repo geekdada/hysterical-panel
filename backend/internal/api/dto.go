@@ -5,14 +5,14 @@ package api
 // Node is the public representation returned by every node endpoint.
 // api_secret is intentionally omitted.
 type Node struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	APIURL        string `json:"api_url"`
-	PollInterval  int    `json:"poll_interval"`
-	Enabled       bool   `json:"enabled"`
-	LastPolledAt  string `json:"last_polled_at"`
-	LastError     string `json:"last_error"`
-	Health        string `json:"health"` // "ok" | "error" | "never"
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	APIURL       string `json:"api_url"`
+	PollInterval int    `json:"poll_interval"`
+	Enabled      bool   `json:"enabled"`
+	LastPolledAt string `json:"last_polled_at"`
+	LastError    string `json:"last_error"`
+	Health       string `json:"health"` // "ok" | "error" | "never"
 }
 
 // NodeCreateRequest is the body for POST /nodes.
@@ -79,8 +79,8 @@ type UserUpdateRequest struct {
 
 // TrafficSummaryResponse is returned by GET /users/{id}/traffic/summary.
 type TrafficSummaryResponse struct {
-	Total  ByteCount      `json:"total"`
-	ByNode []NodeTraffic  `json:"by_node"`
+	Total  ByteCount     `json:"total"`
+	ByNode []NodeTraffic `json:"by_node"`
 }
 
 // ByteCount represents tx/rx byte totals.
@@ -95,11 +95,30 @@ type NodeRef struct {
 	Name string `json:"name"`
 }
 
+// UserRef is a lightweight user identity used inside aggregation responses.
+type UserRef struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
 // NodeTraffic is a per-node traffic breakdown inside summary responses.
 type NodeTraffic struct {
-	Node NodeRef   `json:"node"`
-	Tx   int64     `json:"tx"`
-	Rx   int64     `json:"rx"`
+	Node NodeRef `json:"node"`
+	Tx   int64   `json:"tx"`
+	Rx   int64   `json:"rx"`
+}
+
+// UserTraffic is a per-user traffic breakdown inside node summary responses.
+type UserTraffic struct {
+	User UserRef `json:"user"`
+	Tx   int64   `json:"tx"`
+	Rx   int64   `json:"rx"`
+}
+
+// NodeTrafficSummaryResponse is returned by GET /nodes/{id}/traffic/summary.
+type NodeTrafficSummaryResponse struct {
+	Total  ByteCount     `json:"total"`
+	ByUser []UserTraffic `json:"by_user"`
 }
 
 // TrafficSeriesResponse is returned by GET /users/{id}/traffic/series.
@@ -121,32 +140,51 @@ type BucketPoint struct {
 type LiveResponse struct {
 	OnlineDevices int              `json:"online_devices"`
 	ActiveStreams int              `json:"active_streams"`
-	ByNode       []LiveNodeResult `json:"by_node"`
-	TopDomains   []TopDomain      `json:"top_domains"`
-	ByConnection []ConnSummary    `json:"by_connection"`
+	ByNode        []LiveNodeResult `json:"by_node"`
+	TopDomains    []TopDomain      `json:"top_domains"`
+	ByConnection  []ConnSummary    `json:"by_connection"`
 }
 
 // LiveNodeResult is the per-node breakdown inside the live response.
 type LiveNodeResult struct {
-	Node          NodeRef     `json:"node"`
-	OnlineDevices int         `json:"online_devices"`
+	Node          NodeRef      `json:"node"`
+	OnlineDevices int          `json:"online_devices"`
 	Streams       []LiveStream `json:"streams"`
-	Error         string      `json:"error,omitempty"`
+	Error         string       `json:"error,omitempty"`
+}
+
+// NodeLiveResponse is returned by GET /nodes/{id}/live. Unlike the user live
+// response it covers a single node and every user on it (no auth filter).
+type NodeLiveResponse struct {
+	OnlineDevices int                  `json:"online_devices"`
+	ActiveStreams int                  `json:"active_streams"`
+	ByUser        []NodeLiveUserResult `json:"by_user"`
+	TopDomains    []TopDomain          `json:"top_domains"`
+	ByConnection  []ConnSummary        `json:"by_connection"`
+	Error         string               `json:"error,omitempty"`
+}
+
+// NodeLiveUserResult groups a node's live streams under one panel user. Streams
+// whose auth string matches no panel user are grouped under an "unknown" entry.
+type NodeLiveUserResult struct {
+	User          UserRef      `json:"user"`
+	OnlineDevices int          `json:"online_devices"`
+	Streams       []LiveStream `json:"streams"`
 }
 
 // LiveStream is one active stream shown in live diagnostics.
 type LiveStream struct {
-	Connection     int64  `json:"connection"`
-	Stream         int64  `json:"stream"`
-	State          string `json:"state"`
-	ReqAddr        string `json:"req_addr"`
-	HookedReqAddr  string `json:"hooked_req_addr"`
-	Tx             int64  `json:"tx"`
-	Rx             int64  `json:"rx"`
-	InitialAt      string `json:"initial_at"`
-	LastActiveAt   string `json:"last_active_at"`
-	LifetimeSec    int64  `json:"lifetime_sec"`
-	IdleSec        int64  `json:"idle_sec"`
+	Connection    int64  `json:"connection"`
+	Stream        int64  `json:"stream"`
+	State         string `json:"state"`
+	ReqAddr       string `json:"req_addr"`
+	HookedReqAddr string `json:"hooked_req_addr"`
+	Tx            int64  `json:"tx"`
+	Rx            int64  `json:"rx"`
+	InitialAt     string `json:"initial_at"`
+	LastActiveAt  string `json:"last_active_at"`
+	LifetimeSec   int64  `json:"lifetime_sec"`
+	IdleSec       int64  `json:"idle_sec"`
 }
 
 // TopDomain is a domain aggregation entry in the live response.
@@ -159,10 +197,10 @@ type TopDomain struct {
 
 // ConnSummary is a per-connection (device) summary in the live response.
 type ConnSummary struct {
-	Connection int64  `json:"connection"`
-	StreamCount int  `json:"stream_count"`
-	Tx          int64 `json:"tx"`
-	Rx          int64 `json:"rx"`
+	Connection  int64  `json:"connection"`
+	StreamCount int    `json:"stream_count"`
+	Tx          int64  `json:"tx"`
+	Rx          int64  `json:"rx"`
 	TopDomain   string `json:"top_domain"`
 }
 

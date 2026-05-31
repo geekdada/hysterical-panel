@@ -17,18 +17,20 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 
 	// ── schemas from DTO structs ──────────────────────────────────────────
 	schemaDefs := map[string]any{
-		"Node":                  Node{},
-		"NodeCreateRequest":     NodeCreateRequest{},
-		"NodeUpdateRequest":     NodeUpdateRequest{},
-		"NodeTestResponse":      NodeTestResponse{},
-		"PanelUser":             PanelUser{},
-		"UserCreateRequest":     UserCreateRequest{},
-		"UserUpdateRequest":     UserUpdateRequest{},
-		"TrafficSummaryResponse": TrafficSummaryResponse{},
-		"TrafficSeriesResponse":  TrafficSeriesResponse{},
-		"LiveResponse":          LiveResponse{},
-		"DeleteResponse":        DeleteResponse{},
-		"ErrorResponse":         ErrorResponse{},
+		"Node":                       Node{},
+		"NodeCreateRequest":          NodeCreateRequest{},
+		"NodeUpdateRequest":          NodeUpdateRequest{},
+		"NodeTestResponse":           NodeTestResponse{},
+		"PanelUser":                  PanelUser{},
+		"UserCreateRequest":          UserCreateRequest{},
+		"UserUpdateRequest":          UserUpdateRequest{},
+		"TrafficSummaryResponse":     TrafficSummaryResponse{},
+		"TrafficSeriesResponse":      TrafficSeriesResponse{},
+		"NodeTrafficSummaryResponse": NodeTrafficSummaryResponse{},
+		"LiveResponse":               LiveResponse{},
+		"NodeLiveResponse":           NodeLiveResponse{},
+		"DeleteResponse":             DeleteResponse{},
+		"ErrorResponse":              ErrorResponse{},
 	}
 
 	// Generate each schema with its own generator to avoid shared internal
@@ -189,6 +191,22 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	// ── /nodes/{id} ───────────────────────────────────────────────────────
 	t.Paths.Set("/api/panel/nodes/{id}", &openapi3.PathItem{
 		Parameters: openapi3.Parameters{idParam("Node ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "getNode",
+				Summary:     "Get node detail",
+				Tags:        []string{"nodes"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Node detail"),
+						Content:     content(ref("Node")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
 		Patch: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "updateNode",
@@ -241,6 +259,101 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					Value: &openapi3.Response{
 						Description: ptr("Test result"),
 						Content:     content(ref("NodeTestResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /nodes/{id}/traffic/summary ───────────────────────────────────────
+	t.Paths.Set("/api/panel/nodes/{id}/traffic/summary", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Node ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "nodeTrafficSummary",
+				Summary:     "Get node-wide traffic summary",
+				Tags:        []string{"traffic"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Node traffic summary"),
+						Content:     content(ref("NodeTrafficSummaryResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /nodes/{id}/traffic/series ────────────────────────────────────────
+	t.Paths.Set("/api/panel/nodes/{id}/traffic/series", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Node ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "nodeTrafficSeries",
+				Summary:     "Get node-wide traffic time series",
+				Tags:        []string{"traffic"},
+				Parameters: openapi3.Parameters{
+					{
+						Value: &openapi3.Parameter{
+							Name:        "granularity",
+							In:          "query",
+							Description: "Time bucket granularity",
+							Schema: &openapi3.SchemaRef{
+								Value: &openapi3.Schema{
+									Type: &openapi3.Types{"string"},
+									Enum: []any{"hourly", "daily"},
+								},
+							},
+						},
+					},
+					{
+						Value: &openapi3.Parameter{
+							Name:        "from",
+							In:          "query",
+							Description: "Start datetime (UTC, inclusive)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
+						},
+					},
+					{
+						Value: &openapi3.Parameter{
+							Name:        "to",
+							In:          "query",
+							Description: "End datetime (UTC, inclusive)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
+						},
+					},
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Traffic series"),
+						Content:     content(ref("TrafficSeriesResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /nodes/{id}/live ──────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/nodes/{id}/live", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Node ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "nodeLive",
+				Summary:     "On-demand diagnostics for a node",
+				Tags:        []string{"live"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Live diagnostics"),
+						Content:     content(ref("NodeLiveResponse")),
 					},
 				})),
 			}

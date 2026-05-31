@@ -32,9 +32,15 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box) {
 	// nodes
 	g.GET("/nodes", h.listNodes)
 	g.POST("/nodes", h.createNode)
+	g.GET("/nodes/{id}", h.getNode)
 	g.PATCH("/nodes/{id}", h.updateNode)
 	g.DELETE("/nodes/{id}", h.deleteNode)
 	g.POST("/nodes/{id}/test", h.testNode)
+
+	// node-scoped traffic + live (node-wide, across all users)
+	g.GET("/nodes/{id}/traffic/summary", h.nodeTrafficSummary)
+	g.GET("/nodes/{id}/traffic/series", h.nodeTrafficSeries)
+	g.GET("/nodes/{id}/live", h.nodeLive)
 
 	// users
 	g.GET("/users", h.listUsers)

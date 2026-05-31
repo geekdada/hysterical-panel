@@ -75,66 +75,12 @@ func (h *Handlers) userLive(e *core.RequestEvent) error {
 	now := time.Now().UTC()
 	var totalOnline, totalStreams int
 	byNode := make([]map[string]any, 0, len(results))
-
-	domainAgg := map[string]*struct {
-		streams int
-		tx, rx  int64
-	}{}
-	connAgg := map[int64]*struct {
-		count   int
-		tx, rx  int64
-		domains map[string]int64 // domain -> rx for picking top
-	}{}
+	agg := newLiveAggregator()
 
 	for _, r := range results {
 		nodeStreams := make([]map[string]any, 0, len(r.streams))
 		for _, s := range r.streams {
-			lifetime, idle := lifetimeIdle(s.InitialAt, s.LastActiveAt, now)
-			nodeStreams = append(nodeStreams, map[string]any{
-				"connection":      s.Connection,
-				"stream":          s.Stream,
-				"state":           s.State,
-				"req_addr":        s.ReqAddr,
-				"hooked_req_addr": s.HookedReqAddr,
-				"tx":              s.Tx,
-				"rx":              s.Rx,
-				"initial_at":      s.InitialAt,
-				"last_active_at":  s.LastActiveAt,
-				"lifetime_sec":    lifetime,
-				"idle_sec":        idle,
-			})
-
-			// domain aggregation
-			dom := hostOf(s.HookedReqAddr)
-			if dom == "" {
-				dom = hostOf(s.ReqAddr)
-			}
-			da := domainAgg[dom]
-			if da == nil {
-				da = &struct {
-					streams int
-					tx, rx  int64
-				}{}
-				domainAgg[dom] = da
-			}
-			da.streams++
-			da.tx += s.Tx
-			da.rx += s.Rx
-
-			// connection (device) aggregation
-			ca := connAgg[s.Connection]
-			if ca == nil {
-				ca = &struct {
-					count   int
-					tx, rx  int64
-					domains map[string]int64
-				}{domains: map[string]int64{}}
-				connAgg[s.Connection] = ca
-			}
-			ca.count++
-			ca.tx += s.Tx
-			ca.rx += s.Rx
-			ca.domains[dom] += s.Rx + s.Tx
+			nodeStreams = append(nodeStreams, agg.add(s, now))
 		}
 
 		totalOnline += r.online
@@ -151,53 +97,12 @@ func (h *Handlers) userLive(e *core.RequestEvent) error {
 		byNode = append(byNode, nodeEntry)
 	}
 
-	// top domains sorted by total bytes desc
-	topDomains := make([]map[string]any, 0, len(domainAgg))
-	for dom, a := range domainAgg {
-		topDomains = append(topDomains, map[string]any{
-			"domain":  dom,
-			"streams": a.streams,
-			"tx":      a.tx,
-			"rx":      a.rx,
-		})
-	}
-	sort.Slice(topDomains, func(i, j int) bool {
-		bi := topDomains[i]["tx"].(int64) + topDomains[i]["rx"].(int64)
-		bj := topDomains[j]["tx"].(int64) + topDomains[j]["rx"].(int64)
-		return bi > bj
-	})
-
-	// per-connection (device) breakdown
-	byConn := make([]map[string]any, 0, len(connAgg))
-	for conn, a := range connAgg {
-		top := ""
-		var topBytes int64 = -1
-		for d, b := range a.domains {
-			if b > topBytes {
-				topBytes = b
-				top = d
-			}
-		}
-		byConn = append(byConn, map[string]any{
-			"connection":   conn,
-			"stream_count": a.count,
-			"tx":           a.tx,
-			"rx":           a.rx,
-			"top_domain":   top,
-		})
-	}
-	sort.Slice(byConn, func(i, j int) bool {
-		bi := byConn[i]["tx"].(int64) + byConn[i]["rx"].(int64)
-		bj := byConn[j]["tx"].(int64) + byConn[j]["rx"].(int64)
-		return bi > bj
-	})
-
 	return ok(e, map[string]any{
 		"online_devices": totalOnline,
 		"active_streams": totalStreams,
 		"by_node":        byNode,
-		"top_domains":    topDomains,
-		"by_connection":  byConn,
+		"top_domains":    agg.topDomains(),
+		"by_connection":  agg.byConnection(),
 	})
 }
 
@@ -222,4 +127,118 @@ func lifetimeIdle(initialAt, lastActiveAt string, now time.Time) (int64, int64) 
 		idle = int64(now.Sub(t).Seconds())
 	}
 	return lifetime, idle
+}
+
+// liveAggregator accumulates per-domain and per-connection (device) stats while
+// rendering individual streams. It is shared by the user-scoped and node-scoped
+// live endpoints so the aggregation logic lives in exactly one place.
+type liveAggregator struct {
+	domains map[string]*domainStat
+	conns   map[int64]*connStat
+}
+
+type domainStat struct {
+	streams int
+	tx, rx  int64
+}
+
+type connStat struct {
+	count   int
+	tx, rx  int64
+	domains map[string]int64 // domain -> total bytes, for picking the top domain
+}
+
+func newLiveAggregator() *liveAggregator {
+	return &liveAggregator{
+		domains: map[string]*domainStat{},
+		conns:   map[int64]*connStat{},
+	}
+}
+
+// add records one stream into the domain/connection tallies and returns the
+// stream rendered as a response map (with computed lifetime/idle).
+func (a *liveAggregator) add(s hysteria.Stream, now time.Time) map[string]any {
+	lifetime, idle := lifetimeIdle(s.InitialAt, s.LastActiveAt, now)
+	rendered := map[string]any{
+		"connection":      s.Connection,
+		"stream":          s.Stream,
+		"state":           s.State,
+		"req_addr":        s.ReqAddr,
+		"hooked_req_addr": s.HookedReqAddr,
+		"tx":              s.Tx,
+		"rx":              s.Rx,
+		"initial_at":      s.InitialAt,
+		"last_active_at":  s.LastActiveAt,
+		"lifetime_sec":    lifetime,
+		"idle_sec":        idle,
+	}
+
+	dom := hostOf(s.HookedReqAddr)
+	if dom == "" {
+		dom = hostOf(s.ReqAddr)
+	}
+	ds := a.domains[dom]
+	if ds == nil {
+		ds = &domainStat{}
+		a.domains[dom] = ds
+	}
+	ds.streams++
+	ds.tx += s.Tx
+	ds.rx += s.Rx
+
+	cs := a.conns[s.Connection]
+	if cs == nil {
+		cs = &connStat{domains: map[string]int64{}}
+		a.conns[s.Connection] = cs
+	}
+	cs.count++
+	cs.tx += s.Tx
+	cs.rx += s.Rx
+	cs.domains[dom] += s.Rx + s.Tx
+
+	return rendered
+}
+
+// topDomains returns domain aggregates sorted by total bytes descending.
+func (a *liveAggregator) topDomains() []map[string]any {
+	out := make([]map[string]any, 0, len(a.domains))
+	for dom, d := range a.domains {
+		out = append(out, map[string]any{
+			"domain":  dom,
+			"streams": d.streams,
+			"tx":      d.tx,
+			"rx":      d.rx,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i]["tx"].(int64)+out[i]["rx"].(int64) > out[j]["tx"].(int64)+out[j]["rx"].(int64)
+	})
+	return out
+}
+
+// byConnection returns per-connection (device) aggregates, each tagged with its
+// heaviest domain, sorted by total bytes descending.
+func (a *liveAggregator) byConnection() []map[string]any {
+	out := make([]map[string]any, 0, len(a.conns))
+	for conn, c := range a.conns {
+		top := ""
+		var topBytes int64 = -1
+		for d, b := range c.domains {
+			if b > topBytes {
+				topBytes = b
+				top = d
+			}
+		}
+		out = append(out, map[string]any{
+			"connection":   conn,
+			"stream_count": c.count,
+			"tx":           c.tx,
+			"rx":           c.rx,
+			"top_domain":   top,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i]["tx"].(int64)+out[i]["rx"].(int64) > out[j]["tx"].(int64)+out[j]["rx"].(int64)
+	})
+	return out
 }
