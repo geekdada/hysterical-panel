@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
 import { clearAuth } from "~/api/auth";
 import { apiClient } from "~/api/client";
@@ -27,6 +27,8 @@ export const Route = createFileRoute("/")({
 
 function DashboardPage() {
   const { auth } = Route.useRouteContext();
+  const navigate = useNavigate();
+  const isAdmin = auth?.user.role === "admin";
   const [nodes, setNodes] = useState<Node[]>([]);
   const [users, setUsers] = useState<PanelUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,6 +165,17 @@ function DashboardPage() {
               ? `${nodes.length} ${plural(nodes.length, "node")} · ${enabledNodes.length} enabled`
               : undefined
           }
+          action={
+            isAdmin ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => navigate({ to: "/nodes/new" })}
+              >
+                Add node
+              </Button>
+            ) : undefined
+          }
         >
           {loading ? (
             <TableSkeleton />
@@ -174,6 +187,17 @@ function DashboardPage() {
             <Teaching
               title="No nodes yet"
               hint="Add a node's API URL and secret to start collecting traffic."
+              action={
+                isAdmin ? (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onPress={() => navigate({ to: "/nodes/new" })}
+                  >
+                    Add your first node
+                  </Button>
+                ) : undefined
+              }
             />
           )}
         </Section>
@@ -209,17 +233,22 @@ function DashboardPage() {
 function Section({
   title,
   meta,
+  action,
   children,
 }: {
   title: string;
   meta?: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="mt-6">
-      <div className="mb-2 flex items-baseline justify-between gap-3 px-0.5">
+      <div className="mb-2 flex min-h-7 items-center justify-between gap-3 px-0.5">
         <h2 className="text-[13px] font-semibold text-(--foreground)">{title}</h2>
-        {meta && <span className="text-xs tabular-nums text-(--muted)">{meta}</span>}
+        <div className="flex items-center gap-3">
+          {meta && <span className="text-xs tabular-nums text-(--muted)">{meta}</span>}
+          {action}
+        </div>
       </div>
       <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
         {children}
@@ -478,11 +507,20 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-function Teaching({ title, hint }: { title: string; hint: string }) {
+function Teaching({
+  title,
+  hint,
+  action,
+}: {
+  title: string;
+  hint: string;
+  action?: ReactNode;
+}) {
   return (
     <div className="px-6 py-12 text-center">
       <p className="text-[13px] font-medium text-(--foreground)">{title}</p>
       <p className="mx-auto mt-1 max-w-sm text-xs text-(--muted)">{hint}</p>
+      {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
 }
