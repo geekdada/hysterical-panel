@@ -1,0 +1,39 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/hysterical-panel
+
+# Test and coverage
+*.test
+*.out
+coverage.*
+covdata/
+
+# Go workspace (local multi-module setup)
+go.work
+go.work.sum
+
+# PocketBase runtime data
+pb_data/
+
+# Environment and secrets (keep .env.example committed)
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+tmp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
