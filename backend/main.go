@@ -19,7 +19,18 @@ import (
 )
 
 func main() {
-	app := pocketbase.New()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("startup: %v", err)
+	}
+
+	// PB_DATA_DIR / PB_ENCRYPTION_KEY are wired here so they actually take
+	// effect (an empty DataDir falls back to ./pb_data; an unset encryption
+	// key env leaves settings unencrypted). A CLI --dir still overrides.
+	app := pocketbase.NewWithConfig(pocketbase.Config{
+		DefaultDataDir:       cfg.DataDir,
+		DefaultEncryptionEnv: "PB_ENCRYPTION_KEY",
+	})
 
 	// auto-apply migrations on boot
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
@@ -53,11 +64,6 @@ func main() {
 			sub.Flags().StringP("output", "o", "", "Write to file instead of stdout")
 			break
 		}
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("startup: %v", err)
 	}
 
 	box, err := cryptobox.New(cfg.PanelMasterKey)
