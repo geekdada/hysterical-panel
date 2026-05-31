@@ -12,9 +12,9 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 export interface AuthUser {
   id: string;
   email: string;
-  role: string;
+  role: "admin" | "user";
   auth_string: string;
-  status: string;
+  status: "active" | "disabled";
 }
 
 export interface Auth {

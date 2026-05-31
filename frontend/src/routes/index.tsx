@@ -26,6 +26,12 @@ export const Route = createFileRoute("/")({
     if (!context.auth) {
       throw redirect({ to: "/login" });
     }
+    if (context.auth.user.role !== "admin") {
+      throw redirect({
+        to: "/users/$userId",
+        params: { userId: context.auth.user.id },
+      });
+    }
   },
   component: DashboardPage,
 });
@@ -109,9 +115,13 @@ function DashboardPage() {
               </span>
             )}
             <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
-            <span className="hidden max-w-[180px] truncate sm:inline">
+            <Link
+              to="/users/$userId"
+              params={{ userId: auth?.user.id ?? "" }}
+              className="hidden max-w-[180px] truncate rounded-sm underline-offset-2 hover:text-(--foreground) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) sm:inline"
+            >
               {auth?.user.email}
-            </span>
+            </Link>
             <Button variant="ghost" size="sm" onPress={handleLogout}>
               Sign out
             </Button>
@@ -392,9 +402,13 @@ function UsersTable({ users }: { users: PanelUser[] }) {
                 <Td>
                   <div className="flex items-center gap-2.5">
                     <Dot tone={active ? "ok" : "idle"} title={active ? "active" : "disabled"} />
-                    <span className="block max-w-[200px] truncate font-medium">
+                    <Link
+                      to="/users/$userId"
+                      params={{ userId: user.id ?? "" }}
+                      className="block max-w-[200px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                    >
                       {user.email || "—"}
-                    </span>
+                    </Link>
                   </div>
                 </Td>
                 <Td>
@@ -426,4 +440,3 @@ function UsersTable({ users }: { users: PanelUser[] }) {
     </div>
   );
 }
-

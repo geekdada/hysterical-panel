@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
 import { Route as NodesNewRouteImport } from './routes/nodes/new'
 import { Route as NodesNodeIdRouteImport } from './routes/nodes/$nodeId'
 
@@ -22,6 +23,11 @@ const LoginRoute = LoginRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersUserIdRoute = UsersUserIdRouteImport.update({
+  id: '/users/$userId',
+  path: '/users/$userId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NodesNewRoute = NodesNewRouteImport.update({
@@ -40,12 +46,14 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
+  '/users/$userId': typeof UsersUserIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
+  '/users/$userId': typeof UsersUserIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,20 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
+  '/users/$userId': typeof UsersUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/nodes/$nodeId' | '/nodes/new'
+  fullPaths: '/' | '/login' | '/nodes/$nodeId' | '/nodes/new' | '/users/$userId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/nodes/$nodeId' | '/nodes/new'
-  id: '__root__' | '/' | '/login' | '/nodes/$nodeId' | '/nodes/new'
+  to: '/' | '/login' | '/nodes/$nodeId' | '/nodes/new' | '/users/$userId'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/nodes/$nodeId'
+    | '/nodes/new'
+    | '/users/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +82,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   NodesNodeIdRoute: typeof NodesNodeIdRoute
   NodesNewRoute: typeof NodesNewRoute
+  UsersUserIdRoute: typeof UsersUserIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -83,6 +99,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users/$userId': {
+      id: '/users/$userId'
+      path: '/users/$userId'
+      fullPath: '/users/$userId'
+      preLoaderRoute: typeof UsersUserIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nodes/new': {
@@ -107,6 +130,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   NodesNodeIdRoute: NodesNodeIdRoute,
   NodesNewRoute: NodesNewRoute,
+  UsersUserIdRoute: UsersUserIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

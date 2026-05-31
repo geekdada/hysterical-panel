@@ -1,0 +1,687 @@
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Button } from "@heroui/react";
+import { clearAuth } from "~/api/auth";
+import { apiClient } from "~/api/client";
+import { requireAdminOrSelf } from "~/api/guards";
+import type { components } from "~/api/schema";
+import {
+  GranularityToggle,
+  RANGE_MS,
+  TrafficChart,
+  toPbDateTime,
+  type Granularity,
+} from "~/components/traffic";
+import {
+  CopyButton,
+  Dot,
+  PanelMessage,
+  Section,
+  TableSkeleton,
+  Td,
+  Teaching,
+  Th,
+} from "~/components/ui";
+import { formatBytes, formatDuration, relTime } from "~/lib/format";
+
+type PanelUser = components["schemas"]["PanelUser"];
+type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
+type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
+type UserLive = components["schemas"]["LiveResponse"];
+
+const REFRESH_MS = 20_000;
+
+export const Route = createFileRoute("/users/$userId")({
+  beforeLoad: ({ context, params }) => requireAdminOrSelf(context.auth, params.userId),
+  component: AccountDetailPage,
+});
+
+function AccountDetailPage() {
+  const { userId } = Route.useParams();
+  const { auth } = Route.useRouteContext();
+  const navigate = useNavigate();
+  const isAdmin = auth?.user.role === "admin";
+
+  const [user, setUser] = useState<PanelUser | null>(null);
+  const [summary, setSummary] = useState<TrafficSummary | null>(null);
+  const [series, setSeries] = useState<TrafficSeries | null>(null);
+  const [granularity, setGranularity] = useState<Granularity>("daily");
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [error, setError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const fetchData = useCallback(async () => {
+    try {
+      const to = toPbDateTime(new Date(Date.now()));
+      const from = toPbDateTime(new Date(Date.now() - RANGE_MS[granularity]));
+      const [userRes, summaryRes, seriesRes] = await Promise.all([
+        apiClient.GET("/api/panel/users/{id}", {
+          params: { path: { id: userId } },
+        }),
+        apiClient.GET("/api/panel/users/{id}/traffic/summary", {
+          params: { path: { id: userId } },
+        }),
+        apiClient.GET("/api/panel/users/{id}/traffic/series", {
+          params: { path: { id: userId }, query: { granularity, from, to } },
+        }),
+      ]);
+      if (userRes.response.status === 404) {
+        setNotFound(true);
+        return;
+      }
+      if (userRes.error || summaryRes.error || seriesRes.error) {
+        setError("Couldn't reach the panel API.");
+        return;
+      }
+      setUser(userRes.data ?? null);
+      setSummary(summaryRes.data ?? null);
+      setSeries(seriesRes.data ?? null);
+      setError("");
+      setNotFound(false);
+      setUpdatedAt(Date.now());
+    } catch {
+      setError("Network error. Retrying on the next refresh.");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, granularity]);
+
+  useEffect(() => {
+    fetchData();
+    const id = setInterval(fetchData, REFRESH_MS);
+    return () => clearInterval(id);
+  }, [fetchData]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(id);
+  }, []);
+
+  function handleLogout() {
+    clearAuth();
+    window.location.href = "/login";
+  }
+
+  return (
+    <div className="min-h-svh bg-(--background) text-(--foreground)">
+      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
+        <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {isAdmin ? (
+              <Link
+                to="/"
+                aria-label="Back to dashboard"
+                className="grid size-6 shrink-0 place-items-center rounded text-(--muted) transition-colors duration-150 hover:bg-(--surface-secondary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+              >
+                <BackIcon />
+              </Link>
+            ) : (
+              <span className="grid size-5 shrink-0 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
+                H
+              </span>
+            )}
+            {loading && !user ? (
+              <span className="h-3.5 w-40 animate-pulse rounded bg-(--surface-secondary)" />
+            ) : (
+              <div className="flex min-w-0 items-center gap-2">
+                <Dot
+                  tone={(user?.status ?? "active") === "active" ? "ok" : "idle"}
+                  title={user?.status ?? "active"}
+                />
+                <span className="truncate text-[13px] font-semibold tracking-tight">
+                  {user?.email || "Account"}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-(--muted)">
+            {updatedAt !== null && (
+              <span
+                className="hidden tabular-nums sm:inline"
+                title={new Date(updatedAt).toLocaleString()}
+              >
+                Updated {relTime(updatedAt, now)}
+              </span>
+            )}
+            {isAdmin && <span className="hidden h-3.5 w-px bg-(--border) sm:block" />}
+            {!isAdmin && (
+              <span className="hidden max-w-[180px] truncate sm:inline">
+                {auth?.user.email}
+              </span>
+            )}
+            <Button variant="ghost" size="sm" onPress={handleLogout}>
+              Sign out
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
+        {error && (
+          <div
+            className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
+            role="alert"
+          >
+            <Dot tone="error" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {notFound ? (
+          <Teaching
+            title="Account not found"
+            hint="It may have been deleted or moved."
+            action={
+              isAdmin ? (
+                <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
+                  Back to dashboard
+                </Button>
+              ) : (
+                <Button size="sm" variant="secondary" onPress={handleLogout}>
+                  Sign out
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <>
+            <AccountRail user={user} loading={loading && !user} />
+
+            <TrafficSection
+              loading={loading && !series}
+              granularity={granularity}
+              onGranularityChange={setGranularity}
+              series={series}
+              summary={summary}
+              isAdmin={isAdmin}
+            />
+
+            <LiveSection userId={userId} />
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function AccountRail({
+  user,
+  loading,
+}: {
+  user: PanelUser | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
+        <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem] md:divide-x md:divide-y-0">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="px-4 py-3">
+              <div className="h-3 w-16 animate-pulse rounded bg-(--surface-secondary)" />
+              <div className="mt-2 h-4 w-32 animate-pulse rounded bg-(--surface-secondary)" />
+            </div>
+          ))}
+        </div>
+        <div className="grid border-t border-(--border) divide-y divide-(--border) md:grid-cols-4 md:divide-x md:divide-y-0">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="px-4 py-3">
+              <div className="h-3 w-16 animate-pulse rounded bg-(--surface-secondary)" />
+              <div className="mt-2 h-4 w-24 animate-pulse rounded bg-(--surface-secondary)" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const status = user?.status ?? "active";
+  const active = status === "active";
+  const usedTx = user?.used_tx ?? 0;
+  const usedRx = user?.used_rx ?? 0;
+  const quota = user?.quota_bytes ?? 0;
+
+  return (
+    <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
+      <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem] md:divide-x md:divide-y-0">
+        <RailItem label="Email">
+          <span className="block truncate text-[13px]" title={user?.email || ""}>
+            {user?.email || "—"}
+          </span>
+        </RailItem>
+        <RailItem label="Auth key">
+          <div className="group/key flex min-w-0 items-center gap-1.5">
+            <span className="block min-w-0 truncate font-mono text-[13px] text-(--foreground)">
+              {user?.auth_string || "—"}
+            </span>
+            {user?.auth_string && <CopyButton value={user.auth_string} label="auth key" />}
+          </div>
+        </RailItem>
+        <RailItem label="Role">
+          <span className="font-mono text-[13px]">{user?.role || "—"}</span>
+        </RailItem>
+        <RailItem label="Status">
+          <span className="inline-flex min-w-0 items-center gap-2">
+            <Dot tone={active ? "ok" : "idle"} title={status} />
+            <span className="truncate text-[13px] capitalize">{status}</span>
+          </span>
+        </RailItem>
+      </div>
+      <div className="grid border-t border-(--border) divide-y divide-(--border) md:grid-cols-4 md:divide-x md:divide-y-0">
+        <RailItem label="Used total">
+          <span className="font-mono text-[15px] font-semibold tabular-nums">
+            {formatBytes(usedTx + usedRx)}
+          </span>
+        </RailItem>
+        <RailItem label="TX">
+          <span className="font-mono text-[13px] tabular-nums">
+            <span className="text-(--muted)">↑</span> {formatBytes(usedTx)}
+          </span>
+        </RailItem>
+        <RailItem label="RX">
+          <span className="font-mono text-[13px] tabular-nums">
+            <span className="text-(--muted)">↓</span> {formatBytes(usedRx)}
+          </span>
+        </RailItem>
+        <RailItem label="Quota">
+          <span className="font-mono text-[13px] tabular-nums">
+            {quota > 0 ? formatBytes(quota) : "No quota"}
+          </span>
+        </RailItem>
+      </div>
+    </div>
+  );
+}
+
+function RailItem({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`min-w-0 flex-1 px-4 py-3 ${className}`}>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">
+        {label}
+      </div>
+      <div className="mt-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function TrafficSection({
+  loading,
+  granularity,
+  onGranularityChange,
+  series,
+  summary,
+  isAdmin,
+}: {
+  loading: boolean;
+  granularity: Granularity;
+  onGranularityChange: (g: Granularity) => void;
+  series: TrafficSeries | null;
+  summary: TrafficSummary | null;
+  isAdmin: boolean;
+}) {
+  const points = series?.points ?? [];
+  const totalTx = summary?.total?.tx ?? 0;
+  const totalRx = summary?.total?.rx ?? 0;
+  const byNode = [...(summary?.by_node ?? [])].sort(
+    (a, b) => (b.tx ?? 0) + (b.rx ?? 0) - ((a.tx ?? 0) + (a.rx ?? 0)),
+  );
+
+  return (
+    <Section
+      title="Traffic"
+      meta={
+        !loading ? (
+          <span className="font-mono tabular-nums">
+            ↑ {formatBytes(totalTx)} · ↓ {formatBytes(totalRx)}
+          </span>
+        ) : undefined
+      }
+      action={<GranularityToggle value={granularity} onChange={onGranularityChange} />}
+    >
+      <div className="p-3 sm:p-4">
+        {loading ? (
+          <div className="h-[220px] animate-pulse rounded bg-(--surface-secondary)" />
+        ) : points.length === 0 ? (
+          <div className="grid h-[220px] place-items-center text-[13px] text-(--muted)">
+            No traffic recorded in this window.
+          </div>
+        ) : (
+          <TrafficChart points={points} granularity={granularity} idPrefix="account-traffic" />
+        )}
+      </div>
+
+      {!loading && byNode.length > 0 && (
+        <div className="overflow-x-auto border-t border-(--border)">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+                <Th>Node</Th>
+                <Th className="text-right">TX</Th>
+                <Th className="text-right">RX</Th>
+                <Th className="text-right">Total</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-(--separator)">
+              {byNode.map((n, i) => (
+                <tr
+                  key={n.node?.id || i}
+                  className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                >
+                  <Td>
+                    {isAdmin && n.node?.id ? (
+                      <Link
+                        to="/nodes/$nodeId"
+                        params={{ nodeId: n.node.id }}
+                        className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                      >
+                        {n.node?.name || "unknown"}
+                      </Link>
+                    ) : (
+                      <span className="block max-w-[280px] truncate font-medium">
+                        {n.node?.name || "unknown"}
+                      </span>
+                    )}
+                  </Td>
+                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                    <span className="text-(--muted)">↑</span> {formatBytes(n.tx ?? 0)}
+                  </Td>
+                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                    <span className="text-(--muted)">↓</span> {formatBytes(n.rx ?? 0)}
+                  </Td>
+                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                    {formatBytes((n.tx ?? 0) + (n.rx ?? 0))}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function LiveSection({ userId }: { userId: string }) {
+  const [live, setLive] = useState<UserLive | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [reqError, setReqError] = useState("");
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const fetchStreams = useCallback(async () => {
+    setLoading(true);
+    setReqError("");
+    try {
+      const { data, error } = await apiClient.GET("/api/panel/users/{id}/live", {
+        params: { path: { id: userId } },
+      });
+      if (error) {
+        setReqError("Couldn't reach the panel API.");
+        return;
+      }
+      setLive(data ?? null);
+      setFetchedAt(Date.now());
+    } catch {
+      setReqError("Network error while fetching streams.");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  const byNode = live?.by_node ?? [];
+  const visibleByNode = byNode.filter((n) => n.error || (n.streams?.length ?? 0) > 0);
+  const topDomains = (live?.top_domains ?? []).slice(0, 12);
+  const byConnection = live?.by_connection ?? [];
+
+  return (
+    <Section
+      title="Live streams"
+      meta={
+        live ? (
+          <span className="font-mono tabular-nums">
+            {live.online_devices ?? 0} online · {live.active_streams ?? 0} streams
+          </span>
+        ) : undefined
+      }
+      action={
+        <div className="flex items-center gap-2.5">
+          {fetchedAt !== null && (
+            <span
+              className="hidden text-xs tabular-nums text-(--muted) sm:inline"
+              title={new Date(fetchedAt).toLocaleString()}
+            >
+              {relTime(fetchedAt, now)}
+            </span>
+          )}
+          <Button size="sm" variant="secondary" onPress={fetchStreams} isPending={loading}>
+            {fetchedAt === null ? "Fetch streams" : "Refresh"}
+          </Button>
+        </div>
+      }
+    >
+      {reqError ? (
+        <PanelMessage>{reqError}</PanelMessage>
+      ) : loading && !live ? (
+        <TableSkeleton />
+      ) : !live ? (
+        <Teaching
+          title="No snapshot yet"
+          hint="Fetch a live snapshot to see this account's active streams across visible nodes."
+        />
+      ) : byNode.length === 0 ? (
+        <Teaching
+          title="No visible nodes"
+          hint="This account has no enabled nodes available for live diagnostics."
+        />
+      ) : visibleByNode.length === 0 ? (
+        <Teaching
+          title="No active streams"
+          hint="This account is not routing traffic through visible nodes right now."
+        />
+      ) : (
+        <div className="flex flex-col">
+          {visibleByNode.map((n, i) => (
+            <NodeStreams key={n.node?.id || i} group={n} now={now} />
+          ))}
+
+          {(topDomains.length > 0 || byConnection.length > 0) && (
+            <div className="grid grid-cols-1 gap-px bg-(--border) lg:grid-cols-2">
+              {topDomains.length > 0 && <TopDomainsTable rows={topDomains} />}
+              {byConnection.length > 0 && <ByConnectionTable rows={byConnection} />}
+            </div>
+          )}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function NodeStreams({
+  group,
+  now,
+}: {
+  group: NonNullable<UserLive["by_node"]>[number];
+  now: number;
+}) {
+  const streams = group.streams ?? [];
+  const hasError = Boolean(group.error);
+  return (
+    <div className="border-t border-(--border) first:border-t-0">
+      <div className="flex items-center justify-between gap-3 bg-(--surface-secondary) px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <Dot tone={hasError ? "error" : streams.length > 0 ? "ok" : "idle"} />
+          <span className="truncate text-xs font-medium">{group.node?.name || "unknown"}</span>
+        </div>
+        <span className="shrink-0 font-mono text-xs tabular-nums text-(--muted)">
+          {group.online_devices ?? 0} online · {streams.length} streams
+        </span>
+      </div>
+      {hasError ? (
+        <div className="px-3 py-2 text-[13px] text-(--danger)" title={group.error}>
+          {group.error}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-(--separator) text-left">
+                <Th>Target</Th>
+                <Th>State</Th>
+                <Th className="text-right">TX</Th>
+                <Th className="text-right">RX</Th>
+                <Th className="text-right">Lifetime</Th>
+                <Th className="text-right">Idle</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-(--separator)">
+              {streams.map((s, i) => {
+                const target = s.hooked_req_addr || s.req_addr || "—";
+                return (
+                  <tr
+                    key={`${s.connection}-${s.stream}-${i}`}
+                    className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                  >
+                    <Td>
+                      <span
+                        className="block max-w-[320px] truncate font-mono text-xs text-(--foreground)"
+                        title={target}
+                      >
+                        {target}
+                      </span>
+                    </Td>
+                    <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
+                      {s.state || "—"}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                      {formatBytes(s.tx ?? 0)}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                      {formatBytes(s.rx ?? 0)}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                      {formatDuration(s.lifetime_sec ?? -1)}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                      {formatDuration(s.idle_sec ?? -1)}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> }) {
+  return (
+    <div className="bg-(--surface)">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
+              <Th>Top domains</Th>
+              <Th className="text-right">Streams</Th>
+              <Th className="text-right">Total</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-(--separator)">
+            {rows.map((d, i) => (
+              <tr key={(d.domain || "") + i} className="hover:bg-(--surface-secondary)">
+                <Td>
+                  <span
+                    className="block max-w-[260px] truncate font-mono text-xs"
+                    title={d.domain || ""}
+                  >
+                    {d.domain || "—"}
+                  </span>
+                </Td>
+                <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
+                  {d.streams ?? 0}
+                </Td>
+                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                  {formatBytes((d.tx ?? 0) + (d.rx ?? 0))}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ByConnectionTable({ rows }: { rows: NonNullable<UserLive["by_connection"]> }) {
+  return (
+    <div className="bg-(--surface)">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
+              <Th>Device</Th>
+              <Th>Top domain</Th>
+              <Th className="text-right">Streams</Th>
+              <Th className="text-right">Total</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-(--separator)">
+            {rows.map((c, i) => (
+              <tr key={`${c.connection}-${i}`} className="hover:bg-(--surface-secondary)">
+                <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-(--muted)">
+                  #{c.connection ?? 0}
+                </Td>
+                <Td>
+                  <span
+                    className="block max-w-[200px] truncate font-mono text-xs"
+                    title={c.top_domain || ""}
+                  >
+                    {c.top_domain || "—"}
+                  </span>
+                </Td>
+                <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
+                  {c.stream_count ?? 0}
+                </Td>
+                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                  {formatBytes((c.tx ?? 0) + (c.rx ?? 0))}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
