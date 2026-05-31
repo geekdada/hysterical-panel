@@ -29,6 +29,9 @@
 5. **角色当前只有 `admin`。**
    `users.role` 的 select 只配了 `["admin"]`，但代码已为将来的普通用户预留判断位置（`requireAdmin`）。
 
+6. **`status` 是用户启停的单一来源，且真正生效。**
+   `active`/`disabled` 两态。落地在两处：登录鉴权 `bindAuthGate`（`OnRecordAuthRequest("users")`，非 active 一律 403 `Account is disabled`，覆盖登录与 token 刷新）；采集器 `pollNode` 里非 active 用户**仍推进 cursor 但不计量**（避免重新启用时把停用期间的 counter 一次性灌进单个 bucket）。注意：面板不踢 Hysteria 连接，`disabled` 只挡面板登录 + 停止记账，不会断流。写 `status` 经 `validUserStatus` 校验。
+
 ## 技术栈与版本
 
 - Go（go.mod 锁 1.26.2，但语言特性按 1.21+ 写）。
@@ -46,12 +49,13 @@ hysterical-panel/
     ├── main.go                 启动：注册 migration + 采集器 + 自定义路由
     ├── go.mod / go.sum         module 名为 hysterical-panel
     ├── README.md               面向人类的运行说明 + 接口表
-    ├── migrations/             6 个 collection 定义（代码式迁移，启动自动应用）
+    ├── migrations/             代码式迁移，启动自动应用
     │   ├── 1730000001_extend_users.go      扩展内置 users
     │   ├── 1730000002_create_nodes.go
     │   ├── 1730000003_create_traffic_cursor.go
     │   ├── 1730000004_create_traffic_hourly.go
-    │   └── 1730000005_create_traffic_daily.go
+    │   ├── 1730000005_create_traffic_daily.go
+    │   └── 1730000006_drop_users_enabled.go 移除冗余 users.enabled
     ├── .env.example / .envrc   环境变量模板 + direnv（见 README）
     └── internal/
         ├── config/             环境变量（caarlos0/env）
@@ -70,7 +74,7 @@ hysterical-panel/
 
 `users`（扩展 PocketBase 内置 auth collection）：
 - `auth_string` (text, unique, required) — Hysteria auth key，= /traffic 返回的 key
-- `role` (select [admin])、`status` (select [active,disabled])、`enabled` (bool)
+- `role` (select [admin])、`status` (select [active, disabled]) — `status` 是用户启停的单一来源（active = 启用）
 - `quota_bytes`、`used_tx`、`used_rx` (number, int64) — quota 当前不计费，仅留字段
 
 `nodes`：

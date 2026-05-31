@@ -6,7 +6,7 @@
 ## 模型
 
 两层：
-- **users** — 既是登录面板的人（admin），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。
+- **users** — 既是登录面板的人（admin），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账（但不会断开其 Hysteria 连接——面板不踢节点）。
 - **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`）。
 
 所有 enabled 节点默认对所有用户生效（`nodesForUser()` 是唯一选择点，将来加用户组只改这里）。
@@ -28,10 +28,10 @@ make serve     # 或: go run . serve
 | 变量 | 必填 | 说明 |
 |------|------|------|
 | `PANEL_MASTER_KEY` | 是 | 节点 `api_secret` 的 AES-GCM 主密钥 |
-| `PB_DATA_DIR` | 否 | PocketBase 数据目录，默认 `./pb_data` |
-| `PB_ENCRYPTION_KEY` | 否 | PocketBase 设置库加密（见官方文档） |
+| `PB_DATA_DIR` | 否 | PocketBase 数据目录，默认 `./pb_data`；CLI `--dir` 优先级更高 |
+| `PB_ENCRYPTION_KEY` | 否 | PocketBase 设置库加密密钥，须为 **32 字符**；未设置则设置库明文存储 |
 
-配置在 `internal/config` 中通过 [caarlos0/env](https://github.com/caarlos0/env) 解析；未设置必填项时进程会拒绝启动。
+`PANEL_MASTER_KEY` 由 `internal/config`（[caarlos0/env](https://github.com/caarlos0/env)）解析，未设置则拒绝启动；`PB_DATA_DIR` / `PB_ENCRYPTION_KEY` 在 `main.go` 注入 `pocketbase.NewWithConfig`。
 
 首次启动按提示创建 superuser（PocketBase 后台 `/_/`）。迁移在 `./migrations` 中以代码形式提交，启动时自动应用。
 
