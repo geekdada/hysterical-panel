@@ -50,6 +50,12 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box) {
 
 	// openapi schema — no auth required (contains no secrets)
 	se.Router.GET("/api/openapi.json", handleOpenAPISpec)
+
+	// Public: Hysteria 2 servers POST here to authenticate clients.
+	// Kept out of openapi.go on purpose — the spec drives the panel's
+	// TypeScript client, but this endpoint is called by Hysteria servers,
+	// not the panel UI.
+	se.Router.POST("/api/hysteria/auth", h.hysteriaAuth)
 }
 
 // requireAdmin rejects any authenticated user whose role is not "admin".

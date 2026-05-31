@@ -64,6 +64,28 @@ make serve     # 或: go run . serve
 
 **时间**：数据库存储与 API 中的 datetime 一律 **UTC**（流量按 UTC 小时/日分桶）。前端自行换算为本地时区展示；查询 `traffic/series` 时 `from`/`to` 也传 UTC。
 
+## 公共接口（供 Hysteria 节点调用，无需登录）
+
+`POST /api/hysteria/auth` — 给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<client-auth-key>","tx":1000000}`；后端按 `auth` 在 `users.auth_string` 里查匹配，命中且 `status=active` 时返回 `200 {"ok":true,"id":"<auth_string>"}`，其它返回非 200。返回的 `id` 故意回填为 `auth_string`，让节点后续 `/traffic` 上报的 key 与采集器查询用的字段一致。
+
+| 状态码 | 含义 |
+|---|---|
+| 200 | 验证通过，body 含 `ok` 与 `id` |
+| 400 | 请求体缺失 `auth` 或不是合法 JSON |
+| 401 | `auth` 在 users 中查无此人 |
+| 403 | 用户存在但 `status=disabled` |
+
+节点侧 `server.yaml` 示例：
+```yaml
+auth:
+  type: http
+  http:
+    url: http://<panel-base-url>/api/hysteria/auth
+    insecure: false
+```
+
+该路由**不**进 `openapi.json`：它由 Hysteria 节点调用，不是前端 client 的一部分。
+
 ## 结构
 
 ```
