@@ -12,6 +12,9 @@ import (
 type Config struct {
 	// PanelMasterKey encrypts node api_secret values (AES-GCM via SHA-256 derived key).
 	PanelMasterKey string `env:"PANEL_MASTER_KEY,notEmpty"`
+
+	// DataDir is PocketBase's data directory. Empty falls back to ./pb_data.
+	DataDir string `env:"PB_DATA_DIR"`
 }
 
 // Load parses the current process environment.
