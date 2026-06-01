@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/cmd"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 	"github.com/spf13/cobra"
@@ -18,6 +19,7 @@ import (
 	"hysterical-panel/internal/config"
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/ipmeta"
+	"hysterical-panel/internal/panelserve"
 )
 
 func main() {
@@ -74,6 +76,8 @@ func main() {
 	}
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		panelserve.ApplyCORS(se)
+
 		ipLookup, err := ipmeta.New(cfg.MMDBDir)
 		if err != nil {
 			return fmt.Errorf("ip metadata: %w", err)
@@ -99,7 +103,16 @@ func main() {
 		return se.Next()
 	})
 
-	if err := app.Start(); err != nil {
+	corsOrigins, err := cfg.ServeAllowedOrigins()
+	if err != nil {
+		log.Fatalf("startup: %v", err)
+	}
+
+	// Register serve ourselves so AllowedOrigins comes from PANEL_FRONTEND_URL_BASE.
+	app.RootCmd.AddCommand(cmd.NewSuperuserCommand(app))
+	app.RootCmd.AddCommand(panelserve.NewCommand(app, corsOrigins, cfg.PanelCorsMaxAge, true))
+
+	if err := app.Execute(); err != nil {
 		log.Fatal(err)
 	}
 	_ = os.Args
