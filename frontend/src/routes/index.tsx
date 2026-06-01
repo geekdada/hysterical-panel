@@ -18,6 +18,7 @@ import { formatBytes, plural, relTime, relTimeFromISO } from "~/lib/format";
 
 type Node = components["schemas"]["Node"];
 type PanelUser = components["schemas"]["PanelUser"];
+type TrafficToday = components["schemas"]["TrafficTodayResponse"];
 
 const REFRESH_MS = 20_000;
 
@@ -42,6 +43,7 @@ function DashboardPage() {
   const isAdmin = auth?.user.role === "admin";
   const [nodes, setNodes] = useState<Node[]>([]);
   const [users, setUsers] = useState<PanelUser[]>([]);
+  const [trafficToday, setTrafficToday] = useState<TrafficToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
@@ -49,16 +51,18 @@ function DashboardPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [nodesRes, usersRes] = await Promise.all([
+      const [nodesRes, usersRes, trafficTodayRes] = await Promise.all([
         apiClient.GET("/api/panel/nodes"),
         apiClient.GET("/api/panel/users"),
+        apiClient.GET("/api/panel/traffic/today"),
       ]);
-      if (nodesRes.error || usersRes.error) {
+      if (nodesRes.error || usersRes.error || trafficTodayRes.error) {
         setError("Couldn't reach the panel API.");
         return;
       }
       setNodes(nodesRes.data ?? []);
       setUsers(usersRes.data ?? []);
+      setTrafficToday(trafficTodayRes.data ?? null);
       setError("");
       setUpdatedAt(Date.now());
     } catch {
@@ -90,8 +94,8 @@ function DashboardPage() {
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
   const errorNodes = enabledNodes.filter((n) => n.health === "error");
   const activeUsers = users.filter((u) => u.status === "active");
-  const totalTx = activeUsers.reduce((s, u) => s + (u.used_tx ?? 0), 0);
-  const totalRx = activeUsers.reduce((s, u) => s + (u.used_rx ?? 0), 0);
+  const totalTx = trafficToday?.total?.tx ?? 0;
+  const totalRx = trafficToday?.total?.rx ?? 0;
 
   return (
     <div className="min-h-svh bg-(--background) text-(--foreground)">
@@ -162,7 +166,7 @@ function DashboardPage() {
           <Stat label="Users" loading={loading} value={users.length}>
             {activeUsers.length} active
           </Stat>
-          <Stat label="Traffic" loading={loading} value={formatBytes(totalTx + totalRx)}>
+          <Stat label="Traffic UTC Today" loading={loading} value={formatBytes(totalTx + totalRx)}>
             <span className="font-mono">
               <span className="text-(--muted)">↑</span> {formatBytes(totalTx)}
               <span className="mx-1.5 opacity-40">·</span>
