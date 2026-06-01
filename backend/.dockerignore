@@ -1,0 +1,31 @@
+# Runtime data
+pb_data/
+
+# Local build outputs
+dist/
+tmp/
+*.test
+*.out
+coverage.*
+covdata/
+
+# Local environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Generated files
+openapi.json
+
+# Local Go workspace
+go.work
+go.work.sum
+
+# VCS and editor noise
+.git/
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

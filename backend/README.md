@@ -35,6 +35,22 @@ make serve     # 或: go run . serve
 
 首次启动按提示创建 superuser（PocketBase 后台 `/_/`）。迁移在 `./migrations` 中以代码形式提交，启动时自动应用。
 
+## Docker
+
+发布后的后端镜像位于 GHCR：
+
+```bash
+docker run --rm \
+  -p 8090:8090 \
+  -e PANEL_MASTER_KEY=change-me \
+  -v hysterical-panel-data:/app/pb_data \
+  ghcr.io/geekdada/hysterical-panel-backend:1.2.3
+```
+
+镜像监听 `0.0.0.0:8090`，数据目录为 `/app/pb_data`。`PANEL_MASTER_KEY`
+仍为必填；`PB_ENCRYPTION_KEY` 可按需传入。镜像只会在 GitHub Release
+发布后由 CI 构建并推送，普通提交、PR 和 tag push 都不会触发发布镜像。
+
 ## 采集器
 
 后台 goroutine 每 5s 调度，按各节点 `poll_interval` 轮询 `GET /traffic`：
