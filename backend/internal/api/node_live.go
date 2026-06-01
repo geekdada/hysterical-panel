@@ -49,7 +49,7 @@ func (h *Handlers) nodeLive(e *core.RequestEvent) error {
 	}
 
 	now := time.Now().UTC()
-	agg := newLiveAggregator()
+	agg := newLiveAggregator(h.ipLookup)
 
 	type userGroup struct {
 		ref     map[string]any
