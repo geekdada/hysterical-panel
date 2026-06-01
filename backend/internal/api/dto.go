@@ -77,6 +77,13 @@ type UserUpdateRequest struct {
 
 // ── Traffic ───────────────────────────────────────────────────────────────────
 
+// TrafficTodayResponse is returned by GET /traffic/today.
+type TrafficTodayResponse struct {
+	UTCDate string    `json:"utc_date"`
+	Bucket  string    `json:"bucket"`
+	Total   ByteCount `json:"total"`
+}
+
 // TrafficSummaryResponse is returned by GET /users/{id}/traffic/summary.
 type TrafficSummaryResponse struct {
 	Total  ByteCount     `json:"total"`
@@ -189,10 +196,20 @@ type LiveStream struct {
 
 // TopDomain is a domain aggregation entry in the live response.
 type TopDomain struct {
-	Domain  string `json:"domain"`
-	Streams int    `json:"streams"`
-	Tx      int64  `json:"tx"`
-	Rx      int64  `json:"rx"`
+	Domain  string  `json:"domain"`
+	Streams int     `json:"streams"`
+	Tx      int64   `json:"tx"`
+	Rx      int64   `json:"rx"`
+	IPMeta  *IPMeta `json:"ip_meta,omitempty"`
+}
+
+// IPMeta is MMDB-derived metadata for IP literal domain rows.
+type IPMeta struct {
+	IP          string `json:"ip"`
+	ASN         string `json:"asn,omitempty"`
+	CountryCode string `json:"country_code,omitempty"`
+	CountryName string `json:"country_name,omitempty"`
+	IPInfoURL   string `json:"ipinfo_url,omitempty"`
 }
 
 // ConnSummary is a per-connection (device) summary in the live response.

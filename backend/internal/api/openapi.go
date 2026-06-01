@@ -24,6 +24,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"PanelUser":                  PanelUser{},
 		"UserCreateRequest":          UserCreateRequest{},
 		"UserUpdateRequest":          UserUpdateRequest{},
+		"TrafficTodayResponse":       TrafficTodayResponse{},
 		"TrafficSummaryResponse":     TrafficSummaryResponse{},
 		"TrafficSeriesResponse":      TrafficSeriesResponse{},
 		"NodeTrafficSummaryResponse": NodeTrafficSummaryResponse{},
@@ -147,6 +148,25 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		op.Responses.Set("401", unauthorized)
 		op.Responses.Set("403", forbidden)
 	}
+
+	// ── /traffic/today ────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/traffic/today", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "trafficToday",
+				Summary:     "Get today's UTC traffic total",
+				Tags:        []string{"traffic"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Today's UTC traffic total"),
+						Content:     content(ref("TrafficTodayResponse")),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+	})
 
 	// ── /nodes ────────────────────────────────────────────────────────────
 	t.Paths.Set("/api/panel/nodes", &openapi3.PathItem{
