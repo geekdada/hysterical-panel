@@ -28,6 +28,8 @@ make serve     # 或: go run . serve
 | 变量 | 必填 | 说明 |
 |------|------|------|
 | `PANEL_MASTER_KEY` | 是 | 节点 `api_secret` 的 AES-GCM 主密钥 |
+| `PANEL_FRONTEND_URL_BASE` | 否 | 面板 UI 的 CORS 来源（`http://` 或 `https://`，不含路径）；未设置则允许 `*` |
+| `PANEL_CORS_MAX_AGE` | 否 | 预检 `Access-Control-Max-Age`（秒），默认 `7200`；`0` 表示不发送 |
 | `PB_DATA_DIR` | 否 | PocketBase 数据目录，默认 `./pb_data`；CLI `--dir` 优先级更高 |
 | `MMDB_DIR` | 否 | IP 元数据 MMDB 目录，默认 `./mmdb`，需包含 `Country-asn.mmdb` 与 `Country-without-asn.mmdb` |
 | `PB_ENCRYPTION_KEY` | 否 | PocketBase 设置库加密密钥，须为 **32 字符**；未设置则设置库明文存储 |
