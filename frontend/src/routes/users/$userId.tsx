@@ -498,12 +498,8 @@ function LiveSection({ userId }: { userId: string }) {
             <NodeStreams key={n.node?.id || i} group={n} now={now} />
           ))}
 
-          {(topDomains.length > 0 || byConnection.length > 0) && (
-            <div className="grid grid-cols-1 gap-px bg-(--border) lg:grid-cols-2">
-              {topDomains.length > 0 && <TopDomainsTable rows={topDomains} />}
-              {byConnection.length > 0 && <ByConnectionTable rows={byConnection} />}
-            </div>
-          )}
+          {topDomains.length > 0 && <TopDomainsTable rows={topDomains} />}
+          {byConnection.length > 0 && <ByConnectionTable rows={byConnection} />}
         </div>
       )}
     </Section>
@@ -597,29 +593,65 @@ function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> 
           <thead>
             <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
               <Th>Top domains</Th>
+              <Th>ASN</Th>
+              <Th>Country</Th>
               <Th className="text-right">Streams</Th>
               <Th className="text-right">Total</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-(--separator)">
-            {rows.map((d, i) => (
-              <tr key={(d.domain || "") + i} className="hover:bg-(--surface-secondary)">
-                <Td>
-                  <span
-                    className="block max-w-[260px] truncate font-mono text-xs"
-                    title={d.domain || ""}
-                  >
-                    {d.domain || "—"}
-                  </span>
-                </Td>
-                <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
-                  {d.streams ?? 0}
-                </Td>
-                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  {formatBytes((d.tx ?? 0) + (d.rx ?? 0))}
-                </Td>
-              </tr>
-            ))}
+            {rows.map((d, i) => {
+              const domain = d.domain || "—";
+              const meta = d.ip_meta;
+              const countryTitle = meta?.country_name || meta?.country_code || "";
+              return (
+                <tr key={(d.domain || "") + i} className="hover:bg-(--surface-secondary)">
+                  <Td>
+                    {meta?.ipinfo_url ? (
+                      <a
+                        href={meta.ipinfo_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block max-w-[260px] truncate font-mono text-xs text-(--foreground) underline decoration-(--border) underline-offset-2 transition-colors duration-150 hover:text-(--accent)"
+                        title={`Open ${meta.ip || domain} on ipinfo.io`}
+                      >
+                        {domain}
+                      </a>
+                    ) : (
+                      <span
+                        className="block max-w-[260px] truncate font-mono text-xs"
+                        title={domain}
+                      >
+                        {domain}
+                      </span>
+                    )}
+                  </Td>
+                  <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
+                    {meta?.asn || "—"}
+                  </Td>
+                  <Td className="whitespace-nowrap text-xs text-(--muted)">
+                    {meta?.country_code ? (
+                      <span title={countryTitle}>
+                        <span className="font-mono text-(--foreground)">{meta.country_code}</span>
+                        {meta.country_name && (
+                          <span className="ml-1 hidden max-w-[140px] truncate align-bottom sm:inline-block">
+                            {meta.country_name}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </Td>
+                  <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
+                    {d.streams ?? 0}
+                  </Td>
+                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                    {formatBytes((d.tx ?? 0) + (d.rx ?? 0))}
+                  </Td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
