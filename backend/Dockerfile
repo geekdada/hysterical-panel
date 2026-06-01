@@ -23,6 +23,7 @@ RUN apk add --no-cache ca-certificates \
 WORKDIR /app
 
 COPY --from=build /out/hysterical-panel /usr/local/bin/hysterical-panel
+COPY --from=build --chown=panel:panel /src/mmdb /app/mmdb
 
 ENV PB_DATA_DIR=/app/pb_data
 

@@ -29,9 +29,10 @@ make serve     # 或: go run . serve
 |------|------|------|
 | `PANEL_MASTER_KEY` | 是 | 节点 `api_secret` 的 AES-GCM 主密钥 |
 | `PB_DATA_DIR` | 否 | PocketBase 数据目录，默认 `./pb_data`；CLI `--dir` 优先级更高 |
+| `MMDB_DIR` | 否 | IP 元数据 MMDB 目录，默认 `./mmdb`，需包含 `Country-asn.mmdb` 与 `Country-without-asn.mmdb` |
 | `PB_ENCRYPTION_KEY` | 否 | PocketBase 设置库加密密钥，须为 **32 字符**；未设置则设置库明文存储 |
 
-`PANEL_MASTER_KEY` 由 `internal/config`（[caarlos0/env](https://github.com/caarlos0/env)）解析，未设置则拒绝启动；`PB_DATA_DIR` / `PB_ENCRYPTION_KEY` 在 `main.go` 注入 `pocketbase.NewWithConfig`。
+`PANEL_MASTER_KEY` 由 `internal/config`（[caarlos0/env](https://github.com/caarlos0/env)）解析，未设置则拒绝启动；`PB_DATA_DIR` / `PB_ENCRYPTION_KEY` 在 `main.go` 注入 `pocketbase.NewWithConfig`。`MMDB_DIR` 用于实时诊断的 Top domains IP 元数据；缺失或损坏会让服务启动失败，避免静默丢失 ASN / 国家信息。
 
 首次启动按提示创建 superuser（PocketBase 后台 `/_/`）。迁移在 `./migrations` 中以代码形式提交，启动时自动应用。
 
@@ -58,7 +59,7 @@ docker run --rm \
 - 累加到 `users.used_tx/rx` 与 `traffic_hourly` / `traffic_daily`
 - 失败写 `node.last_error` 且不更新 cursor（漏采一轮不丢量）
 
-`/online` 与 `/dump/streams` 不进采集循环，由 live 接口实时穿透拉取。
+`/online` 与 `/dump/streams` 不进采集循环，由 live 接口实时穿透拉取。live 的 Top domains 只对已经是 IP 字面量的目标做本地 MMDB 查询，补充 ASN/网络标签、国家信息与 IPv4 的 `ipinfo.io` 快速链接；不会做 DNS 解析，也不会入库。
 
 ## 接口（前缀 `/api/panel/`，需登录；除标注外需 admin）
 
@@ -69,6 +70,7 @@ docker run --rm \
 | PATCH | `/nodes/{id}` | 修改（secret 缺省=不变，传空=报错） |
 | DELETE | `/nodes/{id}` | 删除 |
 | POST | `/nodes/{id}/test` | 立即验证连通性 |
+| GET | `/traffic/today` | 当前 UTC 日期的全局流量汇总 |
 | GET | `/users` | 列表 |
 | POST | `/users` | 新建（email+password+auth_string） |
 | GET | `/users/{id}` | 详情（admin 或本人） |
