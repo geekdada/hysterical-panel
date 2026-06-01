@@ -15,6 +15,9 @@ type Config struct {
 
 	// DataDir is PocketBase's data directory. Empty falls back to ./pb_data.
 	DataDir string `env:"PB_DATA_DIR"`
+
+	// MMDBDir contains the bundled MMDB files used for live IP metadata.
+	MMDBDir string `env:"MMDB_DIR" envDefault:"mmdb"`
 }
 
 // Load parses the current process environment.
