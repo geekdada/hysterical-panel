@@ -78,9 +78,9 @@
 ## 技术栈与版本
 
 - Go（go.mod 锁 1.26.2，但语言特性按 1.21+ 写）。
-- **PocketBase v0.23.12**，以 **framework 方式**引入（不是当二进制用）。
-  - 用的是 v0.23 的 API：`core.App`、`app.OnServe().BindFunc`、`core.RequestEvent`、`core.NewBaseCollection`、`se.Router.Group(...).Bind(...)`、`hook.Handler[*core.RequestEvent]`。
-  - 升级 PocketBase 大版本前务必查 API 变更，0.22→0.23 改动很大。
+- **PocketBase v0.39.0**，以 **framework 方式**引入（不是当二进制用）。
+  - 用的是 v0.23+ 的 API：`core.App`、`app.OnServe().BindFunc`、`core.RequestEvent`、`core.NewBaseCollection`、`se.Router.Group(...).Bind(...)`、`hook.Handler[*core.RequestEvent]`。
+  - 升级 PocketBase 大版本前务必查 [CHANGELOG](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md)；0.22→0.23 改动很大，0.23→0.39 对本项目主要是依赖与 `pb_data` 系统迁移。
 - SQLite（PocketBase 自带 modernc 驱动，纯 Go，无 CGO）。
 - 关键依赖：`caarlos0/env/v11`（环境变量）、`oschwald/maxminddb-golang/v2`（IP 元数据 MMDB）、`getkin/kin-openapi`（OpenAPI 生成）、`spf13/cobra`（PocketBase 自带，`main.go` 加了 `openapi-schema` 子命令）。
 - 前端：TanStack Start / Router（React 19，SSR，文件式路由）、HeroUI v3（beta，基于 React Aria，**Tailwind v4**，无 Provider）、recharts、`openapi-fetch` + `openapi-typescript`。
