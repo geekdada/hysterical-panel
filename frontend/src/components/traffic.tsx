@@ -91,11 +91,10 @@ export function TrafficChart({
           interval="preserveStartEnd"
         />
         <YAxis
-          tick={{ fontSize: 11, fill: "var(--muted)" }}
+          tick={<YAxisTick />}
           tickLine={false}
           axisLine={false}
-          width={56}
-          tickFormatter={(v: number) => formatBytes(v)}
+          width={68}
         />
         <Tooltip
           content={<ChartTooltip />}
@@ -129,6 +128,34 @@ export function TrafficChart({
 }
 
 type TooltipPayload = { dataKey?: string | number; value?: number };
+
+type AxisTickProps = {
+  x?: number;
+  y?: number;
+  payload?: {
+    value?: number | string;
+  };
+};
+
+function YAxisTick({ x = 0, y = 0, payload }: AxisTickProps) {
+  const raw = payload?.value;
+  const numeric = typeof raw === "number" ? raw : Number(raw);
+  const label = Number.isFinite(numeric) ? formatBytes(numeric) : String(raw ?? "");
+
+  return (
+    <text
+      x={x}
+      y={y}
+      dy={4}
+      textAnchor="end"
+      fill="var(--muted)"
+      fontSize={11}
+      className="font-mono tabular-nums"
+    >
+      {label}
+    </text>
+  );
+}
 
 function ChartTooltip({
   active,
