@@ -11,17 +11,23 @@ import (
 	"github.com/pocketbase/pocketbase/tools/hook"
 
 	"hysterical-panel/internal/cryptobox"
+	"hysterical-panel/internal/ipmeta"
 )
+
+type ipMetadataLookup interface {
+	LookupHost(host string) *ipmeta.Info
+}
 
 // Handlers bundles dependencies shared by all route handlers.
 type Handlers struct {
-	app core.App
-	box *cryptobox.Box
+	app      core.App
+	box      *cryptobox.Box
+	ipLookup ipMetadataLookup
 }
 
 // Register wires every /api/panel/* route onto the serve event router.
-func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box) {
-	h := &Handlers{app: app, box: box}
+func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup) {
+	h := &Handlers{app: app, box: box, ipLookup: ipLookup}
 
 	bindAuthGate(app)
 
@@ -29,6 +35,9 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box) {
 	g.Bind(apis.RequireAuth("users")) // must be a logged-in users-collection record
 	adminOnly := requireAdmin()
 	adminOrSelf := requireAdminOrSelf()
+
+	// dashboard traffic
+	g.GET("/traffic/today", h.trafficToday).Bind(adminOnly)
 
 	// nodes
 	g.GET("/nodes", h.listNodes).Bind(adminOnly)

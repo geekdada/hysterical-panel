@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -16,6 +17,7 @@ import (
 	"hysterical-panel/internal/collector"
 	"hysterical-panel/internal/config"
 	"hysterical-panel/internal/cryptobox"
+	"hysterical-panel/internal/ipmeta"
 )
 
 func main() {
@@ -72,8 +74,13 @@ func main() {
 	}
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		ipLookup, err := ipmeta.New(cfg.MMDBDir)
+		if err != nil {
+			return fmt.Errorf("ip metadata: %w", err)
+		}
+
 		// register custom panel routes
-		api.Register(se, app, box)
+		api.Register(se, app, box, ipLookup)
 
 		// start the background traffic collector
 		ctx, cancel := context.WithCancel(context.Background())
@@ -83,6 +90,9 @@ func main() {
 		// stop the collector when the app terminates
 		app.OnTerminate().BindFunc(func(te *core.TerminateEvent) error {
 			cancel()
+			if err := ipLookup.Close(); err != nil {
+				return err
+			}
 			return te.Next()
 		})
 
