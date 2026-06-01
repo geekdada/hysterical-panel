@@ -32,7 +32,6 @@ function AddNodePage() {
   const [created, setCreated] = useState<Node | null>(null)
   const [test, setTest] = useState<TestState>({ status: 'pending' })
   const [submitError, setSubmitError] = useState('')
-  const [showSecret, setShowSecret] = useState(false)
 
   const runTest = useCallback(async (id: string) => {
     setTest({ status: 'pending' })
@@ -255,7 +254,6 @@ function AddNodePage() {
                         type="button"
                         onClick={() => {
                           field.handleChange(generateSecret())
-                          setShowSecret(true)
                         }}
                         className="rounded text-xs font-medium text-(--accent) transition-opacity duration-150 hover:opacity-80 focus-visible:underline focus-visible:outline-none"
                       >
@@ -264,20 +262,14 @@ function AddNodePage() {
                     </div>
                     <div className="relative">
                       <Input
-                        type={showSecret ? 'text' : 'password'}
+                        type="text"
                         autoComplete="new-password"
-                        className="w-full pr-[4.5rem] font-mono text-[13px]"
+                        className="w-full pr-10 font-mono text-[13px]"
                         data-1p-ignore
                         data-lpignore="true"
                         data-form-type="other"
                       />
                       <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
-                        <IconAction
-                          label={showSecret ? 'Hide secret' : 'Show secret'}
-                          onClick={() => setShowSecret((s) => !s)}
-                        >
-                          {showSecret ? <EyeOffIcon /> : <EyeIcon />}
-                        </IconAction>
                         <CopyButton
                           value={field.state.value}
                           label="API secret"
@@ -394,7 +386,11 @@ function AddNodePage() {
           )}
         </div>
 
-        {!created && <ServerSetup />}
+        {!created && (
+          <form.Subscribe selector={(s) => s.values.api_secret}>
+            {(apiSecret) => <ServerSetup apiSecret={apiSecret} />}
+          </form.Subscribe>
+        )}
       </main>
     </div>
   )
@@ -402,17 +398,23 @@ function AddNodePage() {
 
 /* ── Hysteria server setup guidance ────────────────────────────────────── */
 
-const SETUP_YAML: { code: string; note?: string }[] = [
-  { code: 'trafficStats:' },
-  {
-    code: '  listen: :9999',
-    note: 'API address; must be reachable from the panel',
-  },
-  {
-    code: '  secret: <random-string>',
-    note: 'sent as the Authorization header',
-  },
-]
+const SECRET_PLACEHOLDER = '<random-string>'
+
+function setupYaml(apiSecret: string): { code: string; note?: string }[] {
+  const secret = apiSecret || SECRET_PLACEHOLDER
+
+  return [
+    { code: 'trafficStats:' },
+    {
+      code: '  listen: :9999',
+      note: 'API address; must be reachable from the panel',
+    },
+    {
+      code: `  secret: ${secret}`,
+      note: 'sent as the Authorization header',
+    },
+  ]
+}
 
 const PANEL_URL_PLACEHOLDER = '<panel-base-url>'
 
@@ -429,7 +431,7 @@ function authYaml(panelOrigin: string): { code: string; note?: string }[] {
   ]
 }
 
-function ServerSetup() {
+function ServerSetup({ apiSecret }: { apiSecret: string }) {
   const panelOrigin = import.meta.env.VITE_API_BASE_URL || PANEL_URL_PLACEHOLDER
 
   return (
@@ -444,7 +446,7 @@ function ServerSetup() {
       </p>
 
       <pre className="mt-3 overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 font-mono text-xs leading-relaxed">
-        {SETUP_YAML.map((line) => (
+        {setupYaml(apiSecret).map((line) => (
           <div key={line.code}>
             <span className="text-(--foreground)">{line.code}</span>
             {line.note && (
@@ -721,26 +723,6 @@ function iconProps() {
     strokeLinejoin: 'round' as const,
     'aria-hidden': true,
   }
-}
-
-function EyeIcon() {
-  return (
-    <svg {...iconProps()}>
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  )
-}
-
-function EyeOffIcon() {
-  return (
-    <svg {...iconProps()}>
-      <path d="M9.88 9.88a3 3 0 0 0 4.24 4.24" />
-      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-      <path d="m2 2 20 20" />
-    </svg>
-  )
 }
 
 function CopyIcon() {
