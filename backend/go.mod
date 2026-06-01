@@ -5,6 +5,7 @@ go 1.26.2
 require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/getkin/kin-openapi v0.139.0
+	github.com/oschwald/maxminddb-golang/v2 v2.3.0
 	github.com/pocketbase/pocketbase v0.23.12
 	github.com/spf13/cobra v1.8.1
 )
@@ -70,7 +71,7 @@ require (
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
 	golang.org/x/term v0.27.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
