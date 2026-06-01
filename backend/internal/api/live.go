@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"net"
 	"sort"
 	"strings"
 	"sync"
@@ -75,7 +76,7 @@ func (h *Handlers) userLive(e *core.RequestEvent) error {
 	now := time.Now().UTC()
 	var totalOnline, totalStreams int
 	byNode := make([]map[string]any, 0, len(results))
-	agg := newLiveAggregator()
+	agg := newLiveAggregator(h.ipLookup)
 
 	for _, r := range results {
 		nodeStreams := make([]map[string]any, 0, len(r.streams))
@@ -106,15 +107,25 @@ func (h *Handlers) userLive(e *core.RequestEvent) error {
 	})
 }
 
-// hostOf strips the port from "host:port", leaving the host/domain.
+// hostOf strips the port from "host:port", leaving the host/domain. It keeps
+// IPv6 literals intact whether they are bracketed with a port or bare.
 func hostOf(addr string) string {
+	addr = strings.TrimSpace(addr)
 	if addr == "" {
 		return ""
 	}
-	if i := strings.LastIndex(addr, ":"); i > 0 {
-		return addr[:i]
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return trimHostBrackets(host)
 	}
-	return addr
+	return trimHostBrackets(addr)
+}
+
+func trimHostBrackets(host string) string {
+	host = strings.TrimSpace(host)
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		return strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	}
+	return host
 }
 
 // lifetimeIdle computes total lifetime and idle seconds from RFC3339 timestamps.
@@ -133,8 +144,9 @@ func lifetimeIdle(initialAt, lastActiveAt string, now time.Time) (int64, int64) 
 // rendering individual streams. It is shared by the user-scoped and node-scoped
 // live endpoints so the aggregation logic lives in exactly one place.
 type liveAggregator struct {
-	domains map[string]*domainStat
-	conns   map[int64]*connStat
+	domains  map[string]*domainStat
+	conns    map[int64]*connStat
+	ipLookup ipMetadataLookup
 }
 
 type domainStat struct {
@@ -148,10 +160,11 @@ type connStat struct {
 	domains map[string]int64 // domain -> total bytes, for picking the top domain
 }
 
-func newLiveAggregator() *liveAggregator {
+func newLiveAggregator(ipLookup ipMetadataLookup) *liveAggregator {
 	return &liveAggregator{
-		domains: map[string]*domainStat{},
-		conns:   map[int64]*connStat{},
+		domains:  map[string]*domainStat{},
+		conns:    map[int64]*connStat{},
+		ipLookup: ipLookup,
 	}
 }
 
@@ -203,12 +216,18 @@ func (a *liveAggregator) add(s hysteria.Stream, now time.Time) map[string]any {
 func (a *liveAggregator) topDomains() []map[string]any {
 	out := make([]map[string]any, 0, len(a.domains))
 	for dom, d := range a.domains {
-		out = append(out, map[string]any{
+		entry := map[string]any{
 			"domain":  dom,
 			"streams": d.streams,
 			"tx":      d.tx,
 			"rx":      d.rx,
-		})
+		}
+		if a.ipLookup != nil {
+			if meta := a.ipLookup.LookupHost(dom); meta != nil {
+				entry["ip_meta"] = meta
+			}
+		}
+		out = append(out, entry)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i]["tx"].(int64)+out[i]["rx"].(int64) > out[j]["tx"].(int64)+out[j]["rx"].(int64)
