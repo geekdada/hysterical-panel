@@ -7,6 +7,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
+// panelCorsMiddlewareId must differ from apis.DefaultCorsMiddlewareId ("pbCors").
+// Unbind(pbCors) marks the id excluded on all child router groups; rebinding with
+// the same id only clears exclusion on the root, so /api/* routes would skip CORS.
+const panelCorsMiddlewareId = "panelCors"
+
 // activeCORS holds the origins and Max-Age for the current serve invocation
 // (set in the serve command RunE before apis.Serve, read from OnServe).
 var activeCORS struct {
@@ -20,19 +25,21 @@ func SetActiveCORS(origins []string, maxAge int) {
 	activeCORS.maxAge = maxAge
 }
 
-// ApplyCORS replaces PocketBase's default CORS middleware with one that sets
-// Access-Control-Max-Age on preflight responses. No-op when maxAge <= 0.
+// ApplyCORS replaces PocketBase's default CORS middleware with panel CORS settings
+// (including Access-Control-Max-Age when maxAge > 0). No-op when maxAge <= 0.
 func ApplyCORS(se *core.ServeEvent) {
+	origins := activeCORS.origins
 	if activeCORS.maxAge <= 0 {
 		return
 	}
-	origins := activeCORS.origins
+
 	if len(origins) == 0 {
 		origins = []string{"*"}
 	}
 
 	se.Router.Unbind(apis.DefaultCorsMiddlewareId)
-	se.Router.Bind(apis.CORS(apis.CORSConfig{
+
+	cors := apis.CORS(apis.CORSConfig{
 		AllowOrigins: origins,
 		AllowMethods: []string{
 			http.MethodGet,
@@ -43,5 +50,7 @@ func ApplyCORS(se *core.ServeEvent) {
 			http.MethodDelete,
 		},
 		MaxAge: activeCORS.maxAge,
-	}))
+	})
+	cors.Id = panelCorsMiddlewareId
+	se.Router.Bind(cors)
 }
