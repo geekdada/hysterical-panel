@@ -22,6 +22,7 @@ import {
   Teaching,
   Th,
 } from "~/components/ui";
+import { UserMenu } from "~/components/user-menu";
 import { formatBytes, formatDuration, relTime } from "~/lib/format";
 
 type PanelUser = components["schemas"]["PanelUser"];
@@ -145,15 +146,8 @@ function AccountDetailPage() {
                 Updated {relTime(updatedAt, now)}
               </span>
             )}
-            {isAdmin && <span className="hidden h-3.5 w-px bg-(--border) sm:block" />}
-            {!isAdmin && (
-              <span className="hidden max-w-[180px] truncate sm:inline">
-                {auth?.user.email}
-              </span>
-            )}
-            <Button variant="ghost" size="sm" onPress={handleLogout}>
-              Sign out
-            </Button>
+            <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+            {auth && <UserMenu auth={auth} />}
           </div>
         </div>
       </header>

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Button } from '@heroui/react'
-import { clearAuth } from '~/api/auth'
 import { apiClient } from '~/api/client'
 import { requireAdmin } from '~/api/guards'
 import type { components } from '~/api/schema'
@@ -22,6 +21,7 @@ import {
   Teaching,
   Th,
 } from '~/components/ui'
+import { UserMenu } from '~/components/user-menu'
 import {
   formatBytes,
   formatDuration,
@@ -102,11 +102,6 @@ function NodeDetailPage() {
     return () => clearInterval(id)
   }, [])
 
-  function handleLogout() {
-    clearAuth()
-    window.location.href = '/login'
-  }
-
   const health = node?.health ?? 'never'
   const enabled = node?.enabled ?? false
   const tone = !enabled
@@ -150,12 +145,7 @@ function NodeDetailPage() {
               </span>
             )}
             <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
-            <span className="hidden max-w-[180px] truncate sm:inline">
-              {auth?.user.email}
-            </span>
-            <Button variant="ghost" size="sm" onPress={handleLogout}>
-              Sign out
-            </Button>
+            {auth && <UserMenu auth={auth} />}
           </div>
         </div>
       </header>

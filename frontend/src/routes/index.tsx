@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
-import { clearAuth } from "~/api/auth";
 import { apiClient } from "~/api/client";
 import type { components } from "~/api/schema";
 import {
@@ -14,6 +13,7 @@ import {
   Teaching,
   Th,
 } from "~/components/ui";
+import { UserMenu } from "~/components/user-menu";
 import { formatBytes, plural, relTime, relTimeFromISO } from "~/lib/format";
 
 type Node = components["schemas"]["Node"];
@@ -85,11 +85,6 @@ function DashboardPage() {
     return () => clearInterval(id);
   }, []);
 
-  function handleLogout() {
-    clearAuth();
-    window.location.href = "/login";
-  }
-
   const enabledNodes = nodes.filter((n) => n.enabled);
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
   const errorNodes = enabledNodes.filter((n) => n.health === "error");
@@ -119,16 +114,7 @@ function DashboardPage() {
               </span>
             )}
             <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
-            <Link
-              to="/users/$userId"
-              params={{ userId: auth?.user.id ?? "" }}
-              className="hidden max-w-[180px] truncate rounded-sm underline-offset-2 hover:text-(--foreground) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) sm:inline"
-            >
-              {auth?.user.email}
-            </Link>
-            <Button variant="ghost" size="sm" onPress={handleLogout}>
-              Sign out
-            </Button>
+            {auth && <UserMenu auth={auth} />}
           </div>
         </div>
       </header>
