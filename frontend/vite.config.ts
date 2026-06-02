@@ -3,8 +3,12 @@ import { defineConfig } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { nitro } from "nitro/vite";
 
-const appVersion = readFileSync(new URL("../VERSION", import.meta.url), "utf8").trim();
+const appVersion = readFileSync(
+  new URL("../VERSION", import.meta.url),
+  "utf8"
+).trim();
 
 export default defineConfig({
   server: {
@@ -16,5 +20,5 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
-  plugins: [tanstackStart(), viteReact(), tailwindcss()],
+  plugins: [tanstackStart(), nitro(), viteReact(), tailwindcss()],
 });
