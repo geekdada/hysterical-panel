@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "node ./dist/server/index.js",
     "dev": "vite dev",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
