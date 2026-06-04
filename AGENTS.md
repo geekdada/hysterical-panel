@@ -220,7 +220,9 @@ hysterical-panel/
 ### Docker / 发布
 
 - `backend/Dockerfile` 多阶段构建（`CGO_ENABLED=0`，alpine，非 root `panel` 用户），监听 `0.0.0.0:8090`，数据卷 `/app/pb_data`，把 `mmdb/` 拷进镜像。`PANEL_MASTER_KEY` 仍必填。
-- 镜像**只在 GitHub Release 发布后**由 `.github/workflows/backend-image.yml` 构建并推 GHCR（`ghcr.io/<repo>-backend`，多架构 amd64+arm64）。普通提交、PR、tag push 都不触发。CI 会校验 `VERSION` == `frontend/package.json` version == release tag。
+- `frontend/Dockerfile` 多阶段构建（Go 生成 OpenAPI → pnpm build → Nitro `.output`，非 root `panel` 用户），监听 `0.0.0.0:3000`。构建上下文为仓库根目录；CI 默认空 `VITE_API_BASE_URL`（同域反代）。
+- 镜像**只在 GitHub Release 发布后**由 `.github/workflows/backend-image.yml` / `frontend-image.yml` 构建并推 GHCR（`ghcr.io/<repo>-backend` / `-frontend`，多架构 amd64+arm64）。普通提交、PR、tag push 都不触发。CI 会校验 `VERSION` == `frontend/package.json` version == release tag。
+- 根目录 `docker-compose.yml` + `deploy/nginx/default.conf`：本地全栈（nginx 反代 `/api` 与 `/_/` 到后端，其余到前端）。
 
 ## 开发约定
 
