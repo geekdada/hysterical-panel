@@ -2,14 +2,15 @@ package api
 
 import (
 	"sort"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
 
 // GET /nodes/:id/traffic/summary
-// Node-wide traffic: aggregates the node's traffic across every user, with a
-// per-user breakdown sorted by total bytes (top talkers first).
+// Node-wide traffic for the current UTC day: aggregates traffic_daily for
+// today across every user, with a per-user breakdown sorted by total bytes.
 func (h *Handlers) nodeTrafficSummary(e *core.RequestEvent) error {
 	n, err := h.app.FindRecordById("nodes", e.Request.PathValue("id"))
 	if err != nil {
@@ -17,8 +18,8 @@ func (h *Handlers) nodeTrafficSummary(e *core.RequestEvent) error {
 	}
 
 	rows, err := h.app.FindRecordsByFilter(
-		"traffic_daily", "node = {:n}", "", 0, 0,
-		map[string]any{"n": n.Id},
+		"traffic_daily", "node = {:n} && bucket = {:b}", "", 0, 0,
+		map[string]any{"n": n.Id, "b": utcDailyBucket(time.Now())},
 	)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read traffic", err)

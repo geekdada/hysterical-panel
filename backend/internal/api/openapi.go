@@ -316,7 +316,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "nodeTrafficSummary",
-				Summary:     "Get node-wide traffic summary",
+				Summary:     "Get node-wide traffic summary for the current UTC day",
 				Tags:        []string{"traffic"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
@@ -510,7 +510,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "trafficSummary",
-				Summary:     "Get user traffic summary (admin or self)",
+				Summary:     "Get user traffic summary for the current UTC day (admin or self)",
 				Tags:        []string{"traffic"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
@@ -592,7 +592,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "userLive",
-				Summary:     "Real-time diagnostics for a user (admin or self)",
+				Summary:     "Real-time diagnostics for a user (admin)",
 				Tags:        []string{"live"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{

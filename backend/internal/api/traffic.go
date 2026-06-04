@@ -1,11 +1,19 @@
 package api
 
 import (
+	"time"
+
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
 
+// utcDailyBucket is the PocketBase filter value for a UTC calendar-day bucket.
+func utcDailyBucket(t time.Time) string {
+	return t.UTC().Truncate(24 * time.Hour).Format("2006-01-02 15:04:05.000Z")
+}
+
 // GET /users/:id/traffic/summary
+// Traffic for the current UTC day, broken down by node.
 func (h *Handlers) trafficSummary(e *core.RequestEvent) error {
 	u, err := h.app.FindRecordById("users", e.Request.PathValue("id"))
 	if err != nil {
@@ -13,8 +21,8 @@ func (h *Handlers) trafficSummary(e *core.RequestEvent) error {
 	}
 
 	rows, err := h.app.FindRecordsByFilter(
-		"traffic_daily", "user = {:u}", "", 0, 0,
-		map[string]any{"u": u.Id},
+		"traffic_daily", "user = {:u} && bucket = {:b}", "", 0, 0,
+		map[string]any{"u": u.Id, "b": utcDailyBucket(time.Now())},
 	)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read traffic", err)

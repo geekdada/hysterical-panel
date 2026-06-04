@@ -77,9 +77,9 @@ docker run --rm \
 | POST | `/users` | 新建（email+password+auth_string） |
 | GET | `/users/{id}` | 详情（admin 或本人） |
 | PATCH/DELETE | `/users/{id}` | 改/删 |
-| GET | `/users/{id}/traffic/summary` | 累计用量，按节点拆分（admin 或本人） |
+| GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |
-| GET | `/users/{id}/live` | 实时诊断（admin 或本人；在线设备、活跃流、域名榜、设备维度） |
+| GET | `/users/{id}/live` | 实时诊断（admin；在线设备、活跃流、域名榜、设备维度） |
 
 所有返回 node 的接口都已剥除 `api_secret`。
 

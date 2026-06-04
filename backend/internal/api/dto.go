@@ -84,7 +84,7 @@ type PanelTrafficResponse struct {
 	Total ByteCount `json:"total"`
 }
 
-// TrafficSummaryResponse is returned by GET /users/{id}/traffic/summary.
+// TrafficSummaryResponse is returned by GET /users/{id}/traffic/summary (UTC today).
 type TrafficSummaryResponse struct {
 	Total  ByteCount     `json:"total"`
 	ByNode []NodeTraffic `json:"by_node"`
@@ -122,7 +122,7 @@ type UserTraffic struct {
 	Rx   int64   `json:"rx"`
 }
 
-// NodeTrafficSummaryResponse is returned by GET /nodes/{id}/traffic/summary.
+// NodeTrafficSummaryResponse is returned by GET /nodes/{id}/traffic/summary (UTC today).
 type NodeTrafficSummaryResponse struct {
 	Total  ByteCount     `json:"total"`
 	ByUser []UserTraffic `json:"by_user"`

@@ -62,7 +62,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	// traffic + live
 	g.GET("/users/{id}/traffic/summary", h.trafficSummary).Bind(adminOrSelf)
 	g.GET("/users/{id}/traffic/series", h.trafficSeries).Bind(adminOrSelf)
-	g.GET("/users/{id}/live", h.userLive).Bind(adminOrSelf)
+	g.GET("/users/{id}/live", h.userLive).Bind(adminOnly)
 
 	// openapi schema — no auth required (contains no secrets)
 	se.Router.GET("/api/openapi.json", handleOpenAPISpec)
