@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Button } from '@heroui/react'
-import { apiClient } from '~/api/client'
-import { requireAdmin } from '~/api/guards'
-import type { components } from '~/api/schema'
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Button } from "@heroui/react";
+import { apiClient } from "~/api/client";
+import { requireAdmin } from "~/api/guards";
+import type { components } from "~/api/schema";
+import { TrafficRangePicker } from "~/components/traffic-range-picker";
+import { TrafficChart } from "~/components/traffic";
 import {
-  GranularityToggle,
-  RANGE_MS,
-  TrafficChart,
-  toPbDateTime,
-  type Granularity,
-} from '~/components/traffic'
+  defaultLocalTrafficRange,
+  granularityForLocalRange,
+  localRangeToUtcQuery,
+  type LocalDateRange,
+} from "~/lib/traffic-range";
 import {
   CopyButton,
   Dot,
@@ -20,97 +21,102 @@ import {
   Td,
   Teaching,
   Th,
-} from '~/components/ui'
-import { UserMenu } from '~/components/user-menu'
+} from "~/components/ui";
+import { UserMenu } from "~/components/user-menu";
 import {
   formatBytes,
   formatDuration,
   relTime,
   relTimeFromISO,
-} from '~/lib/format'
+} from "~/lib/format";
 
-type Node = components['schemas']['Node']
-type TrafficSeries = components['schemas']['TrafficSeriesResponse']
-type NodeTrafficSummary = components['schemas']['NodeTrafficSummaryResponse']
-type NodeLive = components['schemas']['NodeLiveResponse']
+type Node = components["schemas"]["Node"];
+type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
+type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
+type NodeLive = components["schemas"]["NodeLiveResponse"];
 
-const REFRESH_MS = 20_000
+const REFRESH_MS = 20_000;
 
-export const Route = createFileRoute('/nodes/$nodeId')({
+export const Route = createFileRoute("/nodes/$nodeId")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
   component: NodeDetailPage,
-})
+});
 
 function NodeDetailPage() {
-  const { nodeId } = Route.useParams()
-  const { auth } = Route.useRouteContext()
-  const navigate = useNavigate()
+  const { nodeId } = Route.useParams();
+  const { auth } = Route.useRouteContext();
+  const navigate = useNavigate();
 
-  const [node, setNode] = useState<Node | null>(null)
-  const [summary, setSummary] = useState<NodeTrafficSummary | null>(null)
-  const [series, setSeries] = useState<TrafficSeries | null>(null)
-  const [granularity, setGranularity] = useState<Granularity>('daily')
-  const [loading, setLoading] = useState(true)
-  const [notFound, setNotFound] = useState(false)
-  const [error, setError] = useState('')
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null)
-  const [now, setNow] = useState(() => Date.now())
+  const [node, setNode] = useState<Node | null>(null);
+  const [summary, setSummary] = useState<NodeTrafficSummary | null>(null);
+  const [series, setSeries] = useState<TrafficSeries | null>(null);
+  const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [error, setError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setTrafficRange(defaultLocalTrafficRange());
+  }, []);
 
   const fetchData = useCallback(async () => {
+    if (!trafficRange) return;
     try {
-      const to = toPbDateTime(new Date(Date.now()))
-      const from = toPbDateTime(new Date(Date.now() - RANGE_MS[granularity]))
+      const { from, to } = localRangeToUtcQuery(trafficRange);
+      const granularity = granularityForLocalRange(trafficRange);
       const [nodeRes, summaryRes, seriesRes] = await Promise.all([
-        apiClient.GET('/api/panel/nodes/{id}', {
+        apiClient.GET("/api/panel/nodes/{id}", {
           params: { path: { id: nodeId } },
         }),
-        apiClient.GET('/api/panel/nodes/{id}/traffic/summary', {
+        apiClient.GET("/api/panel/nodes/{id}/traffic/summary", {
           params: { path: { id: nodeId } },
         }),
-        apiClient.GET('/api/panel/nodes/{id}/traffic/series', {
+        apiClient.GET("/api/panel/nodes/{id}/traffic/series", {
           params: { path: { id: nodeId }, query: { granularity, from, to } },
         }),
-      ])
+      ]);
       if (nodeRes.response.status === 404) {
-        setNotFound(true)
-        return
+        setNotFound(true);
+        return;
       }
       if (nodeRes.error || summaryRes.error || seriesRes.error) {
-        setError("Couldn't reach the panel API.")
-        return
+        setError("Couldn't reach the panel API.");
+        return;
       }
-      setNode(nodeRes.data ?? null)
-      setSummary(summaryRes.data ?? null)
-      setSeries(seriesRes.data ?? null)
-      setError('')
-      setUpdatedAt(Date.now())
+      setNode(nodeRes.data ?? null);
+      setSummary(summaryRes.data ?? null);
+      setSeries(seriesRes.data ?? null);
+      setError("");
+      setUpdatedAt(Date.now());
     } catch {
-      setError('Network error. Retrying on the next refresh.')
+      setError("Network error. Retrying on the next refresh.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [nodeId, granularity])
+  }, [nodeId, trafficRange]);
 
   useEffect(() => {
-    fetchData()
-    const id = setInterval(fetchData, REFRESH_MS)
-    return () => clearInterval(id)
-  }, [fetchData])
+    fetchData();
+    const id = setInterval(fetchData, REFRESH_MS);
+    return () => clearInterval(id);
+  }, [fetchData]);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000)
-    return () => clearInterval(id)
-  }, [])
+    const id = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(id);
+  }, []);
 
-  const health = node?.health ?? 'never'
-  const enabled = node?.enabled ?? false
+  const health = node?.health ?? "never";
+  const enabled = node?.enabled ?? false;
   const tone = !enabled
-    ? 'idle'
-    : health === 'ok'
-      ? 'ok'
-      : health === 'error'
-        ? 'error'
-        : 'idle'
+    ? "idle"
+    : health === "ok"
+      ? "ok"
+      : health === "error"
+        ? "error"
+        : "idle";
 
   return (
     <div className="min-h-svh bg-(--background) text-(--foreground)">
@@ -128,9 +134,9 @@ function NodeDetailPage() {
               <span className="h-3.5 w-32 animate-pulse rounded bg-(--surface-secondary)" />
             ) : (
               <div className="flex min-w-0 items-center gap-2">
-                <Dot tone={tone} title={enabled ? health : 'disabled'} />
+                <Dot tone={tone} title={enabled ? health : "disabled"} />
                 <span className="truncate text-[13px] font-semibold tracking-tight">
-                  {node?.name || 'Node'}
+                  {node?.name || "Node"}
                 </span>
               </div>
             )}
@@ -169,7 +175,7 @@ function NodeDetailPage() {
               <Button
                 size="sm"
                 variant="secondary"
-                onPress={() => navigate({ to: '/' })}
+                onPress={() => navigate({ to: "/" })}
               >
                 Back to dashboard
               </Button>
@@ -181,8 +187,8 @@ function NodeDetailPage() {
 
             <TrafficSection
               loading={loading && !series}
-              granularity={granularity}
-              onGranularityChange={setGranularity}
+              trafficRange={trafficRange}
+              onTrafficRangeChange={setTrafficRange}
               series={series}
               summary={summary}
             />
@@ -192,7 +198,7 @@ function NodeDetailPage() {
         )}
       </main>
     </div>
-  )
+  );
 }
 
 /* ── Detail rail (config + health) ─────────────────────────────────────── */
@@ -202,9 +208,9 @@ function DetailRail({
   loading,
   now,
 }: {
-  node: Node | null
-  loading: boolean
-  now: number
+  node: Node | null;
+  loading: boolean;
+  now: number;
 }) {
   if (loading) {
     return (
@@ -216,26 +222,30 @@ function DetailRail({
           </div>
         ))}
       </div>
-    )
+    );
   }
 
-  const enabled = node?.enabled ?? false
-  const health = node?.health ?? 'never'
+  const enabled = node?.enabled ?? false;
+  const health = node?.health ?? "never";
   const stateLabel = !enabled
-    ? 'Disabled'
-    : health === 'error'
-      ? node?.last_error || 'Error'
-      : health === 'ok'
-        ? 'Healthy'
-        : 'Never polled'
-  const stateTone = !enabled ? 'muted' : health === 'error' ? 'danger' : 'muted'
+    ? "Disabled"
+    : health === "error"
+      ? node?.last_error || "Error"
+      : health === "ok"
+        ? "Healthy"
+        : "Never polled";
+  const stateTone = !enabled
+    ? "muted"
+    : health === "error"
+      ? "danger"
+      : "muted";
 
   return (
     <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
       <RailItem label="Endpoint" className="sm:flex-[2]">
         <div className="group/key flex items-center gap-1.5">
           <span className="block truncate font-mono text-[13px] text-(--foreground)">
-            {node?.api_url || '—'}
+            {node?.api_url || "—"}
           </span>
           {node?.api_url && (
             <CopyButton value={node.api_url} label="endpoint" />
@@ -244,36 +254,36 @@ function DetailRail({
       </RailItem>
       <RailItem label="Poll interval">
         <span className="font-mono text-[13px] tabular-nums">
-          {node?.poll_interval ? `${node.poll_interval}s` : '—'}
+          {node?.poll_interval ? `${node.poll_interval}s` : "—"}
         </span>
       </RailItem>
       <RailItem label="Last poll">
         <span className="font-mono text-[13px] tabular-nums">
           {node?.last_polled_at
             ? relTimeFromISO(node.last_polled_at, now)
-            : '—'}
+            : "—"}
         </span>
       </RailItem>
       <RailItem label="State">
         <span
-          className={`block truncate text-[13px] ${stateTone === 'danger' ? 'text-(--danger)' : 'text-(--foreground)'}`}
+          className={`block truncate text-[13px] ${stateTone === "danger" ? "text-(--danger)" : "text-(--foreground)"}`}
           title={stateLabel}
         >
           {stateLabel}
         </span>
       </RailItem>
     </div>
-  )
+  );
 }
 
 function RailItem({
   label,
   children,
-  className = '',
+  className = "",
 }: {
-  label: string
-  children: ReactNode
-  className?: string
+  label: string;
+  children: ReactNode;
+  className?: string;
 }) {
   return (
     <div className={`min-w-0 flex-1 px-4 py-3 ${className}`}>
@@ -282,28 +292,31 @@ function RailItem({
       </div>
       <div className="mt-1">{children}</div>
     </div>
-  )
+  );
 }
 
 /* ── Traffic details ───────────────────────────────────────────────────── */
 
 function TrafficSection({
   loading,
-  granularity,
-  onGranularityChange,
+  trafficRange,
+  onTrafficRangeChange,
   series,
   summary,
 }: {
-  loading: boolean
-  granularity: Granularity
-  onGranularityChange: (g: Granularity) => void
-  series: TrafficSeries | null
-  summary: NodeTrafficSummary | null
+  loading: boolean;
+  trafficRange: LocalDateRange | null;
+  onTrafficRangeChange: (range: LocalDateRange) => void;
+  series: TrafficSeries | null;
+  summary: NodeTrafficSummary | null;
 }) {
-  const points = series?.points ?? []
-  const totalTx = summary?.total?.tx ?? 0
-  const totalRx = summary?.total?.rx ?? 0
-  const byUser = (summary?.by_user ?? []).slice(0, 8)
+  const points = series?.points ?? [];
+  const granularity = trafficRange
+    ? granularityForLocalRange(trafficRange)
+    : "hourly";
+  const totalTx = points.reduce((sum, p) => sum + (p.tx ?? 0), 0);
+  const totalRx = points.reduce((sum, p) => sum + (p.rx ?? 0), 0);
+  const byUser = (summary?.by_user ?? []).slice(0, 8);
 
   return (
     <Section
@@ -316,7 +329,17 @@ function TrafficSection({
         ) : undefined
       }
       action={
-        <GranularityToggle value={granularity} onChange={onGranularityChange} />
+        trafficRange ? (
+          <TrafficRangePicker
+            value={trafficRange}
+            onChange={onTrafficRangeChange}
+          />
+        ) : (
+          <div
+            className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
+            aria-hidden
+          />
+        )
       }
     >
       <div className="p-3 sm:p-4">
@@ -340,7 +363,7 @@ function TrafficSection({
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-                <Th>Top users</Th>
+                <Th>Top Users (today)</Th>
                 <Th className="text-right">TX</Th>
                 <Th className="text-right">RX</Th>
                 <Th className="text-right">Total</Th>
@@ -354,15 +377,15 @@ function TrafficSection({
                 >
                   <Td>
                     <span className="block max-w-[280px] truncate font-medium">
-                      {u.user?.email || 'unknown'}
+                      {u.user?.email || "unknown"}
                     </span>
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                    <span className="text-(--muted)">↑</span>{' '}
+                    <span className="text-(--muted)">↑</span>{" "}
                     {formatBytes(u.tx ?? 0)}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                    <span className="text-(--muted)">↓</span>{' '}
+                    <span className="text-(--muted)">↓</span>{" "}
                     {formatBytes(u.rx ?? 0)}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
@@ -375,49 +398,49 @@ function TrafficSection({
         </div>
       )}
     </Section>
-  )
+  );
 }
 
 /* ── Streams dump (on demand) ──────────────────────────────────────────── */
 
 function StreamsSection({ nodeId }: { nodeId: string }) {
-  const [live, setLive] = useState<NodeLive | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null)
-  const [now, setNow] = useState(() => Date.now())
-  const [reqError, setReqError] = useState('')
+  const [live, setLive] = useState<NodeLive | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [reqError, setReqError] = useState("");
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000)
-    return () => clearInterval(id)
-  }, [])
+    const id = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(id);
+  }, []);
 
   const fetchStreams = useCallback(async () => {
-    setLoading(true)
-    setReqError('')
+    setLoading(true);
+    setReqError("");
     try {
       const { data, error } = await apiClient.GET(
-        '/api/panel/nodes/{id}/live',
+        "/api/panel/nodes/{id}/live",
         {
           params: { path: { id: nodeId } },
         }
-      )
+      );
       if (error) {
-        setReqError("Couldn't reach the panel API.")
-        return
+        setReqError("Couldn't reach the panel API.");
+        return;
       }
-      setLive(data ?? null)
-      setFetchedAt(Date.now())
+      setLive(data ?? null);
+      setFetchedAt(Date.now());
     } catch {
-      setReqError('Network error while fetching streams.')
+      setReqError("Network error while fetching streams.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [nodeId])
+  }, [nodeId]);
 
-  const byUser = live?.by_user ?? []
-  const topDomains = (live?.top_domains ?? []).slice(0, 12)
-  const byConnection = live?.by_connection ?? []
+  const byUser = live?.by_user ?? [];
+  const topDomains = (live?.top_domains ?? []).slice(0, 12);
+  const byConnection = live?.by_connection ?? [];
 
   return (
     <Section
@@ -425,7 +448,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
       meta={
         live && !live.error ? (
           <span className="font-mono tabular-nums">
-            {live.online_devices ?? 0} devices online ·{' '}
+            {live.online_devices ?? 0} devices online ·{" "}
             {live.active_streams ?? 0} streams
           </span>
         ) : undefined
@@ -446,7 +469,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
             onPress={fetchStreams}
             isPending={loading}
           >
-            {fetchedAt === null ? 'Fetch streams' : 'Refresh'}
+            {fetchedAt === null ? "Fetch streams" : "Refresh"}
           </Button>
         </div>
       }
@@ -483,30 +506,28 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
           ))}
 
           {topDomains.length > 0 && <TopDomainsTable rows={topDomains} />}
-          {byConnection.length > 0 && (
-            <ByConnectionTable rows={byConnection} />
-          )}
+          {byConnection.length > 0 && <ByConnectionTable rows={byConnection} />}
         </div>
       )}
     </Section>
-  )
+  );
 }
 
 function UserStreams({
   group,
   now,
 }: {
-  group: NonNullable<NodeLive['by_user']>[number]
-  now: number
+  group: NonNullable<NodeLive["by_user"]>[number];
+  now: number;
 }) {
-  const streams = group.streams ?? []
+  const streams = group.streams ?? [];
   return (
     <div className="border-t border-(--border) first:border-t-0">
       <div className="flex items-center justify-between gap-3 bg-(--surface-secondary) px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <Dot tone="ok" />
           <span className="truncate text-xs font-medium">
-            {group.user?.email || 'unknown'}
+            {group.user?.email || "unknown"}
           </span>
         </div>
         <span className="shrink-0 font-mono text-xs tabular-nums text-(--muted)">
@@ -527,7 +548,7 @@ function UserStreams({
           </thead>
           <tbody className="divide-y divide-(--separator)">
             {streams.map((s, i) => {
-              const target = s.hooked_req_addr || s.req_addr || '—'
+              const target = s.hooked_req_addr || s.req_addr || "—";
               return (
                 <tr
                   key={`${s.connection}-${s.stream}-${i}`}
@@ -542,7 +563,7 @@ function UserStreams({
                     </span>
                   </Td>
                   <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
-                    {s.state || '—'}
+                    {s.state || "—"}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
                     {formatBytes(s.tx ?? 0)}
@@ -557,19 +578,19 @@ function UserStreams({
                     {formatDuration(s.idle_sec ?? -1)}
                   </Td>
                 </tr>
-              )
+              );
             })}
           </tbody>
         </table>
       </div>
     </div>
-  )
+  );
 }
 
 function TopDomainsTable({
   rows,
 }: {
-  rows: NonNullable<NodeLive['top_domains']>
+  rows: NonNullable<NodeLive["top_domains"]>;
 }) {
   return (
     <div className="bg-(--surface)">
@@ -586,13 +607,13 @@ function TopDomainsTable({
           </thead>
           <tbody className="divide-y divide-(--separator)">
             {rows.map((d, i) => {
-              const domain = d.domain || '—'
-              const meta = d.ip_meta
+              const domain = d.domain || "—";
+              const meta = d.ip_meta;
               const countryTitle =
-                meta?.country_name || meta?.country_code || ''
+                meta?.country_name || meta?.country_code || "";
               return (
                 <tr
-                  key={(d.domain || '') + i}
+                  key={(d.domain || "") + i}
                   className="hover:bg-(--surface-secondary)"
                 >
                   <Td>
@@ -616,7 +637,7 @@ function TopDomainsTable({
                     )}
                   </Td>
                   <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
-                    {meta?.asn || '—'}
+                    {meta?.asn || "—"}
                   </Td>
                   <Td className="whitespace-nowrap text-xs text-(--muted)">
                     {meta?.country_code ? (
@@ -631,7 +652,7 @@ function TopDomainsTable({
                         )}
                       </span>
                     ) : (
-                      '—'
+                      "—"
                     )}
                   </Td>
                   <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
@@ -641,19 +662,19 @@ function TopDomainsTable({
                     {formatBytes((d.tx ?? 0) + (d.rx ?? 0))}
                   </Td>
                 </tr>
-              )
+              );
             })}
           </tbody>
         </table>
       </div>
     </div>
-  )
+  );
 }
 
 function ByConnectionTable({
   rows,
 }: {
-  rows: NonNullable<NodeLive['by_connection']>
+  rows: NonNullable<NodeLive["by_connection"]>;
 }) {
   return (
     <div className="bg-(--surface)">
@@ -679,9 +700,9 @@ function ByConnectionTable({
                 <Td>
                   <span
                     className="block max-w-[200px] truncate font-mono text-xs"
-                    title={c.top_domain || ''}
+                    title={c.top_domain || ""}
                   >
-                    {c.top_domain || '—'}
+                    {c.top_domain || "—"}
                   </span>
                 </Td>
                 <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
@@ -696,7 +717,7 @@ function ByConnectionTable({
         </table>
       </div>
     </div>
-  )
+  );
 }
 
 function BackIcon() {
@@ -713,5 +734,5 @@ function BackIcon() {
     >
       <path d="m15 18-6-6 6-6" />
     </svg>
-  )
+  );
 }

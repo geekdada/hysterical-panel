@@ -5,13 +5,14 @@ import { clearAuth } from "~/api/auth";
 import { apiClient } from "~/api/client";
 import { requireAdminOrSelf } from "~/api/guards";
 import type { components } from "~/api/schema";
+import { TrafficRangePicker } from "~/components/traffic-range-picker";
+import { TrafficChart } from "~/components/traffic";
 import {
-  GranularityToggle,
-  RANGE_MS,
-  TrafficChart,
-  toPbDateTime,
-  type Granularity,
-} from "~/components/traffic";
+  defaultLocalTrafficRange,
+  granularityForLocalRange,
+  localRangeToUtcQuery,
+  type LocalDateRange,
+} from "~/lib/traffic-range";
 import {
   CopyButton,
   Dot,
@@ -46,17 +47,22 @@ function AccountDetailPage() {
   const [user, setUser] = useState<PanelUser | null>(null);
   const [summary, setSummary] = useState<TrafficSummary | null>(null);
   const [series, setSeries] = useState<TrafficSeries | null>(null);
-  const [granularity, setGranularity] = useState<Granularity>("daily");
+  const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
+  useEffect(() => {
+    setTrafficRange(defaultLocalTrafficRange());
+  }, []);
+
   const fetchData = useCallback(async () => {
+    if (!trafficRange) return;
     try {
-      const to = toPbDateTime(new Date(Date.now()));
-      const from = toPbDateTime(new Date(Date.now() - RANGE_MS[granularity]));
+      const { from, to } = localRangeToUtcQuery(trafficRange);
+      const granularity = granularityForLocalRange(trafficRange);
       const [userRes, summaryRes, seriesRes] = await Promise.all([
         apiClient.GET("/api/panel/users/{id}", {
           params: { path: { id: userId } },
@@ -87,7 +93,7 @@ function AccountDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId, granularity]);
+  }, [userId, trafficRange]);
 
   useEffect(() => {
     fetchData();
@@ -185,14 +191,14 @@ function AccountDetailPage() {
 
             <TrafficSection
               loading={loading && !series}
-              granularity={granularity}
-              onGranularityChange={setGranularity}
+              trafficRange={trafficRange}
+              onTrafficRangeChange={setTrafficRange}
               series={series}
               summary={summary}
               isAdmin={isAdmin}
             />
 
-            <LiveSection userId={userId} />
+            {isAdmin && <LiveSection userId={userId} />}
           </>
         )}
       </main>
@@ -309,25 +315,28 @@ function RailItem({
 
 function TrafficSection({
   loading,
-  granularity,
-  onGranularityChange,
+  trafficRange,
+  onTrafficRangeChange,
   series,
   summary,
   isAdmin,
 }: {
   loading: boolean;
-  granularity: Granularity;
-  onGranularityChange: (g: Granularity) => void;
+  trafficRange: LocalDateRange | null;
+  onTrafficRangeChange: (range: LocalDateRange) => void;
   series: TrafficSeries | null;
   summary: TrafficSummary | null;
   isAdmin: boolean;
 }) {
   const points = series?.points ?? [];
-  const totalTx = summary?.total?.tx ?? 0;
-  const totalRx = summary?.total?.rx ?? 0;
-  const byNode = [...(summary?.by_node ?? [])].sort(
-    (a, b) => (b.tx ?? 0) + (b.rx ?? 0) - ((a.tx ?? 0) + (a.rx ?? 0)),
-  );
+  const granularity = trafficRange
+    ? granularityForLocalRange(trafficRange)
+    : "hourly";
+  const totalTx = points.reduce((sum, p) => sum + (p.tx ?? 0), 0);
+  const totalRx = points.reduce((sum, p) => sum + (p.rx ?? 0), 0);
+  const byNode = [...(summary?.by_node ?? [])]
+    .sort((a, b) => (b.tx ?? 0) + (b.rx ?? 0) - ((a.tx ?? 0) + (a.rx ?? 0)))
+    .slice(0, 8);
 
   return (
     <Section
@@ -339,7 +348,16 @@ function TrafficSection({
           </span>
         ) : undefined
       }
-      action={<GranularityToggle value={granularity} onChange={onGranularityChange} />}
+      action={
+        trafficRange ? (
+          <TrafficRangePicker value={trafficRange} onChange={onTrafficRangeChange} />
+        ) : (
+          <div
+            className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
+            aria-hidden
+          />
+        )
+      }
     >
       <div className="p-3 sm:p-4">
         {loading ? (
@@ -358,7 +376,7 @@ function TrafficSection({
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-                <Th>Node</Th>
+                <Th>Top Nodes (today)</Th>
                 <Th className="text-right">TX</Th>
                 <Th className="text-right">RX</Th>
                 <Th className="text-right">Total</Th>

@@ -15,12 +15,14 @@ export function Section({
 }) {
   return (
     <section className="mt-6">
-      <div className="mb-2 flex min-h-7 items-center justify-between gap-3 px-0.5">
-        <h2 className="text-[13px] font-semibold text-(--foreground)">{title}</h2>
-        <div className="flex items-center gap-3">
-          {meta && <span className="text-xs tabular-nums text-(--muted)">{meta}</span>}
-          {action}
+      <div className="mb-2 flex flex-col gap-2 px-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <h2 className="shrink-0 text-[13px] font-semibold text-(--foreground)">{title}</h2>
+          {meta && (
+            <span className="min-w-0 truncate text-xs tabular-nums text-(--muted)">{meta}</span>
+          )}
         </div>
+        {action && <div className="min-w-0 w-full sm:w-auto">{action}</div>}
       </div>
       <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
         {children}
