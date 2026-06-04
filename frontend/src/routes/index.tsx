@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import {
+  Link,
+  createFileRoute,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router";
 import { Button } from "@heroui/react";
 import { apiClient } from "~/api/client";
 import type { components } from "~/api/schema";
@@ -15,10 +20,11 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, plural, relTime, relTimeFromISO } from "~/lib/format";
+import { trafficPeriodUtcRange, type TrafficPeriod } from "~/lib/traffic-range";
 
 type Node = components["schemas"]["Node"];
 type PanelUser = components["schemas"]["PanelUser"];
-type TrafficToday = components["schemas"]["TrafficTodayResponse"];
+type PanelTraffic = components["schemas"]["PanelTrafficResponse"];
 
 const REFRESH_MS = 20_000;
 
@@ -43,7 +49,8 @@ function DashboardPage() {
   const isAdmin = auth?.user.role === "admin";
   const [nodes, setNodes] = useState<Node[]>([]);
   const [users, setUsers] = useState<PanelUser[]>([]);
-  const [trafficToday, setTrafficToday] = useState<TrafficToday | null>(null);
+  const [trafficPeriod, setTrafficPeriod] = useState<TrafficPeriod>("today");
+  const [panelTraffic, setPanelTraffic] = useState<PanelTraffic | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
@@ -51,18 +58,21 @@ function DashboardPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [nodesRes, usersRes, trafficTodayRes] = await Promise.all([
+      const { from, to } = trafficPeriodUtcRange(trafficPeriod);
+      const [nodesRes, usersRes, trafficRes] = await Promise.all([
         apiClient.GET("/api/panel/nodes"),
         apiClient.GET("/api/panel/users"),
-        apiClient.GET("/api/panel/traffic/today"),
+        apiClient.GET("/api/panel/traffic", {
+          params: { query: { from, to } },
+        }),
       ]);
-      if (nodesRes.error || usersRes.error || trafficTodayRes.error) {
+      if (nodesRes.error || usersRes.error || trafficRes.error) {
         setError("Couldn't reach the panel API.");
         return;
       }
       setNodes(nodesRes.data ?? []);
       setUsers(usersRes.data ?? []);
-      setTrafficToday(trafficTodayRes.data ?? null);
+      setPanelTraffic(trafficRes.data ?? null);
       setError("");
       setUpdatedAt(Date.now());
     } catch {
@@ -70,7 +80,7 @@ function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [trafficPeriod]);
 
   // Initial load + silent background refresh, so the panel reads as live.
   useEffect(() => {
@@ -89,8 +99,8 @@ function DashboardPage() {
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
   const errorNodes = enabledNodes.filter((n) => n.health === "error");
   const activeUsers = users.filter((u) => u.status === "active");
-  const totalTx = trafficToday?.total?.tx ?? 0;
-  const totalRx = trafficToday?.total?.rx ?? 0;
+  const totalTx = panelTraffic?.total?.tx ?? 0;
+  const totalRx = panelTraffic?.total?.rx ?? 0;
 
   return (
     <div className="min-h-svh bg-(--background) text-(--foreground)">
@@ -140,7 +150,15 @@ function DashboardPage() {
             loading={loading}
             value={healthyNodes.length}
             dot={
-              <Dot tone={errorNodes.length > 0 ? "error" : healthyNodes.length > 0 ? "ok" : "idle"} />
+              <Dot
+                tone={
+                  errorNodes.length > 0
+                    ? "error"
+                    : healthyNodes.length > 0
+                      ? "ok"
+                      : "idle"
+                }
+              />
             }
           >
             {errorNodes.length > 0 ? (
@@ -152,7 +170,17 @@ function DashboardPage() {
           <Stat label="Users" loading={loading} value={users.length}>
             {activeUsers.length} active
           </Stat>
-          <Stat label="Traffic UTC Today" loading={loading} value={formatBytes(totalTx + totalRx)}>
+          <Stat
+            label="Traffic"
+            loading={loading}
+            value={formatBytes(totalTx + totalRx)}
+            headerAction={
+              <TrafficPeriodToggle
+                value={trafficPeriod}
+                onChange={setTrafficPeriod}
+              />
+            }
+          >
             <span className="font-mono">
               <span className="text-(--muted)">↑</span> {formatBytes(totalTx)}
               <span className="mx-1.5 opacity-40">·</span>
@@ -233,23 +261,63 @@ function DashboardPage() {
 
 /* ── Layout primitives ─────────────────────────────────────────────────── */
 
+const TRAFFIC_PERIOD_LABELS: Record<TrafficPeriod, string> = {
+  today: "T",
+  "t-1": "T-1",
+  "7d": "7d",
+};
+
+function TrafficPeriodToggle({
+  value,
+  onChange,
+}: {
+  value: TrafficPeriod;
+  onChange: (p: TrafficPeriod) => void;
+}) {
+  const opts: TrafficPeriod[] = ["today", "t-1", "7d"];
+  return (
+    <div className="inline-flex shrink-0 rounded-(--radius) border border-(--border) p-0.5">
+      {opts.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => onChange(o)}
+          className={`rounded-[calc(var(--radius)-2px)] px-1.5 py-0.5 text-[10px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+            value === o
+              ? "bg-(--surface-secondary) text-(--foreground)"
+              : "text-(--muted) hover:text-(--foreground)"
+          }`}
+          aria-pressed={value === o}
+        >
+          {TRAFFIC_PERIOD_LABELS[o]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Stat({
   label,
   value,
   loading,
   dot,
   children,
+  headerAction,
 }: {
   label: string;
   value: ReactNode;
   loading: boolean;
   dot?: ReactNode;
   children?: ReactNode;
+  headerAction?: ReactNode;
 }) {
   return (
     <div className="flex-1 px-4 py-3">
-      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">
-        {label}
+      <div className="flex justify-between gap-2">
+        <div className="shrink-0 text-[11px] font-medium uppercase tracking-wider text-(--muted)">
+          {label}
+        </div>
+        {headerAction}
       </div>
       {loading ? (
         <div className="mt-1.5 h-6 w-14 animate-pulse rounded bg-(--surface-secondary)" />
@@ -324,7 +392,9 @@ function NodesTable({ nodes, now }: { nodes: Node[]; now: number }) {
                   {node.poll_interval ? `${node.poll_interval}s` : "—"}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
-                  {node.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : "—"}
+                  {node.last_polled_at
+                    ? relTimeFromISO(node.last_polled_at, now)
+                    : "—"}
                 </Td>
                 <Td>
                   <NodeState
@@ -357,7 +427,10 @@ function NodeState({
   if (health === "error") {
     const msg = lastError || "Error";
     return (
-      <span className="block max-w-[260px] truncate text-xs text-(--danger)" title={msg}>
+      <span
+        className="block max-w-[260px] truncate text-xs text-(--danger)"
+        title={msg}
+      >
         {msg}
       </span>
     );
@@ -391,7 +464,10 @@ function UsersTable({ users }: { users: PanelUser[] }) {
               >
                 <Td>
                   <div className="flex items-center gap-2.5">
-                    <Dot tone={active ? "ok" : "idle"} title={active ? "active" : "disabled"} />
+                    <Dot
+                      tone={active ? "ok" : "idle"}
+                      title={active ? "active" : "disabled"}
+                    />
                     <Link
                       to="/users/$userId"
                       params={{ userId: user.id ?? "" }}
@@ -412,10 +488,12 @@ function UsersTable({ users }: { users: PanelUser[] }) {
                   </div>
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↑</span> {formatBytes(user.used_tx ?? 0)}
+                  <span className="text-(--muted)">↑</span>{" "}
+                  {formatBytes(user.used_tx ?? 0)}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↓</span> {formatBytes(user.used_rx ?? 0)}
+                  <span className="text-(--muted)">↓</span>{" "}
+                  {formatBytes(user.used_rx ?? 0)}
                 </Td>
                 <Td className="text-right">
                   <span className="text-xs text-(--muted)">
