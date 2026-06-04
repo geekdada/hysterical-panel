@@ -24,7 +24,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"PanelUser":                  PanelUser{},
 		"UserCreateRequest":          UserCreateRequest{},
 		"UserUpdateRequest":          UserUpdateRequest{},
-		"TrafficTodayResponse":       TrafficTodayResponse{},
+		"PanelTrafficResponse":       PanelTrafficResponse{},
 		"TrafficSummaryResponse":     TrafficSummaryResponse{},
 		"TrafficSeriesResponse":      TrafficSeriesResponse{},
 		"NodeTrafficSummaryResponse": NodeTrafficSummaryResponse{},
@@ -71,7 +71,6 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	if s, ok := schemas["TrafficSeriesResponse"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "granularity", []any{"hourly", "daily"})
 	}
-
 	// ── doc skeleton ──────────────────────────────────────────────────────
 	t := &openapi3.T{
 		OpenAPI: "3.1.0",
@@ -149,19 +148,42 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		op.Responses.Set("403", forbidden)
 	}
 
-	// ── /traffic/today ────────────────────────────────────────────────────
-	t.Paths.Set("/api/panel/traffic/today", &openapi3.PathItem{
+	// ── /traffic ──────────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/traffic", &openapi3.PathItem{
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
-				OperationID: "trafficToday",
-				Summary:     "Get today's UTC traffic total",
+				OperationID: "panelTraffic",
+				Summary:     "Get global traffic total for a UTC bucket range",
 				Tags:        []string{"traffic"},
-				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
-					Value: &openapi3.Response{
-						Description: ptr("Today's UTC traffic total"),
-						Content:     content(ref("TrafficTodayResponse")),
+				Parameters: openapi3.Parameters{
+					{
+						Value: &openapi3.Parameter{
+							Name:        "from",
+							In:          "query",
+							Required:    true,
+							Description: "Start daily bucket (UTC, inclusive)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
+						},
 					},
-				})),
+					{
+						Value: &openapi3.Parameter{
+							Name:        "to",
+							In:          "query",
+							Required:    true,
+							Description: "End daily bucket (UTC, inclusive)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
+						},
+					},
+				},
+				Responses: openapi3.NewResponses(
+					openapi3.WithStatus(200, &openapi3.ResponseRef{
+						Value: &openapi3.Response{
+							Description: ptr("Global traffic total for the requested range"),
+							Content:     content(ref("PanelTrafficResponse")),
+						},
+					}),
+					openapi3.WithStatus(400, badRequest),
+				),
 			}
 			withAuth(op)
 			return op

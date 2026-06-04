@@ -37,7 +37,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	adminOrSelf := requireAdminOrSelf()
 
 	// dashboard traffic
-	g.GET("/traffic/today", h.trafficToday).Bind(adminOnly)
+	g.GET("/traffic", h.panelTraffic).Bind(adminOnly)
 
 	// nodes
 	g.GET("/nodes", h.listNodes).Bind(adminOnly)

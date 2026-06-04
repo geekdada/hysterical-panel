@@ -77,11 +77,11 @@ type UserUpdateRequest struct {
 
 // ── Traffic ───────────────────────────────────────────────────────────────────
 
-// TrafficTodayResponse is returned by GET /traffic/today.
-type TrafficTodayResponse struct {
-	UTCDate string    `json:"utc_date"`
-	Bucket  string    `json:"bucket"`
-	Total   ByteCount `json:"total"`
+// PanelTrafficResponse is returned by GET /traffic.
+type PanelTrafficResponse struct {
+	From  string    `json:"from"`
+	To    string    `json:"to"`
+	Total ByteCount `json:"total"`
 }
 
 // TrafficSummaryResponse is returned by GET /users/{id}/traffic/summary.

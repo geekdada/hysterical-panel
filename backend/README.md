@@ -72,7 +72,7 @@ docker run --rm \
 | PATCH | `/nodes/{id}` | 修改（secret 缺省=不变，传空=报错） |
 | DELETE | `/nodes/{id}` | 删除 |
 | POST | `/nodes/{id}/test` | 立即验证连通性 |
-| GET | `/traffic/today` | 当前 UTC 日期的全局流量汇总 |
+| GET | `/traffic` | 全局流量汇总（admin）；必填 `from` / `to`（UTC 日桶，含首尾，与 series 同格式） |
 | GET | `/users` | 列表 |
 | POST | `/users` | 新建（email+password+auth_string） |
 | GET | `/users/{id}` | 详情（admin 或本人） |
