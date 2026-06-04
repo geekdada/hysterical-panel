@@ -1,0 +1,33 @@
+# Git and editor noise
+.git/
+.github/
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Backend runtime and local build outputs
+backend/pb_data/
+backend/dist/
+backend/tmp/
+backend/coverage.*
+backend/covdata/
+backend/*.test
+backend/*.out
+
+# Frontend local dependencies and build outputs
+frontend/node_modules/
+frontend/.output/
+frontend/.vinxi/
+frontend/.tanstack/
+frontend/dist/
+
+# Agent / plan artifacts (not needed in image)
+.cursor/
