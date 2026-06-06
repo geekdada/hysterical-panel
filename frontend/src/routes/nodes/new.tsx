@@ -1,10 +1,10 @@
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import {
@@ -18,8 +18,13 @@ import {
   TextField,
 } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
-import { apiClient } from "~/api/client";
 import type { components } from "~/api/schema";
+import {
+  createNode,
+  queryErrorMessage,
+  queryKeys,
+  testNode,
+} from "~/api/queries";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 
 type Node = components["schemas"]["Node"];
@@ -36,31 +41,25 @@ type TestState =
 
 function AddNodePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [created, setCreated] = useState<Node | null>(null);
-  const [test, setTest] = useState<TestState>({ status: "pending" });
-  const [submitError, setSubmitError] = useState("");
-
-  const runTest = useCallback(async (id: string) => {
-    setTest({ status: "pending" });
-    const { data, error } = await apiClient.POST("/api/panel/nodes/{id}/test", {
-      params: { path: { id } },
-    });
-    if (error || !data) {
-      setTest({
-        status: "error",
-        message: "Couldn't run the connectivity test.",
+  const testMutation = useMutation({ mutationFn: testNode });
+  const createMutation = useMutation({
+    mutationFn: async (body: components["schemas"]["NodeCreateRequest"]) => {
+      const node = await createNode(body);
+      if (!node.id) {
+        throw new Error("Couldn't create the node.");
+      }
+      return node as Node & { id: string };
+    },
+    onSuccess: (node) => {
+      setCreated(node);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.dashboardBase(),
       });
-      return;
-    }
-    if (data.ok) {
-      setTest({ status: "ok", latencyMs: data.latency_ms ?? 0 });
-    } else {
-      setTest({
-        status: "error",
-        message: data.error || "Node is unreachable.",
-      });
-    }
-  }, []);
+      testMutation.mutate(node.id);
+    },
+  });
 
   const form = useForm({
     defaultValues: {
@@ -71,31 +70,36 @@ function AddNodePage() {
       enabled: true,
     },
     onSubmit: async ({ value }) => {
-      setSubmitError("");
-      const { data, error } = await apiClient.POST("/api/panel/nodes", {
-        body: {
+      createMutation.reset();
+      testMutation.reset();
+      try {
+        await createMutation.mutateAsync({
           name: value.name.trim(),
           api_url: value.api_url.trim(),
           api_secret: value.api_secret,
           poll_interval: value.poll_interval,
           enabled: value.enabled,
-        },
-      });
-      if (error || !data?.id) {
-        setSubmitError(errorMessage(error) || "Couldn't create the node.");
-        return;
+        });
+      } catch {
+        // The mutation owns rendering the submission error.
       }
-      setCreated(data);
-      void runTest(data.id);
     },
   });
 
   function addAnother() {
     form.reset();
     setCreated(null);
-    setTest({ status: "pending" });
-    setSubmitError("");
+    createMutation.reset();
+    testMutation.reset();
   }
+
+  const test = toTestState(testMutation);
+  const submitError = createMutation.error
+    ? queryErrorMessage(
+        createMutation.error,
+        "Network error while creating the node.",
+      )
+    : "";
 
   return (
     <div className="min-h-svh bg-(--background) text-(--foreground)">
@@ -131,7 +135,9 @@ function AddNodePage() {
             <CreatedView
               node={created}
               test={test}
-              onRetry={() => created.id && runTest(created.id)}
+              onRetry={() => {
+                if (created.id) testMutation.mutate(created.id);
+              }}
               onAddAnother={addAnother}
               onDone={() => navigate({ to: "/" })}
             />
@@ -709,16 +715,33 @@ function validateUrl(value: string): string | undefined {
   return undefined;
 }
 
-function errorMessage(error: unknown): string {
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
+function toTestState(mutation: {
+  data?: components["schemas"]["NodeTestResponse"];
+  error: unknown;
+  isPending: boolean;
+}): TestState {
+  if (mutation.isPending) {
+    return { status: "pending" };
   }
-  return "";
+  if (mutation.error) {
+    return {
+      status: "error",
+      message: queryErrorMessage(
+        mutation.error,
+        "Network error while testing the node.",
+      ),
+    };
+  }
+  if (!mutation.data) {
+    return { status: "pending" };
+  }
+  if (mutation.data.ok) {
+    return { status: "ok", latencyMs: mutation.data.latency_ms ?? 0 };
+  }
+  return {
+    status: "error",
+    message: mutation.data.error || "Node is unreachable.",
+  };
 }
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */

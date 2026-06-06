@@ -1,16 +1,25 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
 import { clearAuth } from "~/api/auth";
-import { apiClient } from "~/api/client";
 import { requireAdminOrSelf } from "~/api/guards";
 import type { components } from "~/api/schema";
+import {
+  canQueryPanelApi,
+  fetchUserLive,
+  fetchUserOverview,
+  isNotFoundError,
+  queryErrorMessage,
+  queryKeys,
+  REFRESH_MS,
+  toTrafficRangeQuery,
+} from "~/api/queries";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
-  localRangeToUtcQuery,
   type LocalDateRange,
 } from "~/lib/traffic-range";
 import {
@@ -31,8 +40,6 @@ type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type UserLive = components["schemas"]["LiveResponse"];
 
-const REFRESH_MS = 20_000;
-
 export const Route = createFileRoute("/users/$userId")({
   beforeLoad: ({ context, params }) => requireAdminOrSelf(context.auth, params.userId),
   component: AccountDetailPage,
@@ -44,67 +51,38 @@ function AccountDetailPage() {
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
 
-  const [user, setUser] = useState<PanelUser | null>(null);
-  const [summary, setSummary] = useState<TrafficSummary | null>(null);
-  const [series, setSeries] = useState<TrafficSeries | null>(null);
   const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [error, setError] = useState("");
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     setTrafficRange(defaultLocalTrafficRange());
   }, []);
 
-  const fetchData = useCallback(async () => {
-    if (!trafficRange) return;
-    try {
-      const { from, to } = localRangeToUtcQuery(trafficRange);
-      const granularity = granularityForLocalRange(trafficRange);
-      const [userRes, summaryRes, seriesRes] = await Promise.all([
-        apiClient.GET("/api/panel/users/{id}", {
-          params: { path: { id: userId } },
-        }),
-        apiClient.GET("/api/panel/users/{id}/traffic/summary", {
-          params: { path: { id: userId } },
-        }),
-        apiClient.GET("/api/panel/users/{id}/traffic/series", {
-          params: { path: { id: userId }, query: { granularity, from, to } },
-        }),
-      ]);
-      if (userRes.response.status === 404) {
-        setNotFound(true);
-        return;
-      }
-      if (userRes.error || summaryRes.error || seriesRes.error) {
-        setError("Couldn't reach the panel API.");
-        return;
-      }
-      setUser(userRes.data ?? null);
-      setSummary(summaryRes.data ?? null);
-      setSeries(seriesRes.data ?? null);
-      setError("");
-      setNotFound(false);
-      setUpdatedAt(Date.now());
-    } catch {
-      setError("Network error. Retrying on the next refresh.");
-    } finally {
-      setLoading(false);
-    }
-  }, [userId, trafficRange]);
-
-  useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, REFRESH_MS);
-    return () => clearInterval(id);
-  }, [fetchData]);
+  const trafficQuery = trafficRange
+    ? toTrafficRangeQuery(trafficRange)
+    : null;
+  const overviewQuery = useQuery({
+    queryKey: queryKeys.userOverview(userId, trafficQuery),
+    queryFn: () => fetchUserOverview(userId, trafficQuery!),
+    enabled: canQueryPanelApi() && trafficQuery !== null,
+    refetchInterval: REFRESH_MS,
+  });
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 5_000);
     return () => clearInterval(id);
   }, []);
+
+  const user = overviewQuery.data?.user ?? null;
+  const summary = overviewQuery.data?.summary ?? null;
+  const series = overviewQuery.data?.series ?? null;
+  const loading = trafficQuery === null || overviewQuery.isPending;
+  const notFound = isNotFoundError(overviewQuery.error);
+  const error =
+    overviewQuery.error && !notFound
+      ? queryErrorMessage(overviewQuery.error)
+      : "";
+  const updatedAt = overviewQuery.dataUpdatedAt || null;
 
   function handleLogout() {
     clearAuth();
@@ -423,37 +401,27 @@ function TrafficSection({
 }
 
 function LiveSection({ userId }: { userId: string }) {
-  const [live, setLive] = useState<UserLive | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [reqError, setReqError] = useState("");
+  const liveQuery = useQuery({
+    queryKey: queryKeys.userLive(userId),
+    queryFn: () => fetchUserLive(userId),
+    enabled: false,
+  });
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 5_000);
     return () => clearInterval(id);
   }, []);
 
-  const fetchStreams = useCallback(async () => {
-    setLoading(true);
-    setReqError("");
-    try {
-      const { data, error } = await apiClient.GET("/api/panel/users/{id}/live", {
-        params: { path: { id: userId } },
-      });
-      if (error) {
-        setReqError("Couldn't reach the panel API.");
-        return;
-      }
-      setLive(data ?? null);
-      setFetchedAt(Date.now());
-    } catch {
-      setReqError("Network error while fetching streams.");
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
+  const live = liveQuery.data ?? null;
+  const loading = liveQuery.isFetching;
+  const fetchedAt = liveQuery.dataUpdatedAt || null;
+  const reqError = liveQuery.error
+    ? queryErrorMessage(
+        liveQuery.error,
+        "Network error while fetching streams.",
+      )
+    : "";
   const byNode = live?.by_node ?? [];
   const visibleByNode = byNode.filter((n) => n.error || (n.streams?.length ?? 0) > 0);
   const topDomains = (live?.top_domains ?? []).slice(0, 12);
@@ -479,7 +447,14 @@ function LiveSection({ userId }: { userId: string }) {
               {relTime(fetchedAt, now)}
             </span>
           )}
-          <Button size="sm" variant="secondary" onPress={fetchStreams} isPending={loading}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onPress={() => {
+              void liveQuery.refetch();
+            }}
+            isPending={loading}
+          >
             {fetchedAt === null ? "Fetch streams" : "Refresh"}
           </Button>
         </div>

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Link,
   createFileRoute,
@@ -6,8 +7,16 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
-import { apiClient } from "~/api/client";
 import type { components } from "~/api/schema";
+import {
+  canQueryPanelApi,
+  fetchDashboardNodes,
+  fetchDashboardTraffic,
+  fetchDashboardUsers,
+  queryErrorMessage,
+  queryKeys,
+  REFRESH_MS,
+} from "~/api/queries";
 import {
   CopyButton,
   Dot,
@@ -20,13 +29,10 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, plural, relTime, relTimeFromISO } from "~/lib/format";
-import { trafficPeriodUtcRange, type TrafficPeriod } from "~/lib/traffic-range";
+import type { TrafficPeriod } from "~/lib/traffic-range";
 
 type Node = components["schemas"]["Node"];
 type PanelUser = components["schemas"]["PanelUser"];
-type PanelTraffic = components["schemas"]["PanelTrafficResponse"];
-
-const REFRESH_MS = 20_000;
 
 export const Route = createFileRoute("/")({
   beforeLoad: ({ context }) => {
@@ -47,47 +53,28 @@ function DashboardPage() {
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [users, setUsers] = useState<PanelUser[]>([]);
   const [trafficPeriod, setTrafficPeriod] = useState<TrafficPeriod>("today");
-  const [panelTraffic, setPanelTraffic] = useState<PanelTraffic | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
-  const fetchData = useCallback(async () => {
-    try {
-      const { from, to } = trafficPeriodUtcRange(trafficPeriod);
-      const [nodesRes, usersRes, trafficRes] = await Promise.all([
-        apiClient.GET("/api/panel/nodes"),
-        apiClient.GET("/api/panel/users"),
-        apiClient.GET("/api/panel/traffic", {
-          params: { query: { from, to } },
-        }),
-      ]);
-      if (nodesRes.error || usersRes.error || trafficRes.error) {
-        setError("Couldn't reach the panel API.");
-        return;
-      }
-      setNodes(nodesRes.data ?? []);
-      setUsers(usersRes.data ?? []);
-      setPanelTraffic(trafficRes.data ?? null);
-      setError("");
-      setUpdatedAt(Date.now());
-    } catch {
-      setError("Network error. Retrying on the next refresh.");
-    } finally {
-      setLoading(false);
-    }
-  }, [trafficPeriod]);
-
-  // Initial load + silent background refresh, so the panel reads as live.
-  useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, REFRESH_MS);
-    return () => clearInterval(id);
-  }, [fetchData]);
+  const queryEnabled = canQueryPanelApi();
+  const nodesQuery = useQuery({
+    queryKey: queryKeys.dashboardNodes(),
+    queryFn: fetchDashboardNodes,
+    enabled: queryEnabled,
+    refetchInterval: REFRESH_MS,
+  });
+  const usersQuery = useQuery({
+    queryKey: queryKeys.dashboardUsers(),
+    queryFn: fetchDashboardUsers,
+    enabled: queryEnabled,
+    refetchInterval: REFRESH_MS,
+  });
+  const trafficQuery = useQuery({
+    queryKey: queryKeys.dashboardTraffic(trafficPeriod),
+    queryFn: () => fetchDashboardTraffic(trafficPeriod),
+    enabled: queryEnabled,
+    refetchInterval: REFRESH_MS,
+  });
 
   // Tick the clock so relative timestamps stay current between refreshes.
   useEffect(() => {
@@ -95,10 +82,41 @@ function DashboardPage() {
     return () => clearInterval(id);
   }, []);
 
+  const nodes = nodesQuery.data ?? [];
+  const users = usersQuery.data ?? [];
+  const panelTraffic = trafficQuery.data ?? null;
+  const nodesLoading = nodesQuery.isPending;
+  const usersLoading = usersQuery.isPending;
+  const trafficLoading = trafficQuery.isPending;
+  const nodesError = nodesQuery.error ? queryErrorMessage(nodesQuery.error) : "";
+  const usersError = usersQuery.error ? queryErrorMessage(usersQuery.error) : "";
+  const trafficError = trafficQuery.error
+    ? queryErrorMessage(trafficQuery.error)
+    : "";
+  const queryErrors = [
+    { key: "nodes", message: nodesError ? `Nodes: ${nodesError}` : "" },
+    { key: "users", message: usersError ? `Users: ${usersError}` : "" },
+    {
+      key: "traffic",
+      message: trafficError ? `Traffic: ${trafficError}` : "",
+    },
+  ].filter((err) => err.message);
+  const updatedAt =
+    Math.max(
+      nodesQuery.dataUpdatedAt,
+      usersQuery.dataUpdatedAt,
+      trafficQuery.dataUpdatedAt,
+    ) || null;
   const enabledNodes = nodes.filter((n) => n.enabled);
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
   const errorNodes = enabledNodes.filter((n) => n.health === "error");
   const activeUsers = users.filter((u) => u.status === "active");
+  const healthyTone =
+    nodesError || errorNodes.length > 0
+      ? "error"
+      : healthyNodes.length > 0
+        ? "ok"
+        : "idle";
   const totalTx = panelTraffic?.total?.tx ?? 0;
   const totalRx = panelTraffic?.total?.rx ?? 0;
 
@@ -130,50 +148,59 @@ function DashboardPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
-        {error && (
+        {queryErrors.map((error) => (
           <div
+            key={error.key}
             className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
             role="alert"
           >
             <Dot tone="error" />
-            <span>{error}</span>
+            <span>{error.message}</span>
           </div>
-        )}
+        ))}
 
         {/* Summary rail: one connected strip, not free-floating metric cards. */}
         <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
-          <Stat label="Nodes" loading={loading} value={nodes.length}>
-            {enabledNodes.length} enabled
+          <Stat
+            label="Nodes"
+            loading={nodesLoading}
+            value={nodesError ? "—" : nodes.length}
+          >
+            {nodesError ? (
+              <span className="text-(--danger)">Unavailable</span>
+            ) : (
+              `${enabledNodes.length} enabled`
+            )}
           </Stat>
           <Stat
             label="Healthy"
-            loading={loading}
-            value={healthyNodes.length}
-            dot={
-              <Dot
-                tone={
-                  errorNodes.length > 0
-                    ? "error"
-                    : healthyNodes.length > 0
-                      ? "ok"
-                      : "idle"
-                }
-              />
-            }
+            loading={nodesLoading}
+            value={nodesError ? "—" : healthyNodes.length}
+            dot={<Dot tone={healthyTone} />}
           >
-            {errorNodes.length > 0 ? (
+            {nodesError ? (
+              <span className="text-(--danger)">Unavailable</span>
+            ) : errorNodes.length > 0 ? (
               <span className="text-(--danger)">{errorNodes.length} down</span>
             ) : enabledNodes.length > 0 ? (
               `of ${enabledNodes.length} enabled`
             ) : null}
           </Stat>
-          <Stat label="Users" loading={loading} value={users.length}>
-            {activeUsers.length} active
+          <Stat
+            label="Users"
+            loading={usersLoading}
+            value={usersError ? "—" : users.length}
+          >
+            {usersError ? (
+              <span className="text-(--danger)">Unavailable</span>
+            ) : (
+              `${activeUsers.length} active`
+            )}
           </Stat>
           <Stat
             label="Traffic"
-            loading={loading}
-            value={formatBytes(totalTx + totalRx)}
+            loading={trafficLoading}
+            value={trafficError ? "—" : formatBytes(totalTx + totalRx)}
             headerAction={
               <TrafficPeriodToggle
                 value={trafficPeriod}
@@ -181,18 +208,22 @@ function DashboardPage() {
               />
             }
           >
-            <span className="font-mono">
-              <span className="text-(--muted)">↑</span> {formatBytes(totalTx)}
-              <span className="mx-1.5 opacity-40">·</span>
-              <span className="text-(--muted)">↓</span> {formatBytes(totalRx)}
-            </span>
+            {trafficError ? (
+              <span className="text-(--danger)">Unavailable</span>
+            ) : (
+              <span className="font-mono">
+                <span className="text-(--muted)">↑</span> {formatBytes(totalTx)}
+                <span className="mx-1.5 opacity-40">·</span>
+                <span className="text-(--muted)">↓</span> {formatBytes(totalRx)}
+              </span>
+            )}
           </Stat>
         </div>
 
         <Section
           title="Nodes"
           meta={
-            !loading && nodes.length > 0
+            !nodesLoading && !nodesError && nodes.length > 0
               ? `${nodes.length} ${plural(nodes.length, "node")} · ${enabledNodes.length} enabled`
               : undefined
           }
@@ -208,11 +239,11 @@ function DashboardPage() {
             ) : undefined
           }
         >
-          {loading ? (
+          {nodesLoading ? (
             <TableSkeleton />
           ) : nodes.length > 0 ? (
             <NodesTable nodes={nodes} now={now} />
-          ) : error ? (
+          ) : nodesError ? (
             <PanelMessage>Couldn't load nodes.</PanelMessage>
           ) : (
             <Teaching
@@ -236,16 +267,16 @@ function DashboardPage() {
         <Section
           title="Users"
           meta={
-            !loading && users.length > 0
+            !usersLoading && !usersError && users.length > 0
               ? `${users.length} ${plural(users.length, "user")} · ${activeUsers.length} active`
               : undefined
           }
         >
-          {loading ? (
+          {usersLoading ? (
             <TableSkeleton />
           ) : users.length > 0 ? (
             <UsersTable users={users} />
-          ) : error ? (
+          ) : usersError ? (
             <PanelMessage>Couldn't load users.</PanelMessage>
           ) : (
             <Teaching
@@ -320,7 +351,7 @@ function Stat({
         {headerAction}
       </div>
       {loading ? (
-        <div className="mt-1.5 h-6 w-14 animate-pulse rounded bg-(--surface-secondary)" />
+        <StatSkeleton withDot={Boolean(dot)} wide={label === "Traffic"} />
       ) : (
         <>
           <div className="mt-0.5 flex items-baseline gap-2">
@@ -336,6 +367,34 @@ function Stat({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function StatSkeleton({
+  withDot,
+  wide,
+}: {
+  withDot: boolean;
+  wide: boolean;
+}) {
+  return (
+    <div className="mt-1" aria-hidden>
+      <div className="flex h-6 items-center gap-2">
+        <div
+          className={`h-5 animate-pulse rounded bg-(--surface-secondary) ${
+            wide ? "w-20" : "w-9"
+          }`}
+        />
+        {withDot && (
+          <div className="size-2 animate-pulse rounded-full bg-(--surface-secondary)" />
+        )}
+      </div>
+      <div
+        className={`mt-1.5 h-3 animate-pulse rounded bg-(--surface-secondary) ${
+          wide ? "w-28" : "w-16"
+        }`}
+      />
     </div>
   );
 }

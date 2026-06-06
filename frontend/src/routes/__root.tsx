@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { readAuthCookie, type Auth } from "~/api/auth";
+import { PanelQueryProvider } from "~/api/query-provider";
 
 import "~/styles/globals.css";
 
@@ -51,7 +52,9 @@ const themeScript = `
 function RootComponent() {
   return (
     <RootDocument>
-      <Outlet />
+      <PanelQueryProvider>
+        <Outlet />
+      </PanelQueryProvider>
     </RootDocument>
   );
 }

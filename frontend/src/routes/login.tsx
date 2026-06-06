@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { login } from "~/api/auth";
@@ -15,22 +16,25 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      await login(email, password);
+  const loginMutation = useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      login(email, password),
+    onSuccess: () => {
       window.location.href = "/";
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setLoading(false);
-    }
+    },
+  });
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    loginMutation.mutate({ email, password });
   }
+
+  const error =
+    loginMutation.error instanceof Error
+      ? loginMutation.error.message
+      : loginMutation.error
+        ? "Login failed"
+        : "";
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-(--background) p-4 text-(--foreground)">
@@ -55,7 +59,10 @@ function LoginPage() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  loginMutation.reset();
+                  setEmail(e.target.value);
+                }}
               />
             </TextField>
             <TextField>
@@ -65,7 +72,10 @@ function LoginPage() {
                 autoComplete="current-password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  loginMutation.reset();
+                  setPassword(e.target.value);
+                }}
               />
             </TextField>
 
@@ -78,10 +88,10 @@ function LoginPage() {
             <Button
               type="submit"
               variant="primary"
-              isDisabled={loading}
+              isDisabled={loginMutation.isPending}
               className="mt-1"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loginMutation.isPending ? "Signing in..." : "Sign in"}
             </Button>
           </form>
         </Card.Content>

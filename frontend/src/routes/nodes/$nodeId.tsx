@@ -1,15 +1,24 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
-import { apiClient } from "~/api/client";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
+import {
+  canQueryPanelApi,
+  fetchNodeLive,
+  fetchNodeOverview,
+  isNotFoundError,
+  queryErrorMessage,
+  queryKeys,
+  REFRESH_MS,
+  toTrafficRangeQuery,
+} from "~/api/queries";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
-  localRangeToUtcQuery,
   type LocalDateRange,
 } from "~/lib/traffic-range";
 import {
@@ -35,8 +44,6 @@ type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
 type NodeLive = components["schemas"]["NodeLiveResponse"];
 
-const REFRESH_MS = 20_000;
-
 export const Route = createFileRoute("/nodes/$nodeId")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
   component: NodeDetailPage,
@@ -47,67 +54,38 @@ function NodeDetailPage() {
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
 
-  const [node, setNode] = useState<Node | null>(null);
-  const [summary, setSummary] = useState<NodeTrafficSummary | null>(null);
-  const [series, setSeries] = useState<TrafficSeries | null>(null);
   const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [error, setError] = useState("");
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     setTrafficRange(defaultLocalTrafficRange());
   }, []);
 
-  const fetchData = useCallback(async () => {
-    if (!trafficRange) return;
-    try {
-      const { from, to } = localRangeToUtcQuery(trafficRange);
-      const granularity = granularityForLocalRange(trafficRange);
-      const [nodeRes, summaryRes, seriesRes] = await Promise.all([
-        apiClient.GET("/api/panel/nodes/{id}", {
-          params: { path: { id: nodeId } },
-        }),
-        apiClient.GET("/api/panel/nodes/{id}/traffic/summary", {
-          params: { path: { id: nodeId } },
-        }),
-        apiClient.GET("/api/panel/nodes/{id}/traffic/series", {
-          params: { path: { id: nodeId }, query: { granularity, from, to } },
-        }),
-      ]);
-      if (nodeRes.response.status === 404) {
-        setNotFound(true);
-        return;
-      }
-      if (nodeRes.error || summaryRes.error || seriesRes.error) {
-        setError("Couldn't reach the panel API.");
-        return;
-      }
-      setNode(nodeRes.data ?? null);
-      setSummary(summaryRes.data ?? null);
-      setSeries(seriesRes.data ?? null);
-      setError("");
-      setUpdatedAt(Date.now());
-    } catch {
-      setError("Network error. Retrying on the next refresh.");
-    } finally {
-      setLoading(false);
-    }
-  }, [nodeId, trafficRange]);
-
-  useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, REFRESH_MS);
-    return () => clearInterval(id);
-  }, [fetchData]);
+  const trafficQuery = trafficRange
+    ? toTrafficRangeQuery(trafficRange)
+    : null;
+  const overviewQuery = useQuery({
+    queryKey: queryKeys.nodeOverview(nodeId, trafficQuery),
+    queryFn: () => fetchNodeOverview(nodeId, trafficQuery!),
+    enabled: canQueryPanelApi() && trafficQuery !== null,
+    refetchInterval: REFRESH_MS,
+  });
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 5_000);
     return () => clearInterval(id);
   }, []);
 
+  const node = overviewQuery.data?.node ?? null;
+  const summary = overviewQuery.data?.summary ?? null;
+  const series = overviewQuery.data?.series ?? null;
+  const loading = trafficQuery === null || overviewQuery.isPending;
+  const notFound = isNotFoundError(overviewQuery.error);
+  const error =
+    overviewQuery.error && !notFound
+      ? queryErrorMessage(overviewQuery.error)
+      : "";
+  const updatedAt = overviewQuery.dataUpdatedAt || null;
   const health = node?.health ?? "never";
   const enabled = node?.enabled ?? false;
   const tone = !enabled
@@ -404,40 +382,27 @@ function TrafficSection({
 /* ── Streams dump (on demand) ──────────────────────────────────────────── */
 
 function StreamsSection({ nodeId }: { nodeId: string }) {
-  const [live, setLive] = useState<NodeLive | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [reqError, setReqError] = useState("");
+  const liveQuery = useQuery({
+    queryKey: queryKeys.nodeLive(nodeId),
+    queryFn: () => fetchNodeLive(nodeId),
+    enabled: false,
+  });
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 5_000);
     return () => clearInterval(id);
   }, []);
 
-  const fetchStreams = useCallback(async () => {
-    setLoading(true);
-    setReqError("");
-    try {
-      const { data, error } = await apiClient.GET(
-        "/api/panel/nodes/{id}/live",
-        {
-          params: { path: { id: nodeId } },
-        }
-      );
-      if (error) {
-        setReqError("Couldn't reach the panel API.");
-        return;
-      }
-      setLive(data ?? null);
-      setFetchedAt(Date.now());
-    } catch {
-      setReqError("Network error while fetching streams.");
-    } finally {
-      setLoading(false);
-    }
-  }, [nodeId]);
-
+  const live = liveQuery.data ?? null;
+  const loading = liveQuery.isFetching;
+  const fetchedAt = liveQuery.dataUpdatedAt || null;
+  const reqError = liveQuery.error
+    ? queryErrorMessage(
+        liveQuery.error,
+        "Network error while fetching streams.",
+      )
+    : "";
   const byUser = live?.by_user ?? [];
   const topDomains = (live?.top_domains ?? []).slice(0, 12);
   const byConnection = live?.by_connection ?? [];
@@ -466,7 +431,9 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
           <Button
             size="sm"
             variant="secondary"
-            onPress={fetchStreams}
+            onPress={() => {
+              void liveQuery.refetch();
+            }}
             isPending={loading}
           >
             {fetchedAt === null ? "Fetch streams" : "Refresh"}
