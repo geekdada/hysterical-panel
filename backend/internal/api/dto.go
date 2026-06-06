@@ -221,6 +221,15 @@ type ConnSummary struct {
 	TopDomain   string `json:"top_domain"`
 }
 
+// ── Config ────────────────────────────────────────────────────────────────────
+
+// PanelConfigResponse is returned by GET /api/panel/config (no auth).
+type PanelConfigResponse struct {
+	APIURL      string `json:"api_url"`
+	FrontendURL string `json:"frontend_url"`
+	Version     string `json:"version"`
+}
+
 // ── Shared ────────────────────────────────────────────────────────────────────
 
 // DeleteResponse is returned by DELETE endpoints.

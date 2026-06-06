@@ -20,14 +20,15 @@ type ipMetadataLookup interface {
 
 // Handlers bundles dependencies shared by all route handlers.
 type Handlers struct {
-	app      core.App
-	box      *cryptobox.Box
-	ipLookup ipMetadataLookup
+	app         core.App
+	box         *cryptobox.Box
+	ipLookup    ipMetadataLookup
+	publicConfig PanelConfigResponse
 }
 
 // Register wires every /api/panel/* route onto the serve event router.
-func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup) {
-	h := &Handlers{app: app, box: box, ipLookup: ipLookup}
+func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, public PanelConfigResponse) {
+	h := &Handlers{app: app, box: box, ipLookup: ipLookup, publicConfig: public}
 
 	bindAuthGate(app)
 
@@ -63,6 +64,9 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/users/{id}/traffic/summary", h.trafficSummary).Bind(adminOrSelf)
 	g.GET("/users/{id}/traffic/series", h.trafficSeries).Bind(adminOrSelf)
 	g.GET("/users/{id}/live", h.userLive).Bind(adminOnly)
+
+	// Public panel config — no auth required
+	se.Router.GET("/api/panel/config", h.handlePanelConfig)
 
 	// openapi schema — no auth required (contains no secrets)
 	se.Router.GET("/api/openapi.json", handleOpenAPISpec)

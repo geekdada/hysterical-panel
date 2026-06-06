@@ -8,6 +8,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3gen"
 	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/version"
 )
 
 // BuildOpenAPISpec constructs an OpenAPI 3.1 document describing every
@@ -32,6 +34,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"NodeLiveResponse":           NodeLiveResponse{},
 		"DeleteResponse":             DeleteResponse{},
 		"ErrorResponse":              ErrorResponse{},
+		"PanelConfigResponse":        PanelConfigResponse{},
 	}
 
 	// Generate each schema with its own generator to avoid shared internal
@@ -76,7 +79,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		OpenAPI: "3.1.0",
 		Info: &openapi3.Info{
 			Title:   "Hysterical Panel API",
-			Version: "0.1.0",
+			Version: version.Version,
 		},
 		Paths: openapi3.NewPaths(),
 		Components: &openapi3.Components{
@@ -582,6 +585,25 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			op.Responses.Set("400", badRequest)
 			op.Responses.Set("404", notFound)
 			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /config ─────────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/config", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "panelConfig",
+				Summary:     "Public panel configuration",
+				Tags:        []string{"config"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Public panel URLs and version"),
+						Content:     content(ref("PanelConfigResponse")),
+					},
+				})),
+			}
+			op.Security = &openapi3.SecurityRequirements{}
 			return op
 		}(),
 	})
