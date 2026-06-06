@@ -1,10 +1,47 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
 import { readAuthCookieValueClient } from "./cookie";
+import { fetchPanelConfig, resolveApiBaseUrl } from "./panel-config";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+const BOOTSTRAP_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
-export const apiClient = createClient<paths>({ baseUrl: BASE_URL });
+async function resolveFetchOrigin(): Promise<string> {
+  const config = await fetchPanelConfig();
+  const base = resolveApiBaseUrl(config);
+  if (base) return base;
+  if (typeof window !== "undefined") return window.location.origin;
+  return BOOTSTRAP_BASE;
+}
+
+const panelFetch: typeof fetch = async (input, init) => {
+  const origin = (await resolveFetchOrigin()).replace(/\/$/, "");
+
+  if (typeof input === "string") {
+    if (input.startsWith("http://") || input.startsWith("https://")) {
+      return fetch(input, init);
+    }
+    const url = origin ? `${origin}${input}` : input;
+    return fetch(url, init);
+  }
+
+  if (input instanceof Request) {
+    const reqUrl = input.url;
+    if (reqUrl.startsWith("http://") || reqUrl.startsWith("https://")) {
+      return fetch(input, init);
+    }
+    const parsed = new URL(reqUrl, origin || "http://localhost");
+    const path = `${parsed.pathname}${parsed.search}`;
+    const url = origin ? `${origin}${path}` : path;
+    return fetch(new Request(url, input), init);
+  }
+
+  return fetch(input, init);
+};
+
+export const apiClient = createClient<paths>({
+  baseUrl: BOOTSTRAP_BASE,
+  fetch: panelFetch,
+});
 
 const authMiddleware = {
   onRequest({ request }: { request: Request }) {

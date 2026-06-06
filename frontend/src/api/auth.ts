@@ -6,8 +6,7 @@ import {
   buildAuthCookieExpired,
   readAuthCookieValueClient,
 } from "./cookie";
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+import { fetchPanelConfig, resolveApiBaseUrl } from "./panel-config";
 
 export interface AuthUser {
   id: string;
@@ -49,7 +48,13 @@ export const readAuthCookie = createIsomorphicFn()
   .client((): Auth | null => parseAuth(readAuthCookieValueClient()));
 
 export async function login(email: string, password: string): Promise<AuthUser> {
-  const res = await fetch(`${BASE_URL}/api/collections/users/auth-with-password`, {
+  const config = await fetchPanelConfig();
+  let base = resolveApiBaseUrl(config);
+  if (!base && typeof window !== "undefined") {
+    base = window.location.origin;
+  }
+
+  const res = await fetch(`${base}/api/collections/users/auth-with-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identity: email, password }),
