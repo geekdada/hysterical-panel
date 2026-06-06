@@ -20,6 +20,7 @@ import (
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/ipmeta"
 	"hysterical-panel/internal/panelserve"
+	"hysterical-panel/internal/version"
 )
 
 func main() {
@@ -83,8 +84,21 @@ func main() {
 			return fmt.Errorf("ip metadata: %w", err)
 		}
 
+		backendURL, err := cfg.PanelBackendURL()
+		if err != nil {
+			return err
+		}
+		frontendURL, err := cfg.PanelFrontendURL()
+		if err != nil {
+			return err
+		}
+
 		// register custom panel routes
-		api.Register(se, app, box, ipLookup)
+		api.Register(se, app, box, ipLookup, api.PanelConfigResponse{
+			APIURL:      backendURL,
+			FrontendURL: frontendURL,
+			Version:     version.Version,
+		})
 
 		// start the background traffic collector
 		ctx, cancel := context.WithCancel(context.Background())

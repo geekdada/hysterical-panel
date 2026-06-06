@@ -7,6 +7,8 @@ GO ?= go
 BIN_NAME ?= hysterical-panel
 BIN_DIR ?= dist
 MAIN ?= .
+VERSION ?= $(shell tr -d '[:space:]' < ../VERSION 2>/dev/null || echo dev)
+LDFLAGS ?= -ldflags "-s -w -X hysterical-panel/internal/version.Version=$(VERSION)"
 
 # Fallback when not using direnv: load .env into make's environment
 ifneq (,$(wildcard .env))
@@ -21,7 +23,7 @@ help: ## Show targets
 
 build: ## Build binary to dist/
 	@mkdir -p $(BIN_DIR)
-	CGO_ENABLED=0 $(GO) build -o $(BIN_DIR)/$(BIN_NAME) $(MAIN)
+	CGO_ENABLED=0 $(GO) build $(LDFLAGS) -o $(BIN_DIR)/$(BIN_NAME) $(MAIN)
 
 run: serve ## Alias for serve
 
