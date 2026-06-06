@@ -22,6 +22,7 @@ type NodeTest = components["schemas"]["NodeTestResponse"];
 type NodeTrafficSummary =
   components["schemas"]["NodeTrafficSummaryResponse"];
 type PanelConfig = components["schemas"]["PanelConfigResponse"];
+type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
 type PanelTraffic = components["schemas"]["PanelTrafficResponse"];
 type PanelUser = components["schemas"]["PanelUser"];
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
@@ -63,6 +64,14 @@ export const queryKeys = {
   config: () => [...queryKeys.all, "config"] as const,
   dashboardBase: () => [...queryKeys.all, "dashboard"] as const,
   dashboardNodes: () => [...queryKeys.dashboardBase(), "nodes"] as const,
+  dashboardNodeTraffic: (range: TrafficRangeQuery | null) =>
+    [
+      ...queryKeys.dashboardBase(),
+      "nodes",
+      "traffic",
+      range?.from ?? "",
+      range?.to ?? "",
+    ] as const,
   dashboardTraffic: (period: TrafficPeriod) =>
     [...queryKeys.dashboardBase(), "traffic", period] as const,
   dashboardUsers: () => [...queryKeys.dashboardBase(), "users"] as const,
@@ -113,6 +122,16 @@ export async function fetchPanelConfigQuery(): Promise<PanelConfig> {
 
 export function fetchDashboardNodes(): Promise<Node[]> {
   return apiRequest<Node[]>(apiClient.GET("/api/panel/nodes"));
+}
+
+export function fetchDashboardNodeTraffic(
+  range: TrafficRangeQuery,
+): Promise<PanelNodeTraffic | null> {
+  return apiRequest<PanelNodeTraffic | null>(
+    apiClient.GET("/api/panel/nodes/traffic/summary", {
+      params: { query: { from: range.from, to: range.to } },
+    }),
+  );
 }
 
 export function fetchDashboardUsers(): Promise<PanelUser[]> {

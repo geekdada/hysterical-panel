@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Link,
@@ -10,12 +10,14 @@ import { Button } from "@heroui/react";
 import type { components } from "~/api/schema";
 import {
   canQueryPanelApi,
+  fetchDashboardNodeTraffic,
   fetchDashboardNodes,
   fetchDashboardTraffic,
   fetchDashboardUsers,
   queryErrorMessage,
   queryKeys,
   REFRESH_MS,
+  toTrafficRangeQuery,
 } from "~/api/queries";
 import {
   CopyButton,
@@ -29,9 +31,16 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, plural, relTime, relTimeFromISO } from "~/lib/format";
-import type { TrafficPeriod } from "~/lib/traffic-range";
+import {
+  defaultLocalTrafficRange,
+  type LocalDateRange,
+  type TrafficPeriod,
+} from "~/lib/traffic-range";
 
 type Node = components["schemas"]["Node"];
+type NodeTodayTraffic = NonNullable<
+  components["schemas"]["PanelNodeTrafficResponse"]["by_node"]
+>[number];
 type PanelUser = components["schemas"]["PanelUser"];
 
 export const Route = createFileRoute("/")({
@@ -54,9 +63,14 @@ function DashboardPage() {
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
   const [trafficPeriod, setTrafficPeriod] = useState<TrafficPeriod>("today");
+  const [nodeTrafficRange, setNodeTrafficRange] =
+    useState<LocalDateRange | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const queryEnabled = canQueryPanelApi();
+  const nodeTrafficQuery = nodeTrafficRange
+    ? toTrafficRangeQuery(nodeTrafficRange)
+    : null;
   const nodesQuery = useQuery({
     queryKey: queryKeys.dashboardNodes(),
     queryFn: fetchDashboardNodes,
@@ -75,26 +89,57 @@ function DashboardPage() {
     enabled: queryEnabled,
     refetchInterval: REFRESH_MS,
   });
+  const nodeTrafficSummaryQuery = useQuery({
+    queryKey: queryKeys.dashboardNodeTraffic(nodeTrafficQuery),
+    queryFn: () => fetchDashboardNodeTraffic(nodeTrafficQuery!),
+    enabled: queryEnabled && nodeTrafficQuery !== null,
+    refetchInterval: REFRESH_MS,
+  });
 
-  // Tick the clock so relative timestamps stay current between refreshes.
+  // Tick the clock so relative timestamps stay current and local today rolls over.
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000);
+    const updateToday = () => {
+      const today = defaultLocalTrafficRange();
+      setNodeTrafficRange((current) =>
+        current &&
+        current.start.compare(today.start) === 0 &&
+        current.end.compare(today.end) === 0
+          ? current
+          : today,
+      );
+    };
+
+    updateToday();
+    const id = setInterval(() => {
+      setNow(Date.now());
+      updateToday();
+    }, 5_000);
     return () => clearInterval(id);
   }, []);
 
   const nodes = nodesQuery.data ?? [];
   const users = usersQuery.data ?? [];
   const panelTraffic = trafficQuery.data ?? null;
+  const nodeTrafficSummary = nodeTrafficSummaryQuery.data ?? null;
   const nodesLoading = nodesQuery.isPending;
   const usersLoading = usersQuery.isPending;
   const trafficLoading = trafficQuery.isPending;
+  const nodeTrafficLoading =
+    nodeTrafficRange === null || nodeTrafficSummaryQuery.isPending;
   const nodesError = nodesQuery.error ? queryErrorMessage(nodesQuery.error) : "";
   const usersError = usersQuery.error ? queryErrorMessage(usersQuery.error) : "";
   const trafficError = trafficQuery.error
     ? queryErrorMessage(trafficQuery.error)
     : "";
+  const nodeTrafficError = nodeTrafficSummaryQuery.error
+    ? queryErrorMessage(nodeTrafficSummaryQuery.error)
+    : "";
   const queryErrors = [
     { key: "nodes", message: nodesError ? `Nodes: ${nodesError}` : "" },
+    {
+      key: "nodeTraffic",
+      message: nodeTrafficError ? `Node traffic: ${nodeTrafficError}` : "",
+    },
     { key: "users", message: usersError ? `Users: ${usersError}` : "" },
     {
       key: "traffic",
@@ -106,7 +151,16 @@ function DashboardPage() {
       nodesQuery.dataUpdatedAt,
       usersQuery.dataUpdatedAt,
       trafficQuery.dataUpdatedAt,
+      nodeTrafficSummaryQuery.dataUpdatedAt,
     ) || null;
+  const nodeTrafficById = useMemo(() => {
+    const byId = new Map<string, NodeTodayTraffic>();
+    for (const row of nodeTrafficSummary?.by_node ?? []) {
+      const id = row.node?.id;
+      if (id) byId.set(id, row);
+    }
+    return byId;
+  }, [nodeTrafficSummary]);
   const enabledNodes = nodes.filter((n) => n.enabled);
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
   const errorNodes = enabledNodes.filter((n) => n.health === "error");
@@ -242,7 +296,13 @@ function DashboardPage() {
           {nodesLoading ? (
             <TableSkeleton />
           ) : nodes.length > 0 ? (
-            <NodesTable nodes={nodes} now={now} />
+            <NodesTable
+              nodes={nodes}
+              now={now}
+              todayTrafficByNode={nodeTrafficById}
+              todayTrafficLoading={nodeTrafficLoading}
+              todayTrafficUnavailable={Boolean(nodeTrafficError)}
+            />
           ) : nodesError ? (
             <PanelMessage>Couldn't load nodes.</PanelMessage>
           ) : (
@@ -401,7 +461,19 @@ function StatSkeleton({
 
 /* ── Tables ────────────────────────────────────────────────────────────── */
 
-function NodesTable({ nodes, now }: { nodes: Node[]; now: number }) {
+function NodesTable({
+  nodes,
+  now,
+  todayTrafficByNode,
+  todayTrafficLoading,
+  todayTrafficUnavailable,
+}: {
+  nodes: Node[];
+  now: number;
+  todayTrafficByNode: Map<string, NodeTodayTraffic>;
+  todayTrafficLoading: boolean;
+  todayTrafficUnavailable: boolean;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
@@ -410,8 +482,9 @@ function NodesTable({ nodes, now }: { nodes: Node[]; now: number }) {
             <Th>Node</Th>
             <Th>Endpoint</Th>
             <Th>Interval</Th>
+            <Th className="text-right">Today</Th>
             <Th className="text-right">Last poll</Th>
-            <Th>State</Th>
+            <Th className="text-right">State</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-(--separator)">
@@ -450,12 +523,21 @@ function NodesTable({ nodes, now }: { nodes: Node[]; now: number }) {
                 <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-(--muted)">
                   {node.poll_interval ? `${node.poll_interval}s` : "—"}
                 </Td>
+                <Td className="whitespace-nowrap text-right">
+                  <NodeTodayUsage
+                    loading={todayTrafficLoading}
+                    unavailable={todayTrafficUnavailable}
+                    traffic={
+                      node.id ? todayTrafficByNode.get(node.id) : undefined
+                    }
+                  />
+                </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
                   {node.last_polled_at
                     ? relTimeFromISO(node.last_polled_at, now)
                     : "—"}
                 </Td>
-                <Td>
+                <Td className="text-right">
                   <NodeState
                     enabled={enabled}
                     health={health}
@@ -468,6 +550,39 @@ function NodesTable({ nodes, now }: { nodes: Node[]; now: number }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function NodeTodayUsage({
+  loading,
+  unavailable,
+  traffic,
+}: {
+  loading: boolean;
+  unavailable: boolean;
+  traffic?: NodeTodayTraffic;
+}) {
+  if (loading) {
+    return (
+      <span
+        className="ml-auto block h-3 w-14 animate-pulse rounded bg-(--surface-secondary)"
+        aria-hidden
+      />
+    );
+  }
+  if (unavailable) {
+    return <span className="font-mono text-xs text-(--muted)">—</span>;
+  }
+
+  const tx = traffic?.tx ?? 0;
+  const rx = traffic?.rx ?? 0;
+  return (
+    <span
+      className="font-mono text-xs tabular-nums"
+      title={`TX ${formatBytes(tx)} · RX ${formatBytes(rx)}`}
+    >
+      {formatBytes(tx + rx)}
+    </span>
   );
 }
 
