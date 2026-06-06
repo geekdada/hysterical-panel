@@ -9,8 +9,11 @@ COPY . .
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
-    go build -trimpath -ldflags="-s -w" -o /out/hysterical-panel .
+    go build -trimpath \
+    -ldflags="-s -w -X hysterical-panel/internal/version.Version=${VERSION}" \
+    -o /out/hysterical-panel .
 
 FROM alpine:3.21
 

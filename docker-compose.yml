@@ -40,6 +40,7 @@ services:
     environment:
       PANEL_MASTER_KEY: ${PANEL_MASTER_KEY:?Set PANEL_MASTER_KEY in .env}
       PANEL_FRONTEND_URL_BASE: ${PANEL_FRONTEND_URL_BASE:-http://localhost:8080}
+      PANEL_BACKEND_URL_BASE: ${PANEL_BACKEND_URL_BASE:-http://localhost:8080}
       PANEL_CORS_MAX_AGE: ${PANEL_CORS_MAX_AGE:-7200}
       PB_ENCRYPTION_KEY: ${PB_ENCRYPTION_KEY:-}
       PB_DATA_DIR: /app/pb_data

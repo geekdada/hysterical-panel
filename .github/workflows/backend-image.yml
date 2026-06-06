@@ -86,6 +86,8 @@ jobs:
           file: ./backend/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
           tags: ${{ steps.version.outputs.tags }}
           labels: |
             org.opencontainers.image.title=hysterical-panel-backend
