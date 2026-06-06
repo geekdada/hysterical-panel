@@ -101,6 +101,72 @@ func TestServeAllowedOrigins_parsesURL(t *testing.T) {
 	}
 }
 
+func TestPanelBackendURL_defaultEmpty(t *testing.T) {
+	t.Setenv("PANEL_MASTER_KEY", "test-secret")
+	t.Setenv("PANEL_BACKEND_URL_BASE", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	got, err := cfg.PanelBackendURL()
+	if err != nil {
+		t.Fatalf("PanelBackendURL: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("PanelBackendURL = %q, want empty", got)
+	}
+}
+
+func TestPanelBackendURL_parsesURL(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"http://localhost:8090", "http://localhost:8090"},
+		{"https://panel.example.com/", "https://panel.example.com"},
+		{"http://127.0.0.1:8080", "http://127.0.0.1:8080"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			t.Setenv("PANEL_MASTER_KEY", "test-secret")
+			t.Setenv("PANEL_BACKEND_URL_BASE", tc.in)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			got, err := cfg.PanelBackendURL()
+			if err != nil {
+				t.Fatalf("PanelBackendURL: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("PanelBackendURL = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPanelBackendURL_rejectsInvalid(t *testing.T) {
+	tests := []string{
+		"ftp://localhost:8090",
+		"http://localhost:8090/api",
+		"not-a-url",
+		"http://",
+	}
+	for _, in := range tests {
+		t.Run(in, func(t *testing.T) {
+			t.Setenv("PANEL_MASTER_KEY", "test-secret")
+			t.Setenv("PANEL_BACKEND_URL_BASE", in)
+
+			_, err := Load()
+			if err == nil {
+				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
 func TestServeAllowedOrigins_rejectsInvalid(t *testing.T) {
 	tests := []string{
 		"ftp://localhost:3000",

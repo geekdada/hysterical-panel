@@ -19,6 +19,10 @@ type Config struct {
 	// Empty leaves CORS at "*" (PocketBase default).
 	PanelFrontendURLBase string `env:"PANEL_FRONTEND_URL_BASE"`
 
+	// PanelBackendURLBase is the public panel API origin exposed via GET /api/panel/config.
+	// Empty omits api_url from the response so clients fall back to same-origin or build-time config.
+	PanelBackendURLBase string `env:"PANEL_BACKEND_URL_BASE"`
+
 	// PanelCorsMaxAge is Access-Control-Max-Age for preflight caching (seconds).
 	// Browsers may cap (e.g. Chrome at 7200). 0 disables the header.
 	PanelCorsMaxAge int `env:"PANEL_CORS_MAX_AGE" envDefault:"7200"`
@@ -39,6 +43,9 @@ func Load() (Config, error) {
 	if _, err := cfg.ServeAllowedOrigins(); err != nil {
 		return Config{}, err
 	}
+	if _, err := cfg.PanelBackendURL(); err != nil {
+		return Config{}, err
+	}
 	if cfg.PanelCorsMaxAge < 0 {
 		return Config{}, fmt.Errorf("config: PANEL_CORS_MAX_AGE must be >= 0")
 	}
@@ -52,14 +59,36 @@ func (c Config) ServeAllowedOrigins() ([]string, error) {
 	if raw == "" {
 		return []string{"*"}, nil
 	}
-	origin, err := parseFrontendOrigin(raw)
+	origin, err := parseOriginBase(raw)
 	if err != nil {
 		return nil, fmt.Errorf("config: PANEL_FRONTEND_URL_BASE: %w", err)
 	}
 	return []string{origin}, nil
 }
 
-func parseFrontendOrigin(raw string) (string, error) {
+// PanelBackendURL returns the normalized public API origin, or "" when unset.
+func (c Config) PanelBackendURL() (string, error) {
+	raw := strings.TrimSpace(c.PanelBackendURLBase)
+	if raw == "" {
+		return "", nil
+	}
+	origin, err := parseOriginBase(raw)
+	if err != nil {
+		return "", fmt.Errorf("config: PANEL_BACKEND_URL_BASE: %w", err)
+	}
+	return origin, nil
+}
+
+// PanelFrontendURL returns the normalized frontend origin, or "" when unset.
+func (c Config) PanelFrontendURL() (string, error) {
+	raw := strings.TrimSpace(c.PanelFrontendURLBase)
+	if raw == "" {
+		return "", nil
+	}
+	return parseOriginBase(raw)
+}
+
+func parseOriginBase(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %w", err)
