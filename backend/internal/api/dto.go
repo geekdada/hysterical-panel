@@ -149,6 +149,46 @@ type BucketPoint struct {
 	Rx     int64  `json:"rx"`
 }
 
+// ── Database management ──────────────────────────────────────────────────────
+
+// DatabaseStatsResponse is returned by GET /database/stats.
+type DatabaseStatsResponse struct {
+	Cutoff        string                      `json:"cutoff"`
+	Storage       DatabaseStorageStats        `json:"storage"`
+	TrafficTables []DatabaseTrafficTableStats `json:"traffic_tables"`
+}
+
+// DatabaseStorageStats contains the on-disk database file footprint.
+type DatabaseStorageStats struct {
+	TotalBytes int64                 `json:"total_bytes"`
+	Files      []DatabaseStorageFile `json:"files"`
+}
+
+// DatabaseStorageFile is one database-related file in pb_data.
+type DatabaseStorageFile struct {
+	Name  string `json:"name"`
+	Bytes int64  `json:"bytes"`
+}
+
+// DatabaseTrafficTableStats contains row counts for one traffic table.
+type DatabaseTrafficTableStats struct {
+	Table           string `json:"table"`
+	Points          int64  `json:"points"`
+	OlderThan30Days int64  `json:"older_than_30_days"`
+}
+
+// DatabasePruneResponse is returned by POST /database/prune.
+type DatabasePruneResponse struct {
+	Cutoff  string                       `json:"cutoff"`
+	Deleted []DatabaseTrafficPruneResult `json:"deleted"`
+}
+
+// DatabaseTrafficPruneResult contains deleted row counts for one traffic table.
+type DatabaseTrafficPruneResult struct {
+	Table       string `json:"table"`
+	DeletedRows int64  `json:"deleted_rows"`
+}
+
 // ── Live ──────────────────────────────────────────────────────────────────────
 
 // LiveResponse is returned by GET /users/{id}/live.

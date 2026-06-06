@@ -31,6 +31,8 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"TrafficSummaryResponse":     TrafficSummaryResponse{},
 		"TrafficSeriesResponse":      TrafficSeriesResponse{},
 		"NodeTrafficSummaryResponse": NodeTrafficSummaryResponse{},
+		"DatabaseStatsResponse":      DatabaseStatsResponse{},
+		"DatabasePruneResponse":      DatabasePruneResponse{},
 		"LiveResponse":               LiveResponse{},
 		"NodeLiveResponse":           NodeLiveResponse{},
 		"DeleteResponse":             DeleteResponse{},
@@ -231,6 +233,46 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					openapi3.WithStatus(400, badRequest),
 				),
 			}
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /database/stats ──────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/database/stats", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "databaseStats",
+				Summary:     "Get database storage and traffic table statistics",
+				Tags:        []string{"database"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Database statistics"),
+						Content:     content(ref("DatabaseStatsResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /database/prune ──────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/database/prune", &openapi3.PathItem{
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "pruneDatabaseTraffic",
+				Summary:     "Delete traffic data older than 30 days",
+				Tags:        []string{"database"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Deleted row counts"),
+						Content:     content(ref("DatabasePruneResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
 			withAuth(op)
 			return op
 		}(),

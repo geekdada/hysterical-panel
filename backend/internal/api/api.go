@@ -41,6 +41,10 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/traffic", h.panelTraffic).Bind(adminOnly)
 	g.GET("/nodes/traffic/summary", h.panelNodeTrafficSummary).Bind(adminOnly)
 
+	// database management
+	g.GET("/database/stats", h.databaseStats).Bind(adminOnly)
+	g.POST("/database/prune", h.pruneDatabaseTraffic).Bind(adminOnly)
+
 	// nodes
 	g.GET("/nodes", h.listNodes).Bind(adminOnly)
 	g.POST("/nodes", h.createNode).Bind(adminOnly)
