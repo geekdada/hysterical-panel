@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type Column,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
+import {
   Link,
   createFileRoute,
   redirect,
@@ -42,6 +50,19 @@ type NodeTodayTraffic = NonNullable<
   components["schemas"]["PanelNodeTrafficResponse"]["by_node"]
 >[number];
 type PanelUser = components["schemas"]["PanelUser"];
+type NodeTableRow = {
+  node: Node;
+  status: string;
+  todayTotal: number;
+  todayTraffic?: NodeTodayTraffic;
+};
+type UserTableRow = {
+  email: string;
+  rx: number;
+  status: string;
+  tx: number;
+  user: PanelUser;
+};
 
 export const Route = createFileRoute("/")({
   beforeLoad: ({ context }) => {
@@ -461,6 +482,47 @@ function StatSkeleton({
 
 /* ── Tables ────────────────────────────────────────────────────────────── */
 
+function SortableTh<TData>({
+  column,
+  children,
+  align = "left",
+  className = "",
+}: {
+  column: Column<TData, unknown>;
+  children: ReactNode;
+  align?: "left" | "right";
+  className?: string;
+}) {
+  const sorted = column.getIsSorted();
+  const ariaSort =
+    sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none";
+
+  return (
+    <th
+      aria-sort={ariaSort}
+      className={`px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted) ${className}`}
+    >
+      <button
+        type="button"
+        onClick={() => column.toggleSorting(sorted === "asc")}
+        className={`inline-flex items-center gap-1 rounded-sm transition-colors duration-150 hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+          align === "right" ? "ml-auto justify-end" : ""
+        }`}
+      >
+        <span>{children}</span>
+        <span
+          aria-hidden
+          className={`inline-block w-3 text-center font-mono text-[10px] ${
+            sorted ? "text-(--foreground)" : "text-(--muted)"
+          }`}
+        >
+          {sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
 function NodesTable({
   nodes,
   now,
@@ -474,21 +536,83 @@ function NodesTable({
   todayTrafficLoading: boolean;
   todayTrafficUnavailable: boolean;
 }) {
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "name", desc: false },
+  ]);
+  const rows = useMemo<NodeTableRow[]>(
+    () =>
+      nodes.map((node) => {
+        const todayTraffic = node.id
+          ? todayTrafficByNode.get(node.id)
+          : undefined;
+        return {
+          node,
+          status: nodeStatusSortValue(node),
+          todayTotal: (todayTraffic?.tx ?? 0) + (todayTraffic?.rx ?? 0),
+          todayTraffic,
+        };
+      }),
+    [nodes, todayTrafficByNode],
+  );
+  const columns = useMemo<ColumnDef<NodeTableRow>[]>(
+    () => [
+      {
+        accessorFn: (row) => row.node.name ?? "",
+        id: "name",
+        sortDescFirst: false,
+      },
+      {
+        accessorFn: (row) => row.todayTotal,
+        id: "today",
+        sortDescFirst: false,
+      },
+      {
+        accessorFn: (row) => row.status,
+        id: "status",
+        sortDescFirst: false,
+      },
+    ],
+    [],
+  );
+  const table = useReactTable({
+    columns,
+    data: rows,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    state: { sorting },
+  });
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-            <Th>Node</Th>
+            <SortableTh column={table.getColumn("name")!}>Name</SortableTh>
             <Th>Endpoint</Th>
             <Th>Interval</Th>
-            <Th className="text-right">Today</Th>
+            <SortableTh
+              column={table.getColumn("today")!}
+              align="right"
+              className="text-right"
+            >
+              Today
+            </SortableTh>
             <Th className="text-right">Last poll</Th>
-            <Th className="text-right">State</Th>
+            <SortableTh
+              column={table.getColumn("status")!}
+              align="right"
+              className="text-right"
+            >
+              Status
+            </SortableTh>
           </tr>
         </thead>
         <tbody className="divide-y divide-(--separator)">
-          {nodes.map((node) => {
+          {table.getRowModel().rows.map((row) => {
+            const { node, todayTraffic } = row.original;
             const enabled = node.enabled ?? false;
             const health = node.health ?? "never";
             const tone = !enabled
@@ -527,9 +651,7 @@ function NodesTable({
                   <NodeTodayUsage
                     loading={todayTrafficLoading}
                     unavailable={todayTrafficUnavailable}
-                    traffic={
-                      node.id ? todayTrafficByNode.get(node.id) : undefined
-                    }
+                    traffic={todayTraffic}
                   />
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
@@ -551,6 +673,20 @@ function NodesTable({
       </table>
     </div>
   );
+}
+
+function nodeStatusSortValue(node: Node): string {
+  if (!(node.enabled ?? false)) {
+    return "disabled";
+  }
+  const health = node.health ?? "never";
+  if (health === "ok") {
+    return "healthy";
+  }
+  if (health === "error") {
+    return "error";
+  }
+  return "never polled";
 }
 
 function NodeTodayUsage({
@@ -616,20 +752,89 @@ function NodeState({
 }
 
 function UsersTable({ users }: { users: PanelUser[] }) {
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "email", desc: false },
+  ]);
+  const rows = useMemo<UserTableRow[]>(
+    () =>
+      users.map((user) => ({
+        email: user.email ?? "",
+        rx: user.used_rx ?? 0,
+        status: user.status ?? "active",
+        tx: user.used_tx ?? 0,
+        user,
+      })),
+    [users],
+  );
+  const columns = useMemo<ColumnDef<UserTableRow>[]>(
+    () => [
+      {
+        accessorKey: "email",
+        id: "email",
+        sortDescFirst: false,
+      },
+      {
+        accessorKey: "tx",
+        id: "tx",
+        sortDescFirst: false,
+      },
+      {
+        accessorKey: "rx",
+        id: "rx",
+        sortDescFirst: false,
+      },
+      {
+        accessorKey: "status",
+        id: "status",
+        sortDescFirst: false,
+      },
+    ],
+    [],
+  );
+  const table = useReactTable({
+    columns,
+    data: rows,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    state: { sorting },
+  });
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-            <Th>User</Th>
+            <SortableTh column={table.getColumn("email")!}>Email</SortableTh>
             <Th>Auth key</Th>
-            <Th className="text-right">TX</Th>
-            <Th className="text-right">RX</Th>
-            <Th className="text-right">Status</Th>
+            <SortableTh
+              column={table.getColumn("tx")!}
+              align="right"
+              className="text-right"
+            >
+              TX
+            </SortableTh>
+            <SortableTh
+              column={table.getColumn("rx")!}
+              align="right"
+              className="text-right"
+            >
+              RX
+            </SortableTh>
+            <SortableTh
+              column={table.getColumn("status")!}
+              align="right"
+              className="text-right"
+            >
+              Status
+            </SortableTh>
           </tr>
         </thead>
         <tbody className="divide-y divide-(--separator)">
-          {users.map((user) => {
+          {table.getRowModel().rows.map((row) => {
+            const { user } = row.original;
             const active = (user.status ?? "active") === "active";
             return (
               <tr
