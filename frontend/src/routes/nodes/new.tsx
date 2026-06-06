@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useForm } from '@tanstack/react-form'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useForm } from "@tanstack/react-form";
 import {
   Button,
   Description,
@@ -10,62 +16,63 @@ import {
   NumberField,
   Switch,
   TextField,
-} from '@heroui/react'
-import { requireAdmin } from '~/api/guards'
-import { apiClient } from '~/api/client'
-import type { components } from '~/api/schema'
+} from "@heroui/react";
+import { requireAdmin } from "~/api/guards";
+import { apiClient } from "~/api/client";
+import type { components } from "~/api/schema";
+import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 
-type Node = components['schemas']['Node']
+type Node = components["schemas"]["Node"];
 
-export const Route = createFileRoute('/nodes/new')({
+export const Route = createFileRoute("/nodes/new")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
   component: AddNodePage,
-})
+});
 
 type TestState =
-  | { status: 'pending' }
-  | { status: 'ok'; latencyMs: number }
-  | { status: 'error'; message: string }
+  | { status: "pending" }
+  | { status: "ok"; latencyMs: number }
+  | { status: "error"; message: string };
 
 function AddNodePage() {
-  const navigate = useNavigate()
-  const [created, setCreated] = useState<Node | null>(null)
-  const [test, setTest] = useState<TestState>({ status: 'pending' })
-  const [submitError, setSubmitError] = useState('')
+  const navigate = useNavigate();
+  const [created, setCreated] = useState<Node | null>(null);
+  const [test, setTest] = useState<TestState>({ status: "pending" });
+  const [submitError, setSubmitError] = useState("");
 
   const runTest = useCallback(async (id: string) => {
-    setTest({ status: 'pending' })
-    const { data, error } = await apiClient.POST('/api/panel/nodes/{id}/test', {
+    setTest({ status: "pending" });
+    const { data, error } = await apiClient.POST("/api/panel/nodes/{id}/test", {
       params: { path: { id } },
-    })
+    });
     if (error || !data) {
       setTest({
-        status: 'error',
+        status: "error",
         message: "Couldn't run the connectivity test.",
-      })
-      return
+      });
+      return;
     }
     if (data.ok) {
-      setTest({ status: 'ok', latencyMs: data.latency_ms ?? 0 })
+      setTest({ status: "ok", latencyMs: data.latency_ms ?? 0 });
     } else {
       setTest({
-        status: 'error',
-        message: data.error || 'Node is unreachable.',
-      })
+        status: "error",
+        message: data.error || "Node is unreachable.",
+      });
     }
-  }, [])
+  }, []);
 
   const form = useForm({
     defaultValues: {
-      name: '',
-      api_url: '',
-      api_secret: '',
+      name: "",
+      api_url: "",
+      api_secret: "",
       poll_interval: 30,
       enabled: true,
     },
     onSubmit: async ({ value }) => {
-      setSubmitError('')
-      const { data, error } = await apiClient.POST('/api/panel/nodes', {
+      setSubmitError("");
+      const { data, error } = await apiClient.POST("/api/panel/nodes", {
         body: {
           name: value.name.trim(),
           api_url: value.api_url.trim(),
@@ -73,21 +80,21 @@ function AddNodePage() {
           poll_interval: value.poll_interval,
           enabled: value.enabled,
         },
-      })
+      });
       if (error || !data?.id) {
-        setSubmitError(errorMessage(error) || "Couldn't create the node.")
-        return
+        setSubmitError(errorMessage(error) || "Couldn't create the node.");
+        return;
       }
-      setCreated(data)
-      void runTest(data.id)
+      setCreated(data);
+      void runTest(data.id);
     },
-  })
+  });
 
   function addAnother() {
-    form.reset()
-    setCreated(null)
-    setTest({ status: 'pending' })
-    setSubmitError('')
+    form.reset();
+    setCreated(null);
+    setTest({ status: "pending" });
+    setSubmitError("");
   }
 
   return (
@@ -126,14 +133,14 @@ function AddNodePage() {
               test={test}
               onRetry={() => created.id && runTest(created.id)}
               onAddAnother={addAnother}
-              onDone={() => navigate({ to: '/' })}
+              onDone={() => navigate({ to: "/" })}
             />
           ) : (
             <form
               onSubmit={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                void form.handleSubmit()
+                e.preventDefault();
+                e.stopPropagation();
+                void form.handleSubmit();
               }}
               className="flex flex-col gap-5"
               noValidate
@@ -160,9 +167,9 @@ function AddNodePage() {
                 validators={{
                   onChange: ({ value }) =>
                     !value.trim()
-                      ? 'Name is required'
+                      ? "Name is required"
                       : value.trim().length > 128
-                        ? 'Keep the name under 128 characters'
+                        ? "Keep the name under 128 characters"
                         : undefined,
                 }}
               >
@@ -185,7 +192,7 @@ function AddNodePage() {
                       data-form-type="other"
                     />
                     <FieldError>
-                      {field.state.meta.errors.join(', ')}
+                      {field.state.meta.errors.join(", ")}
                     </FieldError>
                   </TextField>
                 )}
@@ -220,7 +227,7 @@ function AddNodePage() {
                     />
                     {field.state.meta.errors.length > 0 ? (
                       <FieldError>
-                        {field.state.meta.errors.join(', ')}
+                        {field.state.meta.errors.join(", ")}
                       </FieldError>
                     ) : (
                       <Description>
@@ -236,7 +243,7 @@ function AddNodePage() {
                 name="api_secret"
                 validators={{
                   onChange: ({ value }) =>
-                    !value ? 'API secret is required' : undefined,
+                    !value ? "API secret is required" : undefined,
                 }}
               >
                 {(field) => (
@@ -253,7 +260,7 @@ function AddNodePage() {
                       <button
                         type="button"
                         onClick={() => {
-                          field.handleChange(generateSecret())
+                          field.handleChange(generateSecret());
                         }}
                         className="rounded text-xs font-medium text-(--accent) transition-opacity duration-150 hover:opacity-80 focus-visible:underline focus-visible:outline-none"
                       >
@@ -278,7 +285,7 @@ function AddNodePage() {
                     </div>
                     {field.state.meta.errors.length > 0 ? (
                       <FieldError>
-                        {field.state.meta.errors.join(', ')}
+                        {field.state.meta.errors.join(", ")}
                       </FieldError>
                     ) : (
                       <Description>
@@ -296,9 +303,9 @@ function AddNodePage() {
                 validators={{
                   onChange: ({ value }) =>
                     value == null || Number.isNaN(value)
-                      ? 'Poll interval is required'
+                      ? "Poll interval is required"
                       : !Number.isInteger(value) || value < 1
-                        ? 'Use a whole number of seconds, at least 1'
+                        ? "Use a whole number of seconds, at least 1"
                         : undefined,
                 }}
               >
@@ -322,7 +329,7 @@ function AddNodePage() {
                     </NumberField.Group>
                     {field.state.meta.errors.length > 0 ? (
                       <FieldError>
-                        {field.state.meta.errors.join(', ')}
+                        {field.state.meta.errors.join(", ")}
                       </FieldError>
                     ) : (
                       <Description>Seconds between traffic polls.</Description>
@@ -362,7 +369,7 @@ function AddNodePage() {
               )}
 
               <div className="flex items-center justify-end gap-2 border-t border-(--separator) pt-4">
-                <Button variant="ghost" onPress={() => navigate({ to: '/' })}>
+                <Button variant="ghost" onPress={() => navigate({ to: "/" })}>
                   Cancel
                 </Button>
                 <form.Subscribe
@@ -377,7 +384,7 @@ function AddNodePage() {
                       variant="primary"
                       isDisabled={!canSubmit}
                     >
-                      {isSubmitting ? 'Adding…' : 'Add node'}
+                      {isSubmitting ? "Adding…" : "Add node"}
                     </Button>
                   )}
                 </form.Subscribe>
@@ -393,46 +400,47 @@ function AddNodePage() {
         )}
       </main>
     </div>
-  )
+  );
 }
 
 /* ── Hysteria server setup guidance ────────────────────────────────────── */
 
-const SECRET_PLACEHOLDER = '<random-string>'
+const SECRET_PLACEHOLDER = "<random-string>";
 
 function setupYaml(apiSecret: string): { code: string; note?: string }[] {
-  const secret = apiSecret || SECRET_PLACEHOLDER
+  const secret = apiSecret || SECRET_PLACEHOLDER;
 
   return [
-    { code: 'trafficStats:' },
+    { code: "trafficStats:" },
     {
-      code: '  listen: :9999',
-      note: 'API address; must be reachable from the panel',
+      code: "  listen: :9999",
+      note: "API address; must be reachable from the panel",
     },
     {
       code: `  secret: ${secret}`,
-      note: 'sent as the Authorization header',
+      note: "sent as the Authorization header",
     },
-  ]
+  ];
 }
 
-const PANEL_URL_PLACEHOLDER = '<panel-base-url>'
+const PANEL_URL_PLACEHOLDER = "<panel-base-url>";
 
 function authYaml(panelOrigin: string): { code: string; note?: string }[] {
   return [
-    { code: 'auth:' },
-    { code: '  type: http' },
-    { code: '  http:' },
-    { code: `    url: ${panelOrigin}/api/hysteria/auth`, note: 'this panel' },
+    { code: "auth:" },
+    { code: "  type: http" },
+    { code: "  http:" },
+    { code: `    url: ${panelOrigin}/api/hysteria/auth`, note: "this panel" },
     {
-      code: '    insecure: false',
-      note: 'true only if the panel uses self-signed TLS',
+      code: "    insecure: false",
+      note: "true only if the panel uses self-signed TLS",
     },
-  ]
+  ];
 }
 
 function ServerSetup({ apiSecret }: { apiSecret: string }) {
-  const panelOrigin = import.meta.env.VITE_API_BASE_URL || PANEL_URL_PLACEHOLDER
+  const resolvedOrigin = usePanelApiOrigin();
+  const panelOrigin = resolvedOrigin || PANEL_URL_PLACEHOLDER;
 
   return (
     <section className="mt-4 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
@@ -441,7 +449,7 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
       </h2>
       <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
         The panel only reads stats; it never deploys the node. Enable the
-        Traffic Stats API in the node's{' '}
+        Traffic Stats API in the node's{" "}
         <span className="font-mono">server.yaml</span>, then restart Hysteria.
       </p>
 
@@ -461,7 +469,7 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
       </h3>
       <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
         Point Hysteria's <span className="font-mono">auth.http.url</span> at the
-        panel. Each connect attempt is checked against the{' '}
+        panel. Each connect attempt is checked against the{" "}
         <span className="font-mono">auth_string</span> of the matching user;
         disabled accounts are rejected.
       </p>
@@ -501,7 +509,7 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
         </SetupRow>
       </dl>
     </section>
-  )
+  );
 }
 
 function SetupRow({ term, children }: { term: string; children: ReactNode }) {
@@ -512,7 +520,7 @@ function SetupRow({ term, children }: { term: string; children: ReactNode }) {
       </dt>
       <dd className="text-(--muted)">{children}</dd>
     </div>
-  )
+  );
 }
 
 /* ── Post-create verification view ─────────────────────────────────────── */
@@ -524,11 +532,11 @@ function CreatedView({
   onAddAnother,
   onDone,
 }: {
-  node: Node
-  test: TestState
-  onRetry: () => void
-  onAddAnother: () => void
-  onDone: () => void
+  node: Node;
+  test: TestState;
+  onRetry: () => void;
+  onAddAnother: () => void;
+  onDone: () => void;
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -543,13 +551,13 @@ function CreatedView({
       </div>
 
       <div className="rounded-(--radius) border border-(--border) bg-(--surface-secondary) px-3 py-2.5 text-[13px]">
-        {test.status === 'pending' && (
+        {test.status === "pending" && (
           <div className="flex items-center gap-2 text-(--muted)">
             <span className="inline-block size-2 shrink-0 animate-pulse rounded-full bg-(--muted)" />
             Testing connection…
           </div>
         )}
-        {test.status === 'ok' && (
+        {test.status === "ok" && (
           <div className="flex items-center gap-2">
             <StatusDot tone="ok" />
             <span>Reachable</span>
@@ -558,7 +566,7 @@ function CreatedView({
             </span>
           </div>
         )}
-        {test.status === 'error' && (
+        {test.status === "error" && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <StatusDot tone="error" />
@@ -593,24 +601,24 @@ function CreatedView({
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
 function StatusDot({
   tone,
-  className = '',
+  className = "",
 }: {
-  tone: 'ok' | 'error'
-  className?: string
+  tone: "ok" | "error";
+  className?: string;
 }) {
-  const fill = tone === 'ok' ? 'bg-(--success)' : 'bg-(--danger)'
+  const fill = tone === "ok" ? "bg-(--success)" : "bg-(--danger)";
   return (
     <span
       className={`inline-block size-2 shrink-0 rounded-full ${fill} ${className}`}
     />
-  )
+  );
 }
 
 function IconAction({
@@ -619,10 +627,10 @@ function IconAction({
   disabled = false,
   children,
 }: {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  children: ReactNode
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: ReactNode;
 }) {
   return (
     <button
@@ -635,27 +643,27 @@ function IconAction({
     >
       {children}
     </button>
-  )
+  );
 }
 
 function CopyButton({ value, label }: { value: string; label: string }) {
-  const [copied, setCopied] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
     () => () => {
-      if (timer.current) clearTimeout(timer.current)
+      if (timer.current) clearTimeout(timer.current);
     },
     []
-  )
+  );
 
   async function copy() {
-    if (!value) return
+    if (!value) return;
     try {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-      if (timer.current) clearTimeout(timer.current)
-      timer.current = setTimeout(() => setCopied(false), 1200)
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1200);
     } catch {
       // Clipboard unavailable (insecure context); nothing actionable to do.
     }
@@ -663,7 +671,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 
   return (
     <IconAction
-      label={copied ? 'Copied' : `Copy ${label}`}
+      label={copied ? "Copied" : `Copy ${label}`}
       onClick={copy}
       disabled={!value}
     >
@@ -675,54 +683,57 @@ function CopyButton({ value, label }: { value: string; label: string }) {
         <CopyIcon />
       )}
     </IconAction>
-  )
+  );
 }
 
 // 32 random bytes as URL-safe base64, generated client-side via Web Crypto.
 function generateSecret(): string {
-  const bytes = new Uint8Array(32)
-  crypto.getRandomValues(bytes)
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 function validateUrl(value: string): string | undefined {
-  const v = value.trim()
-  if (!v) return 'API URL is required'
+  const v = value.trim();
+  if (!v) return "API URL is required";
   try {
-    new URL(v)
+    new URL(v);
   } catch {
-    return 'Enter a valid URL, e.g. https://node.example.com:8443'
+    return "Enter a valid URL, e.g. https://node.example.com:8443";
   }
-  return undefined
+  return undefined;
 }
 
 function errorMessage(error: unknown): string {
   if (
     error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof (error as { message: unknown }).message === 'string'
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
   ) {
-    return (error as { message: string }).message
+    return (error as { message: string }).message;
   }
-  return ''
+  return "";
 }
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 
 function iconProps() {
   return {
-    viewBox: '0 0 24 24',
-    className: 'size-3.5',
-    fill: 'none',
-    stroke: 'currentColor',
+    viewBox: "0 0 24 24",
+    className: "size-3.5",
+    fill: "none",
+    stroke: "currentColor",
     strokeWidth: 1.75,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    'aria-hidden': true,
-  }
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
 }
 
 function CopyIcon() {
@@ -731,7 +742,7 @@ function CopyIcon() {
       <rect x="9" y="9" width="11" height="11" rx="2" />
       <path d="M5 15V5a2 2 0 0 1 2-2h10" />
     </svg>
-  )
+  );
 }
 
 function CheckIcon() {
@@ -739,5 +750,5 @@ function CheckIcon() {
     <svg {...iconProps()} strokeWidth={2}>
       <path d="M20 6 9 17l-5-5" />
     </svg>
-  )
+  );
 }

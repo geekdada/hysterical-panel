@@ -2,14 +2,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { Button, Dropdown, Label, Separator } from "@heroui/react";
 import type { Key } from "react";
 import { clearAuth, type Auth } from "~/api/auth";
-
-function panelApiOrigin(): string {
-  return (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-}
+import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 
 export function UserMenu({ auth }: { auth: Auth }) {
   const navigate = useNavigate();
-  const origin = panelApiOrigin();
+  const origin = usePanelApiOrigin();
   const showPbAdmin = auth.user.role === "admin" && origin.length > 0;
 
   function handleAction(key: Key) {
