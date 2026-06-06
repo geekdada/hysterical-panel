@@ -1,4 +1,4 @@
-name: Backend Docker Image
+name: Docker Images
 
 on:
   release:
@@ -9,9 +9,13 @@ permissions:
   packages: write
 
 jobs:
-  build:
-    name: Build and publish backend image
+  metadata:
+    name: Validate release metadata
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      backend_tags: ${{ steps.version.outputs.backend_tags }}
+      frontend_tags: ${{ steps.version.outputs.frontend_tags }}
 
     steps:
       - name: Checkout release tag
@@ -48,23 +52,67 @@ jobs:
           fi
 
           repository="${GITHUB_REPOSITORY,,}"
-          image="ghcr.io/${repository}-backend"
+          backend_image="ghcr.io/${repository}-backend"
+          frontend_image="ghcr.io/${repository}-frontend"
 
-          tags="${image}:${version}"
+          backend_tags="${backend_image}:${version}"
+          frontend_tags="${frontend_image}:${version}"
           if [[ "$version" != *-* ]]; then
             IFS=. read -r major minor patch <<< "$version"
-            tags+=$'\n'"${image}:${major}.${minor}"
-            tags+=$'\n'"${image}:${major}"
-            tags+=$'\n'"${image}:latest"
+            backend_tags+=$'\n'"${backend_image}:${major}.${minor}"
+            backend_tags+=$'\n'"${backend_image}:${major}"
+            backend_tags+=$'\n'"${backend_image}:latest"
+            frontend_tags+=$'\n'"${frontend_image}:${major}.${minor}"
+            frontend_tags+=$'\n'"${frontend_image}:${major}"
+            frontend_tags+=$'\n'"${frontend_image}:latest"
           fi
 
           {
             echo "version=$version"
-            echo "image=$image"
-            echo "tags<<EOF"
-            echo "$tags"
+            echo "backend_tags<<EOF"
+            echo "$backend_tags"
+            echo "EOF"
+            echo "frontend_tags<<EOF"
+            echo "$frontend_tags"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+  backend:
+    name: Build and publish backend image
+    runs-on: ubuntu-latest
+    needs: metadata
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 1
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Generate OpenAPI schema
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd backend
+          PANEL_MASTER_KEY=skip go run . openapi-schema -o openapi.json
+
+          mkdir -p "$RUNNER_TEMP/openapi"
+          cp openapi.json "$RUNNER_TEMP/openapi/openapi.json"
+
+      - name: Upload OpenAPI schema
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-openapi-${{ needs.metadata.outputs.version }}
+          path: ${{ runner.temp }}/openapi/openapi.json
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -87,14 +135,63 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
-            VERSION=${{ steps.version.outputs.version }}
-          tags: ${{ steps.version.outputs.tags }}
+            VERSION=${{ needs.metadata.outputs.version }}
+          tags: ${{ needs.metadata.outputs.backend_tags }}
           labels: |
             org.opencontainers.image.title=hysterical-panel-backend
             org.opencontainers.image.description=Hysterical Panel backend
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.version=${{ needs.metadata.outputs.version }}
+            org.opencontainers.image.created=${{ github.event.release.published_at }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  frontend:
+    name: Build and publish frontend image
+    runs-on: ubuntu-latest
+    needs: [metadata, backend]
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 1
+
+      - name: Download OpenAPI schema
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-openapi-${{ needs.metadata.outputs.version }}
+          path: backend
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ needs.metadata.outputs.frontend_tags }}
+          labels: |
+            org.opencontainers.image.title=hysterical-panel-frontend
+            org.opencontainers.image.description=Hysterical Panel frontend
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.metadata.outputs.version }}
             org.opencontainers.image.created=${{ github.event.release.published_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

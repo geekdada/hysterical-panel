@@ -1,14 +1,3 @@
-FROM golang:1.26.2-alpine AS openapi
-
-WORKDIR /src/backend
-
-COPY backend/go.mod backend/go.sum ./
-RUN go mod download
-
-COPY backend/ ./
-
-RUN PANEL_MASTER_KEY=skip go run . openapi-schema -o openapi.json
-
 FROM node:22-alpine AS build
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -20,7 +9,7 @@ COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY frontend/ ./
-COPY --from=openapi /src/backend/openapi.json /app/backend/openapi.json
+COPY backend/openapi.json /app/backend/
 
 ARG VITE_API_BASE_URL=
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
