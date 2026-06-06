@@ -15,6 +15,8 @@ type ApiResult<T> = {
   response: Response;
 };
 
+type DatabasePrune = components["schemas"]["DatabasePruneResponse"];
+type DatabaseStats = components["schemas"]["DatabaseStatsResponse"];
 type Node = components["schemas"]["Node"];
 type NodeCreateRequest = components["schemas"]["NodeCreateRequest"];
 type NodeLive = components["schemas"]["NodeLiveResponse"];
@@ -75,6 +77,7 @@ export const queryKeys = {
   dashboardTraffic: (period: TrafficPeriod) =>
     [...queryKeys.dashboardBase(), "traffic", period] as const,
   dashboardUsers: () => [...queryKeys.dashboardBase(), "users"] as const,
+  databaseStats: () => [...queryKeys.all, "database", "stats"] as const,
   nodeLive: (nodeId: string) =>
     [...queryKeys.all, "nodes", nodeId, "live"] as const,
   nodeOverview: (nodeId: string, range: TrafficRangeQuery | null) =>
@@ -146,6 +149,20 @@ export function fetchDashboardTraffic(
     apiClient.GET("/api/panel/traffic", {
       params: { query: { from, to } },
     }),
+  );
+}
+
+export function fetchDatabaseStats(): Promise<DatabaseStats | null> {
+  return apiRequest<DatabaseStats | null>(
+    apiClient.GET("/api/panel/database/stats"),
+  );
+}
+
+export function pruneDatabaseTraffic(): Promise<DatabasePrune> {
+  return apiRequest<DatabasePrune>(
+    apiClient.POST("/api/panel/database/prune"),
+    "Couldn't delete old traffic data.",
+    "Network error while deleting old traffic data.",
   );
 }
 

@@ -8,7 +8,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "api:schema": "cd ../backend && PANEL_MASTER_KEY=skip go run . openapi-schema -o openapi.json",
+    "api:schema": "../scripts/generate-openapi-schema.sh",
     "api:types": "openapi-typescript ../backend/openapi.json -o src/api/schema.d.ts",
     "api:sync": "pnpm api:schema && pnpm api:types"
   },

@@ -18,6 +18,10 @@ export function UserMenu({ auth }: { auth: Auth }) {
       window.open(`${origin}/_/`, "_blank", "noopener,noreferrer");
       return;
     }
+    if (key === "database") {
+      navigate({ to: "/database" });
+      return;
+    }
     if (key === "sign-out") {
       clearAuth();
       window.location.href = "/login";
@@ -43,6 +47,11 @@ export function UserMenu({ auth }: { auth: Auth }) {
           {showPbAdmin && (
             <Dropdown.Item id="pb-admin" textValue="PocketBase admin">
               <Label>PocketBase admin</Label>
+            </Dropdown.Item>
+          )}
+          {auth.user.role === "admin" && (
+            <Dropdown.Item id="database" textValue="Database management">
+              <Label>Database management</Label>
             </Dropdown.Item>
           )}
           <Separator />
