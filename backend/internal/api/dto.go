@@ -84,6 +84,14 @@ type PanelTrafficResponse struct {
 	Total ByteCount `json:"total"`
 }
 
+// PanelNodeTrafficResponse is returned by GET /nodes/traffic/summary.
+type PanelNodeTrafficResponse struct {
+	From   string        `json:"from"`
+	To     string        `json:"to"`
+	Total  ByteCount     `json:"total"`
+	ByNode []NodeTraffic `json:"by_node"`
+}
+
 // TrafficSummaryResponse is returned by GET /users/{id}/traffic/summary (UTC today).
 type TrafficSummaryResponse struct {
 	Total  ByteCount     `json:"total"`

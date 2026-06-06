@@ -20,9 +20,9 @@ type ipMetadataLookup interface {
 
 // Handlers bundles dependencies shared by all route handlers.
 type Handlers struct {
-	app         core.App
-	box         *cryptobox.Box
-	ipLookup    ipMetadataLookup
+	app          core.App
+	box          *cryptobox.Box
+	ipLookup     ipMetadataLookup
 	publicConfig PanelConfigResponse
 }
 
@@ -39,6 +39,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 
 	// dashboard traffic
 	g.GET("/traffic", h.panelTraffic).Bind(adminOnly)
+	g.GET("/nodes/traffic/summary", h.panelNodeTrafficSummary).Bind(adminOnly)
 
 	// nodes
 	g.GET("/nodes", h.listNodes).Bind(adminOnly)

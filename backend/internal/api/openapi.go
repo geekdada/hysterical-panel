@@ -27,6 +27,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"UserCreateRequest":          UserCreateRequest{},
 		"UserUpdateRequest":          UserUpdateRequest{},
 		"PanelTrafficResponse":       PanelTrafficResponse{},
+		"PanelNodeTrafficResponse":   PanelNodeTrafficResponse{},
 		"TrafficSummaryResponse":     TrafficSummaryResponse{},
 		"TrafficSeriesResponse":      TrafficSeriesResponse{},
 		"NodeTrafficSummaryResponse": NodeTrafficSummaryResponse{},
@@ -183,6 +184,48 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 						Value: &openapi3.Response{
 							Description: ptr("Global traffic total for the requested range"),
 							Content:     content(ref("PanelTrafficResponse")),
+						},
+					}),
+					openapi3.WithStatus(400, badRequest),
+				),
+			}
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /nodes/traffic/summary ───────────────────────────────────────────
+	t.Paths.Set("/api/panel/nodes/traffic/summary", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "panelNodeTrafficSummary",
+				Summary:     "Get per-node traffic totals for a UTC datetime range",
+				Tags:        []string{"traffic"},
+				Parameters: openapi3.Parameters{
+					{
+						Value: &openapi3.Parameter{
+							Name:        "from",
+							In:          "query",
+							Required:    true,
+							Description: "Start datetime (UTC, inclusive)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
+						},
+					},
+					{
+						Value: &openapi3.Parameter{
+							Name:        "to",
+							In:          "query",
+							Required:    true,
+							Description: "End datetime (UTC, inclusive)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
+						},
+					},
+				},
+				Responses: openapi3.NewResponses(
+					openapi3.WithStatus(200, &openapi3.ResponseRef{
+						Value: &openapi3.Response{
+							Description: ptr("Per-node traffic totals for the requested range"),
+							Content:     content(ref("PanelNodeTrafficResponse")),
 						},
 					}),
 					openapi3.WithStatus(400, badRequest),
