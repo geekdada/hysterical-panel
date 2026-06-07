@@ -12,7 +12,14 @@ import {
   queryKeys,
   REFRESH_MS,
 } from "~/api/queries";
-import { Dot, PanelMessage, Section, TableSkeleton, Td, Th } from "~/components/ui";
+import {
+  Dot,
+  PanelMessage,
+  Section,
+  TableSkeleton,
+  Td,
+  Th,
+} from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, relTime } from "~/lib/format";
 
@@ -43,8 +50,12 @@ function DatabasePage() {
   const pruneMutation = useMutation({
     mutationFn: pruneDatabaseTraffic,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.databaseStats() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardBase() });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.databaseStats(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.dashboardBase(),
+      });
     },
   });
 
@@ -59,7 +70,7 @@ function DatabasePage() {
   const tables = useMemo(() => stats?.traffic_tables ?? [], [stats]);
   const pruneEligible = tables.reduce(
     (sum, table) => sum + (table.older_than_30_days ?? 0),
-    0,
+    0
   );
   const hourly = trafficTable(tables, "traffic_hourly");
   const daily = trafficTable(tables, "traffic_daily");
@@ -68,7 +79,7 @@ function DatabasePage() {
   const pruneError = pruneMutation.error
     ? queryErrorMessage(
         pruneMutation.error,
-        "Network error while deleting old traffic data.",
+        "Network error while deleting old traffic data."
       )
     : "";
   const updatedAt = statsQuery.dataUpdatedAt || null;
@@ -76,7 +87,7 @@ function DatabasePage() {
   function handlePrune() {
     if (pruneEligible <= 0 || pruneMutation.isPending) return;
     const ok = window.confirm(
-      `Delete ${formatCount(pruneEligible)} traffic data points older than 30 days? This cannot be undone.`,
+      `Delete ${formatCount(pruneEligible)} traffic data points older than 30 days? This cannot be undone.`
     );
     if (ok) pruneMutation.mutate();
   }
@@ -94,7 +105,6 @@ function DatabasePage() {
               <BackIcon />
             </Link>
             <div className="flex min-w-0 items-center gap-2">
-              <Dot tone={error ? "error" : "ok"} />
               <span className="truncate text-[13px] font-semibold tracking-tight">
                 Database management
               </span>
@@ -136,13 +146,21 @@ function DatabasePage() {
 
         <Section
           title="Traffic data points"
-          meta={stats?.cutoff ? `Retention cutoff ${formatCutoff(stats.cutoff)}` : undefined}
+          meta={
+            stats?.cutoff
+              ? `Retention cutoff ${formatCutoff(stats.cutoff)}`
+              : undefined
+          }
         >
           <TrafficTableSection loading={loading} tables={tables} />
         </Section>
 
         <Section title="Storage footprint">
-          <StorageTable loading={loading} files={files} totalBytes={storage?.total_bytes ?? 0} />
+          <StorageTable
+            loading={loading}
+            files={files}
+            totalBytes={storage?.total_bytes ?? 0}
+          />
         </Section>
 
         <Section
@@ -187,13 +205,25 @@ function SummaryRail({
 }) {
   return (
     <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
-      <RailItem label="Storage" loading={loading} value={formatBytes(storageBytes)}>
+      <RailItem
+        label="Storage"
+        loading={loading}
+        value={formatBytes(storageBytes)}
+      >
         data.db footprint
       </RailItem>
-      <RailItem label="Hourly points" loading={loading} value={formatCount(hourly)}>
+      <RailItem
+        label="Hourly points"
+        loading={loading}
+        value={formatCount(hourly)}
+      >
         traffic_hourly rows
       </RailItem>
-      <RailItem label="Daily points" loading={loading} value={formatCount(daily)}>
+      <RailItem
+        label="Daily points"
+        loading={loading}
+        value={formatCount(daily)}
+      >
         traffic_daily rows
       </RailItem>
       <RailItem
@@ -253,7 +283,8 @@ function TrafficTableSection({
   tables: TrafficTable[];
 }) {
   if (loading) return <TableSkeleton rows={2} />;
-  if (tables.length === 0) return <PanelMessage>No traffic tables found.</PanelMessage>;
+  if (tables.length === 0)
+    return <PanelMessage>No traffic tables found.</PanelMessage>;
 
   return (
     <div className="overflow-x-auto">
@@ -269,7 +300,10 @@ function TrafficTableSection({
           {tables.map((table) => {
             const old = table.older_than_30_days ?? 0;
             return (
-              <tr key={table.table} className="transition-colors duration-150 hover:bg-(--surface-secondary)">
+              <tr
+                key={table.table}
+                className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+              >
                 <Td>
                   <span className="font-mono text-[13px] text-(--foreground)">
                     {table.table ?? "—"}
@@ -317,8 +351,13 @@ function StorageTable({
         </thead>
         <tbody className="divide-y divide-(--separator)">
           {files.map((file) => (
-            <tr key={file.name} className="transition-colors duration-150 hover:bg-(--surface-secondary)">
-              <Td className="font-mono text-(--foreground)">{file.name ?? "—"}</Td>
+            <tr
+              key={file.name}
+              className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+            >
+              <Td className="font-mono text-(--foreground)">
+                {file.name ?? "—"}
+              </Td>
               <Td className="text-right font-mono tabular-nums">
                 {formatBytes(file.bytes ?? 0)}
               </Td>
@@ -348,7 +387,10 @@ function MaintenancePanel({
   result: DatabasePrune | null;
 }) {
   const deleted = result?.deleted ?? [];
-  const deletedTotal = deleted.reduce((sum, row) => sum + (row.deleted_rows ?? 0), 0);
+  const deletedTotal = deleted.reduce(
+    (sum, row) => sum + (row.deleted_rows ?? 0),
+    0
+  );
 
   return (
     <div className="divide-y divide-(--separator)">
@@ -373,7 +415,9 @@ function MaintenancePanel({
       {result && (
         <div className="px-4 py-3 text-[13px] text-(--foreground)">
           Deleted{" "}
-          <span className="font-mono tabular-nums">{formatCount(deletedTotal)}</span>{" "}
+          <span className="font-mono tabular-nums">
+            {formatCount(deletedTotal)}
+          </span>{" "}
           rows.
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-(--muted)">
             {deleted.map((row) => (
@@ -388,7 +432,10 @@ function MaintenancePanel({
   );
 }
 
-function trafficTable(tables: TrafficTable[], tableName: string): TrafficTable | null {
+function trafficTable(
+  tables: TrafficTable[],
+  tableName: string
+): TrafficTable | null {
   return tables.find((table) => table.table === tableName) ?? null;
 }
 
@@ -399,7 +446,9 @@ function tableLabel(table?: string): string {
 }
 
 function formatCount(value: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+    value
+  );
 }
 
 function formatCutoff(value: string): string {
