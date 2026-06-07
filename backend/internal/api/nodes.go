@@ -107,6 +107,10 @@ func (h *Handlers) updateNode(e *core.RequestEvent) error {
 	}
 	if in.Enabled != nil {
 		n.Set("enabled", *in.Enabled)
+		if !*in.Enabled {
+			n.Set("current_tx_speed", 0)
+			n.Set("current_rx_speed", 0)
+		}
 	}
 	if err := h.app.Save(n); err != nil {
 		return apis.NewBadRequestError("failed to save node", err)
