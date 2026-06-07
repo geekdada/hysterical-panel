@@ -186,3 +186,111 @@ func TestServeAllowedOrigins_rejectsInvalid(t *testing.T) {
 		})
 	}
 }
+
+func TestWebAuthn_disabledByDefault(t *testing.T) {
+	t.Setenv("PANEL_MASTER_KEY", "test-secret")
+	t.Setenv("PANEL_FRONTEND_URL_BASE", "")
+	t.Setenv("PANEL_BACKEND_URL_BASE", "")
+	t.Setenv("PANEL_WEBAUTHN_RP_ID", "")
+	t.Setenv("PANEL_WEBAUTHN_ORIGINS", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	wa, err := cfg.WebAuthn()
+	if err != nil {
+		t.Fatalf("WebAuthn: %v", err)
+	}
+	if wa.Enabled {
+		t.Fatalf("WebAuthn.Enabled = true, want false")
+	}
+}
+
+func TestWebAuthn_explicitConfig(t *testing.T) {
+	t.Setenv("PANEL_MASTER_KEY", "test-secret")
+	t.Setenv("PANEL_WEBAUTHN_RP_ID", "panel.example.com")
+	t.Setenv("PANEL_WEBAUTHN_ORIGINS", "https://panel.example.com,https://panel.example.com/")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	wa, err := cfg.WebAuthn()
+	if err != nil {
+		t.Fatalf("WebAuthn: %v", err)
+	}
+	if !wa.Enabled || wa.RPID != "panel.example.com" {
+		t.Fatalf("WebAuthn = %#v", wa)
+	}
+	if len(wa.Origins) != 1 || wa.Origins[0] != "https://panel.example.com" {
+		t.Fatalf("Origins = %#v", wa.Origins)
+	}
+}
+
+func TestWebAuthn_infersFromFrontendURL(t *testing.T) {
+	t.Setenv("PANEL_MASTER_KEY", "test-secret")
+	t.Setenv("PANEL_FRONTEND_URL_BASE", "https://panel.example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	wa, err := cfg.WebAuthn()
+	if err != nil {
+		t.Fatalf("WebAuthn: %v", err)
+	}
+	if !wa.Enabled || wa.RPID != "panel.example.com" {
+		t.Fatalf("WebAuthn = %#v", wa)
+	}
+	if len(wa.Origins) != 1 || wa.Origins[0] != "https://panel.example.com" {
+		t.Fatalf("Origins = %#v", wa.Origins)
+	}
+}
+
+func TestWebAuthn_allowsLocalHTTP(t *testing.T) {
+	t.Setenv("PANEL_MASTER_KEY", "test-secret")
+	t.Setenv("PANEL_WEBAUTHN_RP_ID", "localhost")
+	t.Setenv("PANEL_WEBAUTHN_ORIGINS", "http://localhost:3000")
+
+	if _, err := Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+}
+
+func TestWebAuthn_rejectsInsecureRemoteHTTP(t *testing.T) {
+	t.Setenv("PANEL_MASTER_KEY", "test-secret")
+	t.Setenv("PANEL_WEBAUTHN_RP_ID", "panel.example.com")
+	t.Setenv("PANEL_WEBAUTHN_ORIGINS", "http://panel.example.com")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestWebAuthn_implicitInsecureRemoteHTTPDisablesPasskeys(t *testing.T) {
+	t.Setenv("PANEL_MASTER_KEY", "test-secret")
+	t.Setenv("PANEL_FRONTEND_URL_BASE", "http://panel.example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	wa, err := cfg.WebAuthn()
+	if err != nil {
+		t.Fatalf("WebAuthn: %v", err)
+	}
+	if wa.Enabled {
+		t.Fatalf("WebAuthn.Enabled = true, want false")
+	}
+}
+
+func TestWebAuthn_rejectsRPIDPort(t *testing.T) {
+	t.Setenv("PANEL_MASTER_KEY", "test-secret")
+	t.Setenv("PANEL_WEBAUTHN_RP_ID", "panel.example.com:443")
+	t.Setenv("PANEL_WEBAUTHN_ORIGINS", "https://panel.example.com")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error")
+	}
+}

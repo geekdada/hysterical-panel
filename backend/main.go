@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/cmd"
 	"github.com/pocketbase/pocketbase/core"
@@ -93,11 +94,24 @@ func main() {
 			return err
 		}
 
+		passkeyConfig, err := cfg.WebAuthn()
+		if err != nil {
+			return err
+		}
+		var passkeys *webauthn.WebAuthn
+		if passkeyConfig.Enabled {
+			passkeys, err = api.NewWebAuthn(passkeyConfig.RPID, passkeyConfig.Origins)
+			if err != nil {
+				return fmt.Errorf("passkeys: %w", err)
+			}
+		}
+
 		// register custom panel routes
-		api.Register(se, app, box, ipLookup, api.PanelConfigResponse{
-			APIURL:      backendURL,
-			FrontendURL: frontendURL,
-			Version:     version.Version,
+		api.Register(se, app, box, ipLookup, passkeys, api.PanelConfigResponse{
+			APIURL:          backendURL,
+			FrontendURL:     frontendURL,
+			PasskeysEnabled: passkeyConfig.Enabled,
+			Version:         version.Version,
 		})
 
 		// start the background traffic collector

@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
@@ -32,6 +33,19 @@ type Config struct {
 
 	// MMDBDir contains the bundled MMDB files used for live IP metadata.
 	MMDBDir string `env:"MMDB_DIR" envDefault:"mmdb"`
+
+	// PanelWebAuthnRPID is the stable relying party id used for passkeys.
+	PanelWebAuthnRPID string `env:"PANEL_WEBAUTHN_RP_ID"`
+
+	// PanelWebAuthnOrigins is a comma-separated list of exact frontend origins allowed for passkeys.
+	PanelWebAuthnOrigins string `env:"PANEL_WEBAUTHN_ORIGINS"`
+}
+
+// WebAuthnConfig contains normalized passkey configuration.
+type WebAuthnConfig struct {
+	Enabled bool
+	RPID    string
+	Origins []string
 }
 
 // Load parses the current process environment.
@@ -44,6 +58,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if _, err := cfg.PanelBackendURL(); err != nil {
+		return Config{}, err
+	}
+	if _, err := cfg.WebAuthn(); err != nil {
 		return Config{}, err
 	}
 	if cfg.PanelCorsMaxAge < 0 {
@@ -88,6 +105,73 @@ func (c Config) PanelFrontendURL() (string, error) {
 	return parseOriginBase(raw)
 }
 
+// WebAuthn returns normalized passkey config. If no WebAuthn-specific values
+// and no static panel origins are configured, passkeys are disabled.
+func (c Config) WebAuthn() (WebAuthnConfig, error) {
+	rawRPID := strings.TrimSpace(c.PanelWebAuthnRPID)
+	rawOrigins := strings.TrimSpace(c.PanelWebAuthnOrigins)
+	explicit := rawRPID != "" || rawOrigins != ""
+
+	origins, err := c.webAuthnOrigins(rawOrigins, explicit)
+	if err != nil {
+		return WebAuthnConfig{}, err
+	}
+
+	if rawRPID == "" && len(origins) == 0 {
+		return WebAuthnConfig{}, nil
+	}
+
+	rpID := rawRPID
+	if rpID == "" {
+		rpID = originHost(origins[0])
+	}
+	if err := validateWebAuthnRPID(rpID); err != nil {
+		return WebAuthnConfig{}, fmt.Errorf("config: PANEL_WEBAUTHN_RP_ID: %w", err)
+	}
+	if len(origins) == 0 {
+		return WebAuthnConfig{}, fmt.Errorf("config: PANEL_WEBAUTHN_ORIGINS is required when PANEL_WEBAUTHN_RP_ID is set")
+	}
+	return WebAuthnConfig{Enabled: true, RPID: rpID, Origins: origins}, nil
+}
+
+func (c Config) webAuthnOrigins(raw string, strict bool) ([]string, error) {
+	var values []string
+	if raw != "" {
+		values = strings.Split(raw, ",")
+	} else {
+		if frontend, err := c.PanelFrontendURL(); err != nil {
+			return nil, err
+		} else if frontend != "" {
+			values = append(values, frontend)
+		}
+		if backend, err := c.PanelBackendURL(); err != nil {
+			return nil, err
+		} else if backend != "" {
+			values = append(values, backend)
+		}
+	}
+
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		origin, err := parseOriginBase(strings.TrimSpace(value))
+		if err != nil {
+			return nil, fmt.Errorf("config: PANEL_WEBAUTHN_ORIGINS: %w", err)
+		}
+		if err := validateWebAuthnOrigin(origin); err != nil {
+			if strict {
+				return nil, fmt.Errorf("config: PANEL_WEBAUTHN_ORIGINS: %w", err)
+			}
+			continue
+		}
+		if !seen[origin] {
+			seen[origin] = true
+			out = append(out, origin)
+		}
+	}
+	return out, nil
+}
+
 func parseOriginBase(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -110,4 +194,46 @@ func parseOriginBase(raw string) (string, error) {
 		return "", fmt.Errorf("path is not allowed")
 	}
 	return u.Scheme + "://" + u.Host, nil
+}
+
+func validateWebAuthnOrigin(origin string) error {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return err
+	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" && isLocalWebAuthnHost(u.Hostname()) {
+		return nil
+	}
+	return fmt.Errorf("origin %q must use https unless it is localhost", origin)
+}
+
+func validateWebAuthnRPID(rpID string) error {
+	if rpID == "" {
+		return fmt.Errorf("must not be empty")
+	}
+	if strings.Contains(rpID, "://") || strings.ContainsAny(rpID, "/?#") {
+		return fmt.Errorf("must be a hostname without scheme or path")
+	}
+	if _, _, err := net.SplitHostPort(rpID); err == nil {
+		return fmt.Errorf("must not include a port")
+	}
+	if strings.Contains(rpID, ":") {
+		return fmt.Errorf("must not include a port")
+	}
+	return nil
+}
+
+func originHost(origin string) string {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
+}
+
+func isLocalWebAuthnHost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
