@@ -191,14 +191,16 @@ func publicNode(n *core.Record) map[string]any {
 		health = "ok"
 	}
 	return map[string]any{
-		"id":             n.Id,
-		"name":           n.GetString("name"),
-		"api_url":        n.GetString("api_url"),
-		"poll_interval":  n.GetInt("poll_interval"),
-		"enabled":        n.GetBool("enabled"),
-		"last_polled_at": n.GetString("last_polled_at"),
-		"last_error":     n.GetString("last_error"),
-		"health":         health,
+		"id":               n.Id,
+		"name":             n.GetString("name"),
+		"api_url":          n.GetString("api_url"),
+		"poll_interval":    n.GetInt("poll_interval"),
+		"enabled":          n.GetBool("enabled"),
+		"last_polled_at":   n.GetString("last_polled_at"),
+		"last_error":       n.GetString("last_error"),
+		"health":           health,
+		"current_tx_speed": n.GetInt("current_tx_speed"),
+		"current_rx_speed": n.GetInt("current_rx_speed"),
 	}
 }
 
