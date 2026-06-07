@@ -1,12 +1,20 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
-import { clearAuth } from "~/api/auth";
+import {
+  clearAuth,
+  deletePasskey,
+  isPasskeySoftError,
+  listPasskeys,
+  registerPasskey,
+  type Passkey,
+} from "~/api/auth";
 import { requireAdminOrSelf } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
   canQueryPanelApi,
+  fetchPanelConfigQuery,
   fetchUserLive,
   fetchUserOverview,
   isNotFoundError,
@@ -33,7 +41,12 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { formatBytes, formatDuration, relTime } from "~/lib/format";
+import {
+  formatBytes,
+  formatDuration,
+  relTime,
+  relTimeFromISO,
+} from "~/lib/format";
 
 type PanelUser = components["schemas"]["PanelUser"];
 type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
@@ -167,6 +180,12 @@ function AccountDetailPage() {
           <>
             <AccountRail user={user} loading={loading && !user} />
 
+            <PasskeysSection
+              userId={userId}
+              isSelf={auth?.user.id === userId}
+              canManage={Boolean(auth && (auth.user.role === "admin" || auth.user.id === userId))}
+            />
+
             <TrafficSection
               loading={loading && !series}
               trafficRange={trafficRange}
@@ -287,6 +306,197 @@ function RailItem({
         {label}
       </div>
       <div className="mt-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function PasskeysSection({
+  userId,
+  isSelf,
+  canManage,
+}: {
+  userId: string;
+  isSelf: boolean;
+  canManage: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const passkeysKey = ["panel", "users", userId, "passkeys"] as const;
+  const configQuery = useQuery({
+    queryKey: queryKeys.config(),
+    queryFn: fetchPanelConfigQuery,
+    enabled: canQueryPanelApi(),
+    staleTime: Infinity,
+  });
+  const enabled = configQuery.data?.passkeys_enabled ?? false;
+  const passkeysQuery = useQuery({
+    queryKey: passkeysKey,
+    queryFn: () => listPasskeys(userId),
+    enabled: canQueryPanelApi() && enabled,
+  });
+  const addMutation = useMutation({
+    mutationFn: () => registerPasskey(userId, "Passkey", false),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: passkeysKey });
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: ({ passkeyId }: { passkeyId: string }) =>
+      deletePasskey(userId, passkeyId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: passkeysKey });
+    },
+  });
+
+  if (!enabled) return null;
+
+  const rows = passkeysQuery.data ?? [];
+  const loading = passkeysQuery.isPending;
+  const addError =
+    addMutation.error && !isPasskeySoftError(addMutation.error)
+      ? queryErrorMessage(addMutation.error, "Couldn't add passkey.")
+      : "";
+  const deleteError = deleteMutation.error
+    ? queryErrorMessage(deleteMutation.error, "Couldn't delete passkey.")
+    : "";
+  const error = passkeysQuery.error
+    ? queryErrorMessage(passkeysQuery.error)
+    : addError || deleteError;
+
+  return (
+    <Section
+      title="Passkeys"
+      meta={
+        loading
+          ? undefined
+          : `${rows.length} ${rows.length === 1 ? "credential" : "credentials"}`
+      }
+      action={
+        isSelf ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={addMutation.isPending}
+            onPress={() => addMutation.mutate()}
+          >
+            {addMutation.isPending ? "Adding..." : "Add passkey"}
+          </Button>
+        ) : undefined
+      }
+    >
+      {error && (
+        <div
+          className="border-b border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <TableSkeleton rows={2} />
+      ) : rows.length === 0 ? (
+        <Teaching
+          title="No passkeys"
+          hint={
+            isSelf
+              ? "Add a passkey to sign in without typing your password."
+              : "This account has not enrolled a passkey."
+          }
+        />
+      ) : (
+        <PasskeysTable
+          rows={rows}
+          canManage={canManage}
+          deletingId={
+            deleteMutation.isPending && deleteMutation.variables
+              ? deleteMutation.variables.passkeyId
+              : undefined
+          }
+          onDelete={(passkey) => {
+            if (
+              window.confirm(
+                `Delete passkey "${passkey.name || "Passkey"}"?`,
+              )
+            ) {
+              deleteMutation.mutate({ passkeyId: passkey.id });
+            }
+          }}
+        />
+      )}
+    </Section>
+  );
+}
+
+function PasskeysTable({
+  rows,
+  canManage,
+  deletingId,
+  onDelete,
+}: {
+  rows: Passkey[];
+  canManage: boolean;
+  deletingId?: string;
+  onDelete: (passkey: Passkey) => void;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-[13px]">
+        <thead>
+          <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+            <Th>Name</Th>
+            <Th>Transports</Th>
+            <Th>Backup</Th>
+            <Th className="text-right">Last used</Th>
+            {canManage && <Th className="text-right">Action</Th>}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-(--separator)">
+          {rows.map((passkey) => (
+            <tr
+              key={passkey.id}
+              className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+            >
+              <Td>
+                <span className="font-medium">
+                  {passkey.name || "Passkey"}
+                </span>
+              </Td>
+              <Td>
+                <span className="font-mono text-xs text-(--muted)">
+                  {passkey.transports?.length
+                    ? passkey.transports.join(", ")
+                    : "—"}
+                </span>
+              </Td>
+              <Td>
+                <span className="text-xs text-(--muted)">
+                  {passkey.backup_state
+                    ? "Synced"
+                    : passkey.backup_eligible
+                      ? "Eligible"
+                      : "Device-bound"}
+                </span>
+              </Td>
+              <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                {passkey.last_used_at
+                  ? relTimeFromISO(passkey.last_used_at, Date.now())
+                  : "Never"}
+              </Td>
+              {canManage && (
+                <Td className="text-right">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isDisabled={deletingId === passkey.id}
+                    onPress={() => onDelete(passkey)}
+                  >
+                    {deletingId === passkey.id ? "Deleting..." : "Delete"}
+                  </Button>
+                </Td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

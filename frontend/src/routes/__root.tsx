@@ -1,13 +1,20 @@
 /// <reference types="vite/client" />
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   Outlet,
   createRootRouteWithContext,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { readAuthCookie, type Auth } from "~/api/auth";
+import {
+  consumeFreshPasswordLogin,
+  isPasskeySoftError,
+  listPasskeys,
+  readAuthCookie,
+  registerPasskey,
+  type Auth,
+} from "~/api/auth";
 import { PanelQueryProvider } from "~/api/query-provider";
 
 import "~/styles/globals.css";
@@ -68,11 +75,44 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       </head>
       <body className="bg-(--background) text-(--foreground) antialiased">
         {children}
+        <PasskeyAutoEnrollment />
         <AppVersion />
         <Scripts />
       </body>
     </html>
   );
+}
+
+function PasskeyAutoEnrollment() {
+  const { auth } = Route.useRouteContext();
+
+  useEffect(() => {
+    if (!auth || !consumeFreshPasswordLogin(auth.user.id)) return;
+    const userId = auth.user.id;
+    let cancelled = false;
+
+    async function run() {
+      try {
+        const passkeys = await listPasskeys(userId);
+        if (cancelled || passkeys.length > 0) return;
+        await registerPasskey(userId, "Passkey", true);
+      } catch (error) {
+        if (!isPasskeySoftError(error)) {
+          // The explicit account-page button remains available.
+        }
+      }
+    }
+
+    void run();
+    return () => {
+      cancelled = true;
+      void import("@simplewebauthn/browser").then(({ WebAuthnAbortService }) => {
+        WebAuthnAbortService.cancelCeremony();
+      });
+    };
+  }, [auth?.user.id]);
+
+  return null;
 }
 
 function AppVersion() {

@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
-import { login } from "~/api/auth";
+import { login, loginWithPasskey } from "~/api/auth";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: ({ context }) => {
@@ -23,6 +23,40 @@ function LoginPage() {
       window.location.href = "/";
     },
   });
+  const passkeyMutation = useMutation({
+    mutationFn: () => loginWithPasskey(false),
+    onSuccess: () => {
+      window.location.href = "/";
+    },
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      if (typeof window === "undefined") return;
+      try {
+        const { browserSupportsWebAuthnAutofill } = await import(
+          "@simplewebauthn/browser"
+        );
+        if (!(await browserSupportsWebAuthnAutofill())) return;
+        await loginWithPasskey(true);
+        if (!cancelled) {
+          window.location.href = "/";
+        }
+      } catch {
+        // Password login remains available; avoid surfacing background failures.
+      }
+    }
+
+    void run();
+    return () => {
+      cancelled = true;
+      void import("@simplewebauthn/browser").then(({ WebAuthnAbortService }) => {
+        WebAuthnAbortService.cancelCeremony();
+      });
+    };
+  }, []);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -34,7 +68,11 @@ function LoginPage() {
       ? loginMutation.error.message
       : loginMutation.error
         ? "Login failed"
-        : "";
+        : passkeyMutation.error instanceof Error
+          ? passkeyMutation.error.message
+          : passkeyMutation.error
+            ? "Passkey login failed"
+            : "";
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-(--background) p-4 text-(--foreground)">
@@ -56,7 +94,7 @@ function LoginPage() {
               <Label>Email</Label>
               <Input
                 type="email"
-                autoComplete="email"
+                autoComplete="username webauthn"
                 required
                 value={email}
                 onChange={(e) => {
@@ -92,6 +130,19 @@ function LoginPage() {
               className="mt-1"
             >
               {loginMutation.isPending ? "Signing in..." : "Sign in"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              isDisabled={passkeyMutation.isPending || loginMutation.isPending}
+              onPress={() => {
+                loginMutation.reset();
+                passkeyMutation.mutate();
+              }}
+            >
+              {passkeyMutation.isPending
+                ? "Checking passkeys..."
+                : "Sign in with passkey"}
             </Button>
           </form>
         </Card.Content>

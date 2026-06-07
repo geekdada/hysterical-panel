@@ -18,7 +18,7 @@ import {
 import { useMounted } from "~/lib/use-mounted";
 
 const PRESETS: { days: TrafficFastPreset; label: string }[] = [
-  { days: 1, label: "1d" },
+  { days: 1, label: "24h" },
   { days: 2, label: "2d" },
   { days: 3, label: "3d" },
   { days: 7, label: "7d" },
