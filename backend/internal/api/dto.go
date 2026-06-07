@@ -5,14 +5,16 @@ package api
 // Node is the public representation returned by every node endpoint.
 // api_secret is intentionally omitted.
 type Node struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	APIURL       string `json:"api_url"`
-	PollInterval int    `json:"poll_interval"`
-	Enabled      bool   `json:"enabled"`
-	LastPolledAt string `json:"last_polled_at"`
-	LastError    string `json:"last_error"`
-	Health       string `json:"health"` // "ok" | "error" | "never"
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	APIURL         string `json:"api_url"`
+	PollInterval   int    `json:"poll_interval"`
+	Enabled        bool   `json:"enabled"`
+	LastPolledAt   string `json:"last_polled_at"`
+	LastError      string `json:"last_error"`
+	Health         string `json:"health"` // "ok" | "error" | "never"
+	CurrentTxSpeed int64  `json:"current_tx_speed"`
+	CurrentRxSpeed int64  `json:"current_rx_speed"`
 }
 
 // NodeCreateRequest is the body for POST /nodes.
