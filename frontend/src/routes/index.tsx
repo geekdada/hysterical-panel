@@ -38,7 +38,13 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { formatBytes, plural, relTime, relTimeFromISO } from "~/lib/format";
+import {
+  formatBytes,
+  formatBytesPerSecond,
+  plural,
+  relTime,
+  relTimeFromISO,
+} from "~/lib/format";
 import {
   defaultLocalTrafficRange,
   type LocalDateRange,
@@ -52,9 +58,11 @@ type NodeTodayTraffic = NonNullable<
 type PanelUser = components["schemas"]["PanelUser"];
 type NodeTableRow = {
   node: Node;
+  rxSpeed: number;
   status: string;
   todayTotal: number;
   todayTraffic?: NodeTodayTraffic;
+  txSpeed: number;
 };
 type UserTableRow = {
   email: string;
@@ -547,9 +555,11 @@ function NodesTable({
           : undefined;
         return {
           node,
+          rxSpeed: node.enabled ? (node.current_rx_speed ?? 0) : 0,
           status: nodeStatusSortValue(node),
           todayTotal: (todayTraffic?.tx ?? 0) + (todayTraffic?.rx ?? 0),
           todayTraffic,
+          txSpeed: node.enabled ? (node.current_tx_speed ?? 0) : 0,
         };
       }),
     [nodes, todayTrafficByNode],
@@ -564,6 +574,16 @@ function NodesTable({
       {
         accessorFn: (row) => row.todayTotal,
         id: "today",
+        sortDescFirst: false,
+      },
+      {
+        accessorKey: "txSpeed",
+        id: "txSpeed",
+        sortDescFirst: false,
+      },
+      {
+        accessorKey: "rxSpeed",
+        id: "rxSpeed",
         sortDescFirst: false,
       },
       {
@@ -591,7 +611,6 @@ function NodesTable({
         <thead>
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
             <SortableTh column={table.getColumn("name")!}>Name</SortableTh>
-            <Th>Endpoint</Th>
             <Th>Interval</Th>
             <SortableTh
               column={table.getColumn("today")!}
@@ -599,6 +618,20 @@ function NodesTable({
               className="text-right"
             >
               Today
+            </SortableTh>
+            <SortableTh
+              column={table.getColumn("txSpeed")!}
+              align="right"
+              className="text-right"
+            >
+              TX speed
+            </SortableTh>
+            <SortableTh
+              column={table.getColumn("rxSpeed")!}
+              align="right"
+              className="text-right"
+            >
+              RX speed
             </SortableTh>
             <Th className="text-right">Last poll</Th>
             <SortableTh
@@ -612,7 +645,7 @@ function NodesTable({
         </thead>
         <tbody className="divide-y divide-(--separator)">
           {table.getRowModel().rows.map((row) => {
-            const { node, todayTraffic } = row.original;
+            const { node, rxSpeed, todayTraffic, txSpeed } = row.original;
             const enabled = node.enabled ?? false;
             const health = node.health ?? "never";
             const tone = !enabled
@@ -639,11 +672,6 @@ function NodesTable({
                     </Link>
                   </div>
                 </Td>
-                <Td>
-                  <span className="block max-w-[280px] truncate font-mono text-xs text-(--muted)">
-                    {node.api_url || "—"}
-                  </span>
-                </Td>
                 <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-(--muted)">
                   {node.poll_interval ? `${node.poll_interval}s` : "—"}
                 </Td>
@@ -653,6 +681,14 @@ function NodesTable({
                     unavailable={todayTrafficUnavailable}
                     traffic={todayTraffic}
                   />
+                </Td>
+                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                  <span className="text-(--muted)">↑</span>{" "}
+                  {formatBytesPerSecond(txSpeed)}
+                </Td>
+                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                  <span className="text-(--muted)">↓</span>{" "}
+                  {formatBytesPerSecond(rxSpeed)}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
                   {node.last_polled_at
