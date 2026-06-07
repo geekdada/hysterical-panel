@@ -75,6 +75,41 @@ type UserUpdateRequest struct {
 	Status     *string `json:"status,omitempty"`
 }
 
+// ── Passkeys ─────────────────────────────────────────────────────────────────
+
+// Passkey is the public representation of a registered passkey credential.
+type Passkey struct {
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	Transports     []string `json:"transports"`
+	SignCount      int64    `json:"sign_count"`
+	BackupEligible bool     `json:"backup_eligible"`
+	BackupState    bool     `json:"backup_state"`
+	CloneWarning   bool     `json:"clone_warning"`
+	Created        string   `json:"created"`
+	Updated        string   `json:"updated"`
+	LastUsedAt     string   `json:"last_used_at"`
+}
+
+// PasskeyOptionsResponse returns a server-side challenge id and WebAuthn options.
+type PasskeyOptionsResponse struct {
+	ChallengeID string         `json:"challenge_id"`
+	Options     map[string]any `json:"options"`
+}
+
+// PasskeyFinishRequest is used by passkey login and registration finish endpoints.
+type PasskeyFinishRequest struct {
+	ChallengeID string         `json:"challenge_id"`
+	Credential  map[string]any `json:"credential"`
+	Name        *string        `json:"name,omitempty"`
+}
+
+// PanelAuthResponse is the PocketBase-compatible auth response returned by passkey login.
+type PanelAuthResponse struct {
+	Token  string    `json:"token"`
+	Record PanelUser `json:"record"`
+}
+
 // ── Traffic ───────────────────────────────────────────────────────────────────
 
 // PanelTrafficResponse is returned by GET /traffic.
@@ -273,9 +308,10 @@ type ConnSummary struct {
 
 // PanelConfigResponse is returned by GET /api/panel/config (no auth).
 type PanelConfigResponse struct {
-	APIURL      string `json:"api_url"`
-	FrontendURL string `json:"frontend_url"`
-	Version     string `json:"version"`
+	APIURL          string `json:"api_url"`
+	FrontendURL     string `json:"frontend_url"`
+	PasskeysEnabled bool   `json:"passkeys_enabled"`
+	Version         string `json:"version"`
 }
 
 // ── Shared ────────────────────────────────────────────────────────────────────

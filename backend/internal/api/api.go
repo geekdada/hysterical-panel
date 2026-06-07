@@ -6,6 +6,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/hook"
@@ -23,22 +24,34 @@ type Handlers struct {
 	app          core.App
 	box          *cryptobox.Box
 	ipLookup     ipMetadataLookup
+	passkeys     *webauthn.WebAuthn
+	passkeyLimit *passkeyRateLimiter
 	publicConfig PanelConfigResponse
 }
 
 // Register wires every /api/panel/* route onto the serve event router.
-func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, public PanelConfigResponse) {
-	h := &Handlers{app: app, box: box, ipLookup: ipLookup, publicConfig: public}
+func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, passkeys *webauthn.WebAuthn, public PanelConfigResponse) {
+	h := &Handlers{
+		app:          app,
+		box:          box,
+		ipLookup:     ipLookup,
+		passkeys:     passkeys,
+		passkeyLimit: newPasskeyRateLimiter(30, passkeyChallengeTTL),
+		publicConfig: public,
+	}
 
-	bindAuthGate(app)
+	h.bindAuthGate()
 
 	g := se.Router.Group("/api/panel")
 	g.Bind(apis.RequireAuth("users")) // must be a logged-in users-collection record
 	adminOnly := requireAdmin()
 	adminOrSelf := requireAdminOrSelf()
+	activeAdminOrSelf := requireActiveAdminOrSelf()
+	activeSelf := requireActiveSelf()
 
 	// dashboard traffic
 	g.GET("/traffic", h.panelTraffic).Bind(adminOnly)
+	g.GET("/traffic/series", h.panelTrafficSeries).Bind(adminOnly)
 	g.GET("/nodes/traffic/summary", h.panelNodeTrafficSummary).Bind(adminOnly)
 
 	// database management
@@ -64,6 +77,10 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/users/{id}", h.getUser).Bind(adminOrSelf)
 	g.PATCH("/users/{id}", h.updateUser).Bind(adminOnly)
 	g.DELETE("/users/{id}", h.deleteUser).Bind(adminOnly)
+	g.GET("/users/{id}/passkeys", h.listPasskeys).Bind(activeAdminOrSelf)
+	g.POST("/users/{id}/passkeys/registration/options", h.passkeyRegistrationOptions).Bind(activeSelf)
+	g.POST("/users/{id}/passkeys/registration/finish", h.passkeyRegistrationFinish).Bind(activeSelf)
+	g.DELETE("/users/{id}/passkeys/{passkeyId}", h.deletePasskey).Bind(activeAdminOrSelf)
 
 	// traffic + live
 	g.GET("/users/{id}/traffic/summary", h.trafficSummary).Bind(adminOrSelf)
@@ -72,6 +89,10 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 
 	// Public panel config — no auth required
 	se.Router.GET("/api/panel/config", h.handlePanelConfig)
+
+	// Public passkey login endpoints — no auth required.
+	se.Router.POST("/api/panel/passkeys/login/options", h.passkeyLoginOptions)
+	se.Router.POST("/api/panel/passkeys/login/finish", h.passkeyLoginFinish)
 
 	// openapi schema — no auth required (contains no secrets)
 	se.Router.GET("/api/openapi.json", handleOpenAPISpec)
@@ -111,13 +132,44 @@ func requireAdminOrSelf() *hook.Handler[*core.RequestEvent] {
 	}
 }
 
+func requireActiveAdminOrSelf() *hook.Handler[*core.RequestEvent] {
+	return &hook.Handler[*core.RequestEvent]{
+		Func: func(e *core.RequestEvent) error {
+			if e.Auth == nil || e.Auth.GetString("status") != "active" {
+				return apis.NewForbiddenError("active account required", nil)
+			}
+			if e.Auth.GetString("role") == "admin" || e.Auth.Id == e.Request.PathValue("id") {
+				return e.Next()
+			}
+			return apis.NewForbiddenError("admin or self access required", nil)
+		},
+	}
+}
+
+func requireActiveSelf() *hook.Handler[*core.RequestEvent] {
+	return &hook.Handler[*core.RequestEvent]{
+		Func: func(e *core.RequestEvent) error {
+			if e.Auth == nil || e.Auth.GetString("status") != "active" {
+				return apis.NewForbiddenError("active account required", nil)
+			}
+			if e.Auth.Id != e.Request.PathValue("id") {
+				return apis.NewForbiddenError("self access required", nil)
+			}
+			return e.Next()
+		},
+	}
+}
+
 // bindAuthGate blocks authentication for any user whose status is not "active".
 // It fires on every auth response (password, refresh, OAuth2, OTP), so a
 // disabled user can neither sign in nor keep refreshing an existing token.
-func bindAuthGate(app core.App) {
-	app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
+func (h *Handlers) bindAuthGate() {
+	h.app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
 		if e.Record == nil || e.Record.GetString("status") != "active" {
 			return apis.NewForbiddenError("account is disabled", nil)
+		}
+		if err := h.rejectPasswordForPasskeyUser(e); err != nil {
+			return err
 		}
 		return e.Next()
 	})

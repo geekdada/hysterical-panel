@@ -26,6 +26,10 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"PanelUser":                  PanelUser{},
 		"UserCreateRequest":          UserCreateRequest{},
 		"UserUpdateRequest":          UserUpdateRequest{},
+		"Passkey":                    Passkey{},
+		"PasskeyOptionsResponse":     PasskeyOptionsResponse{},
+		"PasskeyFinishRequest":       PasskeyFinishRequest{},
+		"PanelAuthResponse":          PanelAuthResponse{},
 		"PanelTrafficResponse":       PanelTrafficResponse{},
 		"PanelNodeTrafficResponse":   PanelNodeTrafficResponse{},
 		"TrafficSummaryResponse":     TrafficSummaryResponse{},
@@ -145,6 +149,14 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			},
 		}
 	}
+	passkeyIdParam := &openapi3.ParameterRef{
+		Value: &openapi3.Parameter{
+			Name:     "passkeyId",
+			In:       "path",
+			Required: true,
+			Schema:   &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
+		},
+	}
 
 	withAuth := func(op *openapi3.Operation) {
 		if op.Responses == nil {
@@ -191,6 +203,59 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					openapi3.WithStatus(400, badRequest),
 				),
 			}
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /traffic/series ──────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/traffic/series", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "panelTrafficSeries",
+				Summary:     "Get global traffic time series",
+				Tags:        []string{"traffic"},
+				Parameters: openapi3.Parameters{
+					{
+						Value: &openapi3.Parameter{
+							Name:        "granularity",
+							In:          "query",
+							Description: "Time bucket granularity",
+							Schema: &openapi3.SchemaRef{
+								Value: &openapi3.Schema{
+									Type: &openapi3.Types{"string"},
+									Enum: []any{"hourly", "daily"},
+								},
+							},
+						},
+					},
+					{
+						Value: &openapi3.Parameter{
+							Name:        "from",
+							In:          "query",
+							Required:    true,
+							Description: "Start datetime (UTC, inclusive)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
+						},
+					},
+					{
+						Value: &openapi3.Parameter{
+							Name:        "to",
+							In:          "query",
+							Required:    true,
+							Description: "End datetime (UTC, inclusive)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
+						},
+					},
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Traffic series"),
+						Content:     content(ref("TrafficSeriesResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
 			withAuth(op)
 			return op
 		}(),
@@ -579,6 +644,138 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 				OperationID: "deleteUser",
 				Summary:     "Delete a user",
 				Tags:        []string{"users"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Deletion confirmed"),
+						Content:     content(ref("DeleteResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── passkeys ─────────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/passkeys/login/options", &openapi3.PathItem{
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "passkeyLoginOptions",
+				Summary:     "Start passkey login",
+				Tags:        []string{"passkeys"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Passkey login challenge"),
+						Content:     content(ref("PasskeyOptionsResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Security = &openapi3.SecurityRequirements{}
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/passkeys/login/finish", &openapi3.PathItem{
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "passkeyLoginFinish",
+				Summary:     "Finish passkey login",
+				Tags:        []string{"passkeys"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("PasskeyFinishRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("PocketBase auth response"),
+						Content:     content(ref("PanelAuthResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("403", forbidden)
+			op.Security = &openapi3.SecurityRequirements{}
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/users/{id}/passkeys", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listPasskeys",
+				Summary:     "List passkeys for a user (admin or self)",
+				Tags:        []string{"passkeys"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Passkey list"),
+						Content:     content(arrayRef("Passkey")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/users/{id}/passkeys/registration/options", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "passkeyRegistrationOptions",
+				Summary:     "Start self passkey enrollment",
+				Tags:        []string{"passkeys"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Passkey registration challenge"),
+						Content:     content(ref("PasskeyOptionsResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/users/{id}/passkeys/registration/finish", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "passkeyRegistrationFinish",
+				Summary:     "Finish self passkey enrollment",
+				Tags:        []string{"passkeys"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("PasskeyFinishRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Created passkey"),
+						Content:     content(ref("Passkey")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/users/{id}/passkeys/{passkeyId}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID"), passkeyIdParam},
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "deletePasskey",
+				Summary:     "Delete a passkey (admin or self)",
+				Tags:        []string{"passkeys"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
 						Description: ptr("Deletion confirmed"),

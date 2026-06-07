@@ -3,6 +3,7 @@ package api
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -37,6 +38,70 @@ func (h *Handlers) panelTraffic(e *core.RequestEvent) error {
 		"to":    to,
 		"total": map[string]any{"tx": totalTx, "rx": totalRx},
 	})
+}
+
+// GET /traffic/series?granularity=hourly|daily&from=&to=
+// Admin dashboard global time series. Reads hourly rows inside the requested
+// UTC range and collapses them across every node and user. Daily granularity
+// groups the matching hourly rows into UTC day buckets, so totals stay aligned
+// with range summaries that use the same hourly table.
+func (h *Handlers) panelTrafficSeries(e *core.RequestEvent) error {
+	q := e.Request.URL.Query()
+	gran := strings.TrimSpace(q.Get("granularity"))
+	if gran != "daily" {
+		gran = "hourly"
+	}
+
+	from := strings.TrimSpace(q.Get("from"))
+	to := strings.TrimSpace(q.Get("to"))
+	if from == "" || to == "" {
+		return apis.NewBadRequestError("from and to are required", nil)
+	}
+
+	rows, err := h.app.FindRecordsByFilter(
+		"traffic_hourly", "bucket >= {:from} && bucket <= {:to}", "bucket", 0, 0,
+		map[string]any{"from": from, "to": to},
+	)
+	if err != nil {
+		return apis.NewBadRequestError("failed to read series", err)
+	}
+
+	type pt struct{ tx, rx int64 }
+	buckets := map[string]*pt{}
+	order := []string{}
+	for _, r := range rows {
+		b := r.GetString("bucket")
+		if gran == "daily" {
+			b = utcDailyBucketString(b)
+		}
+		p := buckets[b]
+		if p == nil {
+			p = &pt{}
+			buckets[b] = p
+			order = append(order, b)
+		}
+		p.tx += int64(r.GetInt("tx"))
+		p.rx += int64(r.GetInt("rx"))
+	}
+
+	points := make([]map[string]any, 0, len(order))
+	for _, b := range order {
+		points = append(points, map[string]any{
+			"bucket": b,
+			"tx":     buckets[b].tx,
+			"rx":     buckets[b].rx,
+		})
+	}
+
+	return ok(e, map[string]any{"granularity": gran, "points": points})
+}
+
+func utcDailyBucketString(bucket string) string {
+	t, err := time.Parse("2006-01-02 15:04:05.000Z", bucket)
+	if err != nil {
+		return bucket
+	}
+	return utcDailyBucket(t)
 }
 
 // GET /nodes/traffic/summary?from=&to=
