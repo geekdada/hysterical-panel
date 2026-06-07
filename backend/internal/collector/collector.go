@@ -82,6 +82,8 @@ func (c *Collector) tick(ctx context.Context) {
 }
 
 func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
+	previousPoll := node.GetDateTime("last_polled_at").Time()
+
 	secret, err := c.box.Decrypt(node.GetString("api_secret"))
 	if err != nil {
 		c.recordNodeError(node, "decrypt secret: "+err.Error())
@@ -101,6 +103,7 @@ func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
 	now := time.Now().UTC()
 	bucketHour := now.Truncate(time.Hour)
 	bucketDay := now.Truncate(24 * time.Hour)
+	var nodeDtx, nodeDrx int64
 
 	for authStr, entry := range traffic {
 		user, err := c.app.FindFirstRecordByFilter("users", "auth_string = {:a}", map[string]any{"a": authStr})
@@ -120,6 +123,8 @@ func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
 		if user.GetString("status") != "active" {
 			continue
 		}
+		nodeDtx += dtx
+		nodeDrx += drx
 		if dtx == 0 && drx == 0 {
 			continue
 		}
@@ -136,6 +141,8 @@ func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
 
 	node.Set("last_polled_at", now)
 	node.Set("last_error", "")
+	node.Set("current_tx_speed", speedPerSecond(nodeDtx, previousPoll, now))
+	node.Set("current_rx_speed", speedPerSecond(nodeDrx, previousPoll, now))
 	if err := c.app.Save(node); err != nil {
 		return err
 	}
@@ -191,6 +198,17 @@ func delta(cur, last int64) int64 {
 	return cur
 }
 
+func speedPerSecond(deltaBytes int64, from, to time.Time) int64 {
+	if deltaBytes <= 0 || from.IsZero() {
+		return 0
+	}
+	seconds := to.Sub(from).Seconds()
+	if seconds <= 0 {
+		return 0
+	}
+	return int64(float64(deltaBytes) / seconds)
+}
+
 func (c *Collector) bumpUserTotals(user *core.Record, dtx, drx int64) error {
 	user.Set("used_tx", int64(user.GetInt("used_tx"))+dtx)
 	user.Set("used_rx", int64(user.GetInt("used_rx"))+drx)
@@ -223,6 +241,8 @@ func (c *Collector) upsertAgg(coll, userID, nodeID string, bucket time.Time, dtx
 
 func (c *Collector) recordNodeError(node *core.Record, msg string) {
 	node.Set("last_error", msg)
+	node.Set("current_tx_speed", 0)
+	node.Set("current_rx_speed", 0)
 	if err := c.app.Save(node); err != nil {
 		log.Printf("[collector] record node error: %v", err)
 	}
