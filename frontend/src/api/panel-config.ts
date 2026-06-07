@@ -10,6 +10,7 @@ const BOOTSTRAP_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(
 const EMPTY_CONFIG: PanelConfig = {
   api_url: "",
   frontend_url: "",
+  passkeys_enabled: false,
   version: "",
 };
 

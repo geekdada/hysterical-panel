@@ -61,8 +61,34 @@ export type UserOverviewData = {
   user: PanelUser | null;
 };
 
+export type AnalyticsOverviewData = {
+  nodeTraffic: PanelNodeTraffic | null;
+  series: TrafficSeries | null;
+};
+
 export const queryKeys = {
   all: ["panel"] as const,
+  analyticsBase: () => [...queryKeys.all, "analytics"] as const,
+  analyticsNodeTraffic: (
+    period: string,
+    range: TrafficRangeQuery | null,
+  ) =>
+    [
+      ...queryKeys.analyticsBase(),
+      "nodes",
+      "traffic",
+      period,
+      range?.from ?? "",
+      range?.to ?? "",
+    ] as const,
+  analyticsOverview: (range: TrafficRangeQuery | null) =>
+    [
+      ...queryKeys.analyticsBase(),
+      "overview",
+      range?.granularity ?? "",
+      range?.from ?? "",
+      range?.to ?? "",
+    ] as const,
   config: () => [...queryKeys.all, "config"] as const,
   dashboardBase: () => [...queryKeys.all, "dashboard"] as const,
   dashboardNodes: () => [...queryKeys.dashboardBase(), "nodes"] as const,
@@ -150,6 +176,33 @@ export function fetchDashboardTraffic(
       params: { query: { from, to } },
     }),
   );
+}
+
+export function fetchPanelTrafficSeries(
+  range: TrafficRangeQuery,
+): Promise<TrafficSeries | null> {
+  return apiRequest<TrafficSeries | null>(
+    apiClient.GET("/api/panel/traffic/series", {
+      params: {
+        query: {
+          from: range.from,
+          granularity: range.granularity,
+          to: range.to,
+        },
+      },
+    }),
+  );
+}
+
+export async function fetchAnalyticsOverview(
+  range: TrafficRangeQuery,
+): Promise<AnalyticsOverviewData> {
+  const [nodeTraffic, series] = await Promise.all([
+    fetchDashboardNodeTraffic(range),
+    fetchPanelTrafficSeries(range),
+  ]);
+
+  return { nodeTraffic, series };
 }
 
 export function fetchDatabaseStats(): Promise<DatabaseStats | null> {
