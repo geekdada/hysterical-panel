@@ -34,6 +34,7 @@ import {
 import { UserMenu } from "~/components/user-menu";
 import {
   formatBytes,
+  formatBytesPerSecond,
   formatDuration,
   relTime,
   relTimeFromISO,
@@ -193,7 +194,7 @@ function DetailRail({
   if (loading) {
     return (
       <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="flex-1 px-4 py-3">
             <div className="h-3 w-16 animate-pulse rounded bg-(--surface-secondary)" />
             <div className="mt-2 h-4 w-28 animate-pulse rounded bg-(--surface-secondary)" />
@@ -217,6 +218,8 @@ function DetailRail({
     : health === "error"
       ? "danger"
       : "muted";
+  const txSpeed = enabled ? (node?.current_tx_speed ?? 0) : 0;
+  const rxSpeed = enabled ? (node?.current_rx_speed ?? 0) : 0;
 
   return (
     <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
@@ -233,6 +236,18 @@ function DetailRail({
       <RailItem label="Poll interval">
         <span className="font-mono text-[13px] tabular-nums">
           {node?.poll_interval ? `${node.poll_interval}s` : "—"}
+        </span>
+      </RailItem>
+      <RailItem label="TX speed">
+        <span className="font-mono text-[13px] tabular-nums">
+          <span className="text-(--muted)">↑</span>{" "}
+          {formatBytesPerSecond(txSpeed)}
+        </span>
+      </RailItem>
+      <RailItem label="RX speed">
+        <span className="font-mono text-[13px] tabular-nums">
+          <span className="text-(--muted)">↓</span>{" "}
+          {formatBytesPerSecond(rxSpeed)}
         </span>
       </RailItem>
       <RailItem label="Last poll">
