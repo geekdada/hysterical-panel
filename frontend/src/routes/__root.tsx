@@ -76,7 +76,6 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       <body className="bg-(--background) text-(--foreground) antialiased">
         {children}
         <PasskeyAutoEnrollment />
-        <AppVersion />
         <Scripts />
       </body>
     </html>
@@ -113,15 +112,4 @@ function PasskeyAutoEnrollment() {
   }, [auth?.user.id]);
 
   return null;
-}
-
-function AppVersion() {
-  return (
-    <small
-      aria-label={`Version ${__APP_VERSION__}`}
-      className="pointer-events-none fixed right-3 bottom-2 z-50 select-none text-[10px] font-medium leading-none text-(--muted) opacity-70"
-    >
-      v{__APP_VERSION__}
-    </small>
-  );
 }

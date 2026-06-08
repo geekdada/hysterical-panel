@@ -513,7 +513,7 @@ function SortableTh<TData>({
       <button
         type="button"
         onClick={() => column.toggleSorting(sorted === "asc")}
-        className={`inline-flex items-center gap-1 rounded-sm transition-colors duration-150 hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+        className={`inline-flex items-center gap-1 rounded-sm uppercase transition-colors duration-150 hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
           align === "right" ? "ml-auto justify-end" : ""
         }`}
       >
@@ -611,7 +611,6 @@ function NodesTable({
         <thead>
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
             <SortableTh column={table.getColumn("name")!}>Name</SortableTh>
-            <Th>Interval</Th>
             <SortableTh
               column={table.getColumn("today")!}
               align="right"
@@ -671,9 +670,6 @@ function NodesTable({
                       {node.name || "—"}
                     </Link>
                   </div>
-                </Td>
-                <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-(--muted)">
-                  {node.poll_interval ? `${node.poll_interval}s` : "—"}
                 </Td>
                 <Td className="whitespace-nowrap text-right">
                   <NodeTodayUsage
