@@ -12,17 +12,21 @@ func utcDailyBucket(t time.Time) string {
 	return t.UTC().Truncate(24 * time.Hour).Format("2006-01-02 15:04:05.000Z")
 }
 
-// GET /users/:id/traffic/summary
-// Traffic for the current UTC day, broken down by node.
+// GET /users/:id/traffic/summary?from=&to=
+// Traffic over a UTC datetime range, broken down by node.
 func (h *Handlers) trafficSummary(e *core.RequestEvent) error {
 	u, err := h.app.FindRecordById("users", e.Request.PathValue("id"))
 	if err != nil {
 		return apis.NewNotFoundError("user not found", err)
 	}
+	from, to, rangeErr := requiredTrafficRange(e)
+	if rangeErr != nil {
+		return rangeErr
+	}
 
 	rows, err := h.app.FindRecordsByFilter(
-		"traffic_daily", "user = {:u} && bucket = {:b}", "", 0, 0,
-		map[string]any{"u": u.Id, "b": utcDailyBucket(time.Now())},
+		"traffic_hourly", "user = {:u} && bucket >= {:from} && bucket <= {:to}", "", 0, 0,
+		map[string]any{"u": u.Id, "from": from, "to": to},
 	)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read traffic", err)
@@ -75,10 +79,7 @@ func (h *Handlers) trafficSeries(e *core.RequestEvent) error {
 	}
 	q := e.Request.URL.Query()
 	gran := q.Get("granularity")
-	coll := "traffic_hourly"
-	if gran == "daily" {
-		coll = "traffic_daily"
-	} else {
+	if gran != "daily" {
 		gran = "hourly"
 	}
 
@@ -97,7 +98,7 @@ func (h *Handlers) trafficSeries(e *core.RequestEvent) error {
 		params["node"] = node
 	}
 
-	rows, err := h.app.FindRecordsByFilter(coll, filter, "bucket", 0, 0, params)
+	rows, err := h.app.FindRecordsByFilter("traffic_hourly", filter, "bucket", 0, 0, params)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read series", err)
 	}
@@ -108,6 +109,9 @@ func (h *Handlers) trafficSeries(e *core.RequestEvent) error {
 	order := []string{}
 	for _, r := range rows {
 		b := r.GetString("bucket")
+		if gran == "daily" {
+			b = utcDailyBucketString(b)
+		}
 		p := buckets[b]
 		if p == nil {
 			p = &pt{}

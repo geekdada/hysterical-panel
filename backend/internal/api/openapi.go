@@ -157,6 +157,17 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			Schema:   &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
 		},
 	}
+	dateTimeQueryParam := func(name, desc string, required bool) *openapi3.ParameterRef {
+		return &openapi3.ParameterRef{
+			Value: &openapi3.Parameter{
+				Name:        name,
+				In:          "query",
+				Required:    required,
+				Description: desc,
+				Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
+			},
+		}
+	}
 
 	withAuth := func(op *openapi3.Operation) {
 		if op.Responses == nil {
@@ -171,7 +182,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "panelTraffic",
-				Summary:     "Get global traffic total for a UTC bucket range",
+				Summary:     "Get global traffic total for a UTC datetime range",
 				Tags:        []string{"traffic"},
 				Parameters: openapi3.Parameters{
 					{
@@ -179,7 +190,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 							Name:        "from",
 							In:          "query",
 							Required:    true,
-							Description: "Start daily bucket (UTC, inclusive)",
+							Description: "Start datetime (UTC, inclusive)",
 							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
 						},
 					},
@@ -188,7 +199,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 							Name:        "to",
 							In:          "query",
 							Required:    true,
-							Description: "End daily bucket (UTC, inclusive)",
+							Description: "End datetime (UTC, inclusive)",
 							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
 						},
 					},
@@ -469,8 +480,12 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "nodeTrafficSummary",
-				Summary:     "Get node-wide traffic summary for the current UTC day",
+				Summary:     "Get node-wide traffic summary for a UTC datetime range",
 				Tags:        []string{"traffic"},
+				Parameters: openapi3.Parameters{
+					dateTimeQueryParam("from", "Start datetime (UTC, inclusive)", true),
+					dateTimeQueryParam("to", "End datetime (UTC, inclusive)", true),
+				},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
 						Description: ptr("Node traffic summary"),
@@ -478,6 +493,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					},
 				})),
 			}
+			op.Responses.Set("400", badRequest)
 			op.Responses.Set("404", notFound)
 			withAuth(op)
 			return op
@@ -795,8 +811,12 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "trafficSummary",
-				Summary:     "Get user traffic summary for the current UTC day (admin or self)",
+				Summary:     "Get user traffic summary for a UTC datetime range (admin or self)",
 				Tags:        []string{"traffic"},
+				Parameters: openapi3.Parameters{
+					dateTimeQueryParam("from", "Start datetime (UTC, inclusive)", true),
+					dateTimeQueryParam("to", "End datetime (UTC, inclusive)", true),
+				},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
 						Description: ptr("Traffic summary"),
@@ -804,6 +824,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					},
 				})),
 			}
+			op.Responses.Set("400", badRequest)
 			op.Responses.Set("404", notFound)
 			withAuth(op)
 			return op

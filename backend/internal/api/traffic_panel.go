@@ -9,18 +9,26 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// GET /traffic?from=&to=
-// Admin dashboard global total from traffic_daily (UTC buckets, inclusive).
-func (h *Handlers) panelTraffic(e *core.RequestEvent) error {
+func requiredTrafficRange(e *core.RequestEvent) (string, string, error) {
 	q := e.Request.URL.Query()
 	from := strings.TrimSpace(q.Get("from"))
 	to := strings.TrimSpace(q.Get("to"))
 	if from == "" || to == "" {
-		return apis.NewBadRequestError("from and to are required", nil)
+		return "", "", apis.NewBadRequestError("from and to are required", nil)
+	}
+	return from, to, nil
+}
+
+// GET /traffic?from=&to=
+// Admin dashboard global total from traffic_hourly over a UTC datetime range.
+func (h *Handlers) panelTraffic(e *core.RequestEvent) error {
+	from, to, rangeErr := requiredTrafficRange(e)
+	if rangeErr != nil {
+		return rangeErr
 	}
 
 	rows, err := h.app.FindRecordsByFilter(
-		"traffic_daily", "bucket >= {:from} && bucket <= {:to}", "", 0, 0,
+		"traffic_hourly", "bucket >= {:from} && bucket <= {:to}", "", 0, 0,
 		map[string]any{"from": from, "to": to},
 	)
 	if err != nil {
@@ -52,10 +60,9 @@ func (h *Handlers) panelTrafficSeries(e *core.RequestEvent) error {
 		gran = "hourly"
 	}
 
-	from := strings.TrimSpace(q.Get("from"))
-	to := strings.TrimSpace(q.Get("to"))
-	if from == "" || to == "" {
-		return apis.NewBadRequestError("from and to are required", nil)
+	from, to, rangeErr := requiredTrafficRange(e)
+	if rangeErr != nil {
+		return rangeErr
 	}
 
 	rows, err := h.app.FindRecordsByFilter(
@@ -107,11 +114,9 @@ func utcDailyBucketString(bucket string) string {
 // GET /nodes/traffic/summary?from=&to=
 // Admin dashboard per-node total from traffic_hourly over a UTC datetime range.
 func (h *Handlers) panelNodeTrafficSummary(e *core.RequestEvent) error {
-	q := e.Request.URL.Query()
-	from := strings.TrimSpace(q.Get("from"))
-	to := strings.TrimSpace(q.Get("to"))
-	if from == "" || to == "" {
-		return apis.NewBadRequestError("from and to are required", nil)
+	from, to, rangeErr := requiredTrafficRange(e)
+	if rangeErr != nil {
+		return rangeErr
 	}
 
 	rows, err := h.app.FindRecordsByFilter(

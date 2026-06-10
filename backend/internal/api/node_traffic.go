@@ -2,24 +2,26 @@ package api
 
 import (
 	"sort"
-	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// GET /nodes/:id/traffic/summary
-// Node-wide traffic for the current UTC day: aggregates traffic_daily for
-// today across every user, with a per-user breakdown sorted by total bytes.
+// GET /nodes/:id/traffic/summary?from=&to=
+// Node-wide traffic over a UTC datetime range, with a per-user breakdown sorted by total bytes.
 func (h *Handlers) nodeTrafficSummary(e *core.RequestEvent) error {
 	n, err := h.app.FindRecordById("nodes", e.Request.PathValue("id"))
 	if err != nil {
 		return apis.NewNotFoundError("node not found", err)
 	}
+	from, to, rangeErr := requiredTrafficRange(e)
+	if rangeErr != nil {
+		return rangeErr
+	}
 
 	rows, err := h.app.FindRecordsByFilter(
-		"traffic_daily", "node = {:n} && bucket = {:b}", "", 0, 0,
-		map[string]any{"n": n.Id, "b": utcDailyBucket(time.Now())},
+		"traffic_hourly", "node = {:n} && bucket >= {:from} && bucket <= {:to}", "", 0, 0,
+		map[string]any{"n": n.Id, "from": from, "to": to},
 	)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read traffic", err)
@@ -73,10 +75,7 @@ func (h *Handlers) nodeTrafficSeries(e *core.RequestEvent) error {
 	}
 	q := e.Request.URL.Query()
 	gran := q.Get("granularity")
-	coll := "traffic_hourly"
-	if gran == "daily" {
-		coll = "traffic_daily"
-	} else {
+	if gran != "daily" {
 		gran = "hourly"
 	}
 
@@ -91,7 +90,7 @@ func (h *Handlers) nodeTrafficSeries(e *core.RequestEvent) error {
 		params["to"] = to
 	}
 
-	rows, err := h.app.FindRecordsByFilter(coll, filter, "bucket", 0, 0, params)
+	rows, err := h.app.FindRecordsByFilter("traffic_hourly", filter, "bucket", 0, 0, params)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read series", err)
 	}
@@ -102,6 +101,9 @@ func (h *Handlers) nodeTrafficSeries(e *core.RequestEvent) error {
 	order := []string{}
 	for _, r := range rows {
 		b := r.GetString("bucket")
+		if gran == "daily" {
+			b = utcDailyBucketString(b)
+		}
 		p := buckets[b]
 		if p == nil {
 			p = &pt{}

@@ -27,6 +27,7 @@ import {
   REFRESH_MS,
   toTrafficRangeQuery,
 } from "~/api/queries";
+import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import {
   CopyButton,
   Dot,
@@ -48,20 +49,19 @@ import {
 import {
   defaultLocalTrafficRange,
   type LocalDateRange,
-  type TrafficPeriod,
 } from "~/lib/traffic-range";
 
 type Node = components["schemas"]["Node"];
-type NodeTodayTraffic = NonNullable<
+type NodeRangeTraffic = NonNullable<
   components["schemas"]["PanelNodeTrafficResponse"]["by_node"]
 >[number];
 type PanelUser = components["schemas"]["PanelUser"];
 type NodeTableRow = {
   node: Node;
   rxSpeed: number;
+  rangeTraffic?: NodeRangeTraffic;
+  rangeTotal: number;
   status: string;
-  todayTotal: number;
-  todayTraffic?: NodeTodayTraffic;
   txSpeed: number;
 };
 type UserTableRow = {
@@ -91,14 +91,12 @@ function DashboardPage() {
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
-  const [trafficPeriod, setTrafficPeriod] = useState<TrafficPeriod>("today");
-  const [nodeTrafficRange, setNodeTrafficRange] =
-    useState<LocalDateRange | null>(null);
+  const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const queryEnabled = canQueryPanelApi();
-  const nodeTrafficQuery = nodeTrafficRange
-    ? toTrafficRangeQuery(nodeTrafficRange)
+  const trafficRangeQuery = trafficRange
+    ? toTrafficRangeQuery(trafficRange)
     : null;
   const nodesQuery = useQuery({
     queryKey: queryKeys.dashboardNodes(),
@@ -113,35 +111,28 @@ function DashboardPage() {
     refetchInterval: REFRESH_MS,
   });
   const trafficQuery = useQuery({
-    queryKey: queryKeys.dashboardTraffic(trafficPeriod),
-    queryFn: () => fetchDashboardTraffic(trafficPeriod),
-    enabled: queryEnabled,
+    queryKey: queryKeys.dashboardTraffic(trafficRangeQuery),
+    queryFn: () => fetchDashboardTraffic(trafficRangeQuery!),
+    enabled: queryEnabled && trafficRangeQuery !== null,
     refetchInterval: REFRESH_MS,
   });
   const nodeTrafficSummaryQuery = useQuery({
-    queryKey: queryKeys.dashboardNodeTraffic(nodeTrafficQuery),
-    queryFn: () => fetchDashboardNodeTraffic(nodeTrafficQuery!),
-    enabled: queryEnabled && nodeTrafficQuery !== null,
+    queryKey: queryKeys.dashboardNodeTraffic(trafficRangeQuery),
+    queryFn: () => fetchDashboardNodeTraffic(trafficRangeQuery!),
+    enabled: queryEnabled && trafficRangeQuery !== null,
     refetchInterval: REFRESH_MS,
   });
 
-  // Tick the clock so relative timestamps stay current and local today rolls over.
+  // Tick the clock so relative timestamps and rolling ranges stay current.
   useEffect(() => {
-    const updateToday = () => {
-      const today = defaultLocalTrafficRange();
-      setNodeTrafficRange((current) =>
-        current &&
-        current.start.compare(today.start) === 0 &&
-        current.end.compare(today.end) === 0
-          ? current
-          : today,
-      );
+    const ensureDefaultRange = () => {
+      setTrafficRange((current) => current ?? defaultLocalTrafficRange());
     };
 
-    updateToday();
+    ensureDefaultRange();
     const id = setInterval(() => {
       setNow(Date.now());
-      updateToday();
+      ensureDefaultRange();
     }, 5_000);
     return () => clearInterval(id);
   }, []);
@@ -154,7 +145,7 @@ function DashboardPage() {
   const usersLoading = usersQuery.isPending;
   const trafficLoading = trafficQuery.isPending;
   const nodeTrafficLoading =
-    nodeTrafficRange === null || nodeTrafficSummaryQuery.isPending;
+    trafficRange === null || nodeTrafficSummaryQuery.isPending;
   const nodesError = nodesQuery.error ? queryErrorMessage(nodesQuery.error) : "";
   const usersError = usersQuery.error ? queryErrorMessage(usersQuery.error) : "";
   const trafficError = trafficQuery.error
@@ -183,7 +174,7 @@ function DashboardPage() {
       nodeTrafficSummaryQuery.dataUpdatedAt,
     ) || null;
   const nodeTrafficById = useMemo(() => {
-    const byId = new Map<string, NodeTodayTraffic>();
+    const byId = new Map<string, NodeRangeTraffic>();
     for (const row of nodeTrafficSummary?.by_node ?? []) {
       const id = row.node?.id;
       if (id) byId.set(id, row);
@@ -285,10 +276,14 @@ function DashboardPage() {
             loading={trafficLoading}
             value={trafficError ? "—" : formatBytes(totalTx + totalRx)}
             headerAction={
-              <TrafficPeriodToggle
-                value={trafficPeriod}
-                onChange={setTrafficPeriod}
-              />
+              trafficRange ? (
+                <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
+              ) : (
+                <div
+                  className="h-8 w-32 shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse"
+                  aria-hidden
+                />
+              )
             }
           >
             {trafficError ? (
@@ -328,9 +323,9 @@ function DashboardPage() {
             <NodesTable
               nodes={nodes}
               now={now}
-              todayTrafficByNode={nodeTrafficById}
-              todayTrafficLoading={nodeTrafficLoading}
-              todayTrafficUnavailable={Boolean(nodeTrafficError)}
+              rangeTrafficByNode={nodeTrafficById}
+              rangeTrafficLoading={nodeTrafficLoading}
+              rangeTrafficUnavailable={Boolean(nodeTrafficError)}
             />
           ) : nodesError ? (
             <PanelMessage>Couldn't load nodes.</PanelMessage>
@@ -380,41 +375,6 @@ function DashboardPage() {
 }
 
 /* ── Layout primitives ─────────────────────────────────────────────────── */
-
-const TRAFFIC_PERIOD_LABELS: Record<TrafficPeriod, string> = {
-  today: "T",
-  "t-1": "T-1",
-  "7d": "7d",
-};
-
-function TrafficPeriodToggle({
-  value,
-  onChange,
-}: {
-  value: TrafficPeriod;
-  onChange: (p: TrafficPeriod) => void;
-}) {
-  const opts: TrafficPeriod[] = ["today", "t-1", "7d"];
-  return (
-    <div className="inline-flex shrink-0 rounded-(--radius) border border-(--border) p-0.5">
-      {opts.map((o) => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => onChange(o)}
-          className={`rounded-[calc(var(--radius)-2px)] px-1.5 py-0.5 text-[10px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
-            value === o
-              ? "bg-(--surface-secondary) text-(--foreground)"
-              : "text-(--muted) hover:text-(--foreground)"
-          }`}
-          aria-pressed={value === o}
-        >
-          {TRAFFIC_PERIOD_LABELS[o]}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function Stat({
   label,
@@ -534,15 +494,15 @@ function SortableTh<TData>({
 function NodesTable({
   nodes,
   now,
-  todayTrafficByNode,
-  todayTrafficLoading,
-  todayTrafficUnavailable,
+  rangeTrafficByNode,
+  rangeTrafficLoading,
+  rangeTrafficUnavailable,
 }: {
   nodes: Node[];
   now: number;
-  todayTrafficByNode: Map<string, NodeTodayTraffic>;
-  todayTrafficLoading: boolean;
-  todayTrafficUnavailable: boolean;
+  rangeTrafficByNode: Map<string, NodeRangeTraffic>;
+  rangeTrafficLoading: boolean;
+  rangeTrafficUnavailable: boolean;
 }) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "name", desc: false },
@@ -550,19 +510,19 @@ function NodesTable({
   const rows = useMemo<NodeTableRow[]>(
     () =>
       nodes.map((node) => {
-        const todayTraffic = node.id
-          ? todayTrafficByNode.get(node.id)
+        const rangeTraffic = node.id
+          ? rangeTrafficByNode.get(node.id)
           : undefined;
         return {
           node,
           rxSpeed: node.enabled ? (node.current_rx_speed ?? 0) : 0,
+          rangeTotal: (rangeTraffic?.tx ?? 0) + (rangeTraffic?.rx ?? 0),
+          rangeTraffic,
           status: nodeStatusSortValue(node),
-          todayTotal: (todayTraffic?.tx ?? 0) + (todayTraffic?.rx ?? 0),
-          todayTraffic,
           txSpeed: node.enabled ? (node.current_tx_speed ?? 0) : 0,
         };
       }),
-    [nodes, todayTrafficByNode],
+    [nodes, rangeTrafficByNode],
   );
   const columns = useMemo<ColumnDef<NodeTableRow>[]>(
     () => [
@@ -572,8 +532,8 @@ function NodesTable({
         sortDescFirst: false,
       },
       {
-        accessorFn: (row) => row.todayTotal,
-        id: "today",
+        accessorFn: (row) => row.rangeTotal,
+        id: "traffic",
         sortDescFirst: false,
       },
       {
@@ -612,11 +572,11 @@ function NodesTable({
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
             <SortableTh column={table.getColumn("name")!}>Name</SortableTh>
             <SortableTh
-              column={table.getColumn("today")!}
+              column={table.getColumn("traffic")!}
               align="right"
               className="text-right"
             >
-              Today
+              Traffic
             </SortableTh>
             <SortableTh
               column={table.getColumn("txSpeed")!}
@@ -644,7 +604,7 @@ function NodesTable({
         </thead>
         <tbody className="divide-y divide-(--separator)">
           {table.getRowModel().rows.map((row) => {
-            const { node, rxSpeed, todayTraffic, txSpeed } = row.original;
+            const { node, rangeTraffic, rxSpeed, txSpeed } = row.original;
             const enabled = node.enabled ?? false;
             const health = node.health ?? "never";
             const tone = !enabled
@@ -672,10 +632,10 @@ function NodesTable({
                   </div>
                 </Td>
                 <Td className="whitespace-nowrap text-right">
-                  <NodeTodayUsage
-                    loading={todayTrafficLoading}
-                    unavailable={todayTrafficUnavailable}
-                    traffic={todayTraffic}
+                  <NodeRangeUsage
+                    loading={rangeTrafficLoading}
+                    unavailable={rangeTrafficUnavailable}
+                    traffic={rangeTraffic}
                   />
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
@@ -721,14 +681,14 @@ function nodeStatusSortValue(node: Node): string {
   return "never polled";
 }
 
-function NodeTodayUsage({
+function NodeRangeUsage({
   loading,
   unavailable,
   traffic,
 }: {
   loading: boolean;
   unavailable: boolean;
-  traffic?: NodeTodayTraffic;
+  traffic?: NodeRangeTraffic;
 }) {
   if (loading) {
     return (

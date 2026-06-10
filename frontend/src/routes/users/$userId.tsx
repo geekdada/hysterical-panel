@@ -564,7 +564,7 @@ function TrafficSection({
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-                <Th>Top Nodes (today)</Th>
+                <Th>Top Nodes</Th>
                 <Th className="text-right">TX</Th>
                 <Th className="text-right">RX</Th>
                 <Th className="text-right">Total</Th>

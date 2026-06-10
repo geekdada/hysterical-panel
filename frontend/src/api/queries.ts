@@ -4,9 +4,7 @@ import type { components } from "./schema";
 import {
   granularityForLocalRange,
   localRangeToUtcQuery,
-  trafficPeriodUtcRange,
   type LocalDateRange,
-  type TrafficPeriod,
 } from "~/lib/traffic-range";
 
 type ApiResult<T> = {
@@ -100,8 +98,13 @@ export const queryKeys = {
       range?.from ?? "",
       range?.to ?? "",
     ] as const,
-  dashboardTraffic: (period: TrafficPeriod) =>
-    [...queryKeys.dashboardBase(), "traffic", period] as const,
+  dashboardTraffic: (range: TrafficRangeQuery | null) =>
+    [
+      ...queryKeys.dashboardBase(),
+      "traffic",
+      range?.from ?? "",
+      range?.to ?? "",
+    ] as const,
   dashboardUsers: () => [...queryKeys.dashboardBase(), "users"] as const,
   databaseStats: () => [...queryKeys.all, "database", "stats"] as const,
   nodeLive: (nodeId: string) =>
@@ -168,12 +171,11 @@ export function fetchDashboardUsers(): Promise<PanelUser[]> {
 }
 
 export function fetchDashboardTraffic(
-  period: TrafficPeriod,
+  range: TrafficRangeQuery,
 ): Promise<PanelTraffic | null> {
-  const { from, to } = trafficPeriodUtcRange(period);
   return apiRequest<PanelTraffic | null>(
     apiClient.GET("/api/panel/traffic", {
-      params: { query: { from, to } },
+      params: { query: { from: range.from, to: range.to } },
     }),
   );
 }
@@ -231,7 +233,10 @@ export async function fetchNodeOverview(
     ),
     apiRequest<NodeTrafficSummary | null>(
       apiClient.GET("/api/panel/nodes/{id}/traffic/summary", {
-        params: { path: { id: nodeId } },
+        params: {
+          path: { id: nodeId },
+          query: { from: range.from, to: range.to },
+        },
       }),
     ),
     apiRequest<TrafficSeries | null>(
@@ -263,7 +268,10 @@ export async function fetchUserOverview(
     ),
     apiRequest<TrafficSummary | null>(
       apiClient.GET("/api/panel/users/{id}/traffic/summary", {
-        params: { path: { id: userId } },
+        params: {
+          path: { id: userId },
+          query: { from: range.from, to: range.to },
+        },
       }),
     ),
     apiRequest<TrafficSeries | null>(
