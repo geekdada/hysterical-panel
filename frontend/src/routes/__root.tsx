@@ -35,15 +35,24 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootComponent,
 });
 
-// Runs synchronously in <head> before the body paints: mirrors the OS
-// color-scheme onto <html> so the themed first paint never flashes, and keeps
-// it in sync when the user flips appearance mid-session (like Linear).
+// Runs synchronously in <head> before the body paints: applies the saved theme
+// preference (or the OS color-scheme when "system") onto <html> so the themed
+// first paint never flashes, and keeps it in sync when the user flips appearance
+// mid-session (like Linear). Self-contained on purpose — it runs before the
+// bundle loads, so it can't import src/lib/theme.ts; keep the key + values in sync.
 const themeScript = `
 (function () {
   try {
+    var KEY = "hp:theme";
     var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    function resolve() {
+      var pref;
+      try { pref = localStorage.getItem(KEY); } catch (e) {}
+      if (pref !== "light" && pref !== "dark") pref = "system";
+      return pref === "system" ? (mq.matches ? "dark" : "light") : pref;
+    }
     function apply() {
-      var dark = mq.matches;
+      var dark = resolve() === "dark";
       var el = document.documentElement;
       el.classList.remove(dark ? "light" : "dark");
       el.classList.add(dark ? "dark" : "light");
