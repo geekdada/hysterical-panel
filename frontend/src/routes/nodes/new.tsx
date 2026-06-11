@@ -17,6 +17,7 @@ import {
   Switch,
   TextField,
 } from "@heroui/react";
+import { Check, Copy } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
@@ -683,10 +684,10 @@ function CopyButton({ value, label }: { value: string; label: string }) {
     >
       {copied ? (
         <span className="text-(--success)">
-          <CheckIcon />
+          <Check className="size-3.5" aria-hidden />
         </span>
       ) : (
-        <CopyIcon />
+        <Copy className="size-3.5" aria-hidden />
       )}
     </IconAction>
   );
@@ -742,36 +743,4 @@ function toTestState(mutation: {
     status: "error",
     message: mutation.data.error || "Node is unreachable.",
   };
-}
-
-/* ── Icons ─────────────────────────────────────────────────────────────── */
-
-function iconProps() {
-  return {
-    viewBox: "0 0 24 24",
-    className: "size-3.5",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.75,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-}
-
-function CopyIcon() {
-  return (
-    <svg {...iconProps()}>
-      <rect x="9" y="9" width="11" height="11" rx="2" />
-      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg {...iconProps()} strokeWidth={2}>
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
 }

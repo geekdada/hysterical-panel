@@ -1,7 +1,16 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Button, Dropdown, Label, Separator } from "@heroui/react";
+import {
+  ArrowRightFromSquare,
+  ChartColumn,
+  ChevronDown,
+  Database,
+  Person,
+  ShieldCheck,
+} from "@gravity-ui/icons";
 import type { Key } from "react";
 import { clearAuth, type Auth } from "~/api/auth";
+import { ThemeToggle } from "~/components/theme-toggle";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 
 export function UserMenu({ auth }: { auth: Auth }) {
@@ -53,7 +62,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
         <span className="hidden min-w-0 truncate sm:inline">
           {auth.user.email}
         </span>
-        <ChevronDownIcon className="size-3 shrink-0 text-(--muted)" />
+        <ChevronDown className="size-3 shrink-0 text-(--muted)" aria-hidden />
       </Button>
       <Dropdown.Popover
         placement="bottom end"
@@ -90,7 +99,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
             textValue="Your account"
             className={itemClass}
           >
-            <AccountIcon className={iconClass} />
+            <Person className={iconClass} aria-hidden />
             <Label className="truncate">Your account</Label>
           </Dropdown.Item>
           {showPbAdmin && (
@@ -99,7 +108,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
               textValue="PocketBase admin"
               className={itemClass}
             >
-              <AdminIcon className={iconClass} />
+              <ShieldCheck className={iconClass} aria-hidden />
               <Label className="truncate">PocketBase admin</Label>
             </Dropdown.Item>
           )}
@@ -109,7 +118,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
               textValue="Analytics"
               className={itemClass}
             >
-              <AnalyticsIcon className={iconClass} />
+              <ChartColumn className={iconClass} aria-hidden />
               <Label className="truncate">Analytics</Label>
             </Dropdown.Item>
           )}
@@ -119,7 +128,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
               textValue="Database management"
               className={itemClass}
             >
-              <DatabaseIcon className={iconClass} />
+              <Database className={iconClass} aria-hidden />
               <Label className="truncate">Database management</Label>
             </Dropdown.Item>
           )}
@@ -130,11 +139,19 @@ export function UserMenu({ auth }: { auth: Auth }) {
             textValue="Sign out"
             className={dangerItemClass}
           >
-            <SignOutIcon className="size-3.5 shrink-0 text-current" />
+            <ArrowRightFromSquare
+              className="size-3.5 shrink-0 text-current"
+              aria-hidden
+            />
             <Label className="truncate">Sign out</Label>
           </Dropdown.Item>
         </Dropdown.Menu>
-        <div className="mt-1 flex items-center justify-between gap-3 border-t border-(--separator) px-2 pt-1.5 pb-0.5 text-xs leading-4 text-muted">
+        <Separator className="my-1 bg-(--separator)" />
+        <div className="flex items-center justify-between gap-3 px-2 py-1">
+          <span className="text-[13px] text-(--foreground)">Theme</span>
+          <ThemeToggle />
+        </div>
+        <div className="mt-1 flex items-center justify-between gap-3 border-t border-(--separator) text-[10px] px-2 pt-1.5 pb-0.5 text-xs leading-4 text-muted/80">
           <span className="font-mono tabular-nums">v{__APP_VERSION__}</span>
         </div>
       </Dropdown.Popover>
@@ -147,116 +164,5 @@ function AvatarInitial({ value }: { value: string }) {
     <span className="grid size-5 shrink-0 place-items-center rounded-[5px] border border-(--border) bg-(--surface-secondary) text-[11px] font-semibold uppercase text-(--foreground)">
       {value}
     </span>
-  );
-}
-
-function ChevronDownIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m4 6 4 4 4-4" />
-    </svg>
-  );
-}
-
-function AccountIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M8 8.25a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5Z" />
-      <path d="M3.25 13.25c.72-1.86 2.34-3 4.75-3s4.03 1.14 4.75 3" />
-    </svg>
-  );
-}
-
-function AdminIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M8 2.25 12.25 4v3.35c0 2.7-1.67 5.1-4.25 6.4-2.58-1.3-4.25-3.7-4.25-6.4V4L8 2.25Z" />
-      <path d="m6.4 8 1.1 1.1 2.25-2.35" />
-    </svg>
-  );
-}
-
-function AnalyticsIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 12.75h10" />
-      <path d="M4.25 10.5V7.75" />
-      <path d="M8 10.5V4.25" />
-      <path d="M11.75 10.5V6" />
-    </svg>
-  );
-}
-
-function DatabaseIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 4.25c0-1.1 2.24-2 5-2s5 .9 5 2-2.24 2-5 2-5-.9-5-2Z" />
-      <path d="M3 4.25v3.5c0 1.1 2.24 2 5 2s5-.9 5-2v-3.5" />
-      <path d="M3 7.75v3.75c0 1.1 2.24 2 5 2s5-.9 5-2V7.75" />
-    </svg>
-  );
-}
-
-function SignOutIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6.5 13.25h-2.5A1.25 1.25 0 0 1 2.75 12V4A1.25 1.25 0 0 1 4 2.75h2.5" />
-      <path d="M10.25 11.25 13.5 8l-3.25-3.25" />
-      <path d="M13.25 8H6.5" />
-    </svg>
   );
 }

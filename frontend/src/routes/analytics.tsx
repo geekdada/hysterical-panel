@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { ChevronLeft } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
@@ -73,7 +74,7 @@ function AnalyticsPage() {
               aria-label="Back to dashboard"
               className="grid size-6 shrink-0 place-items-center rounded text-(--muted) transition-colors duration-150 hover:bg-(--surface-secondary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
             >
-              <BackIcon />
+              <ChevronLeft className="size-3.5" aria-hidden />
             </Link>
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate text-[13px] font-semibold tracking-tight">
@@ -186,22 +187,5 @@ function RangeTrafficSection({
         </>
       )}
     </Section>
-  );
-}
-
-function BackIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="size-3.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m15 18-6-6 6-6" />
-    </svg>
   );
 }

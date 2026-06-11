@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, Copy } from "@gravity-ui/icons";
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
 
@@ -99,7 +100,11 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
           : "text-(--muted) opacity-0 hover:text-(--foreground) group-hover/key:opacity-100"
       }`}
     >
-      {copied ? <CheckIcon /> : <CopyIcon />}
+      {copied ? (
+        <Check className="size-3.5" aria-hidden />
+      ) : (
+        <Copy className="size-3.5" aria-hidden />
+      )}
     </button>
   );
 }
@@ -140,42 +145,5 @@ export function TableSkeleton({ rows = 4 }: { rows?: number }) {
         </div>
       ))}
     </div>
-  );
-}
-
-/* ── Icons ─────────────────────────────────────────────────────────────── */
-
-export function CopyIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="size-3.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="9" y="9" width="11" height="11" rx="2" />
-      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-    </svg>
-  );
-}
-
-export function CheckIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="size-3.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
   );
 }
