@@ -6,7 +6,7 @@ import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
   canQueryPanelApi,
-  fetchPanelTrafficSeries,
+  fetchAnalyticsOverview,
   queryErrorMessage,
   queryKeys,
   REFRESH_MS,
@@ -19,11 +19,19 @@ import {
   granularityForLocalRange,
   type LocalDateRange,
 } from "~/lib/traffic-range";
-import { Dot, PanelMessage, Section } from "~/components/ui";
+import {
+  Dot,
+  PanelMessage,
+  Section,
+  TableSkeleton,
+  Td,
+  Th,
+} from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, relTime } from "~/lib/format";
 
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
+type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
 
 export const Route = createFileRoute("/analytics")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -47,22 +55,24 @@ function AnalyticsPage() {
   const queryEnabled = canQueryPanelApi();
   const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange) : null;
 
-  const trafficSeriesQuery = useQuery({
+  const overviewQuery = useQuery({
     queryKey: queryKeys.analyticsOverview(trafficQuery),
-    queryFn: () => fetchPanelTrafficSeries(trafficQuery!),
+    queryFn: () => fetchAnalyticsOverview(trafficQuery!),
     enabled: queryEnabled && trafficQuery !== null,
     refetchInterval: REFRESH_MS,
   });
 
-  const series = trafficSeriesQuery.data ?? null;
-  const rangeLoading = trafficQuery === null || trafficSeriesQuery.isPending;
-  const rangeError = trafficSeriesQuery.error
-    ? queryErrorMessage(trafficSeriesQuery.error)
+  const overview = overviewQuery.data ?? null;
+  const series = overview?.series ?? null;
+  const nodeTraffic = overview?.nodeTraffic ?? null;
+  const rangeLoading = trafficQuery === null || overviewQuery.isPending;
+  const rangeError = overviewQuery.error
+    ? queryErrorMessage(overviewQuery.error)
     : "";
   const queryErrors = [
     { key: "range", message: rangeError ? `Range: ${rangeError}` : "" },
   ].filter((e) => e.message);
-  const updatedAt = trafficSeriesQuery.dataUpdatedAt || null;
+  const updatedAt = overviewQuery.dataUpdatedAt || null;
 
   return (
     <div className="min-h-svh bg-(--background) text-(--foreground)">
@@ -109,12 +119,34 @@ function AnalyticsPage() {
           </div>
         ))}
 
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-[13px] font-semibold text-(--foreground)">
+            Traffic
+          </h2>
+          {trafficRange ? (
+            <TrafficRangePicker
+              value={trafficRange}
+              onChange={setTrafficRange}
+            />
+          ) : (
+            <div
+              className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
+              aria-hidden
+            />
+          )}
+        </div>
+
         <RangeTrafficSection
           loading={rangeLoading}
           error={rangeError}
-          onTrafficRangeChange={setTrafficRange}
           series={series}
           trafficRange={trafficRange}
+        />
+
+        <NodeBreakdownSection
+          loading={rangeLoading}
+          error={rangeError}
+          nodeTraffic={nodeTraffic}
         />
       </main>
     </div>
@@ -124,13 +156,11 @@ function AnalyticsPage() {
 function RangeTrafficSection({
   error,
   loading,
-  onTrafficRangeChange,
   series,
   trafficRange,
 }: {
   error: string;
   loading: boolean;
-  onTrafficRangeChange: (range: LocalDateRange) => void;
   series: TrafficSeries | null;
   trafficRange: LocalDateRange | null;
 }) {
@@ -150,19 +180,6 @@ function RangeTrafficSection({
             ↑ {formatBytes(totalTx)} · ↓ {formatBytes(totalRx)}
           </span>
         ) : undefined
-      }
-      action={
-        trafficRange ? (
-          <TrafficRangePicker
-            value={trafficRange}
-            onChange={onTrafficRangeChange}
-          />
-        ) : (
-          <div
-            className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
-            aria-hidden
-          />
-        )
       }
     >
       {error ? (
@@ -185,6 +202,82 @@ function RangeTrafficSection({
             )}
           </div>
         </>
+      )}
+    </Section>
+  );
+}
+
+function NodeBreakdownSection({
+  error,
+  loading,
+  nodeTraffic,
+}: {
+  error: string;
+  loading: boolean;
+  nodeTraffic: PanelNodeTraffic | null;
+}) {
+  const rows = nodeTraffic?.by_node ?? [];
+
+  return (
+    <Section title="By node">
+      {error ? (
+        <PanelMessage>{error}</PanelMessage>
+      ) : loading ? (
+        <TableSkeleton rows={4} />
+      ) : rows.length === 0 ? (
+        <PanelMessage>No node traffic in this window.</PanelMessage>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+                <Th>Name</Th>
+                <Th className="text-right">Total</Th>
+                <Th className="text-right">TX</Th>
+                <Th className="text-right">RX</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-(--separator)">
+              {rows.map((row, i) => {
+                const tx = row.tx ?? 0;
+                const rx = row.rx ?? 0;
+                const id = row.node?.id ?? "";
+                const name = row.node?.name || "—";
+                return (
+                  <tr
+                    key={id || `${name}-${i}`}
+                    className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                  >
+                    <Td>
+                      {id ? (
+                        <Link
+                          to="/nodes/$nodeId"
+                          params={{ nodeId: id }}
+                          className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                        >
+                          {name}
+                        </Link>
+                      ) : (
+                        <span className="font-medium">{name}</span>
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                      {formatBytes(tx + rx)}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                      <span className="text-(--muted)">↑</span>{" "}
+                      {formatBytes(tx)}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                      <span className="text-(--muted)">↓</span>{" "}
+                      {formatBytes(rx)}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </Section>
   );
