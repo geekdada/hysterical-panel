@@ -92,7 +92,7 @@ hysterical-panel/
 ├── AGENTS.md / CLAUDE.md       本文件（CLAUDE.md 是指向 AGENTS.md 的符号链接）
 ├── VERSION                     全应用版本号（frontend/package.json 必须与之一致）
 ├── RELEASING.md                发布流程；scripts/release.sh 配套
-├── .github/workflows/          backend-image.yml：Release 发布后构建并推 GHCR 镜像
+├── .github/workflows/          release.yml：push `v*` tag 后构建并推 GHCR 镜像，再建 draft release
 ├── backend/
 │   ├── main.go                 启动：migration + openapi-schema 子命令 + ipmeta + 采集器 + 路由
 │   ├── Makefile / README.md    命令与人类向运行说明 + 接口表
@@ -221,7 +221,7 @@ hysterical-panel/
 
 - `backend/Dockerfile` 多阶段构建（`CGO_ENABLED=0`，alpine，非 root `panel` 用户），监听 `0.0.0.0:8090`，数据卷 `/app/pb_data`，把 `mmdb/` 拷进镜像。`PANEL_MASTER_KEY` 仍必填。
 - `frontend/Dockerfile` 多阶段构建（Go 生成 OpenAPI → pnpm build → Nitro `.output`，非 root `panel` 用户），监听 `0.0.0.0:3000`。构建上下文为仓库根目录；CI 默认空 `VITE_API_BASE_URL`（同域反代）。
-- 镜像**只在 GitHub Release 发布后**由 `.github/workflows/backend-image.yml` / `frontend-image.yml` 构建并推 GHCR（`ghcr.io/<repo>-backend` / `-frontend`，多架构 amd64+arm64）。普通提交、PR、tag push 都不触发。CI 会校验 `VERSION` == `frontend/package.json` version == release tag。
+- 镜像**只在 push `v*.*.*` tag 后**由 `.github/workflows/release.yml` 构建并推 GHCR（`ghcr.io/<repo>-backend` / `-frontend`，多架构 amd64+arm64）；同一个 workflow 在两个镜像都推成功后**创建 draft release**（正文含各镜像 `docker pull` 命令），由人工 review 后手动发布。普通提交、PR 不触发；发布 draft 不会重新构建（镜像在 tag 落地时已推）。CI 会校验 `VERSION` == `frontend/package.json` version == tag。
 - 根目录 `docker-compose.yml` + `deploy/nginx/default.conf`：本地全栈（nginx 反代 `/api` 与 `/_/` 到后端，其余到前端）。
 
 ## 开发约定

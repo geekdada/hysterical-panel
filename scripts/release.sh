@@ -109,6 +109,7 @@ Next manual steps:
   git push origin master
   git push origin ${tag}
 
-Then manually publish a GitHub Release for ${tag}. The backend and frontend
-Docker images will be built and pushed only after that GitHub Release is published.
+Pushing the tag builds and pushes the backend and frontend Docker images, then
+creates a draft GitHub Release for ${tag} with the image versions in its body.
+Review and publish that draft from the Releases page when you are ready.
 EOF

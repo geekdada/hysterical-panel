@@ -1,8 +1,8 @@
-name: Docker Images
+name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags: ['v*.*.*']
 
 permissions:
   contents: read
@@ -14,21 +14,22 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      created: ${{ steps.version.outputs.created }}
       backend_tags: ${{ steps.version.outputs.backend_tags }}
       frontend_tags: ${{ steps.version.outputs.frontend_tags }}
 
     steps:
-      - name: Checkout release tag
+      - name: Checkout tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
           fetch-depth: 1
 
       - name: Validate release version
         id: version
         shell: bash
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
@@ -51,6 +52,13 @@ jobs:
             exit 1
           fi
 
+          prerelease=false
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+          fi
+
+          created="$(git show -s --format=%cI HEAD)"
+
           repository="${GITHUB_REPOSITORY,,}"
           backend_image="ghcr.io/${repository}-backend"
           frontend_image="ghcr.io/${repository}-frontend"
@@ -69,6 +77,8 @@ jobs:
 
           {
             echo "version=$version"
+            echo "prerelease=$prerelease"
+            echo "created=$created"
             echo "backend_tags<<EOF"
             echo "$backend_tags"
             echo "EOF"
@@ -83,10 +93,9 @@ jobs:
     needs: metadata
 
     steps:
-      - name: Checkout release tag
+      - name: Checkout tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
           fetch-depth: 1
 
       - name: Set up Go
@@ -143,7 +152,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.metadata.outputs.version }}
-            org.opencontainers.image.created=${{ github.event.release.published_at }}
+            org.opencontainers.image.created=${{ needs.metadata.outputs.created }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -153,10 +162,9 @@ jobs:
     needs: [metadata, backend]
 
     steps:
-      - name: Checkout release tag
+      - name: Checkout tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
           fetch-depth: 1
 
       - name: Download OpenAPI schema
@@ -192,6 +200,68 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.metadata.outputs.version }}
-            org.opencontainers.image.created=${{ github.event.release.published_at }}
+            org.opencontainers.image.created=${{ needs.metadata.outputs.created }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  release:
+    name: Create draft release
+    runs-on: ubuntu-latest
+    needs: [metadata, backend, frontend]
+    permissions:
+      contents: write
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+      REPO: ${{ github.repository }}
+      PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
+      BACKEND_TAGS: ${{ needs.metadata.outputs.backend_tags }}
+      FRONTEND_TAGS: ${{ needs.metadata.outputs.frontend_tags }}
+
+    steps:
+      - name: Compose release body
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pull_lines() {
+            while IFS= read -r ref; do
+              [[ -n "$ref" ]] && printf 'docker pull %s\n' "$ref"
+            done <<< "$1"
+          }
+
+          {
+            echo "## Docker images"
+            echo
+            echo "### Backend"
+            echo
+            echo '```sh'
+            pull_lines "$BACKEND_TAGS"
+            echo '```'
+            echo
+            echo "### Frontend"
+            echo
+            echo '```sh'
+            pull_lines "$FRONTEND_TAGS"
+            echo '```'
+          } > release-body.md
+
+          cat release-body.md
+
+      - name: Create or update draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            # Editing notes preserves the existing draft status, so a manual
+            # re-run never accidentally publishes the release.
+            gh release edit "$TAG" --repo "$REPO" --notes-file release-body.md
+          elif [[ "$PRERELEASE" == "true" ]]; then
+            gh release create "$TAG" --repo "$REPO" --draft --prerelease \
+              --title "$TAG" --notes-file release-body.md
+          else
+            gh release create "$TAG" --repo "$REPO" --draft \
+              --title "$TAG" --notes-file release-body.md
+          fi

@@ -11,11 +11,15 @@ git push origin master
 git push origin v1.2.3
 ```
 
-Then manually publish a GitHub Release for `v1.2.3`.
+Pushing the `v1.2.3` tag triggers the `Release` workflow: it validates the
+version, builds and pushes the backend and frontend Docker images, then creates
+a **draft** GitHub Release for `v1.2.3` whose body lists the published image
+versions with ready-to-copy `docker pull` commands. Review the draft, add your
+notes, and publish it from the Releases page.
 
-The backend and frontend Docker images are built and pushed only after the
-GitHub Release is published. Normal commits, pull requests, and tag pushes do
-not build or publish images.
+Normal commits and pull requests do not build or publish images — only a pushed
+`v*.*.*` tag does. Publishing the draft does not rebuild anything; the images
+were already pushed when the tag landed.
 
 Stable releases publish these GHCR tags:
 
