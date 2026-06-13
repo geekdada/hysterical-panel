@@ -4,7 +4,6 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
-  type Column,
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
@@ -27,6 +26,7 @@ import {
   Dot,
   PanelMessage,
   Section,
+  SortableTh,
   TableSkeleton,
   Td,
   Teaching,
@@ -448,46 +448,6 @@ function StatSkeleton({ withDot, wide }: { withDot: boolean; wide: boolean }) {
 }
 
 /* ── Tables ────────────────────────────────────────────────────────────── */
-
-function SortableTh<TData>({
-  column,
-  children,
-  align = "left",
-  className = "",
-}: {
-  column: Column<TData, unknown>;
-  children: ReactNode;
-  align?: "left" | "right";
-  className?: string;
-}) {
-  const sorted = column.getIsSorted();
-  const ariaSort = sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none";
-
-  return (
-    <th
-      aria-sort={ariaSort}
-      className={`px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted) ${className}`}
-    >
-      <button
-        type="button"
-        onClick={() => column.toggleSorting(sorted === "asc")}
-        className={`inline-flex items-center gap-1 rounded-sm uppercase transition-colors duration-150 hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
-          align === "right" ? "ml-auto justify-end" : ""
-        }`}
-      >
-        <span>{children}</span>
-        <span
-          aria-hidden
-          className={`inline-block w-3 text-center font-mono text-[10px] ${
-            sorted ? "text-(--foreground)" : "text-(--muted)"
-          }`}
-        >
-          {sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : "↕"}
-        </span>
-      </button>
-    </th>
-  );
-}
 
 function NodesTable({
   nodes,

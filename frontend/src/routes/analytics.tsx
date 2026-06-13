@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { ChevronLeft } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
@@ -19,12 +26,15 @@ import {
   granularityForLocalRange,
   type LocalDateRange,
 } from "~/lib/traffic-range";
-import { Dot, PanelMessage, Section, TableSkeleton, Td, Th } from "~/components/ui";
+import { Dot, PanelMessage, Section, SortableTh, TableSkeleton, Td } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, relTime } from "~/lib/format";
 
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
+type NodeBreakdownRow = NonNullable<PanelNodeTraffic["by_node"]>[number] & {
+  total: number;
+};
 
 export const Route = createFileRoute("/analytics")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -127,7 +137,11 @@ function AnalyticsPage() {
           trafficRange={trafficRange}
         />
 
-        <NodeBreakdownSection loading={rangeLoading} error={rangeError} nodeTraffic={nodeTraffic} />
+        <NodeBreakdownSection
+          loading={rangeLoading}
+          error={rangeError}
+          rows={nodeTraffic?.by_node ?? []}
+        />
       </main>
     </div>
   );
@@ -188,14 +202,12 @@ function RangeTrafficSection({
 function NodeBreakdownSection({
   error,
   loading,
-  nodeTraffic,
+  rows,
 }: {
   error: string;
   loading: boolean;
-  nodeTraffic: PanelNodeTraffic | null;
+  rows: NonNullable<PanelNodeTraffic["by_node"]>;
 }) {
-  const rows = nodeTraffic?.by_node ?? [];
-
   return (
     <Section title="By node">
       {error ? (
@@ -205,56 +217,113 @@ function NodeBreakdownSection({
       ) : rows.length === 0 ? (
         <PanelMessage>No node traffic in this window.</PanelMessage>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-                <Th>Name</Th>
-                <Th className="text-right">Total</Th>
-                <Th className="text-right">TX</Th>
-                <Th className="text-right">RX</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-(--separator)">
-              {rows.map((row, i) => {
-                const tx = row.tx ?? 0;
-                const rx = row.rx ?? 0;
-                const id = row.node?.id ?? "";
-                const name = row.node?.name || "—";
-                return (
-                  <tr
-                    key={id || `${name}-${i}`}
-                    className="transition-colors duration-150 hover:bg-(--surface-secondary)"
-                  >
-                    <Td>
-                      {id ? (
-                        <Link
-                          to="/nodes/$nodeId"
-                          params={{ nodeId: id }}
-                          className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
-                        >
-                          {name}
-                        </Link>
-                      ) : (
-                        <span className="font-medium">{name}</span>
-                      )}
-                    </Td>
-                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      {formatBytes(tx + rx)}
-                    </Td>
-                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <span className="text-(--muted)">↑</span> {formatBytes(tx)}
-                    </Td>
-                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <span className="text-(--muted)">↓</span> {formatBytes(rx)}
-                    </Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <NodeBreakdownTable rows={rows} />
       )}
     </Section>
+  );
+}
+
+function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_node"]> }) {
+  const [sorting, setSorting] = useState<SortingState>([{ id: "total", desc: true }]);
+  const tableRows = useMemo<NodeBreakdownRow[]>(
+    () =>
+      rows.map((row) => {
+        const tx = row.tx ?? 0;
+        const rx = row.rx ?? 0;
+        return { ...row, total: tx + rx };
+      }),
+    [rows]
+  );
+  const columns = useMemo<ColumnDef<NodeBreakdownRow>[]>(
+    () => [
+      {
+        accessorFn: (row) => row.node?.name ?? "",
+        id: "name",
+        sortDescFirst: false,
+      },
+      {
+        accessorKey: "total",
+        id: "total",
+        sortDescFirst: true,
+      },
+      {
+        accessorKey: "tx",
+        id: "tx",
+        sortDescFirst: true,
+      },
+      {
+        accessorKey: "rx",
+        id: "rx",
+        sortDescFirst: true,
+      },
+    ],
+    []
+  );
+  const table = useReactTable({
+    columns,
+    data: tableRows,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    state: { sorting },
+  });
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-[13px]">
+        <thead>
+          <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+            <SortableTh column={table.getColumn("name")!}>Name</SortableTh>
+            <SortableTh column={table.getColumn("total")!} align="right" className="text-right">
+              Total
+            </SortableTh>
+            <SortableTh column={table.getColumn("tx")!} align="right" className="text-right">
+              TX
+            </SortableTh>
+            <SortableTh column={table.getColumn("rx")!} align="right" className="text-right">
+              RX
+            </SortableTh>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-(--separator)">
+          {table.getRowModel().rows.map((row) => {
+            const { node, rx, tx, total } = row.original;
+            const id = node?.id ?? "";
+            const name = node?.name || "—";
+            return (
+              <tr
+                key={id || `${name}-${row.id}`}
+                className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+              >
+                <Td>
+                  {id ? (
+                    <Link
+                      to="/nodes/$nodeId"
+                      params={{ nodeId: id }}
+                      className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                    >
+                      {name}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{name}</span>
+                  )}
+                </Td>
+                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                  {formatBytes(total)}
+                </Td>
+                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                  <span className="text-(--muted)">↑</span> {formatBytes(tx ?? 0)}
+                </Td>
+                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                  <span className="text-(--muted)">↓</span> {formatBytes(rx ?? 0)}
+                </Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
