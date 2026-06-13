@@ -2,6 +2,7 @@ import createClient from "openapi-fetch";
 import type { paths } from "./schema";
 import { readAuthCookieValueClient } from "./cookie";
 import { fetchPanelConfig, resolveApiBaseUrl } from "./panel-config";
+import { wrapFetchWithSession } from "./session";
 
 const BOOTSTRAP_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -13,7 +14,7 @@ async function resolveFetchOrigin(): Promise<string> {
   return BOOTSTRAP_BASE;
 }
 
-const panelFetch: typeof fetch = async (input, init) => {
+const panelFetchBase: typeof fetch = async (input, init) => {
   const origin = (await resolveFetchOrigin()).replace(/\/$/, "");
 
   if (typeof input === "string") {
@@ -37,6 +38,8 @@ const panelFetch: typeof fetch = async (input, init) => {
 
   return fetch(input, init);
 };
+
+const panelFetch = wrapFetchWithSession(panelFetchBase);
 
 export const apiClient = createClient<paths>({
   baseUrl: BOOTSTRAP_BASE,

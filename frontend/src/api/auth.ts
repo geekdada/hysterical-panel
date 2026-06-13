@@ -1,11 +1,12 @@
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import {
-  AUTH_COOKIE,
-  buildAuthCookie,
-  buildAuthCookieExpired,
+  clearAuthCookies,
   readAuthCookieValueClient,
+  readAuthCookieValueServer,
+  writeAuthCookie,
 } from "./cookie";
+import { wrapFetchWithSession } from "./session";
 import { fetchPanelConfig, resolveApiBaseUrl } from "./panel-config";
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -50,6 +51,7 @@ interface PasskeyOptionsResponse<T> {
 }
 
 const FRESH_PASSWORD_LOGIN_KEY = "hp:fresh-password-login";
+const sessionFetch = wrapFetchWithSession(fetch);
 
 function parseAuth(raw: string | null | undefined): Auth | null {
   if (!raw) return null;
@@ -69,7 +71,9 @@ function parseAuth(raw: string | null | undefined): Auth | null {
  * neither side silently returns undefined.
  */
 export const readAuthCookie = createIsomorphicFn()
-  .server((): Auth | null => parseAuth(getCookie(AUTH_COOKIE)))
+  .server((): Auth | null =>
+    parseAuth(readAuthCookieValueServer((name) => getCookie(name))),
+  )
   .client((): Auth | null => parseAuth(readAuthCookieValueClient()));
 
 async function resolveAuthBase(): Promise<string> {
@@ -81,10 +85,8 @@ async function resolveAuthBase(): Promise<string> {
   return base.replace(/\/$/, "");
 }
 
-function storeAuthResponse(data: AuthResponse): AuthUser {
-  document.cookie = buildAuthCookie(
-    JSON.stringify({ token: data.token, record: data.record }),
-  );
+export function storeAuthResponse(data: AuthResponse): AuthUser {
+  writeAuthCookie(data.token, data.record);
   return data.record;
 }
 
@@ -121,7 +123,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 }
 
 export function clearAuth(): void {
-  document.cookie = buildAuthCookieExpired();
+  clearAuthCookies();
 }
 
 export async function loginWithPasskey(
@@ -226,7 +228,7 @@ async function apiFetch<T = unknown>(
   init: RequestInit = {},
 ): Promise<T> {
   const base = await resolveAuthBase();
-  const res = await fetch(`${base}${path}`, init);
+  const res = await sessionFetch(`${base}${path}`, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || `Request failed (${res.status})`);

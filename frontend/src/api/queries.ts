@@ -1,5 +1,10 @@
 import { apiClient } from "./client";
 import { fetchPanelConfig } from "./panel-config";
+import {
+  getSessionRecoveryFailed,
+  isSessionAuthError,
+  shouldSuppressSessionError,
+} from "./session";
 import type { components } from "./schema";
 import {
   granularityForLocalRange,
@@ -337,6 +342,12 @@ export function queryErrorMessage(
   error: unknown,
   networkMessage = "Network error. Retrying on the next refresh.",
 ): string {
+  if (shouldSuppressSessionError() && isSessionAuthError(error)) {
+    return "";
+  }
+  if (getSessionRecoveryFailed() && isSessionAuthError(error)) {
+    return "";
+  }
   if (error instanceof PanelApiError) {
     return error.message;
   }

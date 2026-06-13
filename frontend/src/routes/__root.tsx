@@ -1,21 +1,31 @@
 /// <reference types="vite/client" />
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
+  Link,
   Outlet,
   createRootRouteWithContext,
   HeadContent,
   Scripts,
+  useRouter,
 } from "@tanstack/react-router";
+import { Button } from "@heroui/react";
 import {
   consumeFreshPasswordLogin,
   isPasskeySoftError,
   listPasskeys,
+  loginWithPasskey,
   readAuthCookie,
   registerPasskey,
   type Auth,
 } from "~/api/auth";
 import { PanelQueryProvider } from "~/api/query-provider";
+import {
+  ensureSessionFresh,
+  getSessionRecoveryFailed,
+  subscribeSessionRecovery,
+} from "~/api/session";
 
 import "~/styles/globals.css";
 
@@ -39,6 +49,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   }),
   component: RootComponent,
 });
+
+const SESSION_KEEPALIVE_MS = 4 * 60 * 60 * 1000;
 
 // Runs synchronously in <head> before the body paints: applies the saved theme
 // preference (or the OS color-scheme when "system") onto <html> so the themed
@@ -74,6 +86,8 @@ function RootComponent() {
   return (
     <RootDocument>
       <PanelQueryProvider>
+        <SessionKeeper />
+        <SessionRecoveryBanner />
         <Outlet />
       </PanelQueryProvider>
     </RootDocument>
@@ -93,6 +107,101 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <Scripts />
       </body>
     </html>
+  );
+}
+
+function SessionKeeper() {
+  const router = useRouter();
+  const { auth } = Route.useRouteContext();
+
+  useEffect(() => {
+    if (!auth) return;
+
+    let cancelled = false;
+
+    async function refresh(force: boolean) {
+      const refreshed = await ensureSessionFresh({ force });
+      if (cancelled || !refreshed) return;
+      await router.invalidate();
+    }
+
+    void refresh(true);
+
+    const intervalId = window.setInterval(() => {
+      void refresh(false);
+    }, SESSION_KEEPALIVE_MS);
+
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void refresh(false);
+      }
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [auth?.user.id, router]);
+
+  return null;
+}
+
+function SessionRecoveryBanner() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { auth } = Route.useRouteContext();
+  const [failed, setFailed] = useState(getSessionRecoveryFailed);
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryError, setRecoveryError] = useState("");
+
+  useEffect(() => subscribeSessionRecovery(() => setFailed(getSessionRecoveryFailed())), []);
+
+  if (!auth || !failed) return null;
+
+  async function reconnectWithPasskey() {
+    setRecovering(true);
+    setRecoveryError("");
+    try {
+      await loginWithPasskey(true);
+      setFailed(false);
+      await router.invalidate();
+      await queryClient.invalidateQueries();
+    } catch (error) {
+      if (!isPasskeySoftError(error)) {
+        setRecoveryError(
+          error instanceof Error ? error.message : "Couldn't renew the session.",
+        );
+      }
+    } finally {
+      setRecovering(false);
+    }
+  }
+
+  return (
+    <div
+      className="border-b border-(--border) bg-(--danger-soft) px-4 py-2 text-[13px] text-(--danger-soft-foreground) sm:px-6"
+      role="alert"
+    >
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3">
+        <span>Session needs renewal. Reconnect to keep working without signing in again.</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="secondary" onPress={reconnectWithPasskey} isDisabled={recovering}>
+            {recovering ? "Reconnecting…" : "Use passkey"}
+          </Button>
+          <Link
+            to="/users/$userId"
+            params={{ userId: auth.user.id }}
+            className="text-[13px] font-medium text-(--accent) underline-offset-2 hover:underline"
+          >
+            Account settings
+          </Link>
+        </div>
+        {recoveryError && <span className="text-(--danger-soft-foreground)">{recoveryError}</span>}
+      </div>
+    </div>
   );
 }
 
