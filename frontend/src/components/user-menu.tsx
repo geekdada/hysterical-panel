@@ -4,7 +4,8 @@ import {
   ArrowRightFromSquare,
   ChartColumn,
   ChevronDown,
-  Database,
+  Envelope,
+  Gear,
   Person,
   ShieldCheck,
 } from "@gravity-ui/icons";
@@ -35,12 +36,16 @@ export function UserMenu({ auth }: { auth: Auth }) {
       window.open(`${origin}/_/`, "_blank", "noopener,noreferrer");
       return;
     }
-    if (key === "database") {
-      navigate({ to: "/database" });
-      return;
-    }
     if (key === "analytics") {
       navigate({ to: "/analytics" });
+      return;
+    }
+    if (key === "invitations") {
+      navigate({ to: "/invitations" });
+      return;
+    }
+    if (key === "settings") {
+      navigate({ to: "/settings" });
       return;
     }
     if (key === "sign-out") {
@@ -107,9 +112,15 @@ export function UserMenu({ auth }: { auth: Auth }) {
             </Dropdown.Item>
           )}
           {auth.user.role === "admin" && (
-            <Dropdown.Item id="database" textValue="Database management" className={itemClass}>
-              <Database className={iconClass} aria-hidden />
-              <Label className="truncate">Database management</Label>
+            <Dropdown.Item id="invitations" textValue="Invitations" className={itemClass}>
+              <Envelope className={iconClass} aria-hidden />
+              <Label className="truncate">Invitations</Label>
+            </Dropdown.Item>
+          )}
+          {auth.user.role === "admin" && (
+            <Dropdown.Item id="settings" textValue="Settings" className={itemClass}>
+              <Gear className={iconClass} aria-hidden />
+              <Label className="truncate">Settings</Label>
             </Dropdown.Item>
           )}
           <Separator className="my-1 bg-(--separator)" />
