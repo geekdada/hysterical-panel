@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": true,
+  "tabWidth": 2,
+  "useTabs": false,
+  "trailingComma": "es5",
+  "singleQuote": false,
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "proseWrap": "preserve",
+  "htmlWhitespaceSensitivity": "css",
+  "endOfLine": "lf",
+  "ignorePatterns": [
+    "src/routeTree.gen.ts",
+    "src/api/schema.d.ts",
+    "node_modules/**",
+    ".output/**",
+    "dist/**",
+    "pnpm-lock.yaml"
+  ]
+}

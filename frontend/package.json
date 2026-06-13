@@ -8,6 +8,12 @@
     "dev": "vite dev",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck",
+    "prepare": "cd .. && husky",
     "api:schema": "../scripts/generate-openapi-schema.sh",
     "api:types": "openapi-typescript ../backend/openapi.json -o src/api/schema.d.ts",
     "api:sync": "pnpm api:schema && pnpm api:types"
@@ -37,10 +43,21 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
     "openapi-typescript": "^7.13.0",
+    "oxfmt": "^0.54.0",
+    "oxlint": "^1.69.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.14",
     "vite-tsconfig-paths": "^6.1.1"
+  },
+  "lint-staged": {
+    "src/**/*.{js,jsx,ts,tsx}": [
+      "oxfmt --no-error-on-unmatched-pattern",
+      "oxlint --fix"
+    ],
+    "*.{js,jsx,ts,tsx,json,jsonc}": "oxfmt --no-error-on-unmatched-pattern"
   }
 }
