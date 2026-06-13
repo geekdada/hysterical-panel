@@ -17,5 +17,9 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  ssr: {
+    // Force bundling so CJS package root isn't loaded by the SSR module runner.
+    noExternal: ["@gravity-ui/icons"],
+  },
   plugins: [tanstackStart(), nitro(), viteReact(), tailwindcss()],
 });
