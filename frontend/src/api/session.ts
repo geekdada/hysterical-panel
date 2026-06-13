@@ -44,9 +44,9 @@ function parseJwtIat(token: string): number | null {
     if (parts.length < 2) return null;
     const payloadPart = parts[1];
     if (!payloadPart) return null;
-    const payload = JSON.parse(
-      atob(payloadPart.replace(/-/g, "+").replace(/_/g, "/")),
-    ) as { iat?: unknown };
+    const payload = JSON.parse(atob(payloadPart.replace(/-/g, "+").replace(/_/g, "/"))) as {
+      iat?: unknown;
+    };
     return typeof payload.iat === "number" ? payload.iat : null;
   } catch {
     return null;
@@ -61,10 +61,7 @@ export function shouldRefreshSoon(token: string): boolean {
   if (remaining <= CLOCK_SKEW_SECONDS) return false;
   const iat = parseJwtIat(token);
   const lifetime = iat ? Math.max(exp - iat, 1) : DEFAULT_TOKEN_LIFETIME_SECONDS;
-  return (
-    remaining <= REFRESH_SOON_SECONDS ||
-    remaining <= lifetime * REFRESH_SOON_FRACTION
-  );
+  return remaining <= REFRESH_SOON_SECONDS || remaining <= lifetime * REFRESH_SOON_FRACTION;
 }
 
 function parseAuthFromRaw(raw: string | null | undefined): Auth | null {
@@ -138,9 +135,7 @@ export async function recoverSession(): Promise<Auth | null> {
   }
 }
 
-export async function ensureSessionFresh(options?: {
-  force?: boolean;
-}): Promise<Auth | null> {
+export async function ensureSessionFresh(options?: { force?: boolean }): Promise<Auth | null> {
   const auth = parseAuthFromRaw(readAuthCookieValueClient());
   if (!auth?.token || !isTokenUsable(auth.token)) return null;
   if (!options?.force && !shouldRefreshSoon(auth.token)) return auth;
@@ -225,9 +220,7 @@ export function isSessionAuthError(error: unknown): boolean {
     "message" in error &&
     typeof (error as { message: unknown }).message === "string"
   ) {
-    return (error as { message: string })
-      .message.toLowerCase()
-      .includes("authorization token");
+    return (error as { message: string }).message.toLowerCase().includes("authorization token");
   }
   return false;
 }

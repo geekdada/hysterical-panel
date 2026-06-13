@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
@@ -20,12 +15,7 @@ import {
 import { Check, Copy } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
-import {
-  createNode,
-  queryErrorMessage,
-  queryKeys,
-  testNode,
-} from "~/api/queries";
+import { createNode, queryErrorMessage, queryKeys, testNode } from "~/api/queries";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 
 type Node = components["schemas"]["Node"];
@@ -96,10 +86,7 @@ function AddNodePage() {
 
   const test = toTestState(testMutation);
   const submitError = createMutation.error
-    ? queryErrorMessage(
-        createMutation.error,
-        "Network error while creating the node.",
-      )
+    ? queryErrorMessage(createMutation.error, "Network error while creating the node.")
     : "";
 
   return (
@@ -110,9 +97,7 @@ function AddNodePage() {
             <span className="grid size-5 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
               H
             </span>
-            <span className="text-[13px] font-semibold tracking-tight">
-              Hysterical Panel
-            </span>
+            <span className="text-[13px] font-semibold tracking-tight">Hysterical Panel</span>
           </div>
           <Link
             to="/"
@@ -156,12 +141,7 @@ function AddNodePage() {
               {/* Decoy inputs absorb Chrome's password-manager autofill,
                   which ignores autocomplete="off" on real fields. */}
               <div aria-hidden className="hidden">
-                <input
-                  type="text"
-                  name="username"
-                  tabIndex={-1}
-                  autoComplete="username"
-                />
+                <input type="text" name="username" tabIndex={-1} autoComplete="username" />
                 <input
                   type="password"
                   name="password"
@@ -198,9 +178,7 @@ function AddNodePage() {
                       data-lpignore="true"
                       data-form-type="other"
                     />
-                    <FieldError>
-                      {field.state.meta.errors.join(", ")}
-                    </FieldError>
+                    <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
                   </TextField>
                 )}
               </form.Field>
@@ -233,13 +211,11 @@ function AddNodePage() {
                       data-form-type="other"
                     />
                     {field.state.meta.errors.length > 0 ? (
-                      <FieldError>
-                        {field.state.meta.errors.join(", ")}
-                      </FieldError>
+                      <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
                     ) : (
                       <Description>
-                        The Traffic Stats API address (the `trafficStats` listen
-                        port, not the proxy port).
+                        The Traffic Stats API address (the `trafficStats` listen port, not the proxy
+                        port).
                       </Description>
                     )}
                   </TextField>
@@ -249,8 +225,7 @@ function AddNodePage() {
               <form.Field
                 name="api_secret"
                 validators={{
-                  onChange: ({ value }) =>
-                    !value ? "API secret is required" : undefined,
+                  onChange: ({ value }) => (!value ? "API secret is required" : undefined),
                 }}
               >
                 {(field) => (
@@ -284,21 +259,15 @@ function AddNodePage() {
                         data-form-type="other"
                       />
                       <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
-                        <CopyButton
-                          value={field.state.value}
-                          label="API secret"
-                        />
+                        <CopyButton value={field.state.value} label="API secret" />
                       </div>
                     </div>
                     {field.state.meta.errors.length > 0 ? (
-                      <FieldError>
-                        {field.state.meta.errors.join(", ")}
-                      </FieldError>
+                      <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
                     ) : (
                       <Description>
-                        Generate one or paste the node's secret, then copy it
-                        into the server config. Stored encrypted and hidden
-                        after saving.
+                        Generate one or paste the node's secret, then copy it into the server
+                        config. Stored encrypted and hidden after saving.
                       </Description>
                     )}
                   </TextField>
@@ -335,9 +304,7 @@ function AddNodePage() {
                       <NumberField.IncrementButton />
                     </NumberField.Group>
                     {field.state.meta.errors.length > 0 ? (
-                      <FieldError>
-                        {field.state.meta.errors.join(", ")}
-                      </FieldError>
+                      <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
                     ) : (
                       <Description>Seconds between traffic polls.</Description>
                     )}
@@ -354,9 +321,7 @@ function AddNodePage() {
                   >
                     <Switch.Content>
                       <Label>Enabled</Label>
-                      <Description>
-                        Poll this node as soon as it's saved.
-                      </Description>
+                      <Description>Poll this node as soon as it's saved.</Description>
                     </Switch.Content>
                     <Switch.Control>
                       <Switch.Thumb />
@@ -386,11 +351,7 @@ function AddNodePage() {
                   })}
                 >
                   {({ canSubmit, isSubmitting }) => (
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      isDisabled={!canSubmit}
-                    >
+                    <Button type="submit" variant="primary" isDisabled={!canSubmit}>
                       {isSubmitting ? "Adding…" : "Add node"}
                     </Button>
                   )}
@@ -451,22 +412,17 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
 
   return (
     <section className="mt-4 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
-      <h2 className="text-[13px] font-semibold tracking-tight">
-        On the Hysteria server
-      </h2>
+      <h2 className="text-[13px] font-semibold tracking-tight">On the Hysteria server</h2>
       <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
-        The panel only reads stats; it never deploys the node. Enable the
-        Traffic Stats API in the node's{" "}
-        <span className="font-mono">server.yaml</span>, then restart Hysteria.
+        The panel only reads stats; it never deploys the node. Enable the Traffic Stats API in the
+        node's <span className="font-mono">server.yaml</span>, then restart Hysteria.
       </p>
 
       <pre className="mt-3 overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 font-mono text-xs leading-relaxed">
         {setupYaml(apiSecret).map((line) => (
           <div key={line.code}>
             <span className="text-(--foreground)">{line.code}</span>
-            {line.note && (
-              <span className="text-(--muted)">{`  # ${line.note}`}</span>
-            )}
+            {line.note && <span className="text-(--muted)">{`  # ${line.note}`}</span>}
           </div>
         ))}
       </pre>
@@ -475,44 +431,39 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
         Authenticate clients against this panel
       </h3>
       <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
-        Point Hysteria's <span className="font-mono">auth.http.url</span> at the
-        panel. Each connect attempt is checked against the{" "}
-        <span className="font-mono">auth_string</span> of the matching user;
-        disabled accounts are rejected.
+        Point Hysteria's <span className="font-mono">auth.http.url</span> at the panel. Each connect
+        attempt is checked against the <span className="font-mono">auth_string</span> of the
+        matching user; disabled accounts are rejected.
       </p>
 
       <pre className="mt-3 overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 font-mono text-xs leading-relaxed">
         {authYaml(panelOrigin).map((line) => (
           <div key={line.code}>
             <span className="text-(--foreground)">{line.code}</span>
-            {line.note && (
-              <span className="text-(--muted)">{`  # ${line.note}`}</span>
-            )}
+            {line.note && <span className="text-(--muted)">{`  # ${line.note}`}</span>}
           </div>
         ))}
       </pre>
       <p className="mt-1.5 text-xs text-(--muted)">
-        Adjust the host if Hysteria reaches the panel through a different URL
-        than your browser does.
+        Adjust the host if Hysteria reaches the panel through a different URL than your browser
+        does.
       </p>
 
       <dl className="mt-4 flex flex-col gap-1.5 text-[13px]">
         <SetupRow term="API URL">
-          <span className="font-mono">http://&lt;server-ip&gt;:9999</span> — the
-          listen address above, no trailing slash.
+          <span className="font-mono">http://&lt;server-ip&gt;:9999</span> — the listen address
+          above, no trailing slash.
         </SetupRow>
         <SetupRow term="API secret">
-          the <span className="font-mono">secret</span> value above; the panel
-          stores it encrypted.
+          the <span className="font-mono">secret</span> value above; the panel stores it encrypted.
         </SetupRow>
         <SetupRow term="Auth check">
-          the client's <span className="font-mono">auth</span> string must match
-          a user's <span className="font-mono">auth_string</span>; disabled
-          users are rejected.
+          the client's <span className="font-mono">auth</span> string must match a user's{" "}
+          <span className="font-mono">auth_string</span>; disabled users are rejected.
         </SetupRow>
         <SetupRow term="Reachability">
-          open the stats port to the panel only, and keep it behind a firewall
-          or TLS. It exposes per-user traffic.
+          open the stats port to the panel only, and keep it behind a firewall or TLS. It exposes
+          per-user traffic.
         </SetupRow>
       </dl>
     </section>
@@ -522,9 +473,7 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
 function SetupRow({ term, children }: { term: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-2">
-      <dt className="shrink-0 font-medium text-(--foreground) sm:w-28">
-        {term}
-      </dt>
+      <dt className="shrink-0 font-medium text-(--foreground) sm:w-28">{term}</dt>
       <dd className="text-(--muted)">{children}</dd>
     </div>
   );
@@ -577,10 +526,7 @@ function CreatedView({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <StatusDot tone="error" />
-              <span
-                className="block truncate text-(--danger)"
-                title={test.message}
-              >
+              <span className="block truncate text-(--danger)" title={test.message}>
                 {test.message}
               </span>
               <button
@@ -592,8 +538,7 @@ function CreatedView({
               </button>
             </div>
             <p className="text-xs text-(--muted)">
-              The node was saved and will still be polled. You can retest it
-              from the dashboard.
+              The node was saved and will still be polled. You can retest it from the dashboard.
             </p>
           </div>
         )}
@@ -613,19 +558,9 @@ function CreatedView({
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
-function StatusDot({
-  tone,
-  className = "",
-}: {
-  tone: "ok" | "error";
-  className?: string;
-}) {
+function StatusDot({ tone, className = "" }: { tone: "ok" | "error"; className?: string }) {
   const fill = tone === "ok" ? "bg-(--success)" : "bg-(--danger)";
-  return (
-    <span
-      className={`inline-block size-2 shrink-0 rounded-full ${fill} ${className}`}
-    />
-  );
+  return <span className={`inline-block size-2 shrink-0 rounded-full ${fill} ${className}`} />;
 }
 
 function IconAction({
@@ -677,11 +612,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   }
 
   return (
-    <IconAction
-      label={copied ? "Copied" : `Copy ${label}`}
-      onClick={copy}
-      disabled={!value}
-    >
+    <IconAction label={copied ? "Copied" : `Copy ${label}`} onClick={copy} disabled={!value}>
       {copied ? (
         <span className="text-(--success)">
           <Check className="size-3.5" aria-hidden />
@@ -699,10 +630,7 @@ function generateSecret(): string {
   crypto.getRandomValues(bytes);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 function validateUrl(value: string): string | undefined {
@@ -727,10 +655,7 @@ function toTestState(mutation: {
   if (mutation.error) {
     return {
       status: "error",
-      message: queryErrorMessage(
-        mutation.error,
-        "Network error while testing the node.",
-      ),
+      message: queryErrorMessage(mutation.error, "Network error while testing the node."),
     };
   }
   if (!mutation.data) {

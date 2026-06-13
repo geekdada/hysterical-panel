@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Chip,
-  DateField,
-  DateRangePicker,
-  RangeCalendar,
-  useLocale,
-} from "@heroui/react";
+import { Chip, DateField, DateRangePicker, RangeCalendar, useLocale } from "@heroui/react";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { useState } from "react";
 import {
@@ -72,9 +66,7 @@ export function TrafficRangePicker({
     onChange(trafficShortcutRange(key));
     setOpen(false);
   }
-  const pickerValue = value.shortcut
-    ? trafficShortcutRange(value.shortcut)
-    : value;
+  const pickerValue = value.shortcut ? trafficShortcutRange(value.shortcut) : value;
   const triggerLabel = formatTriggerRange(pickerValue, locale);
 
   return (
@@ -98,9 +90,7 @@ export function TrafficRangePicker({
           onChange={(next) => {
             if (next) {
               const range = next as LocalDateRange;
-              onChange(
-                clampLocalTrafficRange({ start: range.start, end: range.end })
-              );
+              onChange(clampLocalTrafficRange({ start: range.start, end: range.end }));
             }
           }}
         >
@@ -151,10 +141,7 @@ export function TrafficRangePicker({
               })}
             </div>
             <div className="mt-4 border-t border-(--separator) pt-4">
-              <RangeCalendar
-                aria-label="Traffic period"
-                className="mx-auto w-full"
-              >
+              <RangeCalendar aria-label="Traffic period" className="mx-auto w-full">
                 <RangeCalendar.Header className="mb-2 flex h-7 items-center gap-1">
                   <RangeCalendar.YearPickerTrigger className="inline-flex h-7 min-w-0 flex-1 items-center gap-1 px-2 text-left text-[12px] font-semibold text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) sm:text-[13px]">
                     <RangeCalendar.YearPickerTriggerHeading />

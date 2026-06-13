@@ -14,9 +14,7 @@ export function readThemePreference(): ThemePreference {
 function resolveTheme(pref: ThemePreference): "light" | "dark" {
   if (pref !== "system") return pref;
   if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 /** Apply the resolved theme to <html> (class + data-theme + color-scheme). */

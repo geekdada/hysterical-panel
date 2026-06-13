@@ -11,10 +11,8 @@
 
 @theme {
   --font-sans:
-    "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
-    sans-serif;
-  --font-mono:
-    ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+    "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
 }
 
 /* Linear light */

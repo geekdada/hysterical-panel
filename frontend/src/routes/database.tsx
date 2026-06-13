@@ -13,22 +13,13 @@ import {
   queryKeys,
   REFRESH_MS,
 } from "~/api/queries";
-import {
-  Dot,
-  PanelMessage,
-  Section,
-  TableSkeleton,
-  Td,
-  Th,
-} from "~/components/ui";
+import { Dot, PanelMessage, Section, TableSkeleton, Td, Th } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, relTime } from "~/lib/format";
 
 type DatabaseStats = components["schemas"]["DatabaseStatsResponse"];
 type DatabasePrune = components["schemas"]["DatabasePruneResponse"];
-type StorageFile = NonNullable<
-  NonNullable<DatabaseStats["storage"]>["files"]
->[number];
+type StorageFile = NonNullable<NonNullable<DatabaseStats["storage"]>["files"]>[number];
 type TrafficTable = NonNullable<DatabaseStats["traffic_tables"]>[number];
 
 export const Route = createFileRoute("/database")({
@@ -69,19 +60,13 @@ function DatabasePage() {
   const storage = stats?.storage ?? null;
   const files = storage?.files ?? [];
   const tables = useMemo(() => stats?.traffic_tables ?? [], [stats]);
-  const pruneEligible = tables.reduce(
-    (sum, table) => sum + (table.older_than_30_days ?? 0),
-    0
-  );
+  const pruneEligible = tables.reduce((sum, table) => sum + (table.older_than_30_days ?? 0), 0);
   const hourly = trafficTable(tables, "traffic_hourly");
   const daily = trafficTable(tables, "traffic_daily");
   const loading = statsQuery.isPending;
   const error = statsQuery.error ? queryErrorMessage(statsQuery.error) : "";
   const pruneError = pruneMutation.error
-    ? queryErrorMessage(
-        pruneMutation.error,
-        "Network error while deleting old traffic data."
-      )
+    ? queryErrorMessage(pruneMutation.error, "Network error while deleting old traffic data.")
     : "";
   const updatedAt = statsQuery.dataUpdatedAt || null;
 
@@ -147,21 +132,13 @@ function DatabasePage() {
 
         <Section
           title="Traffic data points"
-          meta={
-            stats?.cutoff
-              ? `Retention cutoff ${formatCutoff(stats.cutoff)}`
-              : undefined
-          }
+          meta={stats?.cutoff ? `Retention cutoff ${formatCutoff(stats.cutoff)}` : undefined}
         >
           <TrafficTableSection loading={loading} tables={tables} />
         </Section>
 
         <Section title="Storage footprint">
-          <StorageTable
-            loading={loading}
-            files={files}
-            totalBytes={storage?.total_bytes ?? 0}
-          />
+          <StorageTable loading={loading} files={files} totalBytes={storage?.total_bytes ?? 0} />
         </Section>
 
         <Section
@@ -206,25 +183,13 @@ function SummaryRail({
 }) {
   return (
     <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
-      <RailItem
-        label="Storage"
-        loading={loading}
-        value={formatBytes(storageBytes)}
-      >
+      <RailItem label="Storage" loading={loading} value={formatBytes(storageBytes)}>
         data.db footprint
       </RailItem>
-      <RailItem
-        label="Hourly points"
-        loading={loading}
-        value={formatCount(hourly)}
-      >
+      <RailItem label="Hourly points" loading={loading} value={formatCount(hourly)}>
         traffic_hourly rows
       </RailItem>
-      <RailItem
-        label="Daily points"
-        loading={loading}
-        value={formatCount(daily)}
-      >
+      <RailItem label="Daily points" loading={loading} value={formatCount(daily)}>
         traffic_daily rows
       </RailItem>
       <RailItem
@@ -263,9 +228,7 @@ function RailItem({
 
   return (
     <div className="flex-1 px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">
-        {label}
-      </p>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</p>
       <p
         className={`mt-1 font-mono text-[15px] tabular-nums ${tone === "danger" ? "text-(--danger)" : "text-(--foreground)"}`}
       >
@@ -276,16 +239,9 @@ function RailItem({
   );
 }
 
-function TrafficTableSection({
-  loading,
-  tables,
-}: {
-  loading: boolean;
-  tables: TrafficTable[];
-}) {
+function TrafficTableSection({ loading, tables }: { loading: boolean; tables: TrafficTable[] }) {
   if (loading) return <TableSkeleton rows={2} />;
-  if (tables.length === 0)
-    return <PanelMessage>No traffic tables found.</PanelMessage>;
+  if (tables.length === 0) return <PanelMessage>No traffic tables found.</PanelMessage>;
 
   return (
     <div className="overflow-x-auto">
@@ -309,9 +265,7 @@ function TrafficTableSection({
                   <span className="font-mono text-[13px] text-(--foreground)">
                     {table.table ?? "—"}
                   </span>
-                  <span className="ml-2 text-xs text-(--muted)">
-                    {tableLabel(table.table)}
-                  </span>
+                  <span className="ml-2 text-xs text-(--muted)">{tableLabel(table.table)}</span>
                 </Td>
                 <Td className="text-right font-mono tabular-nums">
                   {formatCount(table.points ?? 0)}
@@ -356,12 +310,8 @@ function StorageTable({
               key={file.name}
               className="transition-colors duration-150 hover:bg-(--surface-secondary)"
             >
-              <Td className="font-mono text-(--foreground)">
-                {file.name ?? "—"}
-              </Td>
-              <Td className="text-right font-mono tabular-nums">
-                {formatBytes(file.bytes ?? 0)}
-              </Td>
+              <Td className="font-mono text-(--foreground)">{file.name ?? "—"}</Td>
+              <Td className="text-right font-mono tabular-nums">{formatBytes(file.bytes ?? 0)}</Td>
             </tr>
           ))}
           <tr className="border-t border-(--border) bg-(--surface-secondary)">
@@ -388,19 +338,13 @@ function MaintenancePanel({
   result: DatabasePrune | null;
 }) {
   const deleted = result?.deleted ?? [];
-  const deletedTotal = deleted.reduce(
-    (sum, row) => sum + (row.deleted_rows ?? 0),
-    0
-  );
+  const deletedTotal = deleted.reduce((sum, row) => sum + (row.deleted_rows ?? 0), 0);
 
   return (
     <div className="divide-y divide-(--separator)">
       <div className="px-4 py-3 text-[13px] text-(--muted)">
-        Rows with <span className="font-mono text-(--foreground)">bucket</span>{" "}
-        before{" "}
-        <span className="font-mono text-(--foreground)">
-          {cutoff ? formatCutoff(cutoff) : "—"}
-        </span>{" "}
+        Rows with <span className="font-mono text-(--foreground)">bucket</span> before{" "}
+        <span className="font-mono text-(--foreground)">{cutoff ? formatCutoff(cutoff) : "—"}</span>{" "}
         are eligible. Current eligible rows:{" "}
         <span className="font-mono text-(--foreground) tabular-nums">
           {formatCount(pruneEligible)}
@@ -415,11 +359,7 @@ function MaintenancePanel({
       )}
       {result && (
         <div className="px-4 py-3 text-[13px] text-(--foreground)">
-          Deleted{" "}
-          <span className="font-mono tabular-nums">
-            {formatCount(deletedTotal)}
-          </span>{" "}
-          rows.
+          Deleted <span className="font-mono tabular-nums">{formatCount(deletedTotal)}</span> rows.
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-(--muted)">
             {deleted.map((row) => (
               <span key={row.table} className="font-mono tabular-nums">
@@ -433,10 +373,7 @@ function MaintenancePanel({
   );
 }
 
-function trafficTable(
-  tables: TrafficTable[],
-  tableName: string
-): TrafficTable | null {
+function trafficTable(tables: TrafficTable[], tableName: string): TrafficTable | null {
   return tables.find((table) => table.table === tableName) ?? null;
 }
 
@@ -447,9 +384,7 @@ function tableLabel(table?: string): string {
 }
 
 function formatCount(value: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
-    value
-  );
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
 }
 
 function formatCutoff(value: string): string {

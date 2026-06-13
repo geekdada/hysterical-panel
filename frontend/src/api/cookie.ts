@@ -4,9 +4,7 @@ export const LEGACY_AUTH_COOKIE = "pb_auth";
 export const MAX_AGE_CAP_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 function secureAttr(): string {
-  return typeof window !== "undefined" && window.location.protocol === "https:"
-    ? "; Secure"
-    : "";
+  return typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : "";
 }
 
 /** Decode JWT payload `exp` (seconds since epoch). Scheduling only — not verified. */
@@ -16,9 +14,9 @@ export function parseJwtExp(token: string): number | null {
     if (parts.length < 2) return null;
     const payloadPart = parts[1];
     if (!payloadPart) return null;
-    const payload = JSON.parse(
-      atob(payloadPart.replace(/-/g, "+").replace(/_/g, "/")),
-    ) as { exp?: unknown };
+    const payload = JSON.parse(atob(payloadPart.replace(/-/g, "+").replace(/_/g, "/"))) as {
+      exp?: unknown;
+    };
     return typeof payload.exp === "number" ? payload.exp : null;
   } catch {
     return null;
@@ -72,7 +70,7 @@ export function writeAuthCookie(token: string, record: unknown): void {
   if (typeof document === "undefined") return;
   document.cookie = buildAuthCookie(
     JSON.stringify({ token, record }),
-    cookieMaxAgeFromToken(token),
+    cookieMaxAgeFromToken(token)
   );
 }
 
@@ -108,7 +106,7 @@ export function readAuthCookieValueClient(): string | null {
 
 /** Server-side read: hp_auth first, then legacy pb_auth. */
 export function readAuthCookieValueServer(
-  getCookie: (name: string) => string | undefined,
+  getCookie: (name: string) => string | undefined
 ): string | null {
   return getCookie(AUTH_COOKIE) ?? getCookie(LEGACY_AUTH_COOKIE) ?? null;
 }

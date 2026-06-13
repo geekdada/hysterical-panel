@@ -24,8 +24,7 @@ type Node = components["schemas"]["Node"];
 type NodeCreateRequest = components["schemas"]["NodeCreateRequest"];
 type NodeLive = components["schemas"]["NodeLiveResponse"];
 type NodeTest = components["schemas"]["NodeTestResponse"];
-type NodeTrafficSummary =
-  components["schemas"]["NodeTrafficSummaryResponse"];
+type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
 type PanelConfig = components["schemas"]["PanelConfigResponse"];
 type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
 type PanelTraffic = components["schemas"]["PanelTrafficResponse"];
@@ -39,7 +38,7 @@ export const REFRESH_MS = 20_000;
 export class PanelApiError extends Error {
   constructor(
     message: string,
-    readonly status?: number,
+    readonly status?: number
   ) {
     super(message);
     this.name = "PanelApiError";
@@ -72,10 +71,7 @@ export type AnalyticsOverviewData = {
 export const queryKeys = {
   all: ["panel"] as const,
   analyticsBase: () => [...queryKeys.all, "analytics"] as const,
-  analyticsNodeTraffic: (
-    period: string,
-    range: TrafficRangeQuery | null,
-  ) =>
+  analyticsNodeTraffic: (period: string, range: TrafficRangeQuery | null) =>
     [
       ...queryKeys.analyticsBase(),
       "nodes",
@@ -96,24 +92,12 @@ export const queryKeys = {
   dashboardBase: () => [...queryKeys.all, "dashboard"] as const,
   dashboardNodes: () => [...queryKeys.dashboardBase(), "nodes"] as const,
   dashboardNodeTraffic: (range: TrafficRangeQuery | null) =>
-    [
-      ...queryKeys.dashboardBase(),
-      "nodes",
-      "traffic",
-      range?.from ?? "",
-      range?.to ?? "",
-    ] as const,
+    [...queryKeys.dashboardBase(), "nodes", "traffic", range?.from ?? "", range?.to ?? ""] as const,
   dashboardTraffic: (range: TrafficRangeQuery | null) =>
-    [
-      ...queryKeys.dashboardBase(),
-      "traffic",
-      range?.from ?? "",
-      range?.to ?? "",
-    ] as const,
+    [...queryKeys.dashboardBase(), "traffic", range?.from ?? "", range?.to ?? ""] as const,
   dashboardUsers: () => [...queryKeys.dashboardBase(), "users"] as const,
   databaseStats: () => [...queryKeys.all, "database", "stats"] as const,
-  nodeLive: (nodeId: string) =>
-    [...queryKeys.all, "nodes", nodeId, "live"] as const,
+  nodeLive: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "live"] as const,
   nodeOverview: (nodeId: string, range: TrafficRangeQuery | null) =>
     [
       ...queryKeys.all,
@@ -124,8 +108,7 @@ export const queryKeys = {
       range?.from ?? "",
       range?.to ?? "",
     ] as const,
-  userLive: (userId: string) =>
-    [...queryKeys.all, "users", userId, "live"] as const,
+  userLive: (userId: string) => [...queryKeys.all, "users", userId, "live"] as const,
   userOverview: (userId: string, range: TrafficRangeQuery | null) =>
     [
       ...queryKeys.all,
@@ -142,9 +125,7 @@ export function canQueryPanelApi(): boolean {
   return typeof window !== "undefined";
 }
 
-export function toTrafficRangeQuery(
-  range: LocalDateRange,
-): TrafficRangeQuery {
+export function toTrafficRangeQuery(range: LocalDateRange): TrafficRangeQuery {
   const { from, to } = localRangeToUtcQuery(range);
   return {
     from,
@@ -162,12 +143,12 @@ export function fetchDashboardNodes(): Promise<Node[]> {
 }
 
 export function fetchDashboardNodeTraffic(
-  range: TrafficRangeQuery,
+  range: TrafficRangeQuery
 ): Promise<PanelNodeTraffic | null> {
   return apiRequest<PanelNodeTraffic | null>(
     apiClient.GET("/api/panel/nodes/traffic/summary", {
       params: { query: { from: range.from, to: range.to } },
-    }),
+    })
   );
 }
 
@@ -175,19 +156,15 @@ export function fetchDashboardUsers(): Promise<PanelUser[]> {
   return apiRequest<PanelUser[]>(apiClient.GET("/api/panel/users"));
 }
 
-export function fetchDashboardTraffic(
-  range: TrafficRangeQuery,
-): Promise<PanelTraffic | null> {
+export function fetchDashboardTraffic(range: TrafficRangeQuery): Promise<PanelTraffic | null> {
   return apiRequest<PanelTraffic | null>(
     apiClient.GET("/api/panel/traffic", {
       params: { query: { from: range.from, to: range.to } },
-    }),
+    })
   );
 }
 
-export function fetchPanelTrafficSeries(
-  range: TrafficRangeQuery,
-): Promise<TrafficSeries | null> {
+export function fetchPanelTrafficSeries(range: TrafficRangeQuery): Promise<TrafficSeries | null> {
   return apiRequest<TrafficSeries | null>(
     apiClient.GET("/api/panel/traffic/series", {
       params: {
@@ -197,12 +174,12 @@ export function fetchPanelTrafficSeries(
           to: range.to,
         },
       },
-    }),
+    })
   );
 }
 
 export async function fetchAnalyticsOverview(
-  range: TrafficRangeQuery,
+  range: TrafficRangeQuery
 ): Promise<AnalyticsOverviewData> {
   const [nodeTraffic, series] = await Promise.all([
     fetchDashboardNodeTraffic(range),
@@ -213,28 +190,26 @@ export async function fetchAnalyticsOverview(
 }
 
 export function fetchDatabaseStats(): Promise<DatabaseStats | null> {
-  return apiRequest<DatabaseStats | null>(
-    apiClient.GET("/api/panel/database/stats"),
-  );
+  return apiRequest<DatabaseStats | null>(apiClient.GET("/api/panel/database/stats"));
 }
 
 export function pruneDatabaseTraffic(): Promise<DatabasePrune> {
   return apiRequest<DatabasePrune>(
     apiClient.POST("/api/panel/database/prune"),
     "Couldn't delete old traffic data.",
-    "Network error while deleting old traffic data.",
+    "Network error while deleting old traffic data."
   );
 }
 
 export async function fetchNodeOverview(
   nodeId: string,
-  range: TrafficRangeQuery,
+  range: TrafficRangeQuery
 ): Promise<NodeOverviewData> {
   const [node, summary, series] = await Promise.all([
     apiRequest<Node | null>(
       apiClient.GET("/api/panel/nodes/{id}", {
         params: { path: { id: nodeId } },
-      }),
+      })
     ),
     apiRequest<NodeTrafficSummary | null>(
       apiClient.GET("/api/panel/nodes/{id}/traffic/summary", {
@@ -242,7 +217,7 @@ export async function fetchNodeOverview(
           path: { id: nodeId },
           query: { from: range.from, to: range.to },
         },
-      }),
+      })
     ),
     apiRequest<TrafficSeries | null>(
       apiClient.GET("/api/panel/nodes/{id}/traffic/series", {
@@ -254,7 +229,7 @@ export async function fetchNodeOverview(
             to: range.to,
           },
         },
-      }),
+      })
     ),
   ]);
 
@@ -263,13 +238,13 @@ export async function fetchNodeOverview(
 
 export async function fetchUserOverview(
   userId: string,
-  range: TrafficRangeQuery,
+  range: TrafficRangeQuery
 ): Promise<UserOverviewData> {
   const [user, summary, series] = await Promise.all([
     apiRequest<PanelUser | null>(
       apiClient.GET("/api/panel/users/{id}", {
         params: { path: { id: userId } },
-      }),
+      })
     ),
     apiRequest<TrafficSummary | null>(
       apiClient.GET("/api/panel/users/{id}/traffic/summary", {
@@ -277,7 +252,7 @@ export async function fetchUserOverview(
           path: { id: userId },
           query: { from: range.from, to: range.to },
         },
-      }),
+      })
     ),
     apiRequest<TrafficSeries | null>(
       apiClient.GET("/api/panel/users/{id}/traffic/series", {
@@ -289,7 +264,7 @@ export async function fetchUserOverview(
             to: range.to,
           },
         },
-      }),
+      })
     ),
   ]);
 
@@ -302,7 +277,7 @@ export function fetchNodeLive(nodeId: string): Promise<NodeLive | null> {
       params: { path: { id: nodeId } },
     }),
     "Couldn't reach the panel API.",
-    "Network error while fetching streams.",
+    "Network error while fetching streams."
   );
 }
 
@@ -312,7 +287,7 @@ export function fetchUserLive(userId: string): Promise<UserLive | null> {
       params: { path: { id: userId } },
     }),
     "Couldn't reach the panel API.",
-    "Network error while fetching streams.",
+    "Network error while fetching streams."
   );
 }
 
@@ -320,7 +295,7 @@ export function createNode(body: NodeCreateRequest): Promise<Node> {
   return apiRequest<Node>(
     apiClient.POST("/api/panel/nodes", { body }),
     "Couldn't create the node.",
-    "Network error while creating the node.",
+    "Network error while creating the node."
   );
 }
 
@@ -330,7 +305,7 @@ export function testNode(nodeId: string): Promise<NodeTest> {
       params: { path: { id: nodeId } },
     }),
     "Couldn't run the connectivity test.",
-    "Network error while testing the node.",
+    "Network error while testing the node."
   );
 }
 
@@ -340,7 +315,7 @@ export function isNotFoundError(error: unknown): boolean {
 
 export function queryErrorMessage(
   error: unknown,
-  networkMessage = "Network error. Retrying on the next refresh.",
+  networkMessage = "Network error. Retrying on the next refresh."
 ): string {
   if (shouldSuppressSessionError() && isSessionAuthError(error)) {
     return "";
@@ -360,7 +335,7 @@ export function queryErrorMessage(
 async function apiRequest<T>(
   request: Promise<unknown>,
   apiMessage = "Couldn't reach the panel API.",
-  networkMessage = "Network error. Retrying on the next refresh.",
+  networkMessage = "Network error. Retrying on the next refresh."
 ): Promise<T> {
   try {
     const result = (await request) as ApiResult<T>;
@@ -368,10 +343,7 @@ async function apiRequest<T>(
       throw new PanelApiError("Not found", 404);
     }
     if (result.error) {
-      throw new PanelApiError(
-        errorMessage(result.error) || apiMessage,
-        result.response.status,
-      );
+      throw new PanelApiError(errorMessage(result.error) || apiMessage, result.response.status);
     }
     return (result.data ?? null) as T;
   } catch (error) {

@@ -74,7 +74,7 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
     () => () => {
       if (timer.current) clearTimeout(timer.current);
     },
-    [],
+    []
   );
 
   async function copy() {
@@ -128,9 +128,7 @@ export function Teaching({
 }
 
 export function PanelMessage({ children }: { children: ReactNode }) {
-  return (
-    <div className="px-6 py-10 text-center text-[13px] text-(--muted)">{children}</div>
-  );
+  return <div className="px-6 py-10 text-center text-[13px] text-(--muted)">{children}</div>;
 }
 
 export function TableSkeleton({ rows = 4 }: { rows?: number }) {

@@ -8,12 +8,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import {
-  Link,
-  createFileRoute,
-  redirect,
-  useNavigate,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
 import type { components } from "~/api/schema";
 import {
@@ -38,13 +33,7 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import {
-  formatBytes,
-  formatBytesPerSecond,
-  plural,
-  relTime,
-  relTimeFromISO,
-} from "~/lib/format";
+import { formatBytes, formatBytesPerSecond, plural, relTime, relTimeFromISO } from "~/lib/format";
 import {
   defaultLocalTrafficRange,
   type LocalDateRange,
@@ -93,16 +82,13 @@ function DashboardPage() {
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
   const [trafficPeriod, setTrafficPeriod] = useState<TrafficPeriod>("today");
-  const [nodeTrafficRange, setNodeTrafficRange] =
-    useState<LocalDateRange | null>(null);
+  const [nodeTrafficRange, setNodeTrafficRange] = useState<LocalDateRange | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const queryEnabled = canQueryPanelApi();
-  const nodeTrafficQuery = nodeTrafficRange
-    ? toTrafficRangeQuery(nodeTrafficRange)
-    : null;
+  const nodeTrafficQuery = nodeTrafficRange ? toTrafficRangeQuery(nodeTrafficRange) : null;
   const trafficRangeQuery = toTrafficRangeQuery(
-    trafficShortcutRange(TRAFFIC_PERIOD_SHORTCUT[trafficPeriod]),
+    trafficShortcutRange(TRAFFIC_PERIOD_SHORTCUT[trafficPeriod])
   );
   const nodesQuery = useQuery({
     queryKey: queryKeys.dashboardNodes(),
@@ -134,11 +120,9 @@ function DashboardPage() {
     const updateToday = () => {
       const today = defaultLocalTrafficRange();
       setNodeTrafficRange((current) =>
-        current &&
-        current.start.compare(today.start) === 0 &&
-        current.end.compare(today.end) === 0
+        current && current.start.compare(today.start) === 0 && current.end.compare(today.end) === 0
           ? current
-          : today,
+          : today
       );
     };
 
@@ -157,13 +141,10 @@ function DashboardPage() {
   const nodesLoading = nodesQuery.isPending;
   const usersLoading = usersQuery.isPending;
   const trafficLoading = trafficQuery.isPending;
-  const nodeTrafficLoading =
-    nodeTrafficRange === null || nodeTrafficSummaryQuery.isPending;
+  const nodeTrafficLoading = nodeTrafficRange === null || nodeTrafficSummaryQuery.isPending;
   const nodesError = nodesQuery.error ? queryErrorMessage(nodesQuery.error) : "";
   const usersError = usersQuery.error ? queryErrorMessage(usersQuery.error) : "";
-  const trafficError = trafficQuery.error
-    ? queryErrorMessage(trafficQuery.error)
-    : "";
+  const trafficError = trafficQuery.error ? queryErrorMessage(trafficQuery.error) : "";
   const nodeTrafficError = nodeTrafficSummaryQuery.error
     ? queryErrorMessage(nodeTrafficSummaryQuery.error)
     : "";
@@ -184,7 +165,7 @@ function DashboardPage() {
       nodesQuery.dataUpdatedAt,
       usersQuery.dataUpdatedAt,
       trafficQuery.dataUpdatedAt,
-      nodeTrafficSummaryQuery.dataUpdatedAt,
+      nodeTrafficSummaryQuery.dataUpdatedAt
     ) || null;
   const nodeTrafficById = useMemo(() => {
     const byId = new Map<string, NodeTodayTraffic>();
@@ -199,11 +180,7 @@ function DashboardPage() {
   const errorNodes = enabledNodes.filter((n) => n.health === "error");
   const activeUsers = users.filter((u) => u.status === "active");
   const healthyTone =
-    nodesError || errorNodes.length > 0
-      ? "error"
-      : healthyNodes.length > 0
-        ? "ok"
-        : "idle";
+    nodesError || errorNodes.length > 0 ? "error" : healthyNodes.length > 0 ? "ok" : "idle";
   const totalTx = panelTraffic?.total?.tx ?? 0;
   const totalRx = panelTraffic?.total?.rx ?? 0;
 
@@ -215,9 +192,7 @@ function DashboardPage() {
             <span className="grid size-5 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
               H
             </span>
-            <span className="text-[13px] font-semibold tracking-tight">
-              Hysterical Panel
-            </span>
+            <span className="text-[13px] font-semibold tracking-tight">Hysterical Panel</span>
           </div>
           <div className="flex items-center gap-3 text-xs text-(--muted)">
             {updatedAt !== null && (
@@ -248,11 +223,7 @@ function DashboardPage() {
 
         {/* Summary rail: one connected strip, not free-floating metric cards. */}
         <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
-          <Stat
-            label="Nodes"
-            loading={nodesLoading}
-            value={nodesError ? "—" : nodes.length}
-          >
+          <Stat label="Nodes" loading={nodesLoading} value={nodesError ? "—" : nodes.length}>
             {nodesError ? (
               <span className="text-(--danger)">Unavailable</span>
             ) : (
@@ -273,11 +244,7 @@ function DashboardPage() {
               `of ${enabledNodes.length} enabled`
             ) : null}
           </Stat>
-          <Stat
-            label="Users"
-            loading={usersLoading}
-            value={usersError ? "—" : users.length}
-          >
+          <Stat label="Users" loading={usersLoading} value={usersError ? "—" : users.length}>
             {usersError ? (
               <span className="text-(--danger)">Unavailable</span>
             ) : (
@@ -288,12 +255,7 @@ function DashboardPage() {
             label="Traffic"
             loading={trafficLoading}
             value={trafficError ? "—" : formatBytes(totalTx + totalRx)}
-            headerAction={
-              <TrafficPeriodToggle
-                value={trafficPeriod}
-                onChange={setTrafficPeriod}
-              />
-            }
+            headerAction={<TrafficPeriodToggle value={trafficPeriod} onChange={setTrafficPeriod} />}
           >
             {trafficError ? (
               <span className="text-(--danger)">Unavailable</span>
@@ -316,11 +278,7 @@ function DashboardPage() {
           }
           action={
             isAdmin ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onPress={() => navigate({ to: "/nodes/new" })}
-              >
+              <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/nodes/new" })}>
                 Add node
               </Button>
             ) : undefined
@@ -457,9 +415,7 @@ function Stat({
       ) : (
         <>
           <div className="mt-0.5 flex items-baseline gap-2">
-            <span className="whitespace-nowrap text-xl font-semibold tabular-nums">
-              {value}
-            </span>
+            <span className="whitespace-nowrap text-xl font-semibold tabular-nums">{value}</span>
             {dot}
           </div>
           {children && (
@@ -473,24 +429,14 @@ function Stat({
   );
 }
 
-function StatSkeleton({
-  withDot,
-  wide,
-}: {
-  withDot: boolean;
-  wide: boolean;
-}) {
+function StatSkeleton({ withDot, wide }: { withDot: boolean; wide: boolean }) {
   return (
     <div className="mt-1" aria-hidden>
       <div className="flex h-6 items-center gap-2">
         <div
-          className={`h-5 animate-pulse rounded bg-(--surface-secondary) ${
-            wide ? "w-20" : "w-9"
-          }`}
+          className={`h-5 animate-pulse rounded bg-(--surface-secondary) ${wide ? "w-20" : "w-9"}`}
         />
-        {withDot && (
-          <div className="size-2 animate-pulse rounded-full bg-(--surface-secondary)" />
-        )}
+        {withDot && <div className="size-2 animate-pulse rounded-full bg-(--surface-secondary)" />}
       </div>
       <div
         className={`mt-1.5 h-3 animate-pulse rounded bg-(--surface-secondary) ${
@@ -515,8 +461,7 @@ function SortableTh<TData>({
   className?: string;
 }) {
   const sorted = column.getIsSorted();
-  const ariaSort =
-    sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none";
+  const ariaSort = sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none";
 
   return (
     <th
@@ -557,15 +502,11 @@ function NodesTable({
   todayTrafficLoading: boolean;
   todayTrafficUnavailable: boolean;
 }) {
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "name", desc: false },
-  ]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
   const rows = useMemo<NodeTableRow[]>(
     () =>
       nodes.map((node) => {
-        const todayTraffic = node.id
-          ? todayTrafficByNode.get(node.id)
-          : undefined;
+        const todayTraffic = node.id ? todayTrafficByNode.get(node.id) : undefined;
         return {
           node,
           rxSpeed: node.enabled ? (node.current_rx_speed ?? 0) : 0,
@@ -575,7 +516,7 @@ function NodesTable({
           txSpeed: node.enabled ? (node.current_tx_speed ?? 0) : 0,
         };
       }),
-    [nodes, todayTrafficByNode],
+    [nodes, todayTrafficByNode]
   );
   const columns = useMemo<ColumnDef<NodeTableRow>[]>(
     () => [
@@ -605,7 +546,7 @@ function NodesTable({
         sortDescFirst: false,
       },
     ],
-    [],
+    []
   );
   const table = useReactTable({
     columns,
@@ -624,33 +565,17 @@ function NodesTable({
         <thead>
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
             <SortableTh column={table.getColumn("name")!}>Name</SortableTh>
-            <SortableTh
-              column={table.getColumn("today")!}
-              align="right"
-              className="text-right"
-            >
+            <SortableTh column={table.getColumn("today")!} align="right" className="text-right">
               Today
             </SortableTh>
-            <SortableTh
-              column={table.getColumn("txSpeed")!}
-              align="right"
-              className="text-right"
-            >
+            <SortableTh column={table.getColumn("txSpeed")!} align="right" className="text-right">
               TX speed
             </SortableTh>
-            <SortableTh
-              column={table.getColumn("rxSpeed")!}
-              align="right"
-              className="text-right"
-            >
+            <SortableTh column={table.getColumn("rxSpeed")!} align="right" className="text-right">
               RX speed
             </SortableTh>
             <Th className="text-right">Last poll</Th>
-            <SortableTh
-              column={table.getColumn("status")!}
-              align="right"
-              className="text-right"
-            >
+            <SortableTh column={table.getColumn("status")!} align="right" className="text-right">
               Status
             </SortableTh>
           </tr>
@@ -692,24 +617,16 @@ function NodesTable({
                   />
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↑</span>{" "}
-                  {formatBytesPerSecond(txSpeed)}
+                  <span className="text-(--muted)">↑</span> {formatBytesPerSecond(txSpeed)}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↓</span>{" "}
-                  {formatBytesPerSecond(rxSpeed)}
+                  <span className="text-(--muted)">↓</span> {formatBytesPerSecond(rxSpeed)}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
-                  {node.last_polled_at
-                    ? relTimeFromISO(node.last_polled_at, now)
-                    : "—"}
+                  {node.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : "—"}
                 </Td>
                 <Td className="text-right">
-                  <NodeState
-                    enabled={enabled}
-                    health={health}
-                    lastError={node.last_error}
-                  />
+                  <NodeState enabled={enabled} health={health} lastError={node.last_error} />
                 </Td>
               </tr>
             );
@@ -782,10 +699,7 @@ function NodeState({
   if (health === "error") {
     const msg = lastError || "Error";
     return (
-      <span
-        className="block max-w-[260px] truncate text-xs text-(--danger)"
-        title={msg}
-      >
+      <span className="block max-w-[260px] truncate text-xs text-(--danger)" title={msg}>
         {msg}
       </span>
     );
@@ -797,9 +711,7 @@ function NodeState({
 }
 
 function UsersTable({ users }: { users: PanelUser[] }) {
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "email", desc: false },
-  ]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: "email", desc: false }]);
   const rows = useMemo<UserTableRow[]>(
     () =>
       users.map((user) => ({
@@ -809,7 +721,7 @@ function UsersTable({ users }: { users: PanelUser[] }) {
         tx: user.used_tx ?? 0,
         user,
       })),
-    [users],
+    [users]
   );
   const columns = useMemo<ColumnDef<UserTableRow>[]>(
     () => [
@@ -834,7 +746,7 @@ function UsersTable({ users }: { users: PanelUser[] }) {
         sortDescFirst: false,
       },
     ],
-    [],
+    []
   );
   const table = useReactTable({
     columns,
@@ -854,25 +766,13 @@ function UsersTable({ users }: { users: PanelUser[] }) {
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
             <SortableTh column={table.getColumn("email")!}>Email</SortableTh>
             <Th>Auth key</Th>
-            <SortableTh
-              column={table.getColumn("tx")!}
-              align="right"
-              className="text-right"
-            >
+            <SortableTh column={table.getColumn("tx")!} align="right" className="text-right">
               TX
             </SortableTh>
-            <SortableTh
-              column={table.getColumn("rx")!}
-              align="right"
-              className="text-right"
-            >
+            <SortableTh column={table.getColumn("rx")!} align="right" className="text-right">
               RX
             </SortableTh>
-            <SortableTh
-              column={table.getColumn("status")!}
-              align="right"
-              className="text-right"
-            >
+            <SortableTh column={table.getColumn("status")!} align="right" className="text-right">
               Status
             </SortableTh>
           </tr>
@@ -888,10 +788,7 @@ function UsersTable({ users }: { users: PanelUser[] }) {
               >
                 <Td>
                   <div className="flex items-center gap-2.5">
-                    <Dot
-                      tone={active ? "ok" : "idle"}
-                      title={active ? "active" : "disabled"}
-                    />
+                    <Dot tone={active ? "ok" : "idle"} title={active ? "active" : "disabled"} />
                     <Link
                       to="/users/$userId"
                       params={{ userId: user.id ?? "" }}
@@ -906,23 +803,17 @@ function UsersTable({ users }: { users: PanelUser[] }) {
                     <span className="block max-w-[200px] truncate font-mono text-xs text-(--muted)">
                       {user.auth_string || "—"}
                     </span>
-                    {user.auth_string && (
-                      <CopyButton value={user.auth_string} label="auth key" />
-                    )}
+                    {user.auth_string && <CopyButton value={user.auth_string} label="auth key" />}
                   </div>
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↑</span>{" "}
-                  {formatBytes(user.used_tx ?? 0)}
+                  <span className="text-(--muted)">↑</span> {formatBytes(user.used_tx ?? 0)}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↓</span>{" "}
-                  {formatBytes(user.used_rx ?? 0)}
+                  <span className="text-(--muted)">↓</span> {formatBytes(user.used_rx ?? 0)}
                 </Td>
                 <Td className="text-right">
-                  <span className="text-xs text-(--muted)">
-                    {active ? "Active" : "Disabled"}
-                  </span>
+                  <span className="text-xs text-(--muted)">{active ? "Active" : "Disabled"}</span>
                 </Td>
               </tr>
             );

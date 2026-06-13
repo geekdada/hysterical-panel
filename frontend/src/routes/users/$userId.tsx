@@ -42,12 +42,7 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import {
-  formatBytes,
-  formatDuration,
-  relTime,
-  relTimeFromISO,
-} from "~/lib/format";
+import { formatBytes, formatDuration, relTime, relTimeFromISO } from "~/lib/format";
 
 type PanelUser = components["schemas"]["PanelUser"];
 type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
@@ -72,9 +67,7 @@ function AccountDetailPage() {
     setTrafficRange(defaultLocalTrafficRange());
   }, []);
 
-  const trafficQuery = trafficRange
-    ? toTrafficRangeQuery(trafficRange)
-    : null;
+  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange) : null;
   const overviewQuery = useQuery({
     queryKey: queryKeys.userOverview(userId, trafficQuery),
     queryFn: () => fetchUserOverview(userId, trafficQuery!),
@@ -92,10 +85,7 @@ function AccountDetailPage() {
   const series = overviewQuery.data?.series ?? null;
   const loading = trafficQuery === null || overviewQuery.isPending;
   const notFound = isNotFoundError(overviewQuery.error);
-  const error =
-    overviewQuery.error && !notFound
-      ? queryErrorMessage(overviewQuery.error)
-      : "";
+  const error = overviewQuery.error && !notFound ? queryErrorMessage(overviewQuery.error) : "";
   const updatedAt = overviewQuery.dataUpdatedAt || null;
 
   function handleLogout() {
@@ -204,13 +194,7 @@ function AccountDetailPage() {
   );
 }
 
-function AccountRail({
-  user,
-  loading,
-}: {
-  user: PanelUser | null;
-  loading: boolean;
-}) {
+function AccountRail({ user, loading }: { user: PanelUser | null; loading: boolean }) {
   if (loading) {
     return (
       <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
@@ -303,9 +287,7 @@ function RailItem({
 }) {
   return (
     <div className={`min-w-0 flex-1 px-4 py-3 ${className}`}>
-      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">
-        {label}
-      </div>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
       <div className="mt-1 min-w-0">{children}</div>
     </div>
   );
@@ -341,8 +323,7 @@ function PasskeysSection({
     },
   });
   const deleteMutation = useMutation({
-    mutationFn: ({ passkeyId }: { passkeyId: string }) =>
-      deletePasskey(userId, passkeyId),
+    mutationFn: ({ passkeyId }: { passkeyId: string }) => deletePasskey(userId, passkeyId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: passkeysKey });
     },
@@ -367,9 +348,7 @@ function PasskeysSection({
     <Section
       title="Passkeys"
       meta={
-        loading
-          ? undefined
-          : `${rows.length} ${rows.length === 1 ? "credential" : "credentials"}`
+        loading ? undefined : `${rows.length} ${rows.length === 1 ? "credential" : "credentials"}`
       }
       action={
         isSelf ? (
@@ -413,11 +392,7 @@ function PasskeysSection({
               : undefined
           }
           onDelete={(passkey) => {
-            if (
-              window.confirm(
-                `Delete passkey "${passkey.name || "Passkey"}"?`,
-              )
-            ) {
+            if (window.confirm(`Delete passkey "${passkey.name || "Passkey"}"?`)) {
               deleteMutation.mutate({ passkeyId: passkey.id });
             }
           }}
@@ -457,15 +432,11 @@ function PasskeysTable({
               className="transition-colors duration-150 hover:bg-(--surface-secondary)"
             >
               <Td>
-                <span className="font-medium">
-                  {passkey.name || "Passkey"}
-                </span>
+                <span className="font-medium">{passkey.name || "Passkey"}</span>
               </Td>
               <Td>
                 <span className="font-mono text-xs text-(--muted)">
-                  {passkey.transports?.length
-                    ? passkey.transports.join(", ")
-                    : "—"}
+                  {passkey.transports?.length ? passkey.transports.join(", ") : "—"}
                 </span>
               </Td>
               <Td>
@@ -478,9 +449,7 @@ function PasskeysTable({
                 </span>
               </Td>
               <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
-                {passkey.last_used_at
-                  ? relTimeFromISO(passkey.last_used_at, Date.now())
-                  : "Never"}
+                {passkey.last_used_at ? relTimeFromISO(passkey.last_used_at, Date.now()) : "Never"}
               </Td>
               {canManage && (
                 <Td className="text-right">
@@ -518,9 +487,7 @@ function TrafficSection({
   isAdmin: boolean;
 }) {
   const points = series?.points ?? [];
-  const granularity = trafficRange
-    ? granularityForLocalRange(trafficRange)
-    : "hourly";
+  const granularity = trafficRange ? granularityForLocalRange(trafficRange) : "hourly";
   const totalTx = points.reduce((sum, p) => sum + (p.tx ?? 0), 0);
   const totalRx = points.reduce((sum, p) => sum + (p.rx ?? 0), 0);
   const byNode = [...(summary?.by_node ?? [])]
@@ -628,10 +595,7 @@ function LiveSection({ userId }: { userId: string }) {
   const loading = liveQuery.isFetching;
   const fetchedAt = liveQuery.dataUpdatedAt || null;
   const reqError = liveQuery.error
-    ? queryErrorMessage(
-        liveQuery.error,
-        "Network error while fetching streams.",
-      )
+    ? queryErrorMessage(liveQuery.error, "Network error while fetching streams.")
     : "";
   const byNode = live?.by_node ?? [];
   const visibleByNode = byNode.filter((n) => n.error || (n.streams?.length ?? 0) > 0);

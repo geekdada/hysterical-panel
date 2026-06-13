@@ -71,9 +71,7 @@ function parseAuth(raw: string | null | undefined): Auth | null {
  * neither side silently returns undefined.
  */
 export const readAuthCookie = createIsomorphicFn()
-  .server((): Auth | null =>
-    parseAuth(readAuthCookieValueServer((name) => getCookie(name))),
-  )
+  .server((): Auth | null => parseAuth(readAuthCookieValueServer((name) => getCookie(name))))
   .client((): Auth | null => parseAuth(readAuthCookieValueClient()));
 
 async function resolveAuthBase(): Promise<string> {
@@ -126,15 +124,12 @@ export function clearAuth(): void {
   clearAuthCookies();
 }
 
-export async function loginWithPasskey(
-  useBrowserAutofill = false,
-): Promise<AuthUser> {
+export async function loginWithPasskey(useBrowserAutofill = false): Promise<AuthUser> {
   const { startAuthentication } = await import("@simplewebauthn/browser");
-  const challenge =
-    await apiFetch<PasskeyOptionsResponse<PublicKeyCredentialRequestOptionsJSON>>(
-      "/api/panel/passkeys/login/options",
-      { method: "POST" },
-    );
+  const challenge = await apiFetch<PasskeyOptionsResponse<PublicKeyCredentialRequestOptionsJSON>>(
+    "/api/panel/passkeys/login/options",
+    { method: "POST" }
+  );
   const credential = await startAuthentication({
     optionsJSON: challenge.options,
     useBrowserAutofill,
@@ -160,17 +155,16 @@ export async function listPasskeys(userId: string): Promise<Passkey[]> {
 export async function registerPasskey(
   userId: string,
   name = "Passkey",
-  useAutoRegister = false,
+  useAutoRegister = false
 ): Promise<Passkey> {
   const { startRegistration } = await import("@simplewebauthn/browser");
-  const challenge =
-    await apiFetch<PasskeyOptionsResponse<PublicKeyCredentialCreationOptionsJSON>>(
-      `/api/panel/users/${encodeURIComponent(userId)}/passkeys/registration/options`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-      },
-    );
+  const challenge = await apiFetch<PasskeyOptionsResponse<PublicKeyCredentialCreationOptionsJSON>>(
+    `/api/panel/users/${encodeURIComponent(userId)}/passkeys/registration/options`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+    }
+  );
   const credential: RegistrationResponseJSON = await startRegistration({
     optionsJSON: challenge.options,
     useAutoRegister,
@@ -185,20 +179,17 @@ export async function registerPasskey(
         credential,
         name,
       }),
-    },
+    }
   );
 }
 
-export async function deletePasskey(
-  userId: string,
-  passkeyId: string,
-): Promise<void> {
+export async function deletePasskey(userId: string, passkeyId: string): Promise<void> {
   await apiFetch(
     `/api/panel/users/${encodeURIComponent(userId)}/passkeys/${encodeURIComponent(passkeyId)}`,
     {
       method: "DELETE",
       headers: authHeaders(),
-    },
+    }
   );
 }
 
@@ -223,10 +214,7 @@ function authHeaders(): Record<string, string> {
   }
 }
 
-async function apiFetch<T = unknown>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+async function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   const base = await resolveAuthBase();
   const res = await sessionFetch(`${base}${path}`, init);
   if (!res.ok) {

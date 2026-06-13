@@ -7,11 +7,7 @@ import {
   type SVGProps,
 } from "react";
 import { Display, Moon, Sun } from "@gravity-ui/icons";
-import {
-  readThemePreference,
-  setThemePreference,
-  type ThemePreference,
-} from "~/lib/theme";
+import { readThemePreference, setThemePreference, type ThemePreference } from "~/lib/theme";
 
 const OPTIONS: {
   value: ThemePreference;

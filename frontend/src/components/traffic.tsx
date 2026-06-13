@@ -90,16 +90,8 @@ export function TrafficChart({
           minTickGap={28}
           interval="preserveStartEnd"
         />
-        <YAxis
-          tick={<YAxisTick />}
-          tickLine={false}
-          axisLine={false}
-          width={68}
-        />
-        <Tooltip
-          content={<ChartTooltip />}
-          cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
-        />
+        <YAxis tick={<YAxisTick />} tickLine={false} axisLine={false} width={68} />
+        <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--border)", strokeWidth: 1 }} />
         <Area
           type="monotone"
           dataKey="rx"

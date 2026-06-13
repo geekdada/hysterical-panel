@@ -2,10 +2,7 @@ import type { components } from "./schema";
 
 export type PanelConfig = components["schemas"]["PanelConfigResponse"];
 
-const BOOTSTRAP_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(
-  /\/$/,
-  "",
-);
+const BOOTSTRAP_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 const EMPTY_CONFIG: PanelConfig = {
   api_url: "",

@@ -171,9 +171,7 @@ function SessionRecoveryBanner() {
       await queryClient.invalidateQueries();
     } catch (error) {
       if (!isPasskeySoftError(error)) {
-        setRecoveryError(
-          error instanceof Error ? error.message : "Couldn't renew the session.",
-        );
+        setRecoveryError(error instanceof Error ? error.message : "Couldn't renew the session.");
       }
     } finally {
       setRecovering(false);
@@ -188,7 +186,12 @@ function SessionRecoveryBanner() {
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3">
         <span>Session needs renewal. Reconnect to keep working without signing in again.</span>
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="secondary" onPress={reconnectWithPasskey} isDisabled={recovering}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onPress={reconnectWithPasskey}
+            isDisabled={recovering}
+          >
             {recovering ? "Reconnecting…" : "Use passkey"}
           </Button>
           <Link

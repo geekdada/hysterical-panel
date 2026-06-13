@@ -19,14 +19,7 @@ import {
   granularityForLocalRange,
   type LocalDateRange,
 } from "~/lib/traffic-range";
-import {
-  Dot,
-  PanelMessage,
-  Section,
-  TableSkeleton,
-  Td,
-  Th,
-} from "~/components/ui";
+import { Dot, PanelMessage, Section, TableSkeleton, Td, Th } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, relTime } from "~/lib/format";
 
@@ -66,12 +59,10 @@ function AnalyticsPage() {
   const series = overview?.series ?? null;
   const nodeTraffic = overview?.nodeTraffic ?? null;
   const rangeLoading = trafficQuery === null || overviewQuery.isPending;
-  const rangeError = overviewQuery.error
-    ? queryErrorMessage(overviewQuery.error)
-    : "";
-  const queryErrors = [
-    { key: "range", message: rangeError ? `Range: ${rangeError}` : "" },
-  ].filter((e) => e.message);
+  const rangeError = overviewQuery.error ? queryErrorMessage(overviewQuery.error) : "";
+  const queryErrors = [{ key: "range", message: rangeError ? `Range: ${rangeError}` : "" }].filter(
+    (e) => e.message
+  );
   const updatedAt = overviewQuery.dataUpdatedAt || null;
 
   return (
@@ -87,9 +78,7 @@ function AnalyticsPage() {
               <ChevronLeft className="size-3.5" aria-hidden />
             </Link>
             <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-[13px] font-semibold tracking-tight">
-                Analytics
-              </span>
+              <span className="truncate text-[13px] font-semibold tracking-tight">Analytics</span>
             </div>
           </div>
           <div className="flex items-center gap-3 text-xs text-(--muted)">
@@ -120,14 +109,9 @@ function AnalyticsPage() {
         ))}
 
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[13px] font-semibold text-(--foreground)">
-            Traffic
-          </h2>
+          <h2 className="text-[13px] font-semibold text-(--foreground)">Traffic</h2>
           {trafficRange ? (
-            <TrafficRangePicker
-              value={trafficRange}
-              onChange={setTrafficRange}
-            />
+            <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
           ) : (
             <div
               className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
@@ -143,11 +127,7 @@ function AnalyticsPage() {
           trafficRange={trafficRange}
         />
 
-        <NodeBreakdownSection
-          loading={rangeLoading}
-          error={rangeError}
-          nodeTraffic={nodeTraffic}
-        />
+        <NodeBreakdownSection loading={rangeLoading} error={rangeError} nodeTraffic={nodeTraffic} />
       </main>
     </div>
   );
@@ -165,9 +145,7 @@ function RangeTrafficSection({
   trafficRange: LocalDateRange | null;
 }) {
   const points = series?.points ?? [];
-  const granularity = trafficRange
-    ? granularityForLocalRange(trafficRange)
-    : "hourly";
+  const granularity = trafficRange ? granularityForLocalRange(trafficRange) : "hourly";
   const totalTx = points.reduce((sum, p) => sum + (p.tx ?? 0), 0);
   const totalRx = points.reduce((sum, p) => sum + (p.rx ?? 0), 0);
 
@@ -265,12 +243,10 @@ function NodeBreakdownSection({
                       {formatBytes(tx + rx)}
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <span className="text-(--muted)">↑</span>{" "}
-                      {formatBytes(tx)}
+                      <span className="text-(--muted)">↑</span> {formatBytes(tx)}
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <span className="text-(--muted)">↓</span>{" "}
-                      {formatBytes(rx)}
+                      <span className="text-(--muted)">↓</span> {formatBytes(rx)}
                     </Td>
                   </tr>
                 );

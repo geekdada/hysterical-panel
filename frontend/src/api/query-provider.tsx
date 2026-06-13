@@ -16,9 +16,7 @@ function createQueryClient() {
   });
 }
 
-export function PanelQueryProvider({
-  children,
-}: Readonly<{ children: ReactNode }>) {
+export function PanelQueryProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [queryClient] = useState(createQueryClient);
 
   return (

@@ -59,9 +59,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
       >
         <AvatarInitial value={initial} />
         <span className="min-w-0 truncate sm:hidden">Account</span>
-        <span className="hidden min-w-0 truncate sm:inline">
-          {auth.user.email}
-        </span>
+        <span className="hidden min-w-0 truncate sm:inline">{auth.user.email}</span>
         <ChevronDown className="size-3 shrink-0 text-(--muted)" aria-hidden />
       </Button>
       <Dropdown.Popover
@@ -81,9 +79,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
                 <span className="inline-flex items-center gap-1">
                   <span
                     className={`size-1.5 rounded-full ${
-                      auth.user.status === "active"
-                        ? "bg-(--success)"
-                        : "bg-(--muted)"
+                      auth.user.status === "active" ? "bg-(--success)" : "bg-(--muted)"
                     }`}
                   />
                   {statusLabel}
@@ -94,40 +90,24 @@ export function UserMenu({ auth }: { auth: Auth }) {
         </div>
         <Separator className="my-1 bg-(--separator)" />
         <Dropdown.Menu onAction={handleAction}>
-          <Dropdown.Item
-            id="account"
-            textValue="Your account"
-            className={itemClass}
-          >
+          <Dropdown.Item id="account" textValue="Your account" className={itemClass}>
             <Person className={iconClass} aria-hidden />
             <Label className="truncate">Your account</Label>
           </Dropdown.Item>
           {showPbAdmin && (
-            <Dropdown.Item
-              id="pb-admin"
-              textValue="PocketBase admin"
-              className={itemClass}
-            >
+            <Dropdown.Item id="pb-admin" textValue="PocketBase admin" className={itemClass}>
               <ShieldCheck className={iconClass} aria-hidden />
               <Label className="truncate">PocketBase admin</Label>
             </Dropdown.Item>
           )}
           {auth.user.role === "admin" && (
-            <Dropdown.Item
-              id="analytics"
-              textValue="Analytics"
-              className={itemClass}
-            >
+            <Dropdown.Item id="analytics" textValue="Analytics" className={itemClass}>
               <ChartColumn className={iconClass} aria-hidden />
               <Label className="truncate">Analytics</Label>
             </Dropdown.Item>
           )}
           {auth.user.role === "admin" && (
-            <Dropdown.Item
-              id="database"
-              textValue="Database management"
-              className={itemClass}
-            >
+            <Dropdown.Item id="database" textValue="Database management" className={itemClass}>
               <Database className={iconClass} aria-hidden />
               <Label className="truncate">Database management</Label>
             </Dropdown.Item>
@@ -139,10 +119,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
             textValue="Sign out"
             className={dangerItemClass}
           >
-            <ArrowRightFromSquare
-              className="size-3.5 shrink-0 text-current"
-              aria-hidden
-            />
+            <ArrowRightFromSquare className="size-3.5 shrink-0 text-current" aria-hidden />
             <Label className="truncate">Sign out</Label>
           </Dropdown.Item>
         </Dropdown.Menu>

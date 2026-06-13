@@ -5,10 +5,7 @@ import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
 
-const appVersion = readFileSync(
-  new URL("../VERSION", import.meta.url),
-  "utf8"
-).trim();
+const appVersion = readFileSync(new URL("../VERSION", import.meta.url), "utf8").trim();
 
 export default defineConfig({
   server: {

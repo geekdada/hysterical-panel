@@ -63,9 +63,7 @@ function NodeDetailPage() {
     setTrafficRange(defaultLocalTrafficRange());
   }, []);
 
-  const trafficQuery = trafficRange
-    ? toTrafficRangeQuery(trafficRange)
-    : null;
+  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange) : null;
   const overviewQuery = useQuery({
     queryKey: queryKeys.nodeOverview(nodeId, trafficQuery),
     queryFn: () => fetchNodeOverview(nodeId, trafficQuery!),
@@ -83,20 +81,11 @@ function NodeDetailPage() {
   const series = overviewQuery.data?.series ?? null;
   const loading = trafficQuery === null || overviewQuery.isPending;
   const notFound = isNotFoundError(overviewQuery.error);
-  const error =
-    overviewQuery.error && !notFound
-      ? queryErrorMessage(overviewQuery.error)
-      : "";
+  const error = overviewQuery.error && !notFound ? queryErrorMessage(overviewQuery.error) : "";
   const updatedAt = overviewQuery.dataUpdatedAt || null;
   const health = node?.health ?? "never";
   const enabled = node?.enabled ?? false;
-  const tone = !enabled
-    ? "idle"
-    : health === "ok"
-      ? "ok"
-      : health === "error"
-        ? "error"
-        : "idle";
+  const tone = !enabled ? "idle" : health === "ok" ? "ok" : health === "error" ? "error" : "idle";
 
   return (
     <div className="min-h-svh bg-(--background) text-(--foreground)">
@@ -152,11 +141,7 @@ function NodeDetailPage() {
             title="Node not found"
             hint="It may have been deleted. Head back to the dashboard to see the current fleet."
             action={
-              <Button
-                size="sm"
-                variant="secondary"
-                onPress={() => navigate({ to: "/" })}
-              >
+              <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
                 Back to dashboard
               </Button>
             }
@@ -183,15 +168,7 @@ function NodeDetailPage() {
 
 /* ── Detail rail (config + health) ─────────────────────────────────────── */
 
-function DetailRail({
-  node,
-  loading,
-  now,
-}: {
-  node: Node | null;
-  loading: boolean;
-  now: number;
-}) {
+function DetailRail({ node, loading, now }: { node: Node | null; loading: boolean; now: number }) {
   if (loading) {
     return (
       <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
@@ -214,11 +191,7 @@ function DetailRail({
       : health === "ok"
         ? "Healthy"
         : "Never polled";
-  const stateTone = !enabled
-    ? "muted"
-    : health === "error"
-      ? "danger"
-      : "muted";
+  const stateTone = !enabled ? "muted" : health === "error" ? "danger" : "muted";
   const txSpeed = enabled ? (node?.current_tx_speed ?? 0) : 0;
   const rxSpeed = enabled ? (node?.current_rx_speed ?? 0) : 0;
 
@@ -229,9 +202,7 @@ function DetailRail({
           <span className="block truncate font-mono text-[13px] text-(--foreground)">
             {node?.api_url || "—"}
           </span>
-          {node?.api_url && (
-            <CopyButton value={node.api_url} label="endpoint" />
-          )}
+          {node?.api_url && <CopyButton value={node.api_url} label="endpoint" />}
         </div>
       </RailItem>
       <RailItem label="Poll interval">
@@ -241,21 +212,17 @@ function DetailRail({
       </RailItem>
       <RailItem label="TX speed">
         <span className="font-mono text-[13px] tabular-nums">
-          <span className="text-(--muted)">↑</span>{" "}
-          {formatBytesPerSecond(txSpeed)}
+          <span className="text-(--muted)">↑</span> {formatBytesPerSecond(txSpeed)}
         </span>
       </RailItem>
       <RailItem label="RX speed">
         <span className="font-mono text-[13px] tabular-nums">
-          <span className="text-(--muted)">↓</span>{" "}
-          {formatBytesPerSecond(rxSpeed)}
+          <span className="text-(--muted)">↓</span> {formatBytesPerSecond(rxSpeed)}
         </span>
       </RailItem>
       <RailItem label="Last poll">
         <span className="font-mono text-[13px] tabular-nums">
-          {node?.last_polled_at
-            ? relTimeFromISO(node.last_polled_at, now)
-            : "—"}
+          {node?.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : "—"}
         </span>
       </RailItem>
       <RailItem label="State">
@@ -281,9 +248,7 @@ function RailItem({
 }) {
   return (
     <div className={`min-w-0 flex-1 px-4 py-3 ${className}`}>
-      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">
-        {label}
-      </div>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
       <div className="mt-1">{children}</div>
     </div>
   );
@@ -305,9 +270,7 @@ function TrafficSection({
   summary: NodeTrafficSummary | null;
 }) {
   const points = series?.points ?? [];
-  const granularity = trafficRange
-    ? granularityForLocalRange(trafficRange)
-    : "hourly";
+  const granularity = trafficRange ? granularityForLocalRange(trafficRange) : "hourly";
   const totalTx = points.reduce((sum, p) => sum + (p.tx ?? 0), 0);
   const totalRx = points.reduce((sum, p) => sum + (p.rx ?? 0), 0);
   const byUser = (summary?.by_user ?? []).slice(0, 8);
@@ -324,10 +287,7 @@ function TrafficSection({
       }
       action={
         trafficRange ? (
-          <TrafficRangePicker
-            value={trafficRange}
-            onChange={onTrafficRangeChange}
-          />
+          <TrafficRangePicker value={trafficRange} onChange={onTrafficRangeChange} />
         ) : (
           <div
             className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
@@ -344,11 +304,7 @@ function TrafficSection({
             No traffic recorded in this window.
           </div>
         ) : (
-          <TrafficChart
-            points={points}
-            granularity={granularity}
-            idPrefix="node-traffic"
-          />
+          <TrafficChart points={points} granularity={granularity} idPrefix="node-traffic" />
         )}
       </div>
 
@@ -375,12 +331,10 @@ function TrafficSection({
                     </span>
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                    <span className="text-(--muted)">↑</span>{" "}
-                    {formatBytes(u.tx ?? 0)}
+                    <span className="text-(--muted)">↑</span> {formatBytes(u.tx ?? 0)}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                    <span className="text-(--muted)">↓</span>{" "}
-                    {formatBytes(u.rx ?? 0)}
+                    <span className="text-(--muted)">↓</span> {formatBytes(u.rx ?? 0)}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
                     {formatBytes((u.tx ?? 0) + (u.rx ?? 0))}
@@ -414,10 +368,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
   const loading = liveQuery.isFetching;
   const fetchedAt = liveQuery.dataUpdatedAt || null;
   const reqError = liveQuery.error
-    ? queryErrorMessage(
-        liveQuery.error,
-        "Network error while fetching streams.",
-      )
+    ? queryErrorMessage(liveQuery.error, "Network error while fetching streams.")
     : "";
   const byUser = live?.by_user ?? [];
   const topDomains = (live?.top_domains ?? []).slice(0, 12);
@@ -429,8 +380,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
       meta={
         live && !live.error ? (
           <span className="font-mono tabular-nums">
-            {live.online_devices ?? 0} devices online ·{" "}
-            {live.active_streams ?? 0} streams
+            {live.online_devices ?? 0} devices online · {live.active_streams ?? 0} streams
           </span>
         ) : undefined
       }
@@ -462,10 +412,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
       ) : loading && !live ? (
         <TableSkeleton />
       ) : live?.error ? (
-        <div
-          className="px-4 py-3 text-[13px] text-(--danger)"
-          title={live.error}
-        >
+        <div className="px-4 py-3 text-[13px] text-(--danger)" title={live.error}>
           {live.error}
         </div>
       ) : !live ? (
@@ -481,11 +428,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
       ) : (
         <div className="flex flex-col">
           {byUser.map((u, i) => (
-            <UserStreams
-              key={u.user?.id || `unknown-${i}`}
-              group={u}
-              now={now}
-            />
+            <UserStreams key={u.user?.id || `unknown-${i}`} group={u} now={now} />
           ))}
 
           {topDomains.length > 0 && <TopDomainsTable rows={topDomains} />}
@@ -509,9 +452,7 @@ function UserStreams({
       <div className="flex items-center justify-between gap-3 bg-(--surface-secondary) px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <Dot tone="ok" />
-          <span className="truncate text-xs font-medium">
-            {group.user?.email || "unknown"}
-          </span>
+          <span className="truncate text-xs font-medium">{group.user?.email || "unknown"}</span>
         </div>
         <span className="shrink-0 font-mono text-xs tabular-nums text-(--muted)">
           {group.online_devices ?? 0} devices online · {streams.length} streams
@@ -570,11 +511,7 @@ function UserStreams({
   );
 }
 
-function TopDomainsTable({
-  rows,
-}: {
-  rows: NonNullable<NodeLive["top_domains"]>;
-}) {
+function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> }) {
   return (
     <div className="bg-(--surface)">
       <div className="overflow-x-auto">
@@ -592,13 +529,9 @@ function TopDomainsTable({
             {rows.map((d, i) => {
               const domain = d.domain || "—";
               const meta = d.ip_meta;
-              const countryTitle =
-                meta?.country_name || meta?.country_code || "";
+              const countryTitle = meta?.country_name || meta?.country_code || "";
               return (
-                <tr
-                  key={(d.domain || "") + i}
-                  className="hover:bg-(--surface-secondary)"
-                >
+                <tr key={(d.domain || "") + i} className="hover:bg-(--surface-secondary)">
                   <Td>
                     {meta?.ipinfo_url ? (
                       <a
@@ -625,9 +558,7 @@ function TopDomainsTable({
                   <Td className="whitespace-nowrap text-xs text-(--muted)">
                     {meta?.country_code ? (
                       <span title={countryTitle}>
-                        <span className="font-mono text-(--foreground)">
-                          {meta.country_code}
-                        </span>
+                        <span className="font-mono text-(--foreground)">{meta.country_code}</span>
                         {meta.country_name && (
                           <span className="ml-1 hidden max-w-[140px] truncate align-bottom sm:inline-block">
                             {meta.country_name}
@@ -654,11 +585,7 @@ function TopDomainsTable({
   );
 }
 
-function ByConnectionTable({
-  rows,
-}: {
-  rows: NonNullable<NodeLive["by_connection"]>;
-}) {
+function ByConnectionTable({ rows }: { rows: NonNullable<NodeLive["by_connection"]> }) {
   return (
     <div className="bg-(--surface)">
       <div className="overflow-x-auto">
@@ -673,10 +600,7 @@ function ByConnectionTable({
           </thead>
           <tbody className="divide-y divide-(--separator)">
             {rows.map((c, i) => (
-              <tr
-                key={`${c.connection}-${i}`}
-                className="hover:bg-(--surface-secondary)"
-              >
+              <tr key={`${c.connection}-${i}`} className="hover:bg-(--surface-secondary)">
                 <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-(--muted)">
                   #{c.connection ?? 0}
                 </Td>

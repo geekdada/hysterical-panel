@@ -36,9 +36,7 @@ function LoginPage() {
     async function run() {
       if (typeof window === "undefined") return;
       try {
-        const { browserSupportsWebAuthnAutofill } = await import(
-          "@simplewebauthn/browser"
-        );
+        const { browserSupportsWebAuthnAutofill } = await import("@simplewebauthn/browser");
         if (!(await browserSupportsWebAuthnAutofill())) return;
         await loginWithPasskey(true);
         if (!cancelled) {
@@ -140,9 +138,7 @@ function LoginPage() {
                 passkeyMutation.mutate();
               }}
             >
-              {passkeyMutation.isPending
-                ? "Checking passkeys..."
-                : "Sign in with passkey"}
+              {passkeyMutation.isPending ? "Checking passkeys..." : "Sign in with passkey"}
             </Button>
           </form>
         </Card.Content>

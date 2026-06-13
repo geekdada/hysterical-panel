@@ -137,10 +137,7 @@ export function shortcutForLocalRange(range: LocalDateRange): TrafficRangeShortc
   if (range.start.compare(thisMonthStart) === 0 && range.end.compare(end) === 0) {
     return "this-month";
   }
-  if (
-    range.start.compare(lastMonthStart) === 0 &&
-    range.end.compare(lastMonthEnd) === 0
-  ) {
+  if (range.start.compare(lastMonthStart) === 0 && range.end.compare(lastMonthEnd) === 0) {
     return "last-month";
   }
   return null;
