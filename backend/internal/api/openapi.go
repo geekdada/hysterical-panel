@@ -42,6 +42,12 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"DeleteResponse":             DeleteResponse{},
 		"ErrorResponse":              ErrorResponse{},
 		"PanelConfigResponse":        PanelConfigResponse{},
+		"RegisterRequest":            RegisterRequest{},
+		"RegisterResponse":           RegisterResponse{},
+		"Invitation":                 Invitation{},
+		"InvitationCreateRequest":    InvitationCreateRequest{},
+		"SettingsResponse":           SettingsResponse{},
+		"SettingsUpdateRequest":      SettingsUpdateRequest{},
 	}
 
 	// Generate each schema with its own generator to avoid shared internal
@@ -923,6 +929,133 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					Value: &openapi3.Response{
 						Description: ptr("Live diagnostics"),
 						Content:     content(ref("LiveResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /register (public) ─────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/register", &openapi3.PathItem{
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "register",
+				Summary:     "Self-service registration",
+				Tags:        []string{"registration"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("RegisterRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Auth response, or requires_verification when an email must be confirmed"),
+						Content:     content(ref("RegisterResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("403", forbidden)
+			op.Security = &openapi3.SecurityRequirements{}
+			return op
+		}(),
+	})
+
+	// ── /settings ──────────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/settings", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "getSettings",
+				Summary:     "Get registration / invitation feature flags",
+				Tags:        []string{"settings"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Current settings"),
+						Content:     content(ref("SettingsResponse")),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+		Patch: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "updateSettings",
+				Summary:     "Update registration / invitation feature flags",
+				Tags:        []string{"settings"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("SettingsUpdateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Updated settings"),
+						Content:     content(ref("SettingsResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /invitations ───────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/invitations", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listInvitations",
+				Summary:     "List invitations",
+				Tags:        []string{"invitations"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Invitation list"),
+						Content:     content(arrayRef("Invitation")),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "createInvitation",
+				Summary:     "Create an invitation (optionally email it)",
+				Tags:        []string{"invitations"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(false).
+						WithJSONSchemaRef(ref("InvitationCreateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Created invitation"),
+						Content:     content(ref("Invitation")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /invitations/{id} ──────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/invitations/{id}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Invitation ID")},
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "deleteInvitation",
+				Summary:     "Delete an invitation",
+				Tags:        []string{"invitations"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Deletion confirmed"),
+						Content:     content(ref("DeleteResponse")),
 					},
 				})),
 			}

@@ -77,6 +77,70 @@ type UserUpdateRequest struct {
 	Status     *string `json:"status,omitempty"`
 }
 
+// ── Registration ───────────────────────────────────────────────────────────────
+
+// RegisterRequest is the body for the public POST /register endpoint.
+type RegisterRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Code     string `json:"code,omitempty"`
+}
+
+// RegisterResponse covers both registration outcomes: a code-backed signup is
+// auto-logged-in (token + record), while the open no-code path returns only
+// requires_verification=true and sends a verification email.
+type RegisterResponse struct {
+	Token                string     `json:"token,omitempty"`
+	Record               *PanelUser `json:"record,omitempty"`
+	RequiresVerification bool       `json:"requires_verification"`
+	VerificationSent     bool       `json:"verification_sent,omitempty"`
+}
+
+// ── Invitations ────────────────────────────────────────────────────────────────
+
+// Invitation is the admin-facing representation of an invite code.
+type Invitation struct {
+	ID            string `json:"id"`
+	Code          string `json:"code"`
+	Email         string `json:"email"`
+	MaxUses       int    `json:"max_uses"` // 0 = unlimited
+	UsedCount     int    `json:"used_count"`
+	ExpiresAt     string `json:"expires_at"`
+	Revoked       bool   `json:"revoked"`
+	Note          string `json:"note"`
+	LastUsedAt    string `json:"last_used_at"`
+	Created       string `json:"created"`
+	Valid         bool   `json:"valid"`
+	InvalidReason string `json:"invalid_reason,omitempty"` // "revoked" | "expired" | "exhausted"
+	Link          string `json:"link"`
+	EmailSent     *bool  `json:"email_sent,omitempty"` // set only on create when send was attempted
+}
+
+// InvitationCreateRequest is the body for POST /invitations.
+type InvitationCreateRequest struct {
+	Email          *string `json:"email,omitempty"`
+	MaxUses        *int    `json:"max_uses,omitempty"`
+	ExpiresInHours *int    `json:"expires_in_hours,omitempty"`
+	Note           *string `json:"note,omitempty"`
+	SendEmail      *bool   `json:"send_email,omitempty"`
+}
+
+// ── App settings ───────────────────────────────────────────────────────────────
+
+// SettingsResponse is returned by GET/PATCH /settings.
+type SettingsResponse struct {
+	InvitationsEnabled   bool `json:"invitations_enabled"`
+	OpenRegistration     bool `json:"open_registration"`
+	RequireInviteForOpen bool `json:"require_invite_for_open"`
+}
+
+// SettingsUpdateRequest is the body for PATCH /settings (all fields optional).
+type SettingsUpdateRequest struct {
+	InvitationsEnabled   *bool `json:"invitations_enabled,omitempty"`
+	OpenRegistration     *bool `json:"open_registration,omitempty"`
+	RequireInviteForOpen *bool `json:"require_invite_for_open,omitempty"`
+}
+
 // ── Passkeys ─────────────────────────────────────────────────────────────────
 
 // Passkey is the public representation of a registered passkey credential.
@@ -314,6 +378,11 @@ type PanelConfigResponse struct {
 	FrontendURL     string `json:"frontend_url"`
 	PasskeysEnabled bool   `json:"passkeys_enabled"`
 	Version         string `json:"version"`
+	// Registration flags are read live from app_settings (runtime-mutable) so
+	// the login/register pages can render the right entry points.
+	RegistrationOpen          bool `json:"registration_open"`
+	RegistrationRequireInvite bool `json:"registration_require_invite"`
+	InvitationsEnabled        bool `json:"invitations_enabled"`
 }
 
 // ── Shared ────────────────────────────────────────────────────────────────────

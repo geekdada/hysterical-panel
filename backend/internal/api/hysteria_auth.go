@@ -46,6 +46,10 @@ func (h *Handlers) hysteriaAuth(e *core.RequestEvent) error {
 		log.Printf("[hysteria-auth] reject addr=%s: account disabled", in.Addr)
 		return apis.NewForbiddenError("account is disabled", nil)
 	}
+	if !user.GetBool("verified") {
+		log.Printf("[hysteria-auth] reject addr=%s: email not verified", in.Addr)
+		return apis.NewForbiddenError("email not verified", nil)
+	}
 
 	return ok(e, map[string]any{
 		"ok": true,

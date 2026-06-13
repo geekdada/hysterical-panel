@@ -21,23 +21,25 @@ type ipMetadataLookup interface {
 
 // Handlers bundles dependencies shared by all route handlers.
 type Handlers struct {
-	app          core.App
-	box          *cryptobox.Box
-	ipLookup     ipMetadataLookup
-	passkeys     *webauthn.WebAuthn
-	passkeyLimit *passkeyRateLimiter
-	publicConfig PanelConfigResponse
+	app           core.App
+	box           *cryptobox.Box
+	ipLookup      ipMetadataLookup
+	passkeys      *webauthn.WebAuthn
+	passkeyLimit  *passkeyRateLimiter
+	registerLimit *passkeyRateLimiter
+	publicConfig  PanelConfigResponse
 }
 
 // Register wires every /api/panel/* route onto the serve event router.
 func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, passkeys *webauthn.WebAuthn, public PanelConfigResponse) {
 	h := &Handlers{
-		app:          app,
-		box:          box,
-		ipLookup:     ipLookup,
-		passkeys:     passkeys,
-		passkeyLimit: newPasskeyRateLimiter(30, passkeyChallengeTTL),
-		publicConfig: public,
+		app:           app,
+		box:           box,
+		ipLookup:      ipLookup,
+		passkeys:      passkeys,
+		passkeyLimit:  newPasskeyRateLimiter(30, passkeyChallengeTTL),
+		registerLimit: newPasskeyRateLimiter(registerRateMax, registerRateWindow),
+		publicConfig:  public,
 	}
 
 	h.bindAuthGate()
@@ -71,6 +73,15 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/nodes/{id}/traffic/series", h.nodeTrafficSeries).Bind(adminOnly)
 	g.GET("/nodes/{id}/live", h.nodeLive).Bind(adminOnly)
 
+	// app settings (registration / invitation feature flags)
+	g.GET("/settings", h.getSettings).Bind(adminOnly)
+	g.PATCH("/settings", h.updateSettings).Bind(adminOnly)
+
+	// invitations
+	g.GET("/invitations", h.listInvitations).Bind(adminOnly)
+	g.POST("/invitations", h.createInvitation).Bind(adminOnly)
+	g.DELETE("/invitations/{id}", h.deleteInvitation).Bind(adminOnly)
+
 	// users
 	g.GET("/users", h.listUsers).Bind(adminOnly)
 	g.POST("/users", h.createUser).Bind(adminOnly)
@@ -89,6 +100,10 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 
 	// Public panel config — no auth required
 	se.Router.GET("/api/panel/config", h.handlePanelConfig)
+
+	// Public self-service registration — no auth required. Access and the
+	// email-verification requirement are governed by the runtime settings.
+	se.Router.POST("/api/panel/register", h.register)
 
 	// Public passkey login endpoints — no auth required.
 	se.Router.POST("/api/panel/passkeys/login/options", h.passkeyLoginOptions)
@@ -168,6 +183,12 @@ func (h *Handlers) bindAuthGate() {
 		if record == nil || record.GetString("status") != "active" {
 			return apis.NewForbiddenError("account is disabled", nil)
 		}
+		// An account is usable only once its email is verified. Admin-created and
+		// invite-registered users are always verified=true; this only gates the
+		// open (no-invite) self-registration path until the user confirms.
+		if !record.GetBool("verified") {
+			return apis.NewForbiddenError("email not verified", nil)
+		}
 		return nil
 	}
 
@@ -228,6 +249,21 @@ func publicUser(u *core.Record) map[string]any {
 		"used_tx":     u.GetInt("used_tx"),
 		"used_rx":     u.GetInt("used_rx"),
 		"status":      u.GetString("status"),
+	}
+}
+
+// panelUser is the typed counterpart of publicUser, used where a PanelUser DTO
+// is needed directly (e.g. the registration auth response).
+func panelUser(u *core.Record) PanelUser {
+	return PanelUser{
+		ID:         u.Id,
+		Email:      u.GetString("email"),
+		Role:       u.GetString("role"),
+		AuthString: u.GetString("auth_string"),
+		QuotaBytes: int64(u.GetInt("quota_bytes")),
+		UsedTx:     int64(u.GetInt("used_tx")),
+		UsedRx:     int64(u.GetInt("used_rx")),
+		Status:     u.GetString("status"),
 	}
 }
 
