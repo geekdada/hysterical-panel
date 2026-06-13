@@ -8,7 +8,6 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { ChevronLeft } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
@@ -80,13 +79,6 @@ function AnalyticsPage() {
       <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
         <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Link
-              to="/"
-              aria-label="Back to dashboard"
-              className="grid size-6 shrink-0 place-items-center rounded text-(--muted) transition-colors duration-150 hover:bg-(--surface-secondary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
-            >
-              <ChevronLeft className="size-3.5" aria-hidden />
-            </Link>
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate text-[13px] font-semibold tracking-tight">Analytics</span>
             </div>
