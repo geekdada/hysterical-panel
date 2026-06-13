@@ -9,7 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VerifyRouteImport } from './routes/verify'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
@@ -17,9 +21,29 @@ import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
 import { Route as NodesNewRouteImport } from './routes/nodes/new'
 import { Route as NodesNodeIdRouteImport } from './routes/nodes/$nodeId'
 
+const VerifyRoute = VerifyRouteImport.update({
+  id: '/verify',
+  path: '/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvitationsRoute = InvitationsRouteImport.update({
+  id: '/invitations',
+  path: '/invitations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DatabaseRoute = DatabaseRouteImport.update({
@@ -57,7 +81,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/database': typeof DatabaseRoute
+  '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/settings': typeof SettingsRoute
+  '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
   '/users/$userId': typeof UsersUserIdRoute
@@ -66,7 +94,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/database': typeof DatabaseRoute
+  '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/settings': typeof SettingsRoute
+  '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
   '/users/$userId': typeof UsersUserIdRoute
@@ -76,7 +108,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/database': typeof DatabaseRoute
+  '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/settings': typeof SettingsRoute
+  '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
   '/users/$userId': typeof UsersUserIdRoute
@@ -87,7 +123,11 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/database'
+    | '/invitations'
     | '/login'
+    | '/register'
+    | '/settings'
+    | '/verify'
     | '/nodes/$nodeId'
     | '/nodes/new'
     | '/users/$userId'
@@ -96,7 +136,11 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/database'
+    | '/invitations'
     | '/login'
+    | '/register'
+    | '/settings'
+    | '/verify'
     | '/nodes/$nodeId'
     | '/nodes/new'
     | '/users/$userId'
@@ -105,7 +149,11 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/database'
+    | '/invitations'
     | '/login'
+    | '/register'
+    | '/settings'
+    | '/verify'
     | '/nodes/$nodeId'
     | '/nodes/new'
     | '/users/$userId'
@@ -115,7 +163,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
   DatabaseRoute: typeof DatabaseRoute
+  InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
+  SettingsRoute: typeof SettingsRoute
+  VerifyRoute: typeof VerifyRoute
   NodesNodeIdRoute: typeof NodesNodeIdRoute
   NodesNewRoute: typeof NodesNewRoute
   UsersUserIdRoute: typeof UsersUserIdRoute
@@ -123,11 +175,39 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/verify': {
+      id: '/verify'
+      path: '/verify'
+      fullPath: '/verify'
+      preLoaderRoute: typeof VerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invitations': {
+      id: '/invitations'
+      path: '/invitations'
+      fullPath: '/invitations'
+      preLoaderRoute: typeof InvitationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/database': {
@@ -179,7 +259,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   DatabaseRoute: DatabaseRoute,
+  InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
+  SettingsRoute: SettingsRoute,
+  VerifyRoute: VerifyRoute,
   NodesNodeIdRoute: NodesNodeIdRoute,
   NodesNewRoute: NodesNewRoute,
   UsersUserIdRoute: UsersUserIdRoute,

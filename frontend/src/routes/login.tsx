@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { login, loginWithPasskey } from "~/api/auth";
+import { canQueryPanelApi, fetchPanelConfigQuery, queryKeys } from "~/api/queries";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: ({ context }) => {
@@ -29,6 +30,13 @@ function LoginPage() {
       window.location.href = "/";
     },
   });
+  const configQuery = useQuery({
+    queryKey: queryKeys.config(),
+    queryFn: fetchPanelConfigQuery,
+    enabled: canQueryPanelApi(),
+  });
+  const canRegister =
+    (configQuery.data?.registration_open || configQuery.data?.invitations_enabled) ?? false;
 
   useEffect(() => {
     let cancelled = false;
@@ -140,6 +148,14 @@ function LoginPage() {
             >
               {passkeyMutation.isPending ? "Checking passkeys..." : "Sign in with passkey"}
             </Button>
+            {canRegister && (
+              <Link
+                to="/register"
+                className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
+              >
+                Create an account
+              </Link>
+            )}
           </form>
         </Card.Content>
       </Card>

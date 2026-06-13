@@ -32,6 +32,12 @@ type PanelUser = components["schemas"]["PanelUser"];
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
 type UserLive = components["schemas"]["LiveResponse"];
+type Invitation = components["schemas"]["Invitation"];
+type InvitationCreateRequest = components["schemas"]["InvitationCreateRequest"];
+type AppSettings = components["schemas"]["SettingsResponse"];
+type SettingsUpdateRequest = components["schemas"]["SettingsUpdateRequest"];
+
+export type { Invitation, InvitationCreateRequest, AppSettings, SettingsUpdateRequest };
 
 export const REFRESH_MS = 20_000;
 
@@ -97,6 +103,8 @@ export const queryKeys = {
     [...queryKeys.dashboardBase(), "traffic", range?.from ?? "", range?.to ?? ""] as const,
   dashboardUsers: () => [...queryKeys.dashboardBase(), "users"] as const,
   databaseStats: () => [...queryKeys.all, "database", "stats"] as const,
+  invitations: () => [...queryKeys.all, "invitations"] as const,
+  settings: () => [...queryKeys.all, "settings"] as const,
   nodeLive: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "live"] as const,
   nodeOverview: (nodeId: string, range: TrafficRangeQuery | null) =>
     [
@@ -306,6 +314,43 @@ export function testNode(nodeId: string): Promise<NodeTest> {
     }),
     "Couldn't run the connectivity test.",
     "Network error while testing the node."
+  );
+}
+
+export function fetchSettings(): Promise<AppSettings> {
+  return apiRequest<AppSettings>(apiClient.GET("/api/panel/settings"), "Couldn't load settings.");
+}
+
+export function updateSettings(body: SettingsUpdateRequest): Promise<AppSettings> {
+  return apiRequest<AppSettings>(
+    apiClient.PATCH("/api/panel/settings", { body }),
+    "Couldn't update settings.",
+    "Network error while updating settings."
+  );
+}
+
+export function fetchInvitations(): Promise<Invitation[]> {
+  return apiRequest<Invitation[]>(
+    apiClient.GET("/api/panel/invitations"),
+    "Couldn't load invitations."
+  );
+}
+
+export function createInvitation(body: InvitationCreateRequest): Promise<Invitation> {
+  return apiRequest<Invitation>(
+    apiClient.POST("/api/panel/invitations", { body }),
+    "Couldn't create the invitation.",
+    "Network error while creating the invitation."
+  );
+}
+
+export function deleteInvitation(id: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/invitations/{id}", {
+      params: { path: { id } },
+    }),
+    "Couldn't delete the invitation.",
+    "Network error while deleting the invitation."
   );
 }
 

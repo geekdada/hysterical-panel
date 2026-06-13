@@ -120,6 +120,58 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   return user;
 }
 
+export interface RegisterResult {
+  token?: string;
+  record?: AuthUser;
+  requires_verification: boolean;
+  verification_sent?: boolean;
+}
+
+/**
+ * Self-service registration. Returns the raw result so the caller can branch:
+ * a code-backed signup carries token+record (store it and you're logged in),
+ * while the open no-code path returns requires_verification=true and the user
+ * must confirm the emailed link before they can sign in.
+ */
+export async function register(
+  email: string,
+  password: string,
+  code?: string
+): Promise<RegisterResult> {
+  const base = await resolveAuthBase();
+  const res = await fetch(`${base}/api/panel/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, ...(code ? { code } : {}) }),
+  });
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body.message || `Registration failed (${res.status})`);
+  }
+
+  const result = body as RegisterResult;
+  if (result.token && result.record) {
+    storeAuthResponse({ token: result.token, record: result.record });
+    markFreshPasswordLogin(result.record.id);
+  }
+  return result;
+}
+
+/** Confirms an email-verification token via PocketBase's built-in endpoint. */
+export async function confirmVerification(token: string): Promise<void> {
+  const base = await resolveAuthBase();
+  const res = await fetch(`${base}/api/collections/users/confirm-verification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Verification failed (${res.status})`);
+  }
+}
+
 export function clearAuth(): void {
   clearAuthCookies();
 }
