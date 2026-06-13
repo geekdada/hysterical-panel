@@ -80,6 +80,8 @@ run bash -c 'cd backend && go test ./...'
 run bash -c 'cd backend && go vet ./...'
 run bash -c 'cd backend && go build ./...'
 run bash -c 'cd frontend && pnpm install --frozen-lockfile'
+run bash -c 'cd frontend && pnpm lint'
+run bash -c 'cd frontend && pnpm format:check'
 run bash -c 'cd frontend && pnpm typecheck'
 run bash -c 'cd frontend && pnpm build'
 
