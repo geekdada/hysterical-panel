@@ -172,6 +172,42 @@ export async function confirmVerification(token: string): Promise<void> {
   }
 }
 
+/**
+ * Requests a password-reset email via PocketBase's built-in endpoint. PocketBase
+ * returns 204 regardless of whether the email matches an account (a measure
+ * against email enumeration), so the caller always shows a generic message.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const base = await resolveAuthBase();
+  const res = await fetch(`${base}/api/collections/users/request-password-reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Could not send reset email (${res.status})`);
+  }
+}
+
+/** Confirms a password reset via PocketBase's built-in endpoint. */
+export async function confirmPasswordReset(
+  token: string,
+  password: string,
+  passwordConfirm: string
+): Promise<void> {
+  const base = await resolveAuthBase();
+  const res = await fetch(`${base}/api/collections/users/confirm-password-reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password, passwordConfirm }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Password reset failed (${res.status})`);
+  }
+}
+
 export function clearAuth(): void {
   clearAuthCookies();
 }

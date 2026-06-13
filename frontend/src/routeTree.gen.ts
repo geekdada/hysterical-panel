@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvitationsRouteImport } from './routes/invitations'
@@ -30,6 +31,11 @@ const VerifyRoute = VerifyRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/invitations'
     | '/login'
     | '/register'
+    | '/reset-password'
     | '/settings'
     | '/verify'
     | '/nodes/$nodeId'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/invitations'
     | '/login'
     | '/register'
+    | '/reset-password'
     | '/settings'
     | '/verify'
     | '/nodes/$nodeId'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/invitations'
     | '/login'
     | '/register'
+    | '/reset-password'
     | '/settings'
     | '/verify'
     | '/nodes/$nodeId'
@@ -179,6 +191,7 @@ export interface RootRouteChildren {
   InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
   VerifyRoute: typeof VerifyRoute
   NodesNodeIdRoute: typeof NodesNodeIdRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -283,6 +303,7 @@ const rootRouteChildren: RootRouteChildren = {
   InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
   VerifyRoute: VerifyRoute,
   NodesNodeIdRoute: NodesNodeIdRoute,

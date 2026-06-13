@@ -1,5 +1,8 @@
+import { useState, type FormEvent } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
-import { Card } from "@heroui/react";
+import { Button, Card, Input, Label, TextField } from "@heroui/react";
+import { requestPasswordReset } from "~/api/auth";
 import { AuthShell } from "~/components/ui";
 
 export const Route = createFileRoute("/forgot-password")({
@@ -12,6 +15,23 @@ export const Route = createFileRoute("/forgot-password")({
 });
 
 function ForgotPasswordPage() {
+  const [email, setEmail] = useState("");
+  const resetMutation = useMutation({
+    mutationFn: (vars: { email: string }) => requestPasswordReset(vars.email),
+  });
+
+  const error =
+    resetMutation.error instanceof Error
+      ? resetMutation.error.message
+      : resetMutation.error
+        ? "Could not send reset email"
+        : "";
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    resetMutation.mutate({ email: email.trim() });
+  }
+
   return (
     <AuthShell>
       <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
@@ -24,14 +44,59 @@ function ForgotPasswordPage() {
         <Card.Description className="text-[13px] text-(--muted)">Hysterical Panel</Card.Description>
       </Card.Header>
       <Card.Content className="px-6 pt-4 pb-6">
-        <div className="flex flex-col gap-3 py-2">
-          <p className="text-[13px] text-(--muted)">
-            Password reset isn't available yet. Ask an administrator to reset it for now.
-          </p>
-          <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
-            Back to sign in
-          </Link>
-        </div>
+        {resetMutation.isSuccess ? (
+          <div className="flex flex-col gap-3 py-2">
+            <p className="text-[13px] text-(--foreground)">Check your email</p>
+            <p className="text-[13px] text-(--muted)">
+              If an account exists for that email, we sent a password reset link. Open it to choose
+              a new password.
+            </p>
+            <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
+              Back to sign in
+            </Link>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <p className="text-[13px] text-(--muted)">
+              Enter your account email and we'll send you a link to reset your password.
+            </p>
+            <TextField>
+              <Label>Email address</Label>
+              <Input
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => {
+                  resetMutation.reset();
+                  setEmail(e.target.value);
+                }}
+              />
+            </TextField>
+
+            {error && (
+              <p className="text-sm text-(--danger)" role="alert">
+                {error}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              variant="primary"
+              fullWidth
+              isDisabled={resetMutation.isPending}
+              className="mt-1"
+            >
+              {resetMutation.isPending ? "Sending…" : "Send reset link"}
+            </Button>
+            <Link
+              to="/login"
+              className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
+            >
+              Back to sign in
+            </Link>
+          </form>
+        )}
       </Card.Content>
     </AuthShell>
   );
