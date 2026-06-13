@@ -69,10 +69,14 @@
 5. **角色当前只有 `admin` / `user`。**
    `admin` 可管理节点和用户；`user` 只能查看自己的账号详情、用量和实时诊断。新增管理接口默认走 `requireAdmin`；新增用户自查接口才走 admin-or-self 守卫。前端 `src/api/guards.ts` 的 `requireAdmin` / `requireAdminOrSelf` 与后端守卫一一对应。
 
-6. **`status` 是用户启停的单一来源，且真正生效。**
+6. **`status` 是用户启停的单一来源，且真正生效；`verified` 是附加门禁。**
    `active`/`disabled` 两态。落地在三处：登录鉴权 `bindAuthGate`（`OnRecordAuthRequest("users")`，非 active 一律 403 `account is disabled`，覆盖登录与 token 刷新）；Hysteria 回调 `hysteriaAuth`（非 active 返回 403，拒绝客户端新连接）；采集器 `pollNode` 里非 active 用户**仍推进 cursor 但不计量**（避免重新启用时把停用期间的 counter 一次性灌进单个 bucket）。注意：面板不踢 Hysteria 已建立的连接，`disabled` 只挡新连接 + 面板登录 + 停止记账。写 `status` 经 `validUserStatus` 校验。
+   **账号「可用」= `status=active` 且 `verified=true`**：`bindAuthGate` 与 `hysteriaAuth` 都在 status 检查后再判 `verified`（非 verified → 403 `email not verified`）。admin 建号与邀请码注册者恒 `verified=true`，新门禁只挡「开放注册且无邀请码」的未验证用户，直到其点开验证邮件。
 
-7. **后端是 OpenAPI 契约的唯一来源。**
+7. **注册访问由 `app_settings` 三开关 + `registrationDecision` 收口。**
+   公开 `POST /api/panel/register`（见 `register.go`）。判定：`open_registration` → 看 `require_invite_for_open` 是否要码；否则 `invitations_enabled` → 仅邀请（必须有码）；都关 → 403。`verified := codeRequired`（经码即验证并自动登录；开放无码 → `verified=false`、发验证邮件、依赖 SMTP、未配则 503）。新用户固定 `role=user`/`status=active`、`auth_string` 由 `internal/token` 随机生成并查重，**不信任客户端传入的 role/auth_string/status**。`registrationDecision` / `invalidInviteReason` 有单测（`register_test.go`），改判定逻辑务必同步测试。邀请码是通用码（`max_uses`/`expires_at`/`revoked`）。
+
+8. **后端是 OpenAPI 契约的唯一来源。**
    `internal/api/dto.go` 的结构体 + `internal/api/openapi.go` 生成 `/api/openapi.json`（也可 `make openapi` 落地成文件），前端据此生成 TS 类型。**新增/改动 `/api/panel/*` 接口时同步更新 DTO 并重生成 schema**。`/api/hysteria/auth` 故意不进 schema（它由 Hysteria 节点调用，不是前端 client 的一部分）。
 
 ## 技术栈与版本
@@ -99,17 +103,22 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    Country-asn.mmdb / Country-without-asn.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..07）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..10）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
+│       ├── token/              URL-safe 随机 token（邀请码 / auth_string）+ test
 │       ├── hysteria/           Traffic Stats API 客户端
 │       ├── ipmeta/             IP 字面量 → ASN/国家（MMDB）+ test
 │       ├── collector/          counter-to-delta 采集核心
 │       └── api/                /api/panel 路由
-│           ├── api.go          路由注册 + 鉴权中间件 + 脱敏辅助 + nodesForUser
+│           ├── api.go          路由注册 + 鉴权中间件（含 verified 门禁）+ 脱敏辅助 + nodesForUser
 │           ├── nodes.go        节点 CRUD + 连通性测试
 │           ├── users.go        用户 CRUD
+│           ├── settings.go     app_settings 读写（注册开关）
+│           ├── invitations.go  邀请码 CRUD + inviteValid
+│           ├── register.go     公开自助注册 + registrationDecision + auth_string 生成
+│           ├── mailer.go       邀请信 / 验证信（PocketBase SMTP，含 link 兜底）
 │           ├── traffic.go      用户用量 summary / series
 │           ├── node_traffic.go 节点维度用量 summary / series
 │           ├── live.go         用户实时诊断（重点）
@@ -117,15 +126,16 @@ hysterical-panel/
 │           ├── hysteria_auth.go 公开 /api/hysteria/auth 回调
 │           ├── dto.go          OpenAPI 用的响应/请求结构体
 │           ├── openapi.go      生成 OpenAPI 3.1 spec
+│           ├── register_test.go registrationDecision / inviteValid 单测
 │           └── live_test.go    live 聚合测试
 └── frontend/
     ├── PRODUCT.md              设计语言唯一来源（见“前端”）
     ├── vite.config.ts          TanStack Start + react + tailwind；从 ../VERSION 注入 __APP_VERSION__
     ├── tsconfig.json           路径别名 ~/* → src/*
     └── src/
-        ├── api/                client.ts(openapi-fetch) / auth.ts / cookie.ts / guards.ts / schema.d.ts(生成)
-        ├── routes/             文件式路由（index / login / nodes / users）
-        ├── components/         traffic.tsx（图表）/ ui.tsx
+        ├── api/                client.ts(openapi-fetch) / auth.ts(含 register/confirmVerification) / cookie.ts / guards.ts / queries.ts / schema.d.ts(生成)
+        ├── routes/             文件式路由（index / login / register / verify / settings / invitations / nodes / users）
+        ├── components/         traffic.tsx（图表）/ ui.tsx / user-menu.tsx（admin 入口：settings / invitations）
         ├── lib/format.ts       展示格式化（字节 / 时间）
         └── styles/globals.css  设计 token（覆盖 HeroUI v3 默认）
 ```
@@ -134,8 +144,9 @@ hysterical-panel/
 
 `users`（扩展 PocketBase 内置 auth collection）：
 
-- `auth_string` (text, unique, required) — Hysteria auth key，= /traffic 返回的 key
+- `auth_string` (text, unique, required) — Hysteria auth key，= /traffic 返回的 key；自助注册时由系统随机生成
 - `role` (select [admin, user])、`status` (select [active, disabled]) — `status` 是用户启停的单一来源（active = 启用）
+- `verified` (PocketBase 内置 auth 字段) — 账号可用的附加门禁；admin 建号与邀请注册者恒 true，仅开放无码注册者初始 false
 - `quota_bytes`、`used_tx`、`used_rx` (number, int64) — quota 当前不计费，仅留字段
 
 `nodes`：
@@ -146,6 +157,10 @@ hysterical-panel/
 
 `traffic_cursor` (user+node 唯一)：`last_tx`、`last_rx` —— counter-to-delta 的游标
 `traffic_hourly` / `traffic_daily` (user+node+bucket 唯一)：`bucket` (date, **UTC**)、`tx`、`rx`
+
+`invitations`：`code` (text, unique) — 通用邀请码；`email`（可选，仅记录/发信，不绑定）、`max_uses`（0=不限）、`used_count`、`expires_at` (date, 空=永不)、`revoked` (bool)、`note`、`created_by` (relation→users)、`last_used_at`。
+
+`app_settings`（单例，迁移时 seed 一条全 false 记录）：`invitations_enabled`、`open_registration`、`require_invite_for_open` (bool)。运行期可变，注册与 `/config` 实时读。
 
 > 字节一律 int64，禁止 float。
 
@@ -182,6 +197,8 @@ hysterical-panel/
 - `PATCH /nodes/{id}` 的 `api_secret`：**缺省=不变，传空字符串=报错**（防止误清空）。
 - `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。
 - 节点维度接口 `GET /nodes/{id}/traffic/summary|series`、`GET /nodes/{id}/live` 是**全节点跨用户**视角，仅 admin。
+- `GET|PATCH /settings`、`GET|POST /invitations`、`DELETE /invitations/{id}` 均 admin。`PATCH /settings` 校验 `require_invite_for_open` 依赖 `invitations_enabled`；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
+- `GET /api/panel/config`（公开）现额外回 `registration_open` / `registration_require_invite` / `invitations_enabled`（从 `app_settings` 实时读），供 `/login`、`/register` 渲染入口。
 - `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时诊断核心：并发拉可见节点的 `/dump/streams` + `/online`（5s 超时），按 `auth_string` 过滤/聚合出 `online_devices` / `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按设备分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
 
 ### OpenAPI
@@ -189,9 +206,13 @@ hysterical-panel/
 - `GET /api/openapi.json`（无需登录，不含 secret）实时返回 spec；`make openapi` 落地成 `backend/openapi.json` 供前端 `pnpm api:types` 消费。
 - spec 由 `dto.go` 结构体 + `openapi.go` 生成。`openapi.go` 对每个 type 用独立 generator，避免 enum 在共享 schema 间串味——加字段枚举时照此模式。
 
-### 公开接口（供 Hysteria 节点调用，无需登录）
+### 公开接口（无需登录）
 
-`POST /api/hysteria/auth` — Hysteria 2 节点 `auth.type: http` 回调，每次客户端连接时触发。按请求体 `auth` 在 `users.auth_string` 查匹配，命中且 `status=active` → `200 {"ok":true,"id":"<auth_string>"}`；查无此人 401；存在但 disabled 403；缺 `auth`/非法 JSON 400。返回的 `id` **故意回填为 `auth_string`**，让节点后续 `/traffic` 上报的 key 与采集器查询字段一致（见 `hysteria_auth.go` 注释）。**绝不记录 `auth` 值本身**（凭据），只记 addr 与拒绝原因。该路由不进 OpenAPI。
+`POST /api/panel/register` — 自助注册（进 OpenAPI，标记无需鉴权）。访问与是否要码由 `app_settings` + `registrationDecision` 决定；`verified := codeRequired`；经码自动登录（返回 token+record），开放无码发验证邮件并返回 `{requires_verification:true}`（依赖 SMTP，未配 503）。强制 `role=user`/`status=active`，`auth_string` 系统生成。按 IP 限流。邮箱验证由前端 `/verify` 调 PocketBase 内置 `POST /api/collections/users/confirm-verification` 完成（非本项目自建端点）。
+
+`POST /api/hysteria/auth` — Hysteria 2 节点 `auth.type: http` 回调，每次客户端连接时触发。按请求体 `auth` 在 `users.auth_string` 查匹配，命中且 `status=active` 且 `verified=true` → `200 {"ok":true,"id":"<auth_string>"}`；查无此人 401；存在但 disabled 或未验证 403；缺 `auth`/非法 JSON 400。返回的 `id` **故意回填为 `auth_string`**，让节点后续 `/traffic` 上报的 key 与采集器查询字段一致（见 `hysteria_auth.go` 注释）。**绝不记录 `auth` 值本身**（凭据），只记 addr 与拒绝原因。该路由不进 OpenAPI。
+
+> 邮件走 PocketBase 内置 SMTP（`/_/` 后台配置，无新增 env）。`mailer.go` 在 `SMTP.Enabled=false` 时不发信：邀请接口仍返回 `link` 供手动分享，开放无码注册因依赖验证邮件而不可用。
 
 ## 前端（./frontend）
 
