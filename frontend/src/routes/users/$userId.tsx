@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft } from "@gravity-ui/icons";
 import { Button } from "@heroui/react";
 import {
   clearAuth,
@@ -32,8 +31,10 @@ import {
   type LocalDateRange,
 } from "~/lib/traffic-range";
 import {
+  BackLink,
   CopyButton,
   Dot,
+  PageShell,
   PanelMessage,
   Section,
   TableSkeleton,
@@ -94,103 +95,95 @@ function AccountDetailPage() {
   }
 
   return (
-    <div className="min-h-svh bg-(--background) text-(--foreground)">
-      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
-        <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2.5">
-            {isAdmin ? (
-              <Link
-                to="/"
-                aria-label="Back to dashboard"
-                className="grid size-6 shrink-0 place-items-center rounded text-(--muted) transition-colors duration-150 hover:bg-(--surface-secondary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
-              >
-                <ChevronLeft className="size-4" aria-hidden />
-              </Link>
-            ) : (
-              <span className="grid size-5 shrink-0 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
-                H
+    <PageShell
+      headerLeft={
+        <div className="flex min-w-0 items-center gap-3">
+          {isAdmin ? (
+            <BackLink />
+          ) : (
+            <span className="grid size-5 shrink-0 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
+              H
+            </span>
+          )}
+          {loading && !user ? (
+            <span className="h-3.5 w-40 animate-pulse rounded bg-(--surface-secondary)" />
+          ) : (
+            <div className="flex min-w-0 items-center gap-2">
+              <Dot
+                tone={(user?.status ?? "active") === "active" ? "ok" : "idle"}
+                title={user?.status ?? "active"}
+              />
+              <span className="truncate text-[13px] font-semibold tracking-tight">
+                {user?.email || "Account"}
               </span>
-            )}
-            {loading && !user ? (
-              <span className="h-3.5 w-40 animate-pulse rounded bg-(--surface-secondary)" />
-            ) : (
-              <div className="flex min-w-0 items-center gap-2">
-                <Dot
-                  tone={(user?.status ?? "active") === "active" ? "ok" : "idle"}
-                  title={user?.status ?? "active"}
-                />
-                <span className="truncate text-[13px] font-semibold tracking-tight">
-                  {user?.email || "Account"}
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-3 text-xs text-(--muted)">
-            {updatedAt !== null && (
-              <span
-                className="hidden tabular-nums sm:inline"
-                title={new Date(updatedAt).toLocaleString()}
-              >
-                Updated {relTime(updatedAt, now)}
-              </span>
-            )}
-            <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
-            {auth && <UserMenu auth={auth} />}
-          </div>
+            </div>
+          )}
         </div>
-      </header>
+      }
+      headerRight={
+        <div className="flex items-center gap-3 text-xs text-(--muted)">
+          {updatedAt !== null && (
+            <span
+              className="hidden tabular-nums sm:inline"
+              title={new Date(updatedAt).toLocaleString()}
+            >
+              Updated {relTime(updatedAt, now)}
+            </span>
+          )}
+          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          {auth && <UserMenu auth={auth} />}
+        </div>
+      }
+    >
+      {error && (
+        <div
+          className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
+          role="alert"
+        >
+          <Dot tone="error" />
+          <span>{error}</span>
+        </div>
+      )}
 
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
-        {error && (
-          <div
-            className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-            role="alert"
-          >
-            <Dot tone="error" />
-            <span>{error}</span>
-          </div>
-        )}
+      {notFound ? (
+        <Teaching
+          title="Account not found"
+          hint="It may have been deleted or moved."
+          action={
+            isAdmin ? (
+              <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
+                Back to dashboard
+              </Button>
+            ) : (
+              <Button size="sm" variant="secondary" onPress={handleLogout}>
+                Sign out
+              </Button>
+            )
+          }
+        />
+      ) : (
+        <>
+          <AccountRail user={user} loading={loading && !user} />
 
-        {notFound ? (
-          <Teaching
-            title="Account not found"
-            hint="It may have been deleted or moved."
-            action={
-              isAdmin ? (
-                <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
-                  Back to dashboard
-                </Button>
-              ) : (
-                <Button size="sm" variant="secondary" onPress={handleLogout}>
-                  Sign out
-                </Button>
-              )
-            }
+          <PasskeysSection
+            userId={userId}
+            isSelf={auth?.user.id === userId}
+            canManage={Boolean(auth && (auth.user.role === "admin" || auth.user.id === userId))}
           />
-        ) : (
-          <>
-            <AccountRail user={user} loading={loading && !user} />
 
-            <PasskeysSection
-              userId={userId}
-              isSelf={auth?.user.id === userId}
-              canManage={Boolean(auth && (auth.user.role === "admin" || auth.user.id === userId))}
-            />
+          <TrafficSection
+            loading={loading && !series}
+            trafficRange={trafficRange}
+            onTrafficRangeChange={setTrafficRange}
+            series={series}
+            summary={summary}
+            isAdmin={isAdmin}
+          />
 
-            <TrafficSection
-              loading={loading && !series}
-              trafficRange={trafficRange}
-              onTrafficRangeChange={setTrafficRange}
-              series={series}
-              summary={summary}
-              isAdmin={isAdmin}
-            />
-
-            {isAdmin && <LiveSection userId={userId} />}
-          </>
-        )}
-      </main>
-    </div>
+          {isAdmin && <LiveSection userId={userId} />}
+        </>
+      )}
+    </PageShell>
   );
 }
 

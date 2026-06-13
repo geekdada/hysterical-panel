@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft } from "@gravity-ui/icons";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
@@ -23,8 +22,10 @@ import {
   type LocalDateRange,
 } from "~/lib/traffic-range";
 import {
+  BackLink,
   CopyButton,
   Dot,
+  PageShell,
   PanelMessage,
   Section,
   TableSkeleton,
@@ -88,81 +89,73 @@ function NodeDetailPage() {
   const tone = !enabled ? "idle" : health === "ok" ? "ok" : health === "error" ? "error" : "idle";
 
   return (
-    <div className="min-h-svh bg-(--background) text-(--foreground)">
-      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
-        <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <Link
-              to="/"
-              aria-label="Back to dashboard"
-              className="grid size-6 shrink-0 place-items-center rounded text-(--muted) transition-colors duration-150 hover:bg-(--surface-secondary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-            </Link>
-            {loading && !node ? (
-              <span className="h-3.5 w-32 animate-pulse rounded bg-(--surface-secondary)" />
-            ) : (
-              <div className="flex min-w-0 items-center gap-2">
-                <Dot tone={tone} title={enabled ? health : "disabled"} />
-                <span className="truncate text-[13px] font-semibold tracking-tight">
-                  {node?.name || "Node"}
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-3 text-xs text-(--muted)">
-            {updatedAt !== null && (
-              <span
-                className="hidden tabular-nums sm:inline"
-                title={new Date(updatedAt).toLocaleString()}
-              >
-                Updated {relTime(updatedAt, now)}
+    <PageShell
+      headerLeft={
+        <div className="flex min-w-0 items-center gap-3">
+          <BackLink />
+          {loading && !node ? (
+            <span className="h-3.5 w-32 animate-pulse rounded bg-(--surface-secondary)" />
+          ) : (
+            <div className="flex min-w-0 items-center gap-2">
+              <Dot tone={tone} title={enabled ? health : "disabled"} />
+              <span className="truncate text-[13px] font-semibold tracking-tight">
+                {node?.name || "Node"}
               </span>
-            )}
-            <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
-            {auth && <UserMenu auth={auth} />}
-          </div>
+            </div>
+          )}
         </div>
-      </header>
+      }
+      headerRight={
+        <div className="flex items-center gap-3 text-xs text-(--muted)">
+          {updatedAt !== null && (
+            <span
+              className="hidden tabular-nums sm:inline"
+              title={new Date(updatedAt).toLocaleString()}
+            >
+              Updated {relTime(updatedAt, now)}
+            </span>
+          )}
+          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          {auth && <UserMenu auth={auth} />}
+        </div>
+      }
+    >
+      {error && (
+        <div
+          className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
+          role="alert"
+        >
+          <Dot tone="error" />
+          <span>{error}</span>
+        </div>
+      )}
 
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
-        {error && (
-          <div
-            className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-            role="alert"
-          >
-            <Dot tone="error" />
-            <span>{error}</span>
-          </div>
-        )}
+      {notFound ? (
+        <Teaching
+          title="Node not found"
+          hint="It may have been deleted. Head back to the dashboard to see the current fleet."
+          action={
+            <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
+              Back to dashboard
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          <DetailRail node={node} loading={loading && !node} now={now} />
 
-        {notFound ? (
-          <Teaching
-            title="Node not found"
-            hint="It may have been deleted. Head back to the dashboard to see the current fleet."
-            action={
-              <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
-                Back to dashboard
-              </Button>
-            }
+          <TrafficSection
+            loading={loading && !series}
+            trafficRange={trafficRange}
+            onTrafficRangeChange={setTrafficRange}
+            series={series}
+            summary={summary}
           />
-        ) : (
-          <>
-            <DetailRail node={node} loading={loading && !node} now={now} />
 
-            <TrafficSection
-              loading={loading && !series}
-              trafficRange={trafficRange}
-              onTrafficRangeChange={setTrafficRange}
-              series={series}
-              summary={summary}
-            />
-
-            <StreamsSection nodeId={nodeId} />
-          </>
-        )}
-      </main>
-    </div>
+          <StreamsSection nodeId={nodeId} />
+        </>
+      )}
+    </PageShell>
   );
 }
 

@@ -4,6 +4,7 @@ import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { login, loginWithPasskey } from "~/api/auth";
 import { canQueryPanelApi, fetchPanelConfigQuery, queryKeys } from "~/api/queries";
+import { AuthShell } from "~/components/ui";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: ({ context }) => {
@@ -37,8 +38,10 @@ function LoginPage() {
   });
   const canRegister =
     (configQuery.data?.registration_open || configQuery.data?.invitations_enabled) ?? false;
+  const passkeysEnabled = configQuery.data?.passkeys_enabled ?? false;
 
   useEffect(() => {
+    if (!passkeysEnabled) return;
     let cancelled = false;
 
     async function run() {
@@ -62,7 +65,7 @@ function LoginPage() {
         WebAuthnAbortService.cancelCeremony();
       });
     };
-  }, []);
+  }, [passkeysEnabled]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -81,84 +84,100 @@ function LoginPage() {
             : "";
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-(--background) p-4 text-(--foreground)">
-      <Card className="w-full max-w-sm border border-(--border) bg-(--surface)">
-        <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
-          <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-(--accent) text-sm font-bold text-(--accent-foreground)">
-            H
-          </span>
-          <Card.Title className="text-[15px] font-semibold tracking-tight text-(--foreground)">
-            Hysterical Panel
-          </Card.Title>
-          <Card.Description className="text-[13px] text-(--muted)">
-            Sign in to continue
-          </Card.Description>
-        </Card.Header>
-        <Card.Content className="px-6 pt-4 pb-6">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <TextField>
-              <Label>Email</Label>
-              <Input
-                type="email"
-                autoComplete="username webauthn"
-                required
-                value={email}
-                onChange={(e) => {
-                  loginMutation.reset();
-                  setEmail(e.target.value);
-                }}
-              />
-            </TextField>
-            <TextField>
-              <Label>Password</Label>
-              <Input
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => {
-                  loginMutation.reset();
-                  setPassword(e.target.value);
-                }}
-              />
-            </TextField>
-
-            {error && (
-              <p className="text-sm text-(--danger)" role="alert">
-                {error}
-              </p>
-            )}
-
-            <Button
-              type="submit"
-              variant="primary"
-              isDisabled={loginMutation.isPending}
-              className="mt-1"
-            >
-              {loginMutation.isPending ? "Signing in..." : "Sign in"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              isDisabled={passkeyMutation.isPending || loginMutation.isPending}
-              onPress={() => {
+    <AuthShell>
+      <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
+        <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-(--accent) text-sm font-bold text-(--accent-foreground)">
+          H
+        </span>
+        <Card.Title className="text-[15px] font-semibold tracking-tight text-(--foreground)">
+          Hysterical Panel
+        </Card.Title>
+        <Card.Description className="text-[13px] text-(--muted)">
+          Sign in to continue
+        </Card.Description>
+      </Card.Header>
+      <Card.Content className="px-6 pt-4 pb-6">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <TextField>
+            <Label>Email address</Label>
+            <Input
+              type="email"
+              autoComplete="username webauthn"
+              required
+              value={email}
+              onChange={(e) => {
                 loginMutation.reset();
-                passkeyMutation.mutate();
+                setEmail(e.target.value);
               }}
+            />
+          </TextField>
+          <TextField>
+            <Label>Password</Label>
+            <Input
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => {
+                loginMutation.reset();
+                setPassword(e.target.value);
+              }}
+            />
+          </TextField>
+          <div className="-mt-1 flex justify-end">
+            <Link
+              to="/forgot-password"
+              className="text-[13px] text-(--muted) hover:text-(--foreground)"
             >
-              {passkeyMutation.isPending ? "Checking passkeys..." : "Sign in with passkey"}
-            </Button>
-            {canRegister && (
-              <Link
-                to="/register"
-                className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
+              Forgot password?
+            </Link>
+          </div>
+
+          {error && (
+            <p className="text-sm text-(--danger)" role="alert">
+              {error}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            variant="primary"
+            fullWidth
+            isDisabled={loginMutation.isPending}
+            className="mt-1"
+          >
+            {loginMutation.isPending ? "Signing in..." : "Sign in"}
+          </Button>
+          {passkeysEnabled && (
+            <>
+              <div className="relative my-1 flex items-center justify-center">
+                <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-(--separator)" />
+                <span className="relative bg-(--surface) px-2 text-[12px] text-(--muted)">Or</span>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                fullWidth
+                isDisabled={passkeyMutation.isPending || loginMutation.isPending}
+                onPress={() => {
+                  loginMutation.reset();
+                  passkeyMutation.mutate();
+                }}
               >
-                Create an account
-              </Link>
-            )}
-          </form>
-        </Card.Content>
-      </Card>
-    </div>
+                {passkeyMutation.isPending ? "Checking passkeys..." : "Sign in with passkey"}
+              </Button>
+            </>
+          )}
+          {canRegister && (
+            <Link
+              to="/register"
+              className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
+            >
+              Create an account
+            </Link>
+          )}
+        </form>
+      </Card.Content>
+    </AuthShell>
   );
 }

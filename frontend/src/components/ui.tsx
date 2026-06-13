@@ -1,8 +1,75 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
 import { Check, Copy } from "@gravity-ui/icons";
+import { Card } from "@heroui/react";
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
+
+// Page chrome shared by every signed-in page: the full-height background, the
+// sticky header bar, and the content <main>. `width` is the single source of
+// truth for content width so the header and main always line up — "wide" for
+// data-dense pages (dashboards, detail views), "narrow" for focused forms and
+// settings. headerLeft/headerRight fill the standard justify-between header row.
+export function PageShell({
+  width = "wide",
+  headerLeft,
+  headerRight,
+  children,
+}: {
+  width?: "wide" | "narrow";
+  headerLeft: ReactNode;
+  headerRight?: ReactNode;
+  children: ReactNode;
+}) {
+  const max = width === "narrow" ? "max-w-3xl" : "max-w-7xl";
+  return (
+    <div className="min-h-svh bg-(--background) text-(--foreground)">
+      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
+        <div className={`mx-auto flex h-12 ${max} items-center justify-between px-4 sm:px-6`}>
+          {headerLeft}
+          {headerRight}
+        </div>
+      </header>
+      <main className={`mx-auto ${max} px-4 py-6 sm:px-6`}>{children}</main>
+    </div>
+  );
+}
+
+// "← Dashboard" link placed to the left of the title on secondary pages, for
+// returning to the dashboard home. Pair it with the page title in headerLeft.
+export function BackLink() {
+  return (
+    <Link
+      to="/"
+      className="flex place-items-center rounded-[5px] px-3 py-0.5 border border-(--border) bg-(--surface-secondary) text-[11px] text-(--foreground) transition-colors duration-150 hover:bg-(--surface-tertiary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+    >
+      ← Dashboard
+    </Link>
+  );
+}
+
+// The "H" badge + wordmark shown on the left of top-level pages.
+export function Brand() {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="grid size-5 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
+        H
+      </span>
+      <span className="text-[13px] font-semibold tracking-tight">Hysterical Panel</span>
+    </div>
+  );
+}
+
+// Centered single-card layout shared by the auth pages (login, register,
+// verify, forgot-password). Pages pass their Card.Header/Content as children.
+export function AuthShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-svh items-center justify-center bg-(--background) p-4 text-(--foreground)">
+      <Card className="w-full max-w-sm border border-(--border) bg-(--surface)">{children}</Card>
+    </div>
+  );
+}
 
 export function Section({
   title,

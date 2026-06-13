@@ -15,7 +15,17 @@ import {
   REFRESH_MS,
   type Invitation,
 } from "~/api/queries";
-import { CopyButton, Dot, PanelMessage, Section, TableSkeleton, Td, Th } from "~/components/ui";
+import {
+  BackLink,
+  CopyButton,
+  Dot,
+  PageShell,
+  PanelMessage,
+  Section,
+  TableSkeleton,
+  Td,
+  Th,
+} from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { relTimeFromISO } from "~/lib/format";
 
@@ -60,81 +70,79 @@ function InvitationsPage() {
   }
 
   return (
-    <div className="min-h-svh bg-(--background) text-(--foreground)">
-      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
-        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="truncate text-[13px] font-semibold tracking-tight">Invitations</span>
-          </div>
-          {auth && <UserMenu auth={auth} />}
+    <PageShell
+      width="narrow"
+      headerLeft={
+        <div className="flex min-w-0 items-center gap-3">
+          <BackLink />
+          <span className="truncate text-[13px] font-semibold tracking-tight">Invitations</span>
         </div>
-      </header>
+      }
+      headerRight={auth ? <UserMenu auth={auth} /> : undefined}
+    >
+      {!settingsQuery.isPending && !invitationsEnabled && (
+        <div className="mb-5 rounded-(--radius) border border-(--border) bg-(--surface-secondary) px-4 py-3 text-[13px] text-(--muted)">
+          The invitation system is off, so new codes can't be created or used.{" "}
+          <Link to="/settings" className="font-medium text-(--accent) hover:opacity-80">
+            Enable it in Settings
+          </Link>
+          .
+        </div>
+      )}
 
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-        {!settingsQuery.isPending && !invitationsEnabled && (
-          <div className="mb-5 rounded-(--radius) border border-(--border) bg-(--surface-secondary) px-4 py-3 text-[13px] text-(--muted)">
-            The invitation system is off, so new codes can't be created or used.{" "}
-            <Link to="/settings" className="font-medium text-(--accent) hover:opacity-80">
-              Enable it in Settings
-            </Link>
-            .
+      <CreateInvitationForm
+        disabled={!invitationsEnabled}
+        pending={createMutation.isPending}
+        error={
+          createMutation.error
+            ? queryErrorMessage(
+                createMutation.error,
+                "Network error while creating the invitation."
+              )
+            : ""
+        }
+        created={createMutation.data ?? null}
+        onSubmit={(body) => createMutation.mutate(body)}
+      />
+
+      <Section
+        title="Invitations"
+        meta={invitations.length > 0 ? `${invitations.length} total` : undefined}
+      >
+        {invitationsQuery.isPending ? (
+          <TableSkeleton />
+        ) : listError ? (
+          <PanelMessage>{listError}</PanelMessage>
+        ) : invitations.length === 0 ? (
+          <PanelMessage>No invitations yet.</PanelMessage>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-(--separator) text-left">
+                  <Th>Code</Th>
+                  <Th>Email</Th>
+                  <Th>Uses</Th>
+                  <Th>Expires</Th>
+                  <Th>Status</Th>
+                  <Th className="text-right">Actions</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-(--separator)">
+                {invitations.map((inv) => (
+                  <InvitationRow
+                    key={inv.id}
+                    inv={inv}
+                    now={now}
+                    onDelete={() => handleDelete(inv.id ?? "", inv.code ?? "")}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-
-        <CreateInvitationForm
-          disabled={!invitationsEnabled}
-          pending={createMutation.isPending}
-          error={
-            createMutation.error
-              ? queryErrorMessage(
-                  createMutation.error,
-                  "Network error while creating the invitation."
-                )
-              : ""
-          }
-          created={createMutation.data ?? null}
-          onSubmit={(body) => createMutation.mutate(body)}
-        />
-
-        <Section
-          title="Invitations"
-          meta={invitations.length > 0 ? `${invitations.length} total` : undefined}
-        >
-          {invitationsQuery.isPending ? (
-            <TableSkeleton />
-          ) : listError ? (
-            <PanelMessage>{listError}</PanelMessage>
-          ) : invitations.length === 0 ? (
-            <PanelMessage>No invitations yet.</PanelMessage>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="border-b border-(--separator) text-left">
-                    <Th>Code</Th>
-                    <Th>Email</Th>
-                    <Th>Uses</Th>
-                    <Th>Expires</Th>
-                    <Th>Status</Th>
-                    <Th className="text-right">Actions</Th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-(--separator)">
-                  {invitations.map((inv) => (
-                    <InvitationRow
-                      key={inv.id}
-                      inv={inv}
-                      now={now}
-                      onDelete={() => handleDelete(inv.id ?? "", inv.code ?? "")}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Section>
-      </main>
-    </div>
+      </Section>
+    </PageShell>
   );
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import {
   Button,
@@ -16,6 +16,7 @@ import { Check, Copy } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import { createNode, queryErrorMessage, queryKeys, testNode } from "~/api/queries";
+import { BackLink, PageShell } from "~/components/ui";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 
 type Node = components["schemas"]["Node"];
@@ -90,284 +91,265 @@ function AddNodePage() {
     : "";
 
   return (
-    <div className="min-h-svh bg-(--background) text-(--foreground)">
-      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
-        <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-2">
-            <span className="grid size-5 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
-              H
-            </span>
-            <span className="text-[13px] font-semibold tracking-tight">Hysterical Panel</span>
-          </div>
-          <Link
-            to="/"
-            className="text-xs text-(--muted) transition-colors duration-150 hover:text-(--foreground)"
+    <PageShell width="narrow" headerLeft={<BackLink />}>
+      <div className="mb-5">
+        <h1 className="text-base font-semibold tracking-tight">Add node</h1>
+        <p className="mt-0.5 text-[13px] text-(--muted)">
+          Register a Hysteria node's API endpoint to start collecting traffic.
+        </p>
+      </div>
+
+      <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+        {created ? (
+          <CreatedView
+            node={created}
+            test={test}
+            onRetry={() => {
+              if (created.id) testMutation.mutate(created.id);
+            }}
+            onAddAnother={addAnother}
+            onDone={() => navigate({ to: "/" })}
+          />
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void form.handleSubmit();
+            }}
+            className="flex flex-col gap-5"
+            noValidate
+            autoComplete="off"
           >
-            ← Dashboard
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
-        <div className="mb-5">
-          <h1 className="text-base font-semibold tracking-tight">Add node</h1>
-          <p className="mt-0.5 text-[13px] text-(--muted)">
-            Register a Hysteria node's API endpoint to start collecting traffic.
-          </p>
-        </div>
-
-        <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
-          {created ? (
-            <CreatedView
-              node={created}
-              test={test}
-              onRetry={() => {
-                if (created.id) testMutation.mutate(created.id);
-              }}
-              onAddAnother={addAnother}
-              onDone={() => navigate({ to: "/" })}
-            />
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                void form.handleSubmit();
-              }}
-              className="flex flex-col gap-5"
-              noValidate
-              autoComplete="off"
-            >
-              {/* Decoy inputs absorb Chrome's password-manager autofill,
+            {/* Decoy inputs absorb Chrome's password-manager autofill,
                   which ignores autocomplete="off" on real fields. */}
-              <div aria-hidden className="hidden">
-                <input type="text" name="username" tabIndex={-1} autoComplete="username" />
-                <input
-                  type="password"
-                  name="password"
-                  tabIndex={-1}
-                  autoComplete="current-password"
-                />
-              </div>
-              <form.Field
-                name="name"
-                validators={{
-                  onChange: ({ value }) =>
-                    !value.trim()
-                      ? "Name is required"
-                      : value.trim().length > 128
-                        ? "Keep the name under 128 characters"
-                        : undefined,
-                }}
-              >
-                {(field) => (
-                  <TextField
-                    name="name"
-                    value={field.state.value}
-                    onChange={field.handleChange}
-                    onBlur={field.handleBlur}
-                    isInvalid={field.state.meta.errors.length > 0}
-                    isRequired
-                  >
-                    <Label>Name</Label>
-                    <Input
-                      placeholder="hk-01"
-                      autoFocus
-                      autoComplete="off"
-                      data-1p-ignore
-                      data-lpignore="true"
-                      data-form-type="other"
-                    />
-                    <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
-                  </TextField>
-                )}
-              </form.Field>
-
-              <form.Field
-                name="api_url"
-                validators={{
-                  onChange: ({ value }) => validateUrl(value),
-                }}
-              >
-                {(field) => (
-                  <TextField
-                    name="api_url"
-                    value={field.state.value}
-                    onChange={field.handleChange}
-                    onBlur={field.handleBlur}
-                    isInvalid={field.state.meta.errors.length > 0}
-                    isRequired
-                  >
-                    <Label>API URL</Label>
-                    <Input
-                      type="url"
-                      inputMode="url"
-                      placeholder="http://203.0.113.10:9999"
-                      className="font-mono text-[13px]"
-                      autoComplete="url"
-                      pattern="https?://.*"
-                      data-1p-ignore
-                      data-lpignore="true"
-                      data-form-type="other"
-                    />
-                    {field.state.meta.errors.length > 0 ? (
-                      <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
-                    ) : (
-                      <Description>
-                        The Traffic Stats API address (the `trafficStats` listen port, not the proxy
-                        port).
-                      </Description>
-                    )}
-                  </TextField>
-                )}
-              </form.Field>
-
-              <form.Field
-                name="api_secret"
-                validators={{
-                  onChange: ({ value }) => (!value ? "API secret is required" : undefined),
-                }}
-              >
-                {(field) => (
-                  <TextField
-                    name="api_secret"
-                    value={field.state.value}
-                    onChange={field.handleChange}
-                    onBlur={field.handleBlur}
-                    isInvalid={field.state.meta.errors.length > 0}
-                    isRequired
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <Label>API secret</Label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          field.handleChange(generateSecret());
-                        }}
-                        className="rounded text-xs font-medium text-(--accent) transition-opacity duration-150 hover:opacity-80 focus-visible:underline focus-visible:outline-none"
-                      >
-                        Generate
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        autoComplete="new-password"
-                        className="w-full pr-10 font-mono text-[13px]"
-                        data-1p-ignore
-                        data-lpignore="true"
-                        data-form-type="other"
-                      />
-                      <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
-                        <CopyButton value={field.state.value} label="API secret" />
-                      </div>
-                    </div>
-                    {field.state.meta.errors.length > 0 ? (
-                      <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
-                    ) : (
-                      <Description>
-                        Generate one or paste the node's secret, then copy it into the server
-                        config. Stored encrypted and hidden after saving.
-                      </Description>
-                    )}
-                  </TextField>
-                )}
-              </form.Field>
-
-              <form.Field
-                name="poll_interval"
-                validators={{
-                  onChange: ({ value }) =>
-                    value == null || Number.isNaN(value)
-                      ? "Poll interval is required"
-                      : !Number.isInteger(value) || value < 1
-                        ? "Use a whole number of seconds, at least 1"
-                        : undefined,
-                }}
-              >
-                {(field) => (
-                  <NumberField
-                    name="poll_interval"
-                    value={field.state.value}
-                    onChange={field.handleChange}
-                    onBlur={field.handleBlur}
-                    minValue={1}
-                    step={1}
-                    isInvalid={field.state.meta.errors.length > 0}
-                    isRequired
-                    className="max-w-48"
-                  >
-                    <Label>Poll interval</Label>
-                    <NumberField.Group>
-                      <NumberField.DecrementButton />
-                      <NumberField.Input />
-                      <NumberField.IncrementButton />
-                    </NumberField.Group>
-                    {field.state.meta.errors.length > 0 ? (
-                      <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
-                    ) : (
-                      <Description>Seconds between traffic polls.</Description>
-                    )}
-                  </NumberField>
-                )}
-              </form.Field>
-
-              <form.Field name="enabled">
-                {(field) => (
-                  <Switch
-                    isSelected={field.state.value}
-                    onChange={field.handleChange}
-                    className="justify-between"
-                  >
-                    <Switch.Content>
-                      <Label>Enabled</Label>
-                      <Description>Poll this node as soon as it's saved.</Description>
-                    </Switch.Content>
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch>
-                )}
-              </form.Field>
-
-              {submitError && (
-                <div
-                  className="flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-                  role="alert"
+            <div aria-hidden className="hidden">
+              <input type="text" name="username" tabIndex={-1} autoComplete="username" />
+              <input
+                type="password"
+                name="password"
+                tabIndex={-1}
+                autoComplete="current-password"
+              />
+            </div>
+            <form.Field
+              name="name"
+              validators={{
+                onChange: ({ value }) =>
+                  !value.trim()
+                    ? "Name is required"
+                    : value.trim().length > 128
+                      ? "Keep the name under 128 characters"
+                      : undefined,
+              }}
+            >
+              {(field) => (
+                <TextField
+                  name="name"
+                  value={field.state.value}
+                  onChange={field.handleChange}
+                  onBlur={field.handleBlur}
+                  isInvalid={field.state.meta.errors.length > 0}
+                  isRequired
                 >
-                  <StatusDot tone="error" />
-                  <span>{submitError}</span>
-                </div>
+                  <Label>Name</Label>
+                  <Input
+                    placeholder="hk-01"
+                    autoFocus
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
+                    data-form-type="other"
+                  />
+                  <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
+                </TextField>
               )}
+            </form.Field>
 
-              <div className="flex items-center justify-end gap-2 border-t border-(--separator) pt-4">
-                <Button variant="ghost" onPress={() => navigate({ to: "/" })}>
-                  Cancel
-                </Button>
-                <form.Subscribe
-                  selector={(s) => ({
-                    canSubmit: s.canSubmit,
-                    isSubmitting: s.isSubmitting,
-                  })}
+            <form.Field
+              name="api_url"
+              validators={{
+                onChange: ({ value }) => validateUrl(value),
+              }}
+            >
+              {(field) => (
+                <TextField
+                  name="api_url"
+                  value={field.state.value}
+                  onChange={field.handleChange}
+                  onBlur={field.handleBlur}
+                  isInvalid={field.state.meta.errors.length > 0}
+                  isRequired
                 >
-                  {({ canSubmit, isSubmitting }) => (
-                    <Button type="submit" variant="primary" isDisabled={!canSubmit}>
-                      {isSubmitting ? "Adding…" : "Add node"}
-                    </Button>
+                  <Label>API URL</Label>
+                  <Input
+                    type="url"
+                    inputMode="url"
+                    placeholder="http://203.0.113.10:9999"
+                    className="font-mono text-[13px]"
+                    autoComplete="url"
+                    pattern="https?://.*"
+                    data-1p-ignore
+                    data-lpignore="true"
+                    data-form-type="other"
+                  />
+                  {field.state.meta.errors.length > 0 ? (
+                    <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
+                  ) : (
+                    <Description>
+                      The Traffic Stats API address (the `trafficStats` listen port, not the proxy
+                      port).
+                    </Description>
                   )}
-                </form.Subscribe>
-              </div>
-            </form>
-          )}
-        </div>
+                </TextField>
+              )}
+            </form.Field>
 
-        {!created && (
-          <form.Subscribe selector={(s) => s.values.api_secret}>
-            {(apiSecret) => <ServerSetup apiSecret={apiSecret} />}
-          </form.Subscribe>
+            <form.Field
+              name="api_secret"
+              validators={{
+                onChange: ({ value }) => (!value ? "API secret is required" : undefined),
+              }}
+            >
+              {(field) => (
+                <TextField
+                  name="api_secret"
+                  value={field.state.value}
+                  onChange={field.handleChange}
+                  onBlur={field.handleBlur}
+                  isInvalid={field.state.meta.errors.length > 0}
+                  isRequired
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>API secret</Label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        field.handleChange(generateSecret());
+                      }}
+                      className="rounded text-xs font-medium text-(--accent) transition-opacity duration-150 hover:opacity-80 focus-visible:underline focus-visible:outline-none"
+                    >
+                      Generate
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      autoComplete="new-password"
+                      className="w-full pr-10 font-mono text-[13px]"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      data-form-type="other"
+                    />
+                    <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
+                      <CopyButton value={field.state.value} label="API secret" />
+                    </div>
+                  </div>
+                  {field.state.meta.errors.length > 0 ? (
+                    <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
+                  ) : (
+                    <Description>
+                      Generate one or paste the node's secret, then copy it into the server config.
+                      Stored encrypted and hidden after saving.
+                    </Description>
+                  )}
+                </TextField>
+              )}
+            </form.Field>
+
+            <form.Field
+              name="poll_interval"
+              validators={{
+                onChange: ({ value }) =>
+                  value == null || Number.isNaN(value)
+                    ? "Poll interval is required"
+                    : !Number.isInteger(value) || value < 1
+                      ? "Use a whole number of seconds, at least 1"
+                      : undefined,
+              }}
+            >
+              {(field) => (
+                <NumberField
+                  name="poll_interval"
+                  value={field.state.value}
+                  onChange={field.handleChange}
+                  onBlur={field.handleBlur}
+                  minValue={1}
+                  step={1}
+                  isInvalid={field.state.meta.errors.length > 0}
+                  isRequired
+                  className="max-w-48"
+                >
+                  <Label>Poll interval</Label>
+                  <NumberField.Group>
+                    <NumberField.DecrementButton />
+                    <NumberField.Input />
+                    <NumberField.IncrementButton />
+                  </NumberField.Group>
+                  {field.state.meta.errors.length > 0 ? (
+                    <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
+                  ) : (
+                    <Description>Seconds between traffic polls.</Description>
+                  )}
+                </NumberField>
+              )}
+            </form.Field>
+
+            <form.Field name="enabled">
+              {(field) => (
+                <Switch
+                  isSelected={field.state.value}
+                  onChange={field.handleChange}
+                  className="justify-between"
+                >
+                  <Switch.Content>
+                    <Label>Enabled</Label>
+                    <Description>Poll this node as soon as it's saved.</Description>
+                  </Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch>
+              )}
+            </form.Field>
+
+            {submitError && (
+              <div
+                className="flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
+                role="alert"
+              >
+                <StatusDot tone="error" />
+                <span>{submitError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 border-t border-(--separator) pt-4">
+              <Button variant="ghost" onPress={() => navigate({ to: "/" })}>
+                Cancel
+              </Button>
+              <form.Subscribe
+                selector={(s) => ({
+                  canSubmit: s.canSubmit,
+                  isSubmitting: s.isSubmitting,
+                })}
+              >
+                {({ canSubmit, isSubmitting }) => (
+                  <Button type="submit" variant="primary" isDisabled={!canSubmit}>
+                    {isSubmitting ? "Adding…" : "Add node"}
+                  </Button>
+                )}
+              </form.Subscribe>
+            </div>
+          </form>
         )}
-      </main>
-    </div>
+      </div>
+
+      {!created && (
+        <form.Subscribe selector={(s) => s.values.api_secret}>
+          {(apiSecret) => <ServerSetup apiSecret={apiSecret} />}
+        </form.Subscribe>
+      )}
+    </PageShell>
   );
 }
 

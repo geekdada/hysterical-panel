@@ -25,7 +25,16 @@ import {
   granularityForLocalRange,
   type LocalDateRange,
 } from "~/lib/traffic-range";
-import { Dot, PanelMessage, Section, SortableTh, TableSkeleton, Td } from "~/components/ui";
+import {
+  BackLink,
+  Dot,
+  PageShell,
+  PanelMessage,
+  Section,
+  SortableTh,
+  TableSkeleton,
+  Td,
+} from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, relTime } from "~/lib/format";
 
@@ -75,67 +84,64 @@ function AnalyticsPage() {
   const updatedAt = overviewQuery.dataUpdatedAt || null;
 
   return (
-    <div className="min-h-svh bg-(--background) text-(--foreground)">
-      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
-        <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-[13px] font-semibold tracking-tight">Analytics</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-(--muted)">
-            {updatedAt !== null && (
-              <span
-                className="hidden tabular-nums sm:inline"
-                title={new Date(updatedAt).toLocaleString()}
-              >
-                Updated {relTime(updatedAt, now)}
-              </span>
-            )}
-            <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
-            {auth && <UserMenu auth={auth} />}
-          </div>
+    <PageShell
+      headerLeft={
+        <div className="flex min-w-0 items-center gap-3">
+          <BackLink />
+          <span className="truncate text-[13px] font-semibold tracking-tight">Analytics</span>
         </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
-        {queryErrors.map((error) => (
-          <div
-            key={error.key}
-            className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-            role="alert"
-          >
-            <Dot tone="error" />
-            <span>{error.message}</span>
-          </div>
-        ))}
-
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[13px] font-semibold text-(--foreground)">Traffic</h2>
-          {trafficRange ? (
-            <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
-          ) : (
-            <div
-              className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
-              aria-hidden
-            />
+      }
+      headerRight={
+        <div className="flex items-center gap-3 text-xs text-(--muted)">
+          {updatedAt !== null && (
+            <span
+              className="hidden tabular-nums sm:inline"
+              title={new Date(updatedAt).toLocaleString()}
+            >
+              Updated {relTime(updatedAt, now)}
+            </span>
           )}
+          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          {auth && <UserMenu auth={auth} />}
         </div>
+      }
+    >
+      {queryErrors.map((error) => (
+        <div
+          key={error.key}
+          className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
+          role="alert"
+        >
+          <Dot tone="error" />
+          <span>{error.message}</span>
+        </div>
+      ))}
 
-        <RangeTrafficSection
-          loading={rangeLoading}
-          error={rangeError}
-          series={series}
-          trafficRange={trafficRange}
-        />
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[13px] font-semibold text-(--foreground)">Traffic</h2>
+        {trafficRange ? (
+          <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
+        ) : (
+          <div
+            className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
+            aria-hidden
+          />
+        )}
+      </div>
 
-        <NodeBreakdownSection
-          loading={rangeLoading}
-          error={rangeError}
-          rows={nodeTraffic?.by_node ?? []}
-        />
-      </main>
-    </div>
+      <RangeTrafficSection
+        loading={rangeLoading}
+        error={rangeError}
+        series={series}
+        trafficRange={trafficRange}
+      />
+
+      <NodeBreakdownSection
+        loading={rangeLoading}
+        error={rangeError}
+        rows={nodeTraffic?.by_node ?? []}
+      />
+    </PageShell>
   );
 }
 

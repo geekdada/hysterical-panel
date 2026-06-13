@@ -12,7 +12,16 @@ import {
   queryKeys,
   REFRESH_MS,
 } from "~/api/queries";
-import { Dot, PanelMessage, Section, TableSkeleton, Td, Th } from "~/components/ui";
+import {
+  BackLink,
+  Dot,
+  PageShell,
+  PanelMessage,
+  Section,
+  TableSkeleton,
+  Td,
+  Th,
+} from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, relTime } from "~/lib/format";
 
@@ -78,85 +87,82 @@ function DatabasePage() {
   }
 
   return (
-    <div className="min-h-svh bg-(--background) text-(--foreground)">
-      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
-        <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-[13px] font-semibold tracking-tight">
-                Database management
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-(--muted)">
-            {updatedAt !== null && (
-              <span
-                className="hidden tabular-nums sm:inline"
-                title={new Date(updatedAt).toLocaleString()}
-              >
-                Updated {relTime(updatedAt, now)}
-              </span>
-            )}
-            <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
-            {auth && <UserMenu auth={auth} />}
-          </div>
+    <PageShell
+      headerLeft={
+        <div className="flex min-w-0 items-center gap-3">
+          <BackLink />
+          <span className="truncate text-[13px] font-semibold tracking-tight">
+            Database management
+          </span>
         </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
-        {error && (
-          <div
-            className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-            role="alert"
-          >
-            <Dot tone="error" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <SummaryRail
-          loading={loading}
-          storageBytes={storage?.total_bytes ?? 0}
-          hourly={hourly?.points ?? 0}
-          daily={daily?.points ?? 0}
-          pruneEligible={pruneEligible}
-        />
-
-        <Section
-          title="Traffic data points"
-          meta={stats?.cutoff ? `Retention cutoff ${formatCutoff(stats.cutoff)}` : undefined}
-        >
-          <TrafficTableSection loading={loading} tables={tables} />
-        </Section>
-
-        <Section title="Storage footprint">
-          <StorageTable loading={loading} files={files} totalBytes={storage?.total_bytes ?? 0} />
-        </Section>
-
-        <Section
-          title="Maintenance"
-          meta="Deletes only traffic_hourly and traffic_daily rows"
-          action={
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={pruneEligible <= 0 || pruneMutation.isPending}
-              onPress={handlePrune}
-              className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
+      }
+      headerRight={
+        <div className="flex items-center gap-3 text-xs text-(--muted)">
+          {updatedAt !== null && (
+            <span
+              className="hidden tabular-nums sm:inline"
+              title={new Date(updatedAt).toLocaleString()}
             >
-              {pruneMutation.isPending ? "Deleting..." : "Delete >30 days"}
-            </Button>
-          }
+              Updated {relTime(updatedAt, now)}
+            </span>
+          )}
+          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          {auth && <UserMenu auth={auth} />}
+        </div>
+      }
+    >
+      {error && (
+        <div
+          className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
+          role="alert"
         >
-          <MaintenancePanel
-            cutoff={stats?.cutoff ?? ""}
-            pruneEligible={pruneEligible}
-            pruneError={pruneError}
-            result={pruneMutation.data ?? null}
-          />
-        </Section>
-      </main>
-    </div>
+          <Dot tone="error" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <SummaryRail
+        loading={loading}
+        storageBytes={storage?.total_bytes ?? 0}
+        hourly={hourly?.points ?? 0}
+        daily={daily?.points ?? 0}
+        pruneEligible={pruneEligible}
+      />
+
+      <Section
+        title="Traffic data points"
+        meta={stats?.cutoff ? `Retention cutoff ${formatCutoff(stats.cutoff)}` : undefined}
+      >
+        <TrafficTableSection loading={loading} tables={tables} />
+      </Section>
+
+      <Section title="Storage footprint">
+        <StorageTable loading={loading} files={files} totalBytes={storage?.total_bytes ?? 0} />
+      </Section>
+
+      <Section
+        title="Maintenance"
+        meta="Deletes only traffic_hourly and traffic_daily rows"
+        action={
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={pruneEligible <= 0 || pruneMutation.isPending}
+            onPress={handlePrune}
+            className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
+          >
+            {pruneMutation.isPending ? "Deleting..." : "Delete >30 days"}
+          </Button>
+        }
+      >
+        <MaintenancePanel
+          cutoff={stats?.cutoff ?? ""}
+          pruneEligible={pruneEligible}
+          pruneError={pruneError}
+          result={pruneMutation.data ?? null}
+        />
+      </Section>
+    </PageShell>
   );
 }
 

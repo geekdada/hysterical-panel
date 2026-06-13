@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvitationsRouteImport } from './routes/invitations'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
@@ -44,6 +45,11 @@ const LoginRoute = LoginRouteImport.update({
 const InvitationsRoute = InvitationsRouteImport.update({
   id: '/invitations',
   path: '/invitations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DatabaseRoute = DatabaseRouteImport.update({
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/database': typeof DatabaseRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/database': typeof DatabaseRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -108,6 +116,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/database': typeof DatabaseRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/database'
+    | '/forgot-password'
     | '/invitations'
     | '/login'
     | '/register'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/database'
+    | '/forgot-password'
     | '/invitations'
     | '/login'
     | '/register'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/database'
+    | '/forgot-password'
     | '/invitations'
     | '/login'
     | '/register'
@@ -163,6 +175,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
   DatabaseRoute: typeof DatabaseRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/invitations'
       fullPath: '/invitations'
       preLoaderRoute: typeof InvitationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/database': {
@@ -259,6 +279,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   DatabaseRoute: DatabaseRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,

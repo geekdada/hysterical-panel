@@ -22,8 +22,10 @@ import {
   toTrafficRangeQuery,
 } from "~/api/queries";
 import {
+  Brand,
   CopyButton,
   Dot,
+  PageShell,
   PanelMessage,
   Section,
   SortableTh,
@@ -185,159 +187,146 @@ function DashboardPage() {
   const totalRx = panelTraffic?.total?.rx ?? 0;
 
   return (
-    <div className="min-h-svh bg-(--background) text-(--foreground)">
-      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
-        <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-2">
-            <span className="grid size-5 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
-              H
+    <PageShell
+      headerLeft={<Brand />}
+      headerRight={
+        <div className="flex items-center gap-3 text-xs text-(--muted)">
+          {updatedAt !== null && (
+            <span
+              className="hidden tabular-nums sm:inline"
+              title={new Date(updatedAt).toLocaleString()}
+            >
+              Updated {relTime(updatedAt, now)}
             </span>
-            <span className="text-[13px] font-semibold tracking-tight">Hysterical Panel</span>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-(--muted)">
-            {updatedAt !== null && (
-              <span
-                className="hidden tabular-nums sm:inline"
-                title={new Date(updatedAt).toLocaleString()}
-              >
-                Updated {relTime(updatedAt, now)}
-              </span>
-            )}
-            <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
-            {auth && <UserMenu auth={auth} />}
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
-        {queryErrors.map((error) => (
-          <div
-            key={error.key}
-            className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-            role="alert"
-          >
-            <Dot tone="error" />
-            <span>{error.message}</span>
-          </div>
-        ))}
-
-        {/* Summary rail: one connected strip, not free-floating metric cards. */}
-        <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
-          <Stat label="Nodes" loading={nodesLoading} value={nodesError ? "—" : nodes.length}>
-            {nodesError ? (
-              <span className="text-(--danger)">Unavailable</span>
-            ) : (
-              `${enabledNodes.length} enabled`
-            )}
-          </Stat>
-          <Stat
-            label="Healthy"
-            loading={nodesLoading}
-            value={nodesError ? "—" : healthyNodes.length}
-            dot={<Dot tone={healthyTone} />}
-          >
-            {nodesError ? (
-              <span className="text-(--danger)">Unavailable</span>
-            ) : errorNodes.length > 0 ? (
-              <span className="text-(--danger)">{errorNodes.length} down</span>
-            ) : enabledNodes.length > 0 ? (
-              `of ${enabledNodes.length} enabled`
-            ) : null}
-          </Stat>
-          <Stat label="Users" loading={usersLoading} value={usersError ? "—" : users.length}>
-            {usersError ? (
-              <span className="text-(--danger)">Unavailable</span>
-            ) : (
-              `${activeUsers.length} active`
-            )}
-          </Stat>
-          <Stat
-            label="Traffic"
-            loading={trafficLoading}
-            value={trafficError ? "—" : formatBytes(totalTx + totalRx)}
-            headerAction={<TrafficPeriodToggle value={trafficPeriod} onChange={setTrafficPeriod} />}
-          >
-            {trafficError ? (
-              <span className="text-(--danger)">Unavailable</span>
-            ) : (
-              <span className="font-mono">
-                <span className="text-(--muted)">↑</span> {formatBytes(totalTx)}
-                <span className="mx-1.5 opacity-40">·</span>
-                <span className="text-(--muted)">↓</span> {formatBytes(totalRx)}
-              </span>
-            )}
-          </Stat>
-        </div>
-
-        <Section
-          title="Nodes"
-          meta={
-            !nodesLoading && !nodesError && nodes.length > 0
-              ? `${nodes.length} ${plural(nodes.length, "node")} · ${enabledNodes.length} enabled`
-              : undefined
-          }
-          action={
-            isAdmin ? (
-              <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/nodes/new" })}>
-                Add node
-              </Button>
-            ) : undefined
-          }
-        >
-          {nodesLoading ? (
-            <TableSkeleton />
-          ) : nodes.length > 0 ? (
-            <NodesTable
-              nodes={nodes}
-              now={now}
-              todayTrafficByNode={nodeTrafficById}
-              todayTrafficLoading={nodeTrafficLoading}
-              todayTrafficUnavailable={Boolean(nodeTrafficError)}
-            />
-          ) : nodesError ? (
-            <PanelMessage>Couldn't load nodes.</PanelMessage>
-          ) : (
-            <Teaching
-              title="No nodes yet"
-              hint="Add a node's API URL and secret to start collecting traffic."
-              action={
-                isAdmin ? (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onPress={() => navigate({ to: "/nodes/new" })}
-                  >
-                    Add your first node
-                  </Button>
-                ) : undefined
-              }
-            />
           )}
-        </Section>
-
-        <Section
-          title="Users"
-          meta={
-            !usersLoading && !usersError && users.length > 0
-              ? `${users.length} ${plural(users.length, "user")} · ${activeUsers.length} active`
-              : undefined
-          }
+          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          {auth && <UserMenu auth={auth} />}
+        </div>
+      }
+    >
+      {queryErrors.map((error) => (
+        <div
+          key={error.key}
+          className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
+          role="alert"
         >
-          {usersLoading ? (
-            <TableSkeleton />
-          ) : users.length > 0 ? (
-            <UsersTable users={users} />
-          ) : usersError ? (
-            <PanelMessage>Couldn't load users.</PanelMessage>
+          <Dot tone="error" />
+          <span>{error.message}</span>
+        </div>
+      ))}
+
+      {/* Summary rail: one connected strip, not free-floating metric cards. */}
+      <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
+        <Stat label="Nodes" loading={nodesLoading} value={nodesError ? "—" : nodes.length}>
+          {nodesError ? (
+            <span className="text-(--danger)">Unavailable</span>
           ) : (
-            <Teaching
-              title="No users yet"
-              hint="Create a user to issue a Hysteria auth key and track its traffic."
-            />
+            `${enabledNodes.length} enabled`
           )}
-        </Section>
-      </main>
-    </div>
+        </Stat>
+        <Stat
+          label="Healthy"
+          loading={nodesLoading}
+          value={nodesError ? "—" : healthyNodes.length}
+          dot={<Dot tone={healthyTone} />}
+        >
+          {nodesError ? (
+            <span className="text-(--danger)">Unavailable</span>
+          ) : errorNodes.length > 0 ? (
+            <span className="text-(--danger)">{errorNodes.length} down</span>
+          ) : enabledNodes.length > 0 ? (
+            `of ${enabledNodes.length} enabled`
+          ) : null}
+        </Stat>
+        <Stat label="Users" loading={usersLoading} value={usersError ? "—" : users.length}>
+          {usersError ? (
+            <span className="text-(--danger)">Unavailable</span>
+          ) : (
+            `${activeUsers.length} active`
+          )}
+        </Stat>
+        <Stat
+          label="Traffic"
+          loading={trafficLoading}
+          value={trafficError ? "—" : formatBytes(totalTx + totalRx)}
+          headerAction={<TrafficPeriodToggle value={trafficPeriod} onChange={setTrafficPeriod} />}
+        >
+          {trafficError ? (
+            <span className="text-(--danger)">Unavailable</span>
+          ) : (
+            <span className="font-mono">
+              <span className="text-(--muted)">↑</span> {formatBytes(totalTx)}
+              <span className="mx-1.5 opacity-40">·</span>
+              <span className="text-(--muted)">↓</span> {formatBytes(totalRx)}
+            </span>
+          )}
+        </Stat>
+      </div>
+
+      <Section
+        title="Nodes"
+        meta={
+          !nodesLoading && !nodesError && nodes.length > 0
+            ? `${nodes.length} ${plural(nodes.length, "node")} · ${enabledNodes.length} enabled`
+            : undefined
+        }
+        action={
+          isAdmin ? (
+            <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/nodes/new" })}>
+              Add node
+            </Button>
+          ) : undefined
+        }
+      >
+        {nodesLoading ? (
+          <TableSkeleton />
+        ) : nodes.length > 0 ? (
+          <NodesTable
+            nodes={nodes}
+            now={now}
+            todayTrafficByNode={nodeTrafficById}
+            todayTrafficLoading={nodeTrafficLoading}
+            todayTrafficUnavailable={Boolean(nodeTrafficError)}
+          />
+        ) : nodesError ? (
+          <PanelMessage>Couldn't load nodes.</PanelMessage>
+        ) : (
+          <Teaching
+            title="No nodes yet"
+            hint="Add a node's API URL and secret to start collecting traffic."
+            action={
+              isAdmin ? (
+                <Button size="sm" variant="primary" onPress={() => navigate({ to: "/nodes/new" })}>
+                  Add your first node
+                </Button>
+              ) : undefined
+            }
+          />
+        )}
+      </Section>
+
+      <Section
+        title="Users"
+        meta={
+          !usersLoading && !usersError && users.length > 0
+            ? `${users.length} ${plural(users.length, "user")} · ${activeUsers.length} active`
+            : undefined
+        }
+      >
+        {usersLoading ? (
+          <TableSkeleton />
+        ) : users.length > 0 ? (
+          <UsersTable users={users} />
+        ) : usersError ? (
+          <PanelMessage>Couldn't load users.</PanelMessage>
+        ) : (
+          <Teaching
+            title="No users yet"
+            hint="Create a user to issue a Hysteria auth key and track its traffic."
+          />
+        )}
+      </Section>
+    </PageShell>
   );
 }
 
