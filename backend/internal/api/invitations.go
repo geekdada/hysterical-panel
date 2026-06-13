@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -10,6 +11,28 @@ import (
 
 	"hysterical-panel/internal/token"
 )
+
+// generateUniqueInviteCode mints a short alphanumeric invite code, retrying on
+// the chance of a collision with an existing code. Six characters keep the code
+// easy to share by hand while the unique check guards against the larger
+// collision odds of the smaller space.
+func (h *Handlers) generateUniqueInviteCode() (string, error) {
+	for i := 0; i < 8; i++ {
+		candidate, err := token.Alphanumeric(6)
+		if err != nil {
+			return "", err
+		}
+		existing, _ := h.app.FindFirstRecordByFilter(
+			"invitations",
+			"code = {:c}",
+			map[string]any{"c": candidate},
+		)
+		if existing == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("could not generate a unique invite code")
+}
 
 // invalidInviteReason is the pure core of invite validity, kept record-free so
 // it can be unit-tested directly. It returns "" when the invite is usable.
@@ -91,7 +114,7 @@ func (h *Handlers) createInvitation(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	code, err := token.New(18)
+	code, err := h.generateUniqueInviteCode()
 	if err != nil {
 		return apis.NewBadRequestError("failed to generate invite code", err)
 	}
