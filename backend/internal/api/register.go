@@ -42,7 +42,7 @@ func registrationDecision(s settings) (allowed, codeRequired bool) {
 // (astronomically unlikely) chance of a collision with an existing user.
 func (h *Handlers) generateUniqueAuthString() (string, error) {
 	for i := 0; i < 8; i++ {
-		candidate, err := token.New(24)
+		candidate, err := token.Alphanumeric(16)
 		if err != nil {
 			return "", err
 		}

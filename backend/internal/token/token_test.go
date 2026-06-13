@@ -46,3 +46,43 @@ func TestNewRejectsNonPositive(t *testing.T) {
 		t.Error("New(-1) expected error, got nil")
 	}
 }
+
+var alnum = regexp.MustCompile(`^[A-Za-z0-9]+$`)
+
+func TestAlphanumericShape(t *testing.T) {
+	for _, n := range []int{1, 16, 32, 100} {
+		tok, err := Alphanumeric(n)
+		if err != nil {
+			t.Fatalf("Alphanumeric(%d) error: %v", n, err)
+		}
+		if len(tok) != n {
+			t.Errorf("Alphanumeric(%d) length = %d, want %d", n, len(tok), n)
+		}
+		if !alnum.MatchString(tok) {
+			t.Errorf("Alphanumeric(%d) = %q contains non-alphanumeric chars", n, tok)
+		}
+	}
+}
+
+func TestAlphanumericIsRandom(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 1000; i++ {
+		tok, err := Alphanumeric(16)
+		if err != nil {
+			t.Fatalf("Alphanumeric error: %v", err)
+		}
+		if seen[tok] {
+			t.Fatalf("collision after %d iterations: %q", i, tok)
+		}
+		seen[tok] = true
+	}
+}
+
+func TestAlphanumericRejectsNonPositive(t *testing.T) {
+	if _, err := Alphanumeric(0); err == nil {
+		t.Error("Alphanumeric(0) expected error, got nil")
+	}
+	if _, err := Alphanumeric(-1); err == nil {
+		t.Error("Alphanumeric(-1) expected error, got nil")
+	}
+}
