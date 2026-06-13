@@ -109,6 +109,12 @@ docker run --rm \
 
 注册端点限流（按 IP），不进 `openapi.json` 的 secured 范围（标记为无需鉴权）。
 
+### 找回密码（PocketBase 内置端点，无自定义后端代码）
+
+前端 `/forgot-password` 直接调 PocketBase 内置 `POST /api/collections/users/request-password-reset`（请求体 `{email}`），无论邮箱是否存在都返回 `204`（内置反枚举 + 单账号 2 分钟重发节流）。重置确认页 `/reset-password?token=` 调内置 `POST /api/collections/users/confirm-password-reset`（请求体 `{token,password,passwordConfirm}`）；成功后若 token 内邮箱与记录一致还会顺带置 `verified=true`。这两个内置端点不触发 `OnRecordAuthRequest`，故不受 `status`/`verified` 门禁阻挡（`disabled` 用户可重置但仍无法登录）。
+
+**部署需做一次配置**：默认重置邮件链接指向 PocketBase 后台（`{APP_URL}/_/#/auth/confirm-password-reset/{TOKEN}`）。要让链接落到前端重置页，请在 `/_/` 后台把 **Settings → Application URL** 设为前端域名，并把 users collection 的 **Reset password** 邮件模板链接改成 `{APP_URL}/reset-password?token={TOKEN}`。同样依赖 SMTP；未配置 SMTP 则找回密码不可用。
+
 ### Hysteria 回调 `POST /api/hysteria/auth`（供 Hysteria 节点调用）
 
 给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<client-auth-key>","tx":1000000}`；后端按 `auth` 在 `users.auth_string` 里查匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<auth_string>"}`，其它返回非 200。返回的 `id` 故意回填为 `auth_string`，让节点后续 `/traffic` 上报的 key 与采集器查询用的字段一致。
@@ -131,7 +137,7 @@ auth:
 
 该路由**不**进 `openapi.json`：它由 Hysteria 节点调用，不是前端 client 的一部分。
 
-> 邮件（邀请信、邮箱验证信）走 PocketBase 内置 SMTP（在 `/_/` 后台 Settings → Mail 配置），无新增环境变量。未配置 SMTP 时邀请接口仍返回 `link` 供手动分享，但开放无码注册因依赖验证邮件而不可用。
+> 邮件（邀请信、邮箱验证信）走 PocketBase 内置 SMTP（在 `/_/` 后台 Settings → Mail 配置），无新增环境变量。未配置 SMTP 时邀请接口仍返回 `link` 供手动分享，但开放无码注册因依赖验证邮件而不可用。找回密码邮件同样走内置 SMTP，但用的是 PocketBase 自带的 **Reset password** 模板（需按上文把链接改指向前端 `/reset-password`），不经 `mailer.go`。
 
 ## 结构
 

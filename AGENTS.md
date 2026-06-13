@@ -134,7 +134,7 @@ hysterical-panel/
     ├── tsconfig.json           路径别名 ~/* → src/*
     └── src/
         ├── api/                client.ts(openapi-fetch) / auth.ts(含 register/confirmVerification) / cookie.ts / guards.ts / queries.ts / schema.d.ts(生成)
-        ├── routes/             文件式路由（index / login / register / verify / settings / invitations / nodes / users）
+        ├── routes/             文件式路由（index / login / register / verify / forgot-password / reset-password / settings / invitations / nodes / users）
         ├── components/         traffic.tsx（图表）/ ui.tsx / user-menu.tsx（admin 入口：settings / invitations）
         ├── lib/format.ts       展示格式化（字节 / 时间）
         └── styles/globals.css  设计 token（覆盖 HeroUI v3 默认）
@@ -209,6 +209,8 @@ hysterical-panel/
 ### 公开接口（无需登录）
 
 `POST /api/panel/register` — 自助注册（进 OpenAPI，标记无需鉴权）。访问与是否要码由 `app_settings` + `registrationDecision` 决定；`verified := codeRequired`；经码自动登录（返回 token+record），开放无码发验证邮件并返回 `{requires_verification:true}`（依赖 SMTP，未配 503）。强制 `role=user`/`status=active`，`auth_string` 系统生成。按 IP 限流。邮箱验证由前端 `/verify` 调 PocketBase 内置 `POST /api/collections/users/confirm-verification` 完成（非本项目自建端点）。
+
+**找回密码**（无自建后端代码，纯走 PocketBase 内置）：前端 `/forgot-password` 调内置 `POST /api/collections/users/request-password-reset`（`{email}`，恒 204，内置反枚举 + 2 分钟重发节流）；`/reset-password?token=` 调内置 `POST /api/collections/users/confirm-password-reset`（`{token,password,passwordConfirm}`，成功且 token 邮箱匹配会顺带置 `verified=true`）。两端点不触发 `OnRecordAuthRequest`，不受 `bindAuthGate` 阻挡（`disabled` 用户可重置但仍无法登录）。前端函数在 `src/api/auth.ts` 的 `requestPasswordReset`/`confirmPasswordReset`。**部署须一次性配置**：把 PocketBase `Settings → Application URL` 设为前端域名，并把 users collection 的 **Reset password** 邮件模板链接由默认的 `{APP_URL}/_/#/auth/confirm-password-reset/{TOKEN}` 改成 `{APP_URL}/reset-password?token={TOKEN}`，否则邮件链接落到 PocketBase 后台而非前端重置页。该模板邮件走内置 SMTP，不经 `mailer.go`。
 
 `POST /api/hysteria/auth` — Hysteria 2 节点 `auth.type: http` 回调，每次客户端连接时触发。按请求体 `auth` 在 `users.auth_string` 查匹配，命中且 `status=active` 且 `verified=true` → `200 {"ok":true,"id":"<auth_string>"}`；查无此人 401；存在但 disabled 或未验证 403；缺 `auth`/非法 JSON 400。返回的 `id` **故意回填为 `auth_string`**，让节点后续 `/traffic` 上报的 key 与采集器查询字段一致（见 `hysteria_auth.go` 注释）。**绝不记录 `auth` 值本身**（凭据），只记 addr 与拒绝原因。该路由不进 OpenAPI。
 
