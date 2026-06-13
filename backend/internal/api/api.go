@@ -164,11 +164,25 @@ func requireActiveSelf() *hook.Handler[*core.RequestEvent] {
 // It fires on every auth response (password, refresh, OAuth2, OTP), so a
 // disabled user can neither sign in nor keep refreshing an existing token.
 func (h *Handlers) bindAuthGate() {
-	h.app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
-		if e.Record == nil || e.Record.GetString("status") != "active" {
+	blockDisabled := func(record *core.Record) error {
+		if record == nil || record.GetString("status") != "active" {
 			return apis.NewForbiddenError("account is disabled", nil)
 		}
+		return nil
+	}
+
+	h.app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
+		if err := blockDisabled(e.Record); err != nil {
+			return err
+		}
 		if err := h.rejectPasswordForPasskeyUser(e); err != nil {
+			return err
+		}
+		return e.Next()
+	})
+
+	h.app.OnRecordAuthRefreshRequest("users").BindFunc(func(e *core.RecordAuthRefreshRequestEvent) error {
+		if err := blockDisabled(e.Record); err != nil {
 			return err
 		}
 		return e.Next()
