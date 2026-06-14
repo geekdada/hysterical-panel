@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
 import { Check, Copy } from "@gravity-ui/icons";
 import { Card } from "@heroui/react";
+import type { UsersListSearch } from "~/lib/users-list-search";
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
 
@@ -36,15 +37,25 @@ export function PageShell({
   );
 }
 
-// "← Dashboard" link placed to the left of the title on secondary pages, for
-// returning to the dashboard home. Pair it with the page title in headerLeft.
-export function BackLink() {
+// "← <label>" link placed to the left of the title on secondary pages, for
+// returning to a parent page. Defaults to the dashboard home; pass `to`/`label`
+// (and optional `search`) to point it elsewhere, e.g. back to the users list.
+export function BackLink({
+  to = "/",
+  label = "Dashboard",
+  search,
+}: {
+  to?: string;
+  label?: string;
+  search?: UsersListSearch;
+}) {
   return (
     <Link
-      to="/"
+      to={to}
+      search={search}
       className="flex place-items-center rounded-[5px] px-3 py-0.5 border border-(--border) bg-(--surface-secondary) text-[11px] text-(--foreground) transition-colors duration-150 hover:bg-(--surface-tertiary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
     >
-      ← Dashboard
+      ← {label}
     </Link>
   );
 }
@@ -108,6 +119,52 @@ export function Th({ children, className = "" }: { children?: ReactNode; classNa
       className={`px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted) ${className}`}
     >
       {children}
+    </th>
+  );
+}
+
+export function ServerSortableTh({
+  columnId,
+  sort,
+  onSort,
+  children,
+  align = "left",
+  className = "",
+}: {
+  columnId: string;
+  sort: string;
+  onSort: (columnId: string) => void;
+  children: ReactNode;
+  align?: "left" | "right";
+  className?: string;
+}) {
+  const activeId = sort.startsWith("-") ? sort.slice(1) : sort;
+  const desc = sort.startsWith("-");
+  const sorted = activeId === columnId ? (desc ? "desc" : "asc") : false;
+  const ariaSort = sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none";
+
+  return (
+    <th
+      aria-sort={ariaSort}
+      className={`px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted) ${className}`}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(columnId)}
+        className={`inline-flex items-center gap-1 rounded-sm uppercase transition-colors duration-150 hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+          align === "right" ? "ml-auto justify-end" : ""
+        }`}
+      >
+        <span>{children}</span>
+        <span
+          aria-hidden
+          className={`inline-block w-3 text-center font-mono text-[10px] ${
+            sorted ? "text-(--foreground)" : "text-(--muted)"
+          }`}
+        >
+          {sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : "↕"}
+        </span>
+      </button>
     </th>
   );
 }

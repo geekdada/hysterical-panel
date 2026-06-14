@@ -15,7 +15,7 @@ import {
   fetchDashboardNodeTraffic,
   fetchDashboardNodes,
   fetchDashboardTraffic,
-  fetchDashboardUsers,
+  fetchUserStats,
   queryErrorMessage,
   queryKeys,
   REFRESH_MS,
@@ -23,7 +23,6 @@ import {
 } from "~/api/queries";
 import {
   Brand,
-  CopyButton,
   Dot,
   PageShell,
   PanelMessage,
@@ -42,12 +41,12 @@ import {
   type TrafficRangeShortcut,
   trafficShortcutRange,
 } from "~/lib/traffic-range";
+import { defaultUsersListSearch, type UsersListSearch } from "~/lib/users-list-search";
 
 type Node = components["schemas"]["Node"];
 type NodeTodayTraffic = NonNullable<
   components["schemas"]["PanelNodeTrafficResponse"]["by_node"]
 >[number];
-type PanelUser = components["schemas"]["PanelUser"];
 type NodeTableRow = {
   node: Node;
   rxSpeed: number;
@@ -55,13 +54,6 @@ type NodeTableRow = {
   todayTotal: number;
   todayTraffic?: NodeTodayTraffic;
   txSpeed: number;
-};
-type UserTableRow = {
-  email: string;
-  rx: number;
-  status: string;
-  tx: number;
-  user: PanelUser;
 };
 
 export const Route = createFileRoute("/")({
@@ -98,9 +90,9 @@ function DashboardPage() {
     enabled: queryEnabled,
     refetchInterval: REFRESH_MS,
   });
-  const usersQuery = useQuery({
-    queryKey: queryKeys.dashboardUsers(),
-    queryFn: fetchDashboardUsers,
+  const userStatsQuery = useQuery({
+    queryKey: queryKeys.userStats(),
+    queryFn: fetchUserStats,
     enabled: queryEnabled,
     refetchInterval: REFRESH_MS,
   });
@@ -137,15 +129,15 @@ function DashboardPage() {
   }, []);
 
   const nodes = nodesQuery.data ?? [];
-  const users = usersQuery.data ?? [];
+  const userStats = userStatsQuery.data ?? null;
   const panelTraffic = trafficQuery.data ?? null;
   const nodeTrafficSummary = nodeTrafficSummaryQuery.data ?? null;
   const nodesLoading = nodesQuery.isPending;
-  const usersLoading = usersQuery.isPending;
+  const usersLoading = userStatsQuery.isPending;
   const trafficLoading = trafficQuery.isPending;
   const nodeTrafficLoading = nodeTrafficRange === null || nodeTrafficSummaryQuery.isPending;
   const nodesError = nodesQuery.error ? queryErrorMessage(nodesQuery.error) : "";
-  const usersError = usersQuery.error ? queryErrorMessage(usersQuery.error) : "";
+  const usersError = userStatsQuery.error ? queryErrorMessage(userStatsQuery.error) : "";
   const trafficError = trafficQuery.error ? queryErrorMessage(trafficQuery.error) : "";
   const nodeTrafficError = nodeTrafficSummaryQuery.error
     ? queryErrorMessage(nodeTrafficSummaryQuery.error)
@@ -165,7 +157,7 @@ function DashboardPage() {
   const updatedAt =
     Math.max(
       nodesQuery.dataUpdatedAt,
-      usersQuery.dataUpdatedAt,
+      userStatsQuery.dataUpdatedAt,
       trafficQuery.dataUpdatedAt,
       nodeTrafficSummaryQuery.dataUpdatedAt
     ) || null;
@@ -180,7 +172,7 @@ function DashboardPage() {
   const enabledNodes = nodes.filter((n) => n.enabled);
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
   const errorNodes = enabledNodes.filter((n) => n.health === "error");
-  const activeUsers = users.filter((u) => u.status === "active");
+  const activeUsers = userStats?.active ?? 0;
   const healthyTone =
     nodesError || errorNodes.length > 0 ? "error" : healthyNodes.length > 0 ? "ok" : "idle";
   const totalTx = panelTraffic?.total?.tx ?? 0;
@@ -238,11 +230,17 @@ function DashboardPage() {
             `of ${enabledNodes.length} enabled`
           ) : null}
         </Stat>
-        <Stat label="Users" loading={usersLoading} value={usersError ? "—" : users.length}>
+        <Stat
+          label="Users"
+          loading={usersLoading}
+          value={usersError ? "—" : (userStats?.total ?? 0)}
+          href="/users"
+          linkSearch={defaultUsersListSearch()}
+        >
           {usersError ? (
             <span className="text-(--danger)">Unavailable</span>
           ) : (
-            `${activeUsers.length} active`
+            `${activeUsers} active`
           )}
         </Stat>
         <Stat
@@ -304,28 +302,6 @@ function DashboardPage() {
           />
         )}
       </Section>
-
-      <Section
-        title="Users"
-        meta={
-          !usersLoading && !usersError && users.length > 0
-            ? `${users.length} ${plural(users.length, "user")} · ${activeUsers.length} active`
-            : undefined
-        }
-      >
-        {usersLoading ? (
-          <TableSkeleton />
-        ) : users.length > 0 ? (
-          <UsersTable users={users} />
-        ) : usersError ? (
-          <PanelMessage>Couldn't load users.</PanelMessage>
-        ) : (
-          <Teaching
-            title="No users yet"
-            hint="Create a user to issue a Hysteria auth key and track its traffic."
-          />
-        )}
-      </Section>
     </PageShell>
   );
 }
@@ -383,6 +359,8 @@ function Stat({
   dot,
   children,
   headerAction,
+  href,
+  linkSearch,
 }: {
   label: string;
   value: ReactNode;
@@ -390,7 +368,13 @@ function Stat({
   dot?: ReactNode;
   children?: ReactNode;
   headerAction?: ReactNode;
+  href?: string;
+  linkSearch?: UsersListSearch;
 }) {
+  const valueContent = (
+    <span className="whitespace-nowrap text-xl font-semibold tabular-nums">{value}</span>
+  );
+
   return (
     <div className="flex-1 px-4 py-3">
       <div className="flex justify-between gap-2">
@@ -404,7 +388,17 @@ function Stat({
       ) : (
         <>
           <div className="mt-0.5 flex items-baseline gap-2">
-            <span className="whitespace-nowrap text-xl font-semibold tabular-nums">{value}</span>
+            {href ? (
+              <Link
+                to={href}
+                search={linkSearch}
+                className="rounded-sm transition-colors duration-150 hover:text-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+              >
+                {valueContent}
+              </Link>
+            ) : (
+              valueContent
+            )}
             {dot}
           </div>
           {children && (
@@ -657,118 +651,4 @@ function NodeState({
     return <span className="text-xs text-(--muted)">Healthy</span>;
   }
   return <span className="text-xs text-(--muted)">Never polled</span>;
-}
-
-function UsersTable({ users }: { users: PanelUser[] }) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: "email", desc: false }]);
-  const rows = useMemo<UserTableRow[]>(
-    () =>
-      users.map((user) => ({
-        email: user.email ?? "",
-        rx: user.used_rx ?? 0,
-        status: user.status ?? "active",
-        tx: user.used_tx ?? 0,
-        user,
-      })),
-    [users]
-  );
-  const columns = useMemo<ColumnDef<UserTableRow>[]>(
-    () => [
-      {
-        accessorKey: "email",
-        id: "email",
-        sortDescFirst: false,
-      },
-      {
-        accessorKey: "tx",
-        id: "tx",
-        sortDescFirst: false,
-      },
-      {
-        accessorKey: "rx",
-        id: "rx",
-        sortDescFirst: false,
-      },
-      {
-        accessorKey: "status",
-        id: "status",
-        sortDescFirst: false,
-      },
-    ],
-    []
-  );
-  const table = useReactTable({
-    columns,
-    data: rows,
-    enableMultiSort: false,
-    enableSortingRemoval: false,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: { sorting },
-  });
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-[13px]">
-        <thead>
-          <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-            <SortableTh column={table.getColumn("email")!}>Email</SortableTh>
-            <Th>Auth key</Th>
-            <SortableTh column={table.getColumn("tx")!} align="right" className="text-right">
-              TX
-            </SortableTh>
-            <SortableTh column={table.getColumn("rx")!} align="right" className="text-right">
-              RX
-            </SortableTh>
-            <SortableTh column={table.getColumn("status")!} align="right" className="text-right">
-              Status
-            </SortableTh>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-(--separator)">
-          {table.getRowModel().rows.map((row) => {
-            const { user } = row.original;
-            const active = (user.status ?? "active") === "active";
-            return (
-              <tr
-                key={user.id}
-                className={`transition-colors duration-150 hover:bg-(--surface-secondary) ${active ? "" : "opacity-60"}`}
-              >
-                <Td>
-                  <div className="flex items-center gap-2.5">
-                    <Dot tone={active ? "ok" : "idle"} title={active ? "active" : "disabled"} />
-                    <Link
-                      to="/users/$userId"
-                      params={{ userId: user.id ?? "" }}
-                      className="block max-w-[200px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
-                    >
-                      {user.email || "—"}
-                    </Link>
-                  </div>
-                </Td>
-                <Td>
-                  <div className="group/key flex items-center gap-1.5">
-                    <span className="block max-w-[200px] truncate font-mono text-xs text-(--muted)">
-                      {user.auth_string || "—"}
-                    </span>
-                    {user.auth_string && <CopyButton value={user.auth_string} label="auth key" />}
-                  </div>
-                </Td>
-                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↑</span> {formatBytes(user.used_tx ?? 0)}
-                </Td>
-                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↓</span> {formatBytes(user.used_rx ?? 0)}
-                </Td>
-                <Td className="text-right">
-                  <span className="text-xs text-(--muted)">{active ? "Active" : "Disabled"}</span>
-                </Td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
 }

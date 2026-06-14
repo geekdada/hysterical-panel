@@ -7,11 +7,13 @@ import {
   Envelope,
   Gear,
   Person,
+  Persons,
   ShieldCheck,
 } from "@gravity-ui/icons";
 import type { Key } from "react";
 import { clearAuth, type Auth } from "~/api/auth";
 import { ThemeToggle } from "~/components/theme-toggle";
+import { defaultUsersListSearch } from "~/lib/users-list-search";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 
 export function UserMenu({ auth }: { auth: Auth }) {
@@ -34,6 +36,10 @@ export function UserMenu({ auth }: { auth: Auth }) {
     }
     if (key === "pb-admin") {
       window.open(`${origin}/_/`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (key === "users") {
+      navigate({ to: "/users", search: defaultUsersListSearch() });
       return;
     }
     if (key === "analytics") {
@@ -103,6 +109,12 @@ export function UserMenu({ auth }: { auth: Auth }) {
             <Dropdown.Item id="pb-admin" textValue="PocketBase admin" className={itemClass}>
               <ShieldCheck className={iconClass} aria-hidden />
               <Label className="truncate">PocketBase admin</Label>
+            </Dropdown.Item>
+          )}
+          {auth.user.role === "admin" && (
+            <Dropdown.Item id="users" textValue="Users" className={itemClass}>
+              <Persons className={iconClass} aria-hidden />
+              <Label className="truncate">Users</Label>
             </Dropdown.Item>
           )}
           {auth.user.role === "admin" && (

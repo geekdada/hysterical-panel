@@ -29,6 +29,8 @@ type PanelConfig = components["schemas"]["PanelConfigResponse"];
 type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
 type PanelTraffic = components["schemas"]["PanelTrafficResponse"];
 type PanelUser = components["schemas"]["PanelUser"];
+type UserListResponse = components["schemas"]["UserListResponse"];
+type UserStatsResponse = components["schemas"]["UserStatsResponse"];
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
 type UserLive = components["schemas"]["LiveResponse"];
@@ -69,10 +71,19 @@ export type UserOverviewData = {
   user: PanelUser | null;
 };
 
+export type UsersListQuery = {
+  page: number;
+  per_page: number;
+  search: string;
+  sort: string;
+};
+
 export type AnalyticsOverviewData = {
   nodeTraffic: PanelNodeTraffic | null;
   series: TrafficSeries | null;
 };
+
+export type { UserListResponse, UserStatsResponse };
 
 export const queryKeys = {
   all: ["panel"] as const,
@@ -101,7 +112,17 @@ export const queryKeys = {
     [...queryKeys.dashboardBase(), "nodes", "traffic", range?.from ?? "", range?.to ?? ""] as const,
   dashboardTraffic: (range: TrafficRangeQuery | null) =>
     [...queryKeys.dashboardBase(), "traffic", range?.from ?? "", range?.to ?? ""] as const,
-  dashboardUsers: () => [...queryKeys.dashboardBase(), "users"] as const,
+  userStats: () => [...queryKeys.dashboardBase(), "users", "stats"] as const,
+  usersList: (query: UsersListQuery) =>
+    [
+      ...queryKeys.all,
+      "users",
+      "list",
+      query.page,
+      query.per_page,
+      query.search,
+      query.sort,
+    ] as const,
   databaseStats: () => [...queryKeys.all, "database", "stats"] as const,
   invitations: () => [...queryKeys.all, "invitations"] as const,
   settings: () => [...queryKeys.all, "settings"] as const,
@@ -160,8 +181,23 @@ export function fetchDashboardNodeTraffic(
   );
 }
 
-export function fetchDashboardUsers(): Promise<PanelUser[]> {
-  return apiRequest<PanelUser[]>(apiClient.GET("/api/panel/users"));
+export function fetchUserStats(): Promise<UserStatsResponse> {
+  return apiRequest<UserStatsResponse>(apiClient.GET("/api/panel/users/stats"));
+}
+
+export function fetchUsersList(query: UsersListQuery): Promise<UserListResponse> {
+  return apiRequest<UserListResponse>(
+    apiClient.GET("/api/panel/users", {
+      params: {
+        query: {
+          page: query.page,
+          per_page: query.per_page,
+          search: query.search || undefined,
+          sort: query.sort || undefined,
+        },
+      },
+    })
+  );
 }
 
 export function fetchDashboardTraffic(range: TrafficRangeQuery): Promise<PanelTraffic | null> {

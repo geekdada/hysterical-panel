@@ -44,6 +44,11 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, formatDuration, relTime, relTimeFromISO } from "~/lib/format";
+import {
+  hasUsersListContext,
+  parseUsersListContextSearch,
+  usersListSearchFromContext,
+} from "~/lib/users-list-search";
 
 type PanelUser = components["schemas"]["PanelUser"];
 type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
@@ -51,15 +56,19 @@ type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type UserLive = components["schemas"]["LiveResponse"];
 
 export const Route = createFileRoute("/users/$userId")({
+  validateSearch: parseUsersListContextSearch,
   beforeLoad: ({ context, params }) => requireAdminOrSelf(context.auth, params.userId),
   component: AccountDetailPage,
 });
 
 function AccountDetailPage() {
   const { userId } = Route.useParams();
+  const listContext = Route.useSearch();
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
+  const fromUsersList = isAdmin && hasUsersListContext(listContext);
+  const usersListSearch = usersListSearchFromContext(listContext);
 
   const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -99,7 +108,11 @@ function AccountDetailPage() {
       headerLeft={
         <div className="flex min-w-0 items-center gap-3">
           {isAdmin ? (
-            <BackLink />
+            fromUsersList ? (
+              <BackLink to="/users" label="Users" search={usersListSearch} />
+            ) : (
+              <BackLink />
+            )
           ) : (
             <span className="grid size-5 shrink-0 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
               H
