@@ -75,7 +75,8 @@ docker run --rm \
 | DELETE | `/nodes/{id}` | 删除 |
 | POST | `/nodes/{id}/test` | 立即验证连通性 |
 | GET | `/traffic` | 全局流量汇总（admin）；必填 `from` / `to`（UTC 日桶，含首尾，与 series 同格式） |
-| GET | `/users` | 列表 |
+| GET | `/users` | 分页列表；`?page=1&per_page=25&search=&sort=created`（search 对 email/role/status 子串匹配，auth_string 仅完整相等）→ `{ items, total, page, per_page }` |
+| GET | `/users/stats` | 用户总数与 active 数 `{ total, active }` |
 | POST | `/users` | 新建（email+password+auth_string） |
 | GET | `/users/{id}` | 详情（admin 或本人） |
 | PATCH/DELETE | `/users/{id}` | 改/删 |

@@ -24,6 +24,8 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"NodeUpdateRequest":          NodeUpdateRequest{},
 		"NodeTestResponse":           NodeTestResponse{},
 		"PanelUser":                  PanelUser{},
+		"UserListResponse":           UserListResponse{},
+		"UserStatsResponse":          UserStatsResponse{},
 		"UserCreateRequest":          UserCreateRequest{},
 		"UserUpdateRequest":          UserUpdateRequest{},
 		"Passkey":                    Passkey{},
@@ -585,12 +587,46 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Get: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "listUsers",
-				Summary:     "List all users",
+				Summary:     "List users (paginated)",
 				Tags:        []string{"users"},
+				Parameters: openapi3.Parameters{
+					{
+						Value: &openapi3.Parameter{
+							Name:        "page",
+							In:          "query",
+							Description: "Page number (1-based, default 1)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewIntegerSchema().WithDefault(1)},
+						},
+					},
+					{
+						Value: &openapi3.Parameter{
+							Name:        "per_page",
+							In:          "query",
+							Description: "Page size (25, 50, or 100; default 25)",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewIntegerSchema().WithDefault(25)},
+						},
+					},
+					{
+						Value: &openapi3.Parameter{
+							Name:        "search",
+							In:          "query",
+							Description: "Filter by email, role, or status substring; auth_string exact match only",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
+						},
+					},
+					{
+						Value: &openapi3.Parameter{
+							Name:        "sort",
+							In:          "query",
+							Description: "Sort field (default created). Prefix with - for descending.",
+							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithDefault("created")},
+						},
+					},
+				},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
-						Description: ptr("User list"),
-						Content:     content(arrayRef("PanelUser")),
+						Description: ptr("Paginated user list"),
+						Content:     content(ref("UserListResponse")),
 					},
 				})),
 			}
@@ -615,6 +651,24 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 				})),
 			}
 			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/users/stats", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "getUserStats",
+				Summary:     "Get user count totals",
+				Tags:        []string{"users"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("User totals"),
+						Content:     content(ref("UserStatsResponse")),
+					},
+				})),
+			}
 			withAuth(op)
 			return op
 		}(),

@@ -84,6 +84,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 
 	// users
 	g.GET("/users", h.listUsers).Bind(adminOnly)
+	g.GET("/users/stats", h.getUserStats).Bind(adminOnly)
 	g.POST("/users", h.createUser).Bind(adminOnly)
 	g.GET("/users/{id}", h.getUser).Bind(adminOrSelf)
 	g.PATCH("/users/{id}", h.updateUser).Bind(adminOnly)
@@ -249,6 +250,7 @@ func publicUser(u *core.Record) map[string]any {
 		"used_tx":     u.GetInt("used_tx"),
 		"used_rx":     u.GetInt("used_rx"),
 		"status":      u.GetString("status"),
+		"created":     u.GetString("created"),
 	}
 }
 
@@ -264,6 +266,7 @@ func panelUser(u *core.Record) PanelUser {
 		UsedTx:     int64(u.GetInt("used_tx")),
 		UsedRx:     int64(u.GetInt("used_rx")),
 		Status:     u.GetString("status"),
+		Created:    u.GetString("created"),
 	}
 }
 

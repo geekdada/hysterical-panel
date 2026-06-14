@@ -14,18 +14,6 @@ type userInput struct {
 	Status     *string `json:"status"`
 }
 
-func (h *Handlers) listUsers(e *core.RequestEvent) error {
-	users, err := h.app.FindRecordsByFilter("users", "", "-created", 0, 0)
-	if err != nil {
-		return apis.NewBadRequestError("failed to list users", err)
-	}
-	out := make([]map[string]any, 0, len(users))
-	for _, u := range users {
-		out = append(out, publicUser(u))
-	}
-	return ok(e, out)
-}
-
 func (h *Handlers) getUser(e *core.RequestEvent) error {
 	u, err := h.app.FindRecordById("users", e.Request.PathValue("id"))
 	if err != nil {

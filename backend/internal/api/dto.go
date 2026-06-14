@@ -55,6 +55,21 @@ type PanelUser struct {
 	UsedTx     int64  `json:"used_tx"`
 	UsedRx     int64  `json:"used_rx"`
 	Status     string `json:"status"` // "active" | "disabled"
+	Created    string `json:"created"`
+}
+
+// UserListResponse is the paginated response for GET /users.
+type UserListResponse struct {
+	Items   []PanelUser `json:"items"`
+	Total   int64       `json:"total"`
+	Page    int         `json:"page"`
+	PerPage int         `json:"per_page"`
+}
+
+// UserStatsResponse is the aggregate user count for GET /users/stats.
+type UserStatsResponse struct {
+	Total  int64 `json:"total"`
+	Active int64 `json:"active"`
 }
 
 // UserCreateRequest is the body for POST /users.
