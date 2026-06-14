@@ -31,7 +31,6 @@ import {
   USER_LIST_PAGE_SIZE_OPTIONS,
   parseUsersListSearch,
   toggleUsersListSort,
-  usersListContextFromSearch,
   type UsersListSearch,
 } from "~/lib/users-list-search";
 
@@ -97,7 +96,7 @@ function UsersPage() {
       }
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
-      <Section title="All users" meta={sectionMeta}>
+      <Section className="mt-0" title="All users" meta={sectionMeta}>
         {usersQuery.isPending ? (
           <TableSkeleton />
         ) : listError ? (
@@ -165,8 +164,6 @@ function UsersTable({
     }, 300);
     return () => window.clearTimeout(id);
   }, [searchDraft, listSearch.search, navigate]);
-
-  const listContext = usersListContextFromSearch(listSearch);
 
   return (
     <div>
@@ -246,7 +243,7 @@ function UsersTable({
                         <Link
                           to="/users/$userId"
                           params={{ userId: user.id ?? "" }}
-                          search={listContext}
+                          search={{ from: "users" }}
                           className="block max-w-[200px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
                         >
                           {user.email || "—"}
