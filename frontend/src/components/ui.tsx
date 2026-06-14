@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useCanGoBack, useRouter } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
 import { Check, Copy } from "@gravity-ui/icons";
 import { Card } from "@heroui/react";
+import { cn } from "~/lib/cn";
 import type { UsersListSearch } from "~/lib/users-list-search";
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
@@ -37,24 +38,38 @@ export function PageShell({
   );
 }
 
+const backLinkClassName =
+  "flex place-items-center rounded-[5px] px-3 py-0.5 border border-(--border) bg-(--surface-secondary) text-[11px] text-(--foreground) transition-colors duration-150 hover:bg-(--surface-tertiary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)";
+
 // "← <label>" link placed to the left of the title on secondary pages, for
 // returning to a parent page. Defaults to the dashboard home; pass `to`/`label`
 // (and optional `search`) to point it elsewhere, e.g. back to the users list.
+// With `preferHistoryBack`, pops the router history when safe instead of pushing
+// a new entry (e.g. returning from a user detail opened from the users list).
 export function BackLink({
   to = "/",
   label = "Dashboard",
   search,
+  preferHistoryBack = false,
 }: {
   to?: string;
   label?: string;
   search?: UsersListSearch;
+  preferHistoryBack?: boolean;
 }) {
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+
+  if (preferHistoryBack && canGoBack) {
+    return (
+      <button type="button" onClick={() => router.history.back()} className={backLinkClassName}>
+        ← {label}
+      </button>
+    );
+  }
+
   return (
-    <Link
-      to={to}
-      search={search}
-      className="flex place-items-center rounded-[5px] px-3 py-0.5 border border-(--border) bg-(--surface-secondary) text-[11px] text-(--foreground) transition-colors duration-150 hover:bg-(--surface-tertiary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
-    >
+    <Link to={to} search={search} className={backLinkClassName}>
       ← {label}
     </Link>
   );
@@ -86,15 +101,17 @@ export function Section({
   title,
   meta,
   action,
+  className,
   children,
 }: {
   title: string;
   meta?: ReactNode;
   action?: ReactNode;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="mt-6">
+    <section className={cn("mt-6", className)}>
       <div className="mb-2 flex flex-col gap-2 px-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <h2 className="shrink-0 text-[13px] font-semibold text-(--foreground)">{title}</h2>
@@ -116,7 +133,10 @@ export function Section({
 export function Th({ children, className = "" }: { children?: ReactNode; className?: string }) {
   return (
     <th
-      className={`px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted) ${className}`}
+      className={cn(
+        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted)",
+        className
+      )}
     >
       {children}
     </th>
@@ -146,7 +166,10 @@ export function ServerSortableTh({
   return (
     <th
       aria-sort={ariaSort}
-      className={`px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted) ${className}`}
+      className={cn(
+        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted)",
+        className
+      )}
     >
       <button
         type="button"
@@ -186,7 +209,10 @@ export function SortableTh<TData>({
   return (
     <th
       aria-sort={ariaSort}
-      className={`px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted) ${className}`}
+      className={cn(
+        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted)",
+        className
+      )}
     >
       <button
         type="button"
@@ -210,7 +236,7 @@ export function SortableTh<TData>({
 }
 
 export function Td({ children, className = "" }: { children?: ReactNode; className?: string }) {
-  return <td className={`px-3 py-2 align-middle ${className}`}>{children}</td>;
+  return <td className={cn("px-3 py-2 align-middle", className)}>{children}</td>;
 }
 
 /* ── State / feedback ──────────────────────────────────────────────────── */
