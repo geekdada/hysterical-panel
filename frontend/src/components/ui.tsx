@@ -39,7 +39,7 @@ export function PageShell({
 }
 
 const backLinkClassName =
-  "flex place-items-center rounded-[5px] px-3 py-0.5 border border-(--border) bg-(--surface-secondary) text-[11px] text-(--foreground) transition-colors duration-150 hover:bg-(--surface-tertiary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)";
+  "inline-flex cursor-pointer place-items-center rounded-[5px] border border-(--border) bg-(--surface-secondary) px-3 py-0.5 text-[11px] text-(--foreground) no-underline transition-colors duration-150 hover:bg-(--surface-tertiary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)";
 
 // "← <label>" link placed to the left of the title on secondary pages, for
 // returning to a parent page. Defaults to the dashboard home; pass `to`/`label`
@@ -59,17 +59,21 @@ export function BackLink({
 }) {
   const router = useRouter();
   const canGoBack = useCanGoBack();
-
-  if (preferHistoryBack && canGoBack) {
-    return (
-      <button type="button" onClick={() => router.history.back()} className={backLinkClassName}>
-        ← {label}
-      </button>
-    );
-  }
+  const useHistoryBack = preferHistoryBack && canGoBack;
 
   return (
-    <Link to={to} search={search} className={backLinkClassName}>
+    <Link
+      to={to}
+      search={search}
+      activeOptions={{ exact: true }}
+      className={backLinkClassName}
+      onClick={(e) => {
+        if (useHistoryBack) {
+          e.preventDefault();
+          router.history.back();
+        }
+      }}
+    >
       ← {label}
     </Link>
   );
