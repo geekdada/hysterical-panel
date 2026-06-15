@@ -1,19 +1,22 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Description, Label, Switch } from "@heroui/react";
-import { ChevronRight, Database } from "@gravity-ui/icons";
+import { Button, Description, Label, Switch } from "@heroui/react";
+import { ChevronRight, Code, Database } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import {
   canQueryPanelApi,
   fetchSettings,
   queryErrorMessage,
   queryKeys,
+  rotateManagementApiToken,
   updateSettings,
   type AppSettings,
   type SettingsUpdateRequest,
 } from "~/api/queries";
-import { BackLink, PageShell } from "~/components/ui";
+import { BackLink, CopyButton, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { cn } from "~/lib/cn";
 
 export const Route = createFileRoute("/settings")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -61,24 +64,15 @@ function SettingsPage() {
     >
       <div className="mb-5">
         <h1 className="text-base font-semibold tracking-tight">Registration</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">
-          Control who can create accounts. Changes take effect immediately.
-        </p>
+        <p className="mt-0.5 text-[13px] text-(--muted)">Control who can create accounts.</p>
       </div>
 
-      {loadError && (
-        <div
-          className="mb-4 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-          role="alert"
-        >
-          {loadError}
-        </div>
-      )}
+      <ErrorAlert message={loadError} className="mb-4" />
 
       <div className="flex flex-col gap-1 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
         <SettingSwitch
           label="Invitation system"
-          description="Let admins generate invite codes that allow people to register."
+          description="Generate invite codes that let people sign up."
           isSelected={settings?.invitations_enabled ?? false}
           isDisabled={!settings || mutation.isPending}
           onChange={(v) => patch("invitations_enabled", v)}
@@ -86,15 +80,15 @@ function SettingsPage() {
         <div className="my-1 h-px bg-(--separator)" />
         <SettingSwitch
           label="Open registration"
-          description="Let anyone create an account without an invite code."
+          description="Anyone can sign up without an invite code."
           isSelected={settings?.open_registration ?? false}
           isDisabled={!settings || mutation.isPending}
           onChange={(v) => patch("open_registration", v)}
         />
         <div className="my-1 h-px bg-(--separator)" />
         <SettingSwitch
-          label="Require invite code for open registration"
-          description="When open registration is on, still require a valid invite code. Needs the invitation system enabled."
+          label="Require invite code"
+          description="Open sign-ups still need a valid code. Requires the invitation system."
           isSelected={settings?.require_invite_for_open ?? false}
           isDisabled={!settings || mutation.isPending || !(settings?.invitations_enabled ?? false)}
           onChange={(v) => patch("require_invite_for_open", v)}
@@ -103,24 +97,15 @@ function SettingsPage() {
 
       {settings?.open_registration && !settings.require_invite_for_open && (
         <p className="mt-3 text-xs text-(--muted)">
-          Open registration without an invite code requires email verification, which needs SMTP
-          configured in the PocketBase admin. Until SMTP is set up, those sign-ups are rejected.
+          Sign-ups without a code must verify their email, which needs SMTP set up in the PocketBase
+          admin. Until then, those sign-ups are rejected.
         </p>
-      )}
-
-      {saveError && (
-        <div
-          className="mt-4 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-          role="alert"
-        >
-          {saveError}
-        </div>
       )}
 
       <div className="mt-8 mb-5">
         <h1 className="text-base font-semibold tracking-tight">Database</h1>
         <p className="mt-0.5 text-[13px] text-(--muted)">
-          Inspect storage usage and prune old traffic data.
+          Keep traffic data from piling up over time.
         </p>
       </div>
 
@@ -136,7 +121,7 @@ function SettingsPage() {
             Database management
           </span>
           <span className="block text-xs text-(--muted)">
-            Storage footprint, traffic data points, and maintenance.
+            View storage usage and prune old data points.
           </span>
         </span>
         <ChevronRight
@@ -144,6 +129,14 @@ function SettingsPage() {
           aria-hidden
         />
       </Link>
+
+      <ManagementApiSection
+        settings={settings}
+        pending={mutation.isPending}
+        onSave={(patch) => mutation.mutate(patch)}
+        error={saveError}
+        newToken={mutation.data?.management_api_token}
+      />
     </PageShell>
   );
 }
@@ -176,5 +169,153 @@ function SettingSwitch({
         <Switch.Thumb />
       </Switch.Control>
     </Switch>
+  );
+}
+
+function ManagementApiSection({
+  settings,
+  pending,
+  error,
+  onSave,
+  newToken,
+}: {
+  settings: AppSettings | undefined;
+  pending: boolean;
+  error: string;
+  onSave: (patch: SettingsUpdateRequest) => void;
+  newToken?: string;
+}) {
+  const queryClient = useQueryClient();
+  const [revealedToken, setRevealedToken] = useState<string | null>(null);
+
+  const enabled = settings?.management_api_enabled ?? false;
+  const tokenSet = settings?.management_api_token_set ?? false;
+
+  // Surface a freshly generated/rotated token exactly once.
+  useEffect(() => {
+    if (newToken) setRevealedToken(newToken);
+  }, [newToken]);
+
+  const rotateMutation = useMutation({
+    mutationFn: () => rotateManagementApiToken(),
+    onSuccess: (data) => {
+      if (data.management_api_token) setRevealedToken(data.management_api_token);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings() });
+    },
+  });
+
+  function toggleEnabled(v: boolean) {
+    onSave({ management_api_enabled: v });
+  }
+
+  return (
+    <>
+      <div className="mt-8 mb-5">
+        <h1 className="text-base font-semibold tracking-tight">Management API</h1>
+        <p className="mt-0.5 text-[13px] text-(--muted)">
+          Let external services manage resources on this platform.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+        <SettingSwitch
+          label="Enable management API"
+          description={
+            enabled
+              ? "The /api/mgmt/* endpoints are served, authenticated by a server-generated token."
+              : "Turning this on generates a token shown once. Copy it before leaving this page."
+          }
+          isSelected={enabled}
+          isDisabled={!settings || pending}
+          onChange={toggleEnabled}
+        />
+
+        {tokenSet && (
+          <>
+            <div className="h-px bg-(--separator)" />
+
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[13px]">
+                <span className="text-success font-semibold">Configured</span>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={pending || rotateMutation.isPending}
+                onPress={() => rotateMutation.mutate()}
+              >
+                {rotateMutation.isPending ? "Rotating…" : "Rotate token"}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {revealedToken && (
+        <div className="mt-4 rounded-(--radius) border border-(--warning) bg-(--warning-soft) px-4 py-3">
+          <p className="text-[13px] font-semibold text-(--warning-soft-foreground)">
+            Copy your token now. It won't be shown again.
+          </p>
+          <div className="group/key relative mt-2">
+            <pre className="overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 pr-9 font-mono text-xs leading-relaxed text-(--foreground)">
+              {revealedToken}
+            </pre>
+            <div className="absolute right-2 top-2">
+              <CopyButton value={revealedToken} label="token" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Link
+        to="/management-api"
+        className="group mt-3 flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+      >
+        <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
+          <Code className="size-4" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium text-(--foreground)">API reference</span>
+          <span className="block text-xs text-(--muted)">
+            Endpoints with request and response examples.
+          </span>
+        </span>
+        <ChevronRight
+          className="size-4 shrink-0 text-(--muted) transition-colors duration-150 group-hover:text-(--foreground)"
+          aria-hidden
+        />
+      </Link>
+
+      <ErrorAlert message={error} className="mt-4" />
+
+      <ErrorAlert
+        className="mt-4"
+        message={
+          rotateMutation.error
+            ? queryErrorMessage(
+                rotateMutation.error,
+                "Network error while rotating the management API token."
+              )
+            : ""
+        }
+      />
+    </>
+  );
+}
+
+// ErrorAlert renders a danger banner, or nothing when there is no message.
+// The caller supplies the margin (mt-4 / mb-4) via className.
+function ErrorAlert({ message, className }: { message: string; className?: string }) {
+  if (!message) return null;
+  return (
+    <div
+      className={cn(
+        "rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)",
+        className
+      )}
+      role="alert"
+    >
+      {message}
+    </div>
   );
 }

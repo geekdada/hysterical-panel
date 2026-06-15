@@ -13,6 +13,7 @@ import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ManagementApiRouteImport } from './routes/management-api'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -42,6 +43,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManagementApiRoute = ManagementApiRouteImport.update({
+  id: '/management-api',
+  path: '/management-api',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
+  '/management-api': typeof ManagementApiRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
+  '/management-api': typeof ManagementApiRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
+  '/management-api': typeof ManagementApiRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/invitations'
     | '/login'
+    | '/management-api'
     | '/register'
     | '/reset-password'
     | '/settings'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/invitations'
     | '/login'
+    | '/management-api'
     | '/register'
     | '/reset-password'
     | '/settings'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/invitations'
     | '/login'
+    | '/management-api'
     | '/register'
     | '/reset-password'
     | '/settings'
@@ -202,6 +214,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
+  ManagementApiRoute: typeof ManagementApiRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
@@ -240,6 +253,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/management-api': {
+      id: '/management-api'
+      path: '/management-api'
+      fullPath: '/management-api'
+      preLoaderRoute: typeof ManagementApiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -322,6 +342,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
+  ManagementApiRoute: ManagementApiRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,

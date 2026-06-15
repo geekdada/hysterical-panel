@@ -38,8 +38,15 @@ type Invitation = components["schemas"]["Invitation"];
 type InvitationCreateRequest = components["schemas"]["InvitationCreateRequest"];
 type AppSettings = components["schemas"]["SettingsResponse"];
 type SettingsUpdateRequest = components["schemas"]["SettingsUpdateRequest"];
+type ManagementAPIToken = components["schemas"]["ManagementAPITokenResponse"];
 
-export type { Invitation, InvitationCreateRequest, AppSettings, SettingsUpdateRequest };
+export type {
+  Invitation,
+  InvitationCreateRequest,
+  AppSettings,
+  SettingsUpdateRequest,
+  ManagementAPIToken,
+};
 
 export const REFRESH_MS = 20_000;
 
@@ -362,6 +369,14 @@ export function updateSettings(body: SettingsUpdateRequest): Promise<AppSettings
     apiClient.PATCH("/api/panel/settings", { body }),
     "Couldn't update settings.",
     "Network error while updating settings."
+  );
+}
+
+export function rotateManagementApiToken(): Promise<ManagementAPIToken> {
+  return apiRequest<ManagementAPIToken>(
+    apiClient.POST("/api/panel/management-api/rotate"),
+    "Couldn't rotate the management API token.",
+    "Network error while rotating the management API token."
   );
 }
 
