@@ -11,6 +11,8 @@ import {
   localRangeToUtcQuery,
   type LocalDateRange,
 } from "~/lib/traffic-range";
+import { localizeApiError } from "~/lib/api-error";
+import * as m from "~/paraglide/messages.js";
 
 type ApiResult<T> = {
   data?: T;
@@ -247,8 +249,8 @@ export function fetchDatabaseStats(): Promise<DatabaseStats | null> {
 export function pruneDatabaseTraffic(): Promise<DatabasePrune> {
   return apiRequest<DatabasePrune>(
     apiClient.POST("/api/panel/database/prune"),
-    "Couldn't delete old traffic data.",
-    "Network error while deleting old traffic data."
+    m.error_database_prune(),
+    m.error_database_prune_network()
   );
 }
 
@@ -327,8 +329,8 @@ export function fetchNodeLive(nodeId: string): Promise<NodeLive | null> {
     apiClient.GET("/api/panel/nodes/{id}/live", {
       params: { path: { id: nodeId } },
     }),
-    "Couldn't reach the panel API.",
-    "Network error while fetching streams."
+    m.error_api_unreachable(),
+    m.error_streams_network()
   );
 }
 
@@ -337,16 +339,16 @@ export function fetchUserLive(userId: string): Promise<UserLive | null> {
     apiClient.GET("/api/panel/users/{id}/live", {
       params: { path: { id: userId } },
     }),
-    "Couldn't reach the panel API.",
-    "Network error while fetching streams."
+    m.error_api_unreachable(),
+    m.error_streams_network()
   );
 }
 
 export function createNode(body: NodeCreateRequest): Promise<Node> {
   return apiRequest<Node>(
     apiClient.POST("/api/panel/nodes", { body }),
-    "Couldn't create the node.",
-    "Network error while creating the node."
+    m.error_node_create(),
+    m.error_node_create_network()
   );
 }
 
@@ -355,43 +357,43 @@ export function testNode(nodeId: string): Promise<NodeTest> {
     apiClient.POST("/api/panel/nodes/{id}/test", {
       params: { path: { id: nodeId } },
     }),
-    "Couldn't run the connectivity test.",
-    "Network error while testing the node."
+    m.error_node_test(),
+    m.error_node_test_network()
   );
 }
 
 export function fetchSettings(): Promise<AppSettings> {
-  return apiRequest<AppSettings>(apiClient.GET("/api/panel/settings"), "Couldn't load settings.");
+  return apiRequest<AppSettings>(apiClient.GET("/api/panel/settings"), m.error_settings_load());
 }
 
 export function updateSettings(body: SettingsUpdateRequest): Promise<AppSettings> {
   return apiRequest<AppSettings>(
     apiClient.PATCH("/api/panel/settings", { body }),
-    "Couldn't update settings.",
-    "Network error while updating settings."
+    m.error_settings_update(),
+    m.error_settings_update_network()
   );
 }
 
 export function rotateManagementApiToken(): Promise<ManagementAPIToken> {
   return apiRequest<ManagementAPIToken>(
     apiClient.POST("/api/panel/management-api/rotate"),
-    "Couldn't rotate the management API token.",
-    "Network error while rotating the management API token."
+    m.error_mgmt_token_rotate(),
+    m.error_mgmt_token_rotate_network()
   );
 }
 
 export function fetchInvitations(): Promise<Invitation[]> {
   return apiRequest<Invitation[]>(
     apiClient.GET("/api/panel/invitations"),
-    "Couldn't load invitations."
+    m.error_invitations_load()
   );
 }
 
 export function createInvitation(body: InvitationCreateRequest): Promise<Invitation> {
   return apiRequest<Invitation>(
     apiClient.POST("/api/panel/invitations", { body }),
-    "Couldn't create the invitation.",
-    "Network error while creating the invitation."
+    m.error_invitation_create(),
+    m.error_invitation_create_network()
   );
 }
 
@@ -400,8 +402,8 @@ export function deleteInvitation(id: string): Promise<{ deleted: boolean }> {
     apiClient.DELETE("/api/panel/invitations/{id}", {
       params: { path: { id } },
     }),
-    "Couldn't delete the invitation.",
-    "Network error while deleting the invitation."
+    m.error_invitation_delete(),
+    m.error_invitation_delete_network()
   );
 }
 
@@ -411,7 +413,7 @@ export function isNotFoundError(error: unknown): boolean {
 
 export function queryErrorMessage(
   error: unknown,
-  networkMessage = "Network error. Retrying on the next refresh."
+  networkMessage = m.error_network_default()
 ): string {
   if (shouldSuppressSessionError() && isSessionAuthError(error)) {
     return "";
@@ -420,26 +422,27 @@ export function queryErrorMessage(
     return "";
   }
   if (error instanceof PanelApiError) {
-    return error.message;
+    return localizeApiError(error.message);
   }
   if (error instanceof Error && error.message) {
-    return error.message;
+    return localizeApiError(error.message);
   }
   return networkMessage;
 }
 
 async function apiRequest<T>(
   request: Promise<unknown>,
-  apiMessage = "Couldn't reach the panel API.",
-  networkMessage = "Network error. Retrying on the next refresh."
+  apiMessage = m.error_api_unreachable(),
+  networkMessage = m.error_network_default()
 ): Promise<T> {
   try {
     const result = (await request) as ApiResult<T>;
     if (result.response.status === 404) {
-      throw new PanelApiError("Not found", 404);
+      throw new PanelApiError(m.error_not_found(), 404);
     }
     if (result.error) {
-      throw new PanelApiError(errorMessage(result.error) || apiMessage, result.response.status);
+      const raw = errorMessage(result.error) || apiMessage;
+      throw new PanelApiError(localizeApiError(raw), result.response.status);
     }
     return (result.data ?? null) as T;
   } catch (error) {

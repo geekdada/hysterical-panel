@@ -8,6 +8,8 @@ import {
 } from "./cookie";
 import { wrapFetchWithSession } from "./session";
 import { fetchPanelConfig, resolveApiBaseUrl } from "./panel-config";
+import { localizeApiError } from "~/lib/api-error";
+import * as m from "~/paraglide/messages.js";
 import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
@@ -111,7 +113,9 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(body.message || `Authentication failed (${res.status})`);
+    throw new Error(
+      localizeApiError(body.message || m.error_auth_failed({ status: String(res.status) }))
+    );
   }
 
   const data = body as AuthResponse;
@@ -147,7 +151,9 @@ export async function register(
 
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(body.message || `Registration failed (${res.status})`);
+    throw new Error(
+      localizeApiError(body.message || m.error_registration_failed({ status: String(res.status) }))
+    );
   }
 
   const result = body as RegisterResult;
@@ -168,7 +174,9 @@ export async function confirmVerification(token: string): Promise<void> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Verification failed (${res.status})`);
+    throw new Error(
+      localizeApiError(body.message || m.error_verification_failed({ status: String(res.status) }))
+    );
   }
 }
 
@@ -186,7 +194,9 @@ export async function requestPasswordReset(email: string): Promise<void> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Could not send reset email (${res.status})`);
+    throw new Error(
+      localizeApiError(body.message || m.error_reset_email_failed({ status: String(res.status) }))
+    );
   }
 }
 
@@ -204,7 +214,11 @@ export async function confirmPasswordReset(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Password reset failed (${res.status})`);
+    throw new Error(
+      localizeApiError(
+        body.message || m.error_password_reset_failed({ status: String(res.status) })
+      )
+    );
   }
 }
 
@@ -307,7 +321,9 @@ async function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Prom
   const res = await sessionFetch(`${base}${path}`, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Request failed (${res.status})`);
+    throw new Error(
+      localizeApiError(body.message || m.error_request_failed({ status: String(res.status) }))
+    );
   }
   return (await res.json()) as T;
 }
