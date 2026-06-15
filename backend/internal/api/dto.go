@@ -147,13 +147,30 @@ type SettingsResponse struct {
 	InvitationsEnabled   bool `json:"invitations_enabled"`
 	OpenRegistration     bool `json:"open_registration"`
 	RequireInviteForOpen bool `json:"require_invite_for_open"`
+	// ManagementAPIEnabled controls the /api/mgmt/* surface. The token hash is
+	// never returned; ManagementAPITokenSet only signals whether a token exists.
+	ManagementAPIEnabled  bool `json:"management_api_enabled"`
+	ManagementAPITokenSet bool `json:"management_api_token_set"`
+	// ManagementAPIToken carries the plaintext token exactly once, only when a
+	// token was just generated or rotated in this response. It is never
+	// populated by a plain GET.
+	ManagementAPIToken string `json:"management_api_token,omitempty"`
 }
 
 // SettingsUpdateRequest is the body for PATCH /settings (all fields optional).
+// The Management API token is always server-generated; use the dedicated
+// rotate endpoint to replace it.
 type SettingsUpdateRequest struct {
 	InvitationsEnabled   *bool `json:"invitations_enabled,omitempty"`
 	OpenRegistration     *bool `json:"open_registration,omitempty"`
 	RequireInviteForOpen *bool `json:"require_invite_for_open,omitempty"`
+	ManagementAPIEnabled *bool `json:"management_api_enabled,omitempty"`
+}
+
+// ManagementAPITokenResponse is returned by POST /management-api/rotate.
+// The plaintext token is shown exactly once.
+type ManagementAPITokenResponse struct {
+	ManagementAPIToken string `json:"management_api_token"`
 }
 
 // ── Passkeys ─────────────────────────────────────────────────────────────────
