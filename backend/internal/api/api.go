@@ -76,6 +76,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	// app settings (registration / invitation feature flags)
 	g.GET("/settings", h.getSettings).Bind(adminOnly)
 	g.PATCH("/settings", h.updateSettings).Bind(adminOnly)
+	g.POST("/management-api/rotate", h.rotateManagementAPIToken).Bind(adminOnly)
 
 	// invitations
 	g.GET("/invitations", h.listInvitations).Bind(adminOnly)
@@ -118,6 +119,15 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	// TypeScript client, but this endpoint is called by Hysteria servers,
 	// not the panel UI.
 	se.Router.POST("/api/hysteria/auth", h.hysteriaAuth)
+
+	// Management API: external integrations (not the panel UI) call these to
+	// look up and create users via a shared bearer token. Gated at runtime by
+	// the management_api_enabled flag and a stored token hash. Kept out of
+	// openapi.go for the same reason as /api/hysteria/auth.
+	mgmt := se.Router.Group("/api/mgmt")
+	mgmt.Bind(h.requireMgmtToken())
+	mgmt.GET("/users", h.mgmtGetUser)
+	mgmt.POST("/users", h.mgmtCreateUser)
 }
 
 // requireAdmin rejects any authenticated user whose role is not "admin".
