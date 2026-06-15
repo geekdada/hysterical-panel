@@ -16,7 +16,7 @@ import { Check, Copy } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import { createNode, queryErrorMessage, queryKeys, testNode } from "~/api/queries";
-import { BackLink, PageShell } from "~/components/ui";
+import { BackLink, ErrorAlert, PageShell } from "~/components/ui";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 
 type Node = components["schemas"]["Node"];
@@ -313,15 +313,7 @@ function AddNodePage() {
               )}
             </form.Field>
 
-            {submitError && (
-              <div
-                className="flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-                role="alert"
-              >
-                <StatusDot tone="error" />
-                <span>{submitError}</span>
-              </div>
-            )}
+            <ErrorAlert message={submitError} icon />
 
             <div className="flex items-center justify-end gap-2 border-t border-(--separator) pt-4">
               <Button variant="ghost" onPress={() => navigate({ to: "/" })}>

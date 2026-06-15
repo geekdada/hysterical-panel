@@ -304,6 +304,55 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
+// ErrorAlert renders a danger banner, or nothing when there is no message. The
+// caller supplies the margin (mb-4 / mt-4) via className — tailwind-merge does
+// not dedupe mt vs mb, so no margin is baked in.
+export function ErrorAlert({
+  message,
+  icon = false,
+  className,
+}: {
+  message: string | null | undefined;
+  icon?: boolean;
+  className?: string;
+}) {
+  if (!message) return null;
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)",
+        className
+      )}
+      role="alert"
+    >
+      {icon && <Dot tone="error" />}
+      <span>{message}</span>
+    </div>
+  );
+}
+
+// CopyableCode is a multi-line monospace block with a copy button in the corner.
+export function CopyableCode({
+  value,
+  label,
+  className,
+}: {
+  value: string;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("group/key relative", className)}>
+      <pre className="overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 pr-9 font-mono text-xs leading-relaxed text-(--foreground)">
+        {value}
+      </pre>
+      <div className="absolute right-2 top-2">
+        <CopyButton value={value} label={label} />
+      </div>
+    </div>
+  );
+}
+
 export function Teaching({
   title,
   hint,

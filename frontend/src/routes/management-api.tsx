@@ -2,7 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { requireAdmin } from "~/api/guards";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
-import { BackLink, CopyButton, PageShell } from "~/components/ui";
+import { BackLink, CopyableCode, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 
 export const Route = createFileRoute("/management-api")({
@@ -154,34 +154,20 @@ function Endpoint({
   );
 }
 
-// A monospace block with a copy button tucked into the corner.
-function CopyablePre({ value, copyLabel }: { value: string; copyLabel: string }) {
-  return (
-    <div className="group/key relative">
-      <pre className="overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 pr-9 font-mono text-xs leading-relaxed text-(--foreground)">
-        {value}
-      </pre>
-      <div className="absolute right-2 top-2">
-        <CopyButton value={value} label={copyLabel} />
-      </div>
-    </div>
-  );
-}
-
 function CodeBlock({ label, code, copyLabel }: { label: string; code: string; copyLabel: string }) {
   return (
     <div>
       <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-(--muted)">
         {label}
       </p>
-      <CopyablePre value={code} copyLabel={copyLabel} />
+      <CopyableCode value={code} label={copyLabel} />
     </div>
   );
 }
 
 // A standalone monospace line (e.g. a header to send), styled like a code block.
 function Code({ children }: { children: string }) {
-  return <CopyablePre value={children} copyLabel="header" />;
+  return <CopyableCode value={children} label="header" />;
 }
 
 // Inline monospace token used within prose (status codes, field names).

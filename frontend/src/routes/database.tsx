@@ -15,6 +15,7 @@ import {
 import {
   BackLink,
   Dot,
+  ErrorAlert,
   PageShell,
   PanelMessage,
   Section,
@@ -90,7 +91,7 @@ function DatabasePage() {
     <PageShell
       headerLeft={
         <div className="flex min-w-0 items-center gap-3">
-          <BackLink />
+          <BackLink preferHistoryBack label="Settings" />
           <span className="truncate text-[13px] font-semibold tracking-tight">
             Database management
           </span>
@@ -111,15 +112,7 @@ function DatabasePage() {
         </div>
       }
     >
-      {error && (
-        <div
-          className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-          role="alert"
-        >
-          <Dot tone="error" />
-          <span>{error}</span>
-        </div>
-      )}
+      <ErrorAlert message={error} icon className="mb-4" />
 
       <SummaryRail
         loading={loading}

@@ -34,6 +34,7 @@ import {
   BackLink,
   CopyButton,
   Dot,
+  ErrorAlert,
   PageShell,
   PanelMessage,
   Section,
@@ -148,15 +149,7 @@ function AccountDetailPage() {
         </div>
       }
     >
-      {error && (
-        <div
-          className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-          role="alert"
-        >
-          <Dot tone="error" />
-          <span>{error}</span>
-        </div>
-      )}
+      <ErrorAlert message={error} icon className="mb-4" />
 
       {notFound ? (
         <Teaching

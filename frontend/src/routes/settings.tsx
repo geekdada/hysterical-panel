@@ -14,9 +14,8 @@ import {
   type AppSettings,
   type SettingsUpdateRequest,
 } from "~/api/queries";
-import { BackLink, CopyButton, PageShell } from "~/components/ui";
+import { BackLink, CopyableCode, ErrorAlert, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { cn } from "~/lib/cn";
 
 export const Route = createFileRoute("/settings")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -256,14 +255,7 @@ function ManagementApiSection({
           <p className="text-[13px] font-semibold text-(--warning-soft-foreground)">
             Copy your token now. It won't be shown again.
           </p>
-          <div className="group/key relative mt-2">
-            <pre className="overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 pr-9 font-mono text-xs leading-relaxed text-(--foreground)">
-              {revealedToken}
-            </pre>
-            <div className="absolute right-2 top-2">
-              <CopyButton value={revealedToken} label="token" />
-            </div>
-          </div>
+          <CopyableCode value={revealedToken} label="token" className="mt-2" />
         </div>
       )}
 
@@ -300,22 +292,5 @@ function ManagementApiSection({
         }
       />
     </>
-  );
-}
-
-// ErrorAlert renders a danger banner, or nothing when there is no message.
-// The caller supplies the margin (mt-4 / mb-4) via className.
-function ErrorAlert({ message, className }: { message: string; className?: string }) {
-  if (!message) return null;
-  return (
-    <div
-      className={cn(
-        "rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)",
-        className
-      )}
-      role="alert"
-    >
-      {message}
-    </div>
   );
 }

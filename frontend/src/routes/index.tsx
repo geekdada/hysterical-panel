@@ -24,6 +24,7 @@ import {
 import {
   Brand,
   Dot,
+  ErrorAlert,
   PageShell,
   PanelMessage,
   Section,
@@ -197,14 +198,7 @@ function DashboardPage() {
       }
     >
       {queryErrors.map((error) => (
-        <div
-          key={error.key}
-          className="mb-4 flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
-          role="alert"
-        >
-          <Dot tone="error" />
-          <span>{error.message}</span>
-        </div>
+        <ErrorAlert key={error.key} message={error.message} icon className="mb-4" />
       ))}
 
       {/* Summary rail: one connected strip, not free-floating metric cards. */}
