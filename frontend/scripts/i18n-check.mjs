@@ -16,7 +16,7 @@ const pathPattern = settings["plugin.inlang.messageFormat"]?.pathPattern;
 
 if (!pathPattern || !pathPattern.includes("{locale}")) {
   console.error(
-    "i18n-check: could not resolve a {locale} path pattern from project.inlang/settings.json",
+    "i18n-check: could not resolve a {locale} path pattern from project.inlang/settings.json"
   );
   process.exit(1);
 }
@@ -89,7 +89,7 @@ for (const locale of locales) {
 
 if (failed) {
   console.error(
-    `\ni18n-check failed: ${allKeys.size} keys × ${locales.length} locales (${locales.join(", ")}) are not fully translated.`,
+    `\ni18n-check failed: ${allKeys.size} keys × ${locales.length} locales (${locales.join(", ")}) are not fully translated.`
   );
   process.exit(1);
 }

@@ -110,7 +110,8 @@ const en = {
   auth_login_failed: "Login failed",
   auth_passkey_login_failed: "Passkey login failed",
   auth_create_your_account: "Create your account",
-  auth_registration_closed: "Registration is currently closed. Ask an administrator for an invitation.",
+  auth_registration_closed:
+    "Registration is currently closed. Ask an administrator for an invitation.",
   auth_back_to_sign_in: "Back to sign in",
   auth_check_email: "Check your email",
   auth_verification_failed_send:
@@ -126,7 +127,8 @@ const en = {
   auth_reset_password: "Reset your password",
   auth_reset_email_sent_intro:
     "If an account exists for that email, we sent a password reset link. Open it to choose a new password.",
-  auth_reset_enter_email: "Enter your account email and we'll send you a link to reset your password.",
+  auth_reset_enter_email:
+    "Enter your account email and we'll send you a link to reset your password.",
   auth_sending: "Sending…",
   auth_send_reset_link: "Send reset link",
   auth_could_not_send_reset: "Could not send reset email",
@@ -147,7 +149,8 @@ const en = {
   auth_email_verified_sign_in: "You can now sign in to your account.",
   auth_verification_link_invalid: "This verification link is invalid or has expired.",
 
-  session_renewal_message: "Session needs renewal. Reconnect to keep working without signing in again.",
+  session_renewal_message:
+    "Session needs renewal. Reconnect to keep working without signing in again.",
   session_reconnecting: "Reconnecting…",
   session_use_passkey: "Use passkey",
   session_account_settings: "Account settings",
@@ -176,7 +179,8 @@ const en = {
   settings_open_registration: "Open registration",
   settings_open_registration_desc: "Anyone can sign up without an invite code.",
   settings_require_invite: "Require invite code",
-  settings_require_invite_desc: "Open sign-ups still need a valid code. Requires the invitation system.",
+  settings_require_invite_desc:
+    "Open sign-ups still need a valid code. Requires the invitation system.",
   settings_smtp_note:
     "Sign-ups without a code must verify their email, which needs SMTP set up in the PocketBase admin. Until then, those sign-ups are rejected.",
   settings_database: "Database",
@@ -229,7 +233,8 @@ const en = {
   database_maintenance_deleted_row: "{table}: {count}",
 
   invitations_title: "Invitations",
-  invitations_disabled_banner: "The invitation system is off, so new codes can't be created or used.",
+  invitations_disabled_banner:
+    "The invitation system is off, so new codes can't be created or used.",
   invitations_enable_in_settings: "Enable it in Settings",
   invitations_create_title: "Create invitation",
   invitations_create_description:
@@ -414,7 +419,8 @@ const en = {
 
   node_fallback_title: "Node",
   node_not_found_title: "Node not found",
-  node_not_found_hint: "It may have been deleted. Head back to the dashboard to see the current fleet.",
+  node_not_found_hint:
+    "It may have been deleted. Head back to the dashboard to see the current fleet.",
   node_rail_endpoint: "Endpoint",
   node_rail_poll_interval: "Poll interval",
   node_rail_tx_speed: "TX speed",
@@ -718,7 +724,8 @@ const zh = {
   invitations_disabled_banner: "邀请系统已关闭，无法创建或使用新邀请码。",
   invitations_enable_in_settings: "在设置中启用",
   invitations_create_title: "创建邀请",
-  invitations_create_description: "生成可分享的邀请码。可设置使用次数和过期时间，0 表示不限/永不过期。",
+  invitations_create_description:
+    "生成可分享的邀请码。可设置使用次数和过期时间，0 表示不限/永不过期。",
   invitations_label_email_optional: "邮箱（可选）",
   invitations_placeholder_email: "person@example.com",
   invitations_email_description: "仅作记录；邀请码可用于任意邮箱。",
@@ -756,8 +763,7 @@ const zh = {
   analytics_no_node_traffic: "此时间范围内无节点流量。",
 
   mgmt_api_title: "管理 API",
-  mgmt_api_intro:
-    "供外部服务查询和创建用户的 HTTP 端点。在设置页启用 API；令牌生成后仅显示一次。",
+  mgmt_api_intro: "供外部服务查询和创建用户的 HTTP 端点。在设置页启用 API；令牌生成后仅显示一次。",
   mgmt_api_intro_settings_link: "设置",
   mgmt_api_auth_heading: "认证",
   mgmt_api_auth_bearer_intro: "每个请求以 Bearer 令牌发送已配置的令牌：",
@@ -966,5 +972,8 @@ const zh = {
 };
 
 writeFileSync(new URL("../messages/en.json", import.meta.url), JSON.stringify(en, null, 2) + "\n");
-writeFileSync(new URL("../messages/zh-cn.json", import.meta.url), JSON.stringify(zh, null, 2) + "\n");
+writeFileSync(
+  new URL("../messages/zh-cn.json", import.meta.url),
+  JSON.stringify(zh, null, 2) + "\n"
+);
 console.log(`Wrote ${Object.keys(en).length} message keys`);
