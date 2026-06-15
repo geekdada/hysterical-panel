@@ -12,16 +12,28 @@ import {
   type TrafficRangeShortcut,
 } from "~/lib/traffic-range";
 import { useMounted } from "~/lib/use-mounted";
+import * as m from "~/paraglide/messages.js";
 
-const SHORTCUTS: { key: TrafficRangeShortcut; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "yesterday", label: "Yesterday" },
-  { key: "last-24h", label: "Last 24h" },
-  { key: "last-7d", label: "Last 7d" },
-  { key: "last-14d", label: "Last 14d" },
-  { key: "last-30d", label: "Last 30d" },
-  { key: "this-month", label: "This month" },
-  { key: "last-month", label: "Last month" },
+const SHORTCUT_LABELS: Record<TrafficRangeShortcut, () => string> = {
+  today: () => m.traffic_range_shortcut_today(),
+  yesterday: () => m.traffic_range_shortcut_yesterday(),
+  "last-24h": () => m.traffic_range_shortcut_last_24h(),
+  "last-7d": () => m.traffic_range_shortcut_last_7d(),
+  "last-14d": () => m.traffic_range_shortcut_last_14d(),
+  "last-30d": () => m.traffic_range_shortcut_last_30d(),
+  "this-month": () => m.traffic_range_shortcut_this_month(),
+  "last-month": () => m.traffic_range_shortcut_last_month(),
+};
+
+const SHORTCUTS: { key: TrafficRangeShortcut; label: () => string }[] = [
+  { key: "today", label: SHORTCUT_LABELS.today },
+  { key: "yesterday", label: SHORTCUT_LABELS.yesterday },
+  { key: "last-24h", label: SHORTCUT_LABELS["last-24h"] },
+  { key: "last-7d", label: SHORTCUT_LABELS["last-7d"] },
+  { key: "last-14d", label: SHORTCUT_LABELS["last-14d"] },
+  { key: "last-30d", label: SHORTCUT_LABELS["last-30d"] },
+  { key: "this-month", label: SHORTCUT_LABELS["this-month"] },
+  { key: "last-month", label: SHORTCUT_LABELS["last-month"] },
 ];
 
 const CALENDAR_CELL =
@@ -78,7 +90,7 @@ export function TrafficRangePicker({
         />
       ) : (
         <DateRangePicker
-          aria-label="Traffic period"
+          aria-label={m.traffic_range_aria()}
           className="traffic-range-picker relative w-full min-w-0 sm:w-auto"
           endName="trafficEnd"
           granularity="day"
@@ -97,7 +109,7 @@ export function TrafficRangePicker({
           <DateField.Group className={TRIGGER}>
             <DateField.Suffix className="flex w-full min-w-0 p-0">
               <DateRangePicker.Trigger
-                aria-label={`Traffic period, ${triggerLabel}`}
+                aria-label={m.traffic_range_aria_with_label({ label: triggerLabel })}
                 className="inline-flex w-full min-w-0 items-center gap-1.5 border-0 bg-transparent p-0 font-inherit text-inherit shadow-none outline-none hover:bg-transparent data-[focus-visible=true]:outline-none"
               >
                 <span className="min-w-0 flex-1 truncate text-left text-[11px]">
@@ -134,14 +146,14 @@ export function TrafficRangePicker({
                           : "bg-(--surface-secondary) text-(--muted) transition-colors group-hover:bg-(--surface-tertiary) group-hover:text-(--foreground)"
                       }
                     >
-                      {label}
+                      {label()}
                     </Chip>
                   </button>
                 );
               })}
             </div>
             <div className="mt-4 border-t border-(--separator) pt-4">
-              <RangeCalendar aria-label="Traffic period" className="mx-auto w-full">
+              <RangeCalendar aria-label={m.traffic_range_aria()} className="mx-auto w-full">
                 <RangeCalendar.Header className="mb-2 flex h-7 items-center gap-1">
                   <RangeCalendar.YearPickerTrigger className="inline-flex h-7 min-w-0 flex-1 items-center gap-1 px-2 text-left text-[12px] font-semibold text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) sm:text-[13px]">
                     <RangeCalendar.YearPickerTriggerHeading />

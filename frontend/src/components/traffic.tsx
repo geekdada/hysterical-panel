@@ -8,6 +8,8 @@ import {
   YAxis,
 } from "recharts";
 import { formatBytes } from "~/lib/format";
+import { intlLocale } from "~/lib/locale";
+import * as m from "~/paraglide/messages.js";
 
 export type Granularity = "hourly" | "daily";
 
@@ -30,6 +32,10 @@ export function GranularityToggle({
   onChange: (g: Granularity) => void;
 }) {
   const opts: Granularity[] = ["hourly", "daily"];
+  const labels: Record<Granularity, () => string> = {
+    hourly: () => m.common_hourly(),
+    daily: () => m.common_daily(),
+  };
   return (
     <div className="inline-flex rounded-(--radius) border border-(--border) p-0.5">
       {opts.map((o) => (
@@ -37,14 +43,14 @@ export function GranularityToggle({
           key={o}
           type="button"
           onClick={() => onChange(o)}
-          className={`rounded-[calc(var(--radius)-2px)] px-2.5 py-1 text-xs font-medium capitalize transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+          className={`rounded-[calc(var(--radius)-2px)] px-2.5 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
             value === o
               ? "bg-(--surface-secondary) text-(--foreground)"
               : "text-(--muted) hover:text-(--foreground)"
           }`}
           aria-pressed={value === o}
         >
-          {o}
+          {labels[o]()}
         </button>
       ))}
     </div>
@@ -95,7 +101,7 @@ export function TrafficChart({
         <Area
           type="monotone"
           dataKey="rx"
-          name="RX"
+          name={m.common_th_rx()}
           stackId="t"
           stroke="var(--accent)"
           strokeWidth={1.5}
@@ -106,7 +112,7 @@ export function TrafficChart({
         <Area
           type="monotone"
           dataKey="tx"
-          name="TX"
+          name={m.common_th_tx()}
           stackId="t"
           stroke="var(--muted)"
           strokeWidth={1.5}
@@ -187,8 +193,9 @@ function bucketLabel(bucket: string, granularity: Granularity): string {
   const ms = Date.parse(bucket.replace(" ", "T"));
   if (Number.isNaN(ms)) return bucket;
   const d = new Date(ms);
+  const locale = intlLocale();
   if (granularity === "hourly") {
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   }
-  return d.toLocaleDateString([], { month: "numeric", day: "numeric" });
+  return d.toLocaleDateString(locale, { month: "numeric", day: "numeric" });
 }

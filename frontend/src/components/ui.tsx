@@ -5,6 +5,7 @@ import { Check, Copy } from "@gravity-ui/icons";
 import { Card } from "@heroui/react";
 import { cn } from "~/lib/cn";
 import type { UsersListSearch } from "~/lib/users-list-search";
+import * as m from "~/paraglide/messages.js";
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
 
@@ -48,7 +49,7 @@ const backLinkClassName =
 // a new entry (e.g. returning from a user detail opened from the users list).
 export function BackLink({
   to = "/",
-  label = "Dashboard",
+  label = m.nav_dashboard(),
   search,
   preferHistoryBack = false,
 }: {
@@ -86,7 +87,7 @@ export function Brand() {
       <span className="grid size-5 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
         H
       </span>
-      <span className="text-[13px] font-semibold tracking-tight">Hysterical Panel</span>
+      <span className="text-[13px] font-semibold tracking-tight">{m.app_title()}</span>
     </div>
   );
 }
@@ -287,8 +288,8 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
     <button
       type="button"
       onClick={copy}
-      title={copied ? "Copied" : `Copy ${label}`}
-      aria-label={copied ? "Copied" : `Copy ${label}`}
+      title={copied ? m.common_copy_copied() : m.common_copy_copy({ label })}
+      aria-label={copied ? m.common_copy_copied() : m.common_copy_copy({ label })}
       className={`inline-grid size-5 shrink-0 place-items-center rounded transition-[opacity,color] duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
         copied
           ? "text-(--success) opacity-100"

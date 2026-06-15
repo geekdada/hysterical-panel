@@ -12,17 +12,19 @@ import {
 } from "@gravity-ui/icons";
 import type { Key } from "react";
 import { clearAuth, type Auth } from "~/api/auth";
+import { LocaleToggle } from "~/components/locale-toggle";
 import { ThemeToggle } from "~/components/theme-toggle";
 import { defaultUsersListSearch } from "~/lib/users-list-search";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
+import * as m from "~/paraglide/messages.js";
 
 export function UserMenu({ auth }: { auth: Auth }) {
   const navigate = useNavigate();
   const origin = usePanelApiOrigin();
   const showPbAdmin = auth.user.role === "admin" && origin.length > 0;
   const initial = auth.user.email.trim().charAt(0).toUpperCase() || "U";
-  const roleLabel = auth.user.role === "admin" ? "Admin" : "User";
-  const statusLabel = auth.user.status === "active" ? "Active" : "Disabled";
+  const roleLabel = auth.user.role === "admin" ? m.role_admin() : m.role_user();
+  const statusLabel = auth.user.status === "active" ? m.common_active() : m.common_disabled();
   const itemClass =
     "h-7 rounded-md px-2 text-[13px] text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) data-[focus=true]:bg-(--surface-secondary) data-[hovered=true]:bg-(--surface-secondary)";
   const dangerItemClass =
@@ -65,11 +67,11 @@ export function UserMenu({ auth }: { auth: Auth }) {
       <Button
         variant="ghost"
         size="sm"
-        aria-label="Account menu"
+        aria-label={m.nav_account_menu()}
         className="h-8 max-w-[220px] gap-1.5 rounded-(--radius) border border-transparent px-1.5 pr-2 text-[13px] font-medium text-(--foreground) transition-colors duration-150 hover:border-(--border) hover:bg-(--surface-secondary)"
       >
         <AvatarInitial value={initial} />
-        <span className="min-w-0 truncate sm:hidden">Account</span>
+        <span className="min-w-0 truncate sm:hidden">{m.nav_account()}</span>
         <span className="hidden min-w-0 truncate sm:inline">{auth.user.email}</span>
         <ChevronDown className="size-3 shrink-0 text-(--muted)" aria-hidden />
       </Button>
@@ -101,54 +103,58 @@ export function UserMenu({ auth }: { auth: Auth }) {
         </div>
         <Separator className="my-1 bg-(--separator)" />
         <Dropdown.Menu onAction={handleAction}>
-          <Dropdown.Item id="account" textValue="Your account" className={itemClass}>
+          <Dropdown.Item id="account" textValue={m.nav_your_account()} className={itemClass}>
             <Person className={iconClass} aria-hidden />
-            <Label className="truncate">Your account</Label>
+            <Label className="truncate">{m.nav_your_account()}</Label>
           </Dropdown.Item>
           {showPbAdmin && (
-            <Dropdown.Item id="pb-admin" textValue="PocketBase admin" className={itemClass}>
+            <Dropdown.Item id="pb-admin" textValue={m.nav_pb_admin()} className={itemClass}>
               <ShieldCheck className={iconClass} aria-hidden />
-              <Label className="truncate">PocketBase admin</Label>
+              <Label className="truncate">{m.nav_pb_admin()}</Label>
             </Dropdown.Item>
           )}
           {auth.user.role === "admin" && (
-            <Dropdown.Item id="users" textValue="Users" className={itemClass}>
+            <Dropdown.Item id="users" textValue={m.nav_users()} className={itemClass}>
               <Persons className={iconClass} aria-hidden />
-              <Label className="truncate">Users</Label>
+              <Label className="truncate">{m.nav_users()}</Label>
             </Dropdown.Item>
           )}
           {auth.user.role === "admin" && (
-            <Dropdown.Item id="analytics" textValue="Analytics" className={itemClass}>
+            <Dropdown.Item id="analytics" textValue={m.nav_analytics()} className={itemClass}>
               <ChartColumn className={iconClass} aria-hidden />
-              <Label className="truncate">Analytics</Label>
+              <Label className="truncate">{m.nav_analytics()}</Label>
             </Dropdown.Item>
           )}
           {auth.user.role === "admin" && (
-            <Dropdown.Item id="invitations" textValue="Invitations" className={itemClass}>
+            <Dropdown.Item id="invitations" textValue={m.nav_invitations()} className={itemClass}>
               <Envelope className={iconClass} aria-hidden />
-              <Label className="truncate">Invitations</Label>
+              <Label className="truncate">{m.nav_invitations()}</Label>
             </Dropdown.Item>
           )}
           {auth.user.role === "admin" && (
-            <Dropdown.Item id="settings" textValue="Settings" className={itemClass}>
+            <Dropdown.Item id="settings" textValue={m.nav_settings()} className={itemClass}>
               <Gear className={iconClass} aria-hidden />
-              <Label className="truncate">Settings</Label>
+              <Label className="truncate">{m.nav_settings()}</Label>
             </Dropdown.Item>
           )}
           <Separator className="my-1 bg-(--separator)" />
           <Dropdown.Item
             id="sign-out"
             variant="danger"
-            textValue="Sign out"
+            textValue={m.nav_sign_out()}
             className={dangerItemClass}
           >
             <ArrowRightFromSquare className="size-3.5 shrink-0 text-current" aria-hidden />
-            <Label className="truncate">Sign out</Label>
+            <Label className="truncate">{m.nav_sign_out()}</Label>
           </Dropdown.Item>
         </Dropdown.Menu>
         <Separator className="my-1 bg-(--separator)" />
         <div className="flex items-center justify-between gap-3 px-2 py-1">
-          <span className="text-[13px] text-(--foreground)">Theme</span>
+          <span className="text-[13px] text-(--foreground)">{m.nav_language()}</span>
+          <LocaleToggle />
+        </div>
+        <div className="flex items-center justify-between gap-3 px-2 py-1">
+          <span className="text-[13px] text-(--foreground)">{m.nav_theme()}</span>
           <ThemeToggle />
         </div>
         <div className="mt-1 flex items-center justify-between gap-3 border-t border-(--separator) text-[10px] px-2 pt-1.5 pb-0.5 text-xs leading-4 text-muted/80">
