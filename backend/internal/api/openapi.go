@@ -50,6 +50,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"InvitationCreateRequest":    InvitationCreateRequest{},
 		"SettingsResponse":           SettingsResponse{},
 		"SettingsUpdateRequest":      SettingsUpdateRequest{},
+		"ManagementAPITokenResponse": ManagementAPITokenResponse{},
 	}
 
 	// Generate each schema with its own generator to avoid shared internal
@@ -1049,6 +1050,26 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					Value: &openapi3.Response{
 						Description: ptr("Updated settings"),
 						Content:     content(ref("SettingsResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /management-api/rotate ───────────────────────────────────────────
+	t.Paths.Set("/api/panel/management-api/rotate", &openapi3.PathItem{
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "rotateManagementAPIToken",
+				Summary:     "Generate a new Management API token, replacing any existing one",
+				Tags:        []string{"settings"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("New management API token (shown once)"),
+						Content:     content(ref("ManagementAPITokenResponse")),
 					},
 				})),
 			}

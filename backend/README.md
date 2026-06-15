@@ -138,6 +138,19 @@ auth:
 
 该路由**不**进 `openapi.json`：它由 Hysteria 节点调用，不是前端 client 的一部分。
 
+### 管理接口（Management API）`/api/mgmt/*`（供外部系统调用）
+
+供**外部系统**（非面板前端）通过共享 bearer token 查询与创建用户。**默认关闭**，需管理员在 `/settings` 页面启用。启用时由服务器自动生成 token（明文仅显示一次，需立即复制保存），token 经 SHA-256 哈希存储，无法回读；管理员可随时 rotate。与 `/api/hysteria/auth` 一样不进 `openapi.json`。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/mgmt/users?email=` 或 `?auth_string=` | 按 email 或 Hysteria `auth_string` 精确查询单个用户（二选一，不能同时给）。返回 `PanelUser` 形状（含 `auth_string`，不含任何密码/凭据） |
+| POST | `/api/mgmt/users` | 请求体 `{ email }`，自动生成密码与 `auth_string`（不返回）。返回 `{ id, email, status }`，状态码 **201**。创建后用户需走找回密码流程拿到登录凭证 |
+
+所有 `/api/mgmt/*` 请求必须带 `Authorization: Bearer <token>`。功能未启用时返回 **404**（避免泄露表面存在）；token 缺失或不匹配返回 **401**。
+
+启用方式：`PATCH /api/panel/settings`，置 `management_api_enabled=true`；首次启用时服务器自动生成 token 并在响应 `management_api_token` 字段返回明文（仅此一次）。响应中 `management_api_token_set` 标识当前是否已配置 token。需要更换 token 时调 `POST /api/panel/management-api/rotate`，返回新的明文 token（同样仅一次）。
+
 > 邮件（邀请信、邮箱验证信）走 PocketBase 内置 SMTP（在 `/_/` 后台 Settings → Mail 配置），无新增环境变量。未配置 SMTP 时邀请接口仍返回 `link` 供手动分享，但开放无码注册因依赖验证邮件而不可用。找回密码邮件同样走内置 SMTP，但用的是 PocketBase 自带的 **Reset password** 模板（需按上文把链接改指向前端 `/reset-password`），不经 `mailer.go`。
 
 ## 结构
