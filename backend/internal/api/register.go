@@ -106,24 +106,22 @@ func (h *Handlers) register(e *core.RequestEvent) error {
 		return apis.NewApiError(http.StatusServiceUnavailable, "registration is unavailable: email verification is not configured", nil)
 	}
 
-	coll, err := h.app.FindCollectionByNameOrId("users")
-	if err != nil {
-		return err
-	}
 	authString, err := h.generateUniqueAuthString()
 	if err != nil {
 		return apis.NewBadRequestError("failed to provision account", err)
 	}
 
-	u := core.NewRecord(coll)
-	u.SetEmail(email)
-	u.SetPassword(in.Password)
-	u.SetVerified(verified)
-	u.Set("auth_string", authString)
-	u.Set("role", "user")
-	u.Set("status", "active")
-	u.Set("used_tx", 0)
-	u.Set("used_rx", 0)
+	u, err := h.newUserRecord(newUserParams{
+		Email:      email,
+		Password:   in.Password,
+		AuthString: authString,
+		Role:       "user",
+		Status:     "active",
+		Verified:   verified,
+	})
+	if err != nil {
+		return err
+	}
 	if err := h.app.Save(u); err != nil {
 		return apis.NewBadRequestError("failed to register (email may be taken)", err)
 	}

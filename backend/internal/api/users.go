@@ -1,6 +1,8 @@
 package api
 
 import (
+	"strings"
+
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -22,6 +24,41 @@ func (h *Handlers) getUser(e *core.RequestEvent) error {
 	return ok(e, publicUser(u))
 }
 
+// newUserParams carries resolved field values for a new users record. Callers
+// resolve their own inputs (client-supplied vs system-generated) and any
+// role/status validation first; this helper only builds the record with the
+// shared defaults (trimmed email, zeroed usage counters). The record is
+// returned unsaved so callers keep their own Save error message and side effects.
+type newUserParams struct {
+	Email      string
+	Password   string
+	AuthString string
+	Role       string
+	Status     string
+	Verified   bool
+	QuotaBytes *int64 // nil leaves the field unset
+}
+
+func (h *Handlers) newUserRecord(p newUserParams) (*core.Record, error) {
+	coll, err := h.app.FindCollectionByNameOrId("users")
+	if err != nil {
+		return nil, err
+	}
+	u := core.NewRecord(coll)
+	u.SetEmail(strings.TrimSpace(p.Email))
+	u.SetPassword(p.Password)
+	u.SetVerified(p.Verified)
+	u.Set("auth_string", p.AuthString)
+	u.Set("role", p.Role)
+	u.Set("status", p.Status)
+	if p.QuotaBytes != nil {
+		u.Set("quota_bytes", *p.QuotaBytes)
+	}
+	u.Set("used_tx", 0)
+	u.Set("used_rx", 0)
+	return u, nil
+}
+
 func (h *Handlers) createUser(e *core.RequestEvent) error {
 	var in userInput
 	if err := e.BindBody(&in); err != nil {
@@ -31,14 +68,6 @@ func (h *Handlers) createUser(e *core.RequestEvent) error {
 		in.AuthString == nil || *in.AuthString == "" {
 		return apis.NewBadRequestError("email, password and auth_string are required", nil)
 	}
-	coll, err := h.app.FindCollectionByNameOrId("users")
-	if err != nil {
-		return err
-	}
-	u := core.NewRecord(coll)
-	u.SetEmail(*in.Email)
-	u.SetPassword(*in.Password)
-	u.SetVerified(true)
 	role := strOr(in.Role, "admin")
 	if !validUserRole(role) {
 		return apis.NewBadRequestError("role must be admin or user", nil)
@@ -47,14 +76,18 @@ func (h *Handlers) createUser(e *core.RequestEvent) error {
 	if !validUserStatus(status) {
 		return apis.NewBadRequestError("status must be active or disabled", nil)
 	}
-	u.Set("auth_string", *in.AuthString)
-	u.Set("role", role)
-	u.Set("status", status)
-	if in.QuotaBytes != nil {
-		u.Set("quota_bytes", *in.QuotaBytes)
+	u, err := h.newUserRecord(newUserParams{
+		Email:      *in.Email,
+		Password:   *in.Password,
+		AuthString: *in.AuthString,
+		Role:       role,
+		Status:     status,
+		Verified:   true,
+		QuotaBytes: in.QuotaBytes,
+	})
+	if err != nil {
+		return err
 	}
-	u.Set("used_tx", 0)
-	u.Set("used_rx", 0)
 	if err := h.app.Save(u); err != nil {
 		return apis.NewBadRequestError("failed to create user (email or auth_string may be taken)", err)
 	}

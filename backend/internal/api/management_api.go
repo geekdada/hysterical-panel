@@ -90,10 +90,6 @@ func (h *Handlers) mgmtCreateUser(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("email is required", nil)
 	}
 
-	coll, err := h.app.FindCollectionByNameOrId("users")
-	if err != nil {
-		return err
-	}
 	password, err := token.Alphanumeric(24)
 	if err != nil {
 		return apis.NewBadRequestError("failed to provision account", err)
@@ -103,15 +99,17 @@ func (h *Handlers) mgmtCreateUser(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("failed to provision account", err)
 	}
 
-	u := core.NewRecord(coll)
-	u.SetEmail(email)
-	u.SetPassword(password)
-	u.SetVerified(true)
-	u.Set("auth_string", authString)
-	u.Set("role", "user")
-	u.Set("status", "active")
-	u.Set("used_tx", 0)
-	u.Set("used_rx", 0)
+	u, err := h.newUserRecord(newUserParams{
+		Email:      email,
+		Password:   password,
+		AuthString: authString,
+		Role:       "user",
+		Status:     "active",
+		Verified:   true,
+	})
+	if err != nil {
+		return err
+	}
 	if err := h.app.Save(u); err != nil {
 		return apis.NewBadRequestError("failed to create user (email may be taken)", err)
 	}
