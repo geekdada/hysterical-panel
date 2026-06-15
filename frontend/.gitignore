@@ -8,6 +8,9 @@ dist
 
 # Generated API types (re-generate with: pnpm api:sync)
 src/api/schema.d.ts
+
+# Generated i18n (re-generate by vite dev/build)
+src/paraglide
 .env
 .env.local
 .env.*.local

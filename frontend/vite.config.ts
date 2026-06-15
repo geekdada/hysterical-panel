@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { defineConfig } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
@@ -21,5 +22,18 @@ export default defineConfig({
     // Force bundling so CJS package root isn't loaded by the SSR module runner.
     noExternal: ["@gravity-ui/icons"],
   },
-  plugins: [tanstackStart(), nitro(), viteReact(), tailwindcss()],
+  plugins: [
+    paraglideVitePlugin({
+      project: "./project.inlang",
+      outdir: "./src/paraglide",
+      outputStructure: "message-modules",
+      cookieName: "hp:locale",
+      strategy: ["cookie", "preferredLanguage", "baseLocale"],
+      emitTsDeclarations: true,
+    }),
+    tanstackStart(),
+    nitro(),
+    viteReact(),
+    tailwindcss(),
+  ],
 });
