@@ -1,9 +1,10 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { requireAdmin } from "~/api/guards";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 import { BackLink, CopyableCode, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/management-api")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -51,67 +52,68 @@ function ManagementApiDocsPage() {
       width="narrow"
       headerLeft={
         <div className="flex min-w-0 items-center gap-3">
-          <BackLink to="/settings" label="Settings" />
-          <span className="truncate text-[13px] font-semibold tracking-tight">Management API</span>
+          <BackLink to="/settings" label={m.common_back_settings()} />
+          <span className="truncate text-[13px] font-semibold tracking-tight">
+            {m.mgmt_api_title()}
+          </span>
         </div>
       }
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
       <div className="mb-6">
-        <h1 className="text-base font-semibold tracking-tight">Management API</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">
-          HTTP endpoints for external services to look up and provision users. Enable the API on the{" "}
-          <Link to="/settings" className="text-(--accent) hover:underline">
-            Settings
-          </Link>{" "}
-          page; a token is generated and shown once.
-        </p>
+        <h1 className="text-base font-semibold tracking-tight">{m.mgmt_api_title()}</h1>
+        <p className="mt-0.5 text-[13px] text-(--muted)">{m.mgmt_api_intro()}</p>
       </div>
 
-      <DocSection heading="Authentication">
-        <p className="text-[13px] text-(--muted)">
-          Send the configured token as a bearer token on every request:
-        </p>
-        <Code>Authorization: Bearer YOUR_TOKEN</Code>
-        <p className="text-[13px] text-(--muted)">
-          While the API is turned off, every endpoint returns <Inline>404</Inline>. A missing or
-          invalid token returns <Inline>401</Inline>.
-        </p>
+      <DocSection heading={m.mgmt_api_auth_heading()}>
+        <p className="text-[13px] text-(--muted)">{m.mgmt_api_auth_bearer_intro()}</p>
+        <Code>{m.mgmt_api_auth_header_example()}</Code>
+        <p className="text-[13px] text-(--muted)">{m.mgmt_api_auth_disabled()}</p>
       </DocSection>
 
       <Endpoint
         method="GET"
         path="/api/mgmt/users"
-        summary="Look up a single user by email or auth_string. Provide exactly one of the two."
-        errors={
-          <>
-            <Inline>400</Inline> if both or neither parameter is sent. <Inline>404</Inline> if no
-            user matches.
-          </>
-        }
+        summary={m.mgmt_api_get_summary()}
+        errors={m.mgmt_api_get_errors()}
       >
-        <CodeBlock label="Request" code={getRequest} copyLabel="request" />
-        <CodeBlock label="Response · 200" code={GET_RESPONSE} copyLabel="response" />
+        <CodeBlock
+          label={m.mgmt_api_label_request()}
+          code={getRequest}
+          copyLabel={m.mgmt_api_copy_request()}
+        />
+        <CodeBlock
+          label={m.mgmt_api_label_response_200()}
+          code={GET_RESPONSE}
+          copyLabel={m.mgmt_api_copy_response()}
+        />
       </Endpoint>
 
       <Endpoint
         method="POST"
         path="/api/mgmt/users"
-        summary="Create a user from an email. The password and auth_string are generated server-side and never returned; the account is created active and verified with the user role. Send the new user through the password reset flow to grant access."
-        errors={
-          <>
-            <Inline>400</Inline> if the body is invalid, the email is missing, or the email is
-            already taken.
-          </>
-        }
+        summary={m.mgmt_api_post_summary()}
+        errors={m.mgmt_api_post_errors()}
       >
-        <CodeBlock label="Request" code={postRequest} copyLabel="request" />
-        <CodeBlock label="Response · 201" code={POST_RESPONSE} copyLabel="response" />
+        <CodeBlock
+          label={m.mgmt_api_label_request()}
+          code={postRequest}
+          copyLabel={m.mgmt_api_copy_request()}
+        />
+        <CodeBlock
+          label={m.mgmt_api_label_response_201()}
+          code={POST_RESPONSE}
+          copyLabel={m.mgmt_api_copy_response()}
+        />
       </Endpoint>
 
-      <DocSection heading="Error responses">
-        <p className="text-[13px] text-(--muted)">All errors share the same shape:</p>
-        <CodeBlock label="Response · 4xx" code={ERROR_RESPONSE} copyLabel="error" />
+      <DocSection heading={m.mgmt_api_errors_heading()}>
+        <p className="text-[13px] text-(--muted)">{m.mgmt_api_errors_shape()}</p>
+        <CodeBlock
+          label={m.mgmt_api_label_response_4xx()}
+          code={ERROR_RESPONSE}
+          copyLabel={m.mgmt_api_copy_error()}
+        />
       </DocSection>
     </PageShell>
   );
@@ -136,7 +138,7 @@ function Endpoint({
   method: "GET" | "POST";
   path: string;
   summary: string;
-  errors: ReactNode;
+  errors: string;
   children: ReactNode;
 }) {
   return (
@@ -149,7 +151,9 @@ function Endpoint({
       </div>
       <p className="mt-2 text-[13px] text-(--muted)">{summary}</p>
       <div className="mt-4 flex flex-col gap-4">{children}</div>
-      <p className="mt-3 text-xs text-(--muted)">Errors: {errors}</p>
+      <p className="mt-3 text-xs text-(--muted)">
+        {m.mgmt_api_errors_prefix()} {errors}
+      </p>
     </section>
   );
 }
@@ -167,14 +171,5 @@ function CodeBlock({ label, code, copyLabel }: { label: string; code: string; co
 
 // A standalone monospace line (e.g. a header to send), styled like a code block.
 function Code({ children }: { children: string }) {
-  return <CopyableCode value={children} label="header" />;
-}
-
-// Inline monospace token used within prose (status codes, field names).
-function Inline({ children }: { children: ReactNode }) {
-  return (
-    <code className="rounded bg-(--surface-secondary) px-1 py-0.5 font-mono text-[12px] text-(--foreground)">
-      {children}
-    </code>
-  );
+  return <CopyableCode value={children} label={m.mgmt_api_copy_header()} />;
 }

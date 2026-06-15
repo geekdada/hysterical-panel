@@ -5,6 +5,8 @@ import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { login, loginWithPasskey } from "~/api/auth";
 import { canQueryPanelApi, fetchPanelConfigQuery, queryKeys } from "~/api/queries";
 import { AuthShell } from "~/components/ui";
+import { localizeApiError } from "~/lib/api-error";
+import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: ({ context }) => {
@@ -74,13 +76,13 @@ function LoginPage() {
 
   const error =
     loginMutation.error instanceof Error
-      ? loginMutation.error.message
+      ? localizeApiError(loginMutation.error.message)
       : loginMutation.error
-        ? "Login failed"
+        ? m.auth_login_failed()
         : passkeyMutation.error instanceof Error
-          ? passkeyMutation.error.message
+          ? localizeApiError(passkeyMutation.error.message)
           : passkeyMutation.error
-            ? "Passkey login failed"
+            ? m.auth_passkey_login_failed()
             : "";
 
   return (
@@ -90,16 +92,16 @@ function LoginPage() {
           H
         </span>
         <Card.Title className="text-[15px] font-semibold tracking-tight text-(--foreground)">
-          Hysterical Panel
+          {m.app_title()}
         </Card.Title>
         <Card.Description className="text-[13px] text-(--muted)">
-          Sign in to continue
+          {m.auth_sign_in_continue()}
         </Card.Description>
       </Card.Header>
       <Card.Content className="px-6 pt-4 pb-6">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <TextField>
-            <Label>Email address</Label>
+            <Label>{m.auth_email()}</Label>
             <Input
               type="email"
               autoComplete="username webauthn"
@@ -112,7 +114,7 @@ function LoginPage() {
             />
           </TextField>
           <TextField>
-            <Label>Password</Label>
+            <Label>{m.auth_password()}</Label>
             <Input
               type="password"
               autoComplete="current-password"
@@ -129,7 +131,7 @@ function LoginPage() {
               to="/forgot-password"
               className="text-[13px] text-(--muted) hover:text-(--foreground)"
             >
-              Forgot password?
+              {m.auth_forgot_password()}
             </Link>
           </div>
 
@@ -146,13 +148,15 @@ function LoginPage() {
             isDisabled={loginMutation.isPending}
             className="mt-1"
           >
-            {loginMutation.isPending ? "Signing in..." : "Sign in"}
+            {loginMutation.isPending ? m.auth_signing_in() : m.auth_sign_in()}
           </Button>
           {passkeysEnabled && (
             <>
               <div className="relative my-1 flex items-center justify-center">
                 <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-(--separator)" />
-                <span className="relative bg-(--surface) px-2 text-[12px] text-(--muted)">Or</span>
+                <span className="relative bg-(--surface) px-2 text-[12px] text-(--muted)">
+                  {m.auth_or()}
+                </span>
               </div>
               <Button
                 type="button"
@@ -164,7 +168,7 @@ function LoginPage() {
                   passkeyMutation.mutate();
                 }}
               >
-                {passkeyMutation.isPending ? "Checking passkeys..." : "Sign in with passkey"}
+                {passkeyMutation.isPending ? m.auth_checking_passkeys() : m.auth_sign_in_passkey()}
               </Button>
             </>
           )}
@@ -173,7 +177,7 @@ function LoginPage() {
               to="/register"
               className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
             >
-              Create an account
+              {m.auth_create_account_link()}
             </Link>
           )}
         </form>

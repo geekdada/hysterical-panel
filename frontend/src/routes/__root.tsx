@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { I18nProvider } from "@react-aria/i18n";
 import {
   Link,
   Outlet,
@@ -11,6 +12,10 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
+import { getLocale } from "~/paraglide/runtime";
+import * as m from "~/paraglide/messages.js";
+import { localizeApiError } from "~/lib/api-error";
+import { intlLocale } from "~/lib/locale";
 import {
   consumeFreshPasswordLogin,
   isPasskeySoftError,
@@ -39,7 +44,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Hysterical Panel" },
+      { title: m.app_title() },
     ],
     links: [
       { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
@@ -83,20 +88,23 @@ const themeScript = `
 `;
 
 function RootComponent() {
+  const locale = intlLocale();
   return (
-    <RootDocument>
-      <PanelQueryProvider>
-        <SessionKeeper />
-        <SessionRecoveryBanner />
-        <Outlet />
-      </PanelQueryProvider>
-    </RootDocument>
+    <I18nProvider locale={locale}>
+      <RootDocument>
+        <PanelQueryProvider>
+          <SessionKeeper />
+          <SessionRecoveryBanner />
+          <Outlet />
+        </PanelQueryProvider>
+      </RootDocument>
+    </I18nProvider>
   );
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={getLocale()} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <HeadContent />
@@ -171,7 +179,9 @@ function SessionRecoveryBanner() {
       await queryClient.invalidateQueries();
     } catch (error) {
       if (!isPasskeySoftError(error)) {
-        setRecoveryError(error instanceof Error ? error.message : "Couldn't renew the session.");
+        setRecoveryError(
+          error instanceof Error ? localizeApiError(error.message) : m.error_session_renew()
+        );
       }
     } finally {
       setRecovering(false);
@@ -184,7 +194,7 @@ function SessionRecoveryBanner() {
       role="alert"
     >
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3">
-        <span>Session needs renewal. Reconnect to keep working without signing in again.</span>
+        <span>{m.session_renewal_message()}</span>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
@@ -192,14 +202,14 @@ function SessionRecoveryBanner() {
             onPress={reconnectWithPasskey}
             isDisabled={recovering}
           >
-            {recovering ? "Reconnecting…" : "Use passkey"}
+            {recovering ? m.session_reconnecting() : m.session_use_passkey()}
           </Button>
           <Link
             to="/users/$userId"
             params={{ userId: auth.user.id }}
             className="text-[13px] font-medium text-(--accent) underline-offset-2 hover:underline"
           >
-            Account settings
+            {m.session_account_settings()}
           </Link>
         </div>
         {recoveryError && <span className="text-(--danger-soft-foreground)">{recoveryError}</span>}
@@ -220,7 +230,7 @@ function PasskeyAutoEnrollment() {
       try {
         const passkeys = await listPasskeys(userId);
         if (cancelled || passkeys.length > 0) return;
-        await registerPasskey(userId, "Passkey", true);
+        await registerPasskey(userId, m.user_passkeys_default_name(), true);
       } catch (error) {
         if (!isPasskeySoftError(error)) {
           // The explicit account-page button remains available.

@@ -27,7 +27,8 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { relTimeFromISO } from "~/lib/format";
+import { formatLocaleCount, relTimeFromISO } from "~/lib/format";
+import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/invitations")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -62,9 +63,7 @@ function InvitationsPage() {
   const listError = invitationsQuery.error ? queryErrorMessage(invitationsQuery.error) : "";
 
   function handleDelete(id: string, code: string) {
-    if (
-      window.confirm(`Delete invitation ${code}? People who already have it can no longer use it.`)
-    ) {
+    if (window.confirm(m.invitations_delete_confirm({ code }))) {
       deleteMutation.mutate(id);
     }
   }
@@ -75,16 +74,18 @@ function InvitationsPage() {
       headerLeft={
         <div className="flex min-w-0 items-center gap-3">
           <BackLink />
-          <span className="truncate text-[13px] font-semibold tracking-tight">Invitations</span>
+          <span className="truncate text-[13px] font-semibold tracking-tight">
+            {m.invitations_title()}
+          </span>
         </div>
       }
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
       {!settingsQuery.isPending && !invitationsEnabled && (
         <div className="mb-5 rounded-(--radius) border border-(--border) bg-(--surface-secondary) px-4 py-3 text-[13px] text-(--muted)">
-          The invitation system is off, so new codes can't be created or used.{" "}
+          {m.invitations_disabled_banner()}{" "}
           <Link to="/settings" className="font-medium text-(--accent) hover:opacity-80">
-            Enable it in Settings
+            {m.invitations_enable_in_settings()}
           </Link>
           .
         </div>
@@ -95,10 +96,7 @@ function InvitationsPage() {
         pending={createMutation.isPending}
         error={
           createMutation.error
-            ? queryErrorMessage(
-                createMutation.error,
-                "Network error while creating the invitation."
-              )
+            ? queryErrorMessage(createMutation.error, m.error_invitation_create_network())
             : ""
         }
         created={createMutation.data ?? null}
@@ -106,26 +104,30 @@ function InvitationsPage() {
       />
 
       <Section
-        title="Invitations"
-        meta={invitations.length > 0 ? `${invitations.length} total` : undefined}
+        title={m.invitations_section_title()}
+        meta={
+          invitations.length > 0
+            ? m.invitations_total_meta({ count: formatLocaleCount(invitations.length) })
+            : undefined
+        }
       >
         {invitationsQuery.isPending ? (
           <TableSkeleton />
         ) : listError ? (
           <PanelMessage>{listError}</PanelMessage>
         ) : invitations.length === 0 ? (
-          <PanelMessage>No invitations yet.</PanelMessage>
+          <PanelMessage>{m.invitations_no_invitations()}</PanelMessage>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-(--separator) text-left">
-                  <Th>Code</Th>
-                  <Th>Email</Th>
-                  <Th>Uses</Th>
-                  <Th>Expires</Th>
-                  <Th>Status</Th>
-                  <Th className="text-right">Actions</Th>
+                  <Th>{m.invitations_th_code()}</Th>
+                  <Th>{m.common_email()}</Th>
+                  <Th>{m.invitations_th_uses()}</Th>
+                  <Th>{m.invitations_th_expires()}</Th>
+                  <Th>{m.common_status()}</Th>
+                  <Th className="text-right">{m.common_actions()}</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-(--separator)">
@@ -156,23 +158,26 @@ function InvitationRow({
   onDelete: () => void;
 }) {
   const used = inv.used_count ?? 0;
-  const uses = inv.max_uses && inv.max_uses > 0 ? `${used} / ${inv.max_uses}` : `${used} / ∞`;
+  const uses =
+    inv.max_uses && inv.max_uses > 0
+      ? m.invitations_uses_limited({ used: String(used), max: String(inv.max_uses) })
+      : m.invitations_uses_unlimited({ used: String(used) });
   const status = inv.valid
-    ? { tone: "ok" as const, label: "Active" }
-    : { tone: "idle" as const, label: inv.invalid_reason || "Inactive" };
+    ? { tone: "ok" as const, label: m.common_active() }
+    : { tone: "idle" as const, label: inv.invalid_reason || m.invitations_status_inactive() };
 
   return (
     <tr className="hover:bg-(--surface-secondary)">
       <Td>
         <div className="group/key flex items-center gap-1.5">
           <span className="font-mono text-[12px]">{inv.code}</span>
-          <CopyButton value={inv.code ?? ""} label="invite code" />
+          <CopyButton value={inv.code ?? ""} label={m.invitations_copy_invite_code()} />
         </div>
       </Td>
-      <Td className="text-(--muted)">{inv.email || "—"}</Td>
+      <Td className="text-(--muted)">{inv.email || m.common_em_dash()}</Td>
       <Td className="tabular-nums">{uses}</Td>
       <Td className="text-(--muted)">
-        {inv.expires_at ? relTimeFromISO(inv.expires_at, now) : "Never"}
+        {inv.expires_at ? relTimeFromISO(inv.expires_at, now) : m.common_never()}
       </Td>
       <Td>
         <span className="inline-flex items-center gap-1.5">
@@ -182,12 +187,12 @@ function InvitationRow({
       </Td>
       <Td>
         <div className="flex items-center justify-end gap-1">
-          <CopyButton value={inv.link ?? ""} label="invite link" />
+          <CopyButton value={inv.link ?? ""} label={m.invitations_copy_invite_link()} />
           <button
             type="button"
             onClick={onDelete}
-            title="Delete invitation"
-            aria-label="Delete invitation"
+            title={m.invitations_delete_title()}
+            aria-label={m.invitations_delete_title()}
             className="inline-grid size-6 place-items-center rounded text-(--muted) transition-colors duration-150 hover:text-(--danger) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
           >
             <TrashBin className="size-3.5" aria-hidden />
@@ -236,52 +241,49 @@ function CreateInvitationForm({
 
   return (
     <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
-      <h2 className="text-[13px] font-semibold tracking-tight">Create invitation</h2>
-      <p className="mt-0.5 text-[13px] text-(--muted)">
-        Generates a shareable code. Set a usage limit and expiry, or leave them at 0 for unlimited /
-        never.
-      </p>
+      <h2 className="text-[13px] font-semibold tracking-tight">{m.invitations_create_title()}</h2>
+      <p className="mt-0.5 text-[13px] text-(--muted)">{m.invitations_create_description()}</p>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField className="sm:col-span-2">
-            <Label>Email (optional)</Label>
+            <Label>{m.invitations_label_email_optional()}</Label>
             <Input
               type="email"
               autoComplete="off"
-              placeholder="person@example.com"
+              placeholder={m.invitations_placeholder_email()}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-            <Description>Recorded for reference; the code works for any email.</Description>
+            <Description>{m.invitations_email_description()}</Description>
           </TextField>
 
           <NumberField value={maxUses} onChange={setMaxUses} minValue={0} step={1}>
-            <Label>Max uses</Label>
+            <Label>{m.invitations_label_max_uses()}</Label>
             <NumberField.Group>
               <NumberField.DecrementButton />
               <NumberField.Input />
               <NumberField.IncrementButton />
             </NumberField.Group>
-            <Description>0 = unlimited.</Description>
+            <Description>{m.invitations_max_uses_description()}</Description>
           </NumberField>
 
           <NumberField value={expiresInHours} onChange={setExpiresInHours} minValue={0} step={1}>
-            <Label>Expires in (hours)</Label>
+            <Label>{m.invitations_label_expires_hours()}</Label>
             <NumberField.Group>
               <NumberField.DecrementButton />
               <NumberField.Input />
               <NumberField.IncrementButton />
             </NumberField.Group>
-            <Description>0 = never expires.</Description>
+            <Description>{m.invitations_expires_description()}</Description>
           </NumberField>
 
           <TextField className="sm:col-span-2">
-            <Label>Note (optional)</Label>
+            <Label>{m.invitations_label_note_optional()}</Label>
             <Input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. beta testers"
+              placeholder={m.invitations_placeholder_note()}
             />
           </TextField>
         </div>
@@ -293,10 +295,8 @@ function CreateInvitationForm({
           className="justify-between gap-4"
         >
           <Switch.Content>
-            <Label>Email the invite</Label>
-            <Description>
-              Send the link to the address above (requires SMTP configured).
-            </Description>
+            <Label>{m.invitations_label_email_invite()}</Label>
+            <Description>{m.invitations_email_invite_description()}</Description>
           </Switch.Content>
           <Switch.Control>
             <Switch.Thumb />
@@ -311,7 +311,7 @@ function CreateInvitationForm({
 
         <div className="flex justify-end border-t border-(--separator) pt-4">
           <Button type="submit" variant="primary" isDisabled={disabled || pending}>
-            {pending ? "Creating…" : "Create invitation"}
+            {pending ? m.invitations_creating() : m.invitations_create_button()}
           </Button>
         </div>
       </form>
@@ -320,21 +320,21 @@ function CreateInvitationForm({
         <div className="mt-4 rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3">
           <div className="flex items-center gap-2 text-[13px]">
             <Dot tone="ok" />
-            <span className="font-medium">Invitation created</span>
+            <span className="font-medium">{m.invitations_created()}</span>
             {created.email_sent === true && (
-              <span className="text-xs text-(--muted)">· emailed to {created.email}</span>
+              <span className="text-xs text-(--muted)">
+                {m.invitations_emailed_to({ email: created.email ?? "" })}
+              </span>
             )}
             {created.email_sent === false && (
-              <span className="text-xs text-(--warning)">
-                · email not sent (SMTP not configured)
-              </span>
+              <span className="text-xs text-(--warning)">{m.invitations_email_not_sent()}</span>
             )}
           </div>
           <div className="group/key mt-2 flex items-center gap-1.5">
             <span className="min-w-0 truncate font-mono text-[12px] text-(--muted)">
               {created.link}
             </span>
-            <CopyButton value={created.link ?? ""} label="invite link" />
+            <CopyButton value={created.link ?? ""} label={m.invitations_copy_invite_link()} />
           </div>
         </div>
       )}

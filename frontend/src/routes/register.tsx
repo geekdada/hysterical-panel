@@ -5,6 +5,8 @@ import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { register } from "~/api/auth";
 import { canQueryPanelApi, fetchPanelConfigQuery, queryKeys } from "~/api/queries";
 import { AuthShell } from "~/components/ui";
+import { localizeApiError } from "~/lib/api-error";
+import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/register")({
   validateSearch: (search: Record<string, unknown>): { code?: string } => ({
@@ -55,9 +57,9 @@ function RegisterPage() {
   const result = registerMutation.data;
   const error =
     registerMutation.error instanceof Error
-      ? registerMutation.error.message
+      ? localizeApiError(registerMutation.error.message)
       : registerMutation.error
-        ? "Registration failed"
+        ? m.auth_registration_failed()
         : "";
 
   function handleSubmit(e: FormEvent) {
@@ -72,38 +74,36 @@ function RegisterPage() {
           H
         </span>
         <Card.Title className="text-[15px] font-semibold tracking-tight text-(--foreground)">
-          Create your account
+          {m.auth_create_your_account()}
         </Card.Title>
-        <Card.Description className="text-[13px] text-(--muted)">Hysterical Panel</Card.Description>
+        <Card.Description className="text-[13px] text-(--muted)">{m.app_title()}</Card.Description>
       </Card.Header>
       <Card.Content className="px-6 pt-4 pb-6">
         {configQuery.isPending ? (
-          <p className="py-4 text-[13px] text-(--muted)">Loading…</p>
+          <p className="py-4 text-[13px] text-(--muted)">{m.common_loading()}</p>
         ) : !canRegister ? (
           <div className="flex flex-col gap-3 py-2">
-            <p className="text-[13px] text-(--muted)">
-              Registration is currently closed. Ask an administrator for an invitation.
-            </p>
+            <p className="text-[13px] text-(--muted)">{m.auth_registration_closed()}</p>
             <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
-              Back to sign in
+              {m.auth_back_to_sign_in()}
             </Link>
           </div>
         ) : result?.requires_verification ? (
           <div className="flex flex-col gap-3 py-2">
-            <p className="text-[13px] text-(--foreground)">Check your email</p>
+            <p className="text-[13px] text-(--foreground)">{m.auth_check_email()}</p>
             <p className="text-[13px] text-(--muted)">
               {result.verification_sent === false
-                ? "Your account was created, but the verification email could not be sent. Please contact an administrator."
-                : "We sent a verification link to your email. Open it to activate your account, then sign in."}
+                ? m.auth_verification_failed_send()
+                : m.auth_verification_sent()}
             </p>
             <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
-              Back to sign in
+              {m.auth_back_to_sign_in()}
             </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <TextField>
-              <Label>Email address</Label>
+              <Label>{m.auth_email()}</Label>
               <Input
                 type="email"
                 autoComplete="email"
@@ -116,7 +116,7 @@ function RegisterPage() {
               />
             </TextField>
             <TextField>
-              <Label>Password</Label>
+              <Label>{m.auth_password()}</Label>
               <Input
                 type="password"
                 autoComplete="new-password"
@@ -130,7 +130,7 @@ function RegisterPage() {
             </TextField>
             {showCode && (
               <TextField>
-                <Label>Invite code{codeRequired ? "" : " (optional)"}</Label>
+                <Label>{codeRequired ? m.auth_invite_code() : m.auth_invite_code_optional()}</Label>
                 <Input
                   type="text"
                   required={codeRequired}
@@ -157,13 +157,13 @@ function RegisterPage() {
               isDisabled={registerMutation.isPending}
               className="mt-1"
             >
-              {registerMutation.isPending ? "Creating account…" : "Create account"}
+              {registerMutation.isPending ? m.auth_creating_account() : m.auth_create_account_btn()}
             </Button>
             <Link
               to="/login"
               className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
             >
-              Already have an account? Sign in
+              {m.auth_already_have_account()}
             </Link>
           </form>
         )}

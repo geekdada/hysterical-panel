@@ -42,6 +42,7 @@ import {
   relTime,
   relTimeFromISO,
 } from "~/lib/format";
+import * as m from "~/paraglide/messages.js";
 
 type Node = components["schemas"]["Node"];
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
@@ -98,9 +99,9 @@ function NodeDetailPage() {
             <span className="h-3.5 w-32 animate-pulse rounded bg-(--surface-secondary)" />
           ) : (
             <div className="flex min-w-0 items-center gap-2">
-              <Dot tone={tone} title={enabled ? health : "disabled"} />
+              <Dot tone={tone} title={enabled ? health : m.common_status_disabled()} />
               <span className="truncate text-[13px] font-semibold tracking-tight">
-                {node?.name || "Node"}
+                {node?.name || m.node_fallback_title()}
               </span>
             </div>
           )}
@@ -113,7 +114,7 @@ function NodeDetailPage() {
               className="hidden tabular-nums sm:inline"
               title={new Date(updatedAt).toLocaleString()}
             >
-              Updated {relTime(updatedAt, now)}
+              {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
           <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
@@ -125,11 +126,11 @@ function NodeDetailPage() {
 
       {notFound ? (
         <Teaching
-          title="Node not found"
-          hint="It may have been deleted. Head back to the dashboard to see the current fleet."
+          title={m.node_not_found_title()}
+          hint={m.node_not_found_hint()}
           action={
             <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
-              Back to dashboard
+              {m.common_back_dashboard()}
             </Button>
           }
         />
@@ -171,47 +172,47 @@ function DetailRail({ node, loading, now }: { node: Node | null; loading: boolea
   const enabled = node?.enabled ?? false;
   const health = node?.health ?? "never";
   const stateLabel = !enabled
-    ? "Disabled"
+    ? m.node_state_disabled()
     : health === "error"
-      ? node?.last_error || "Error"
+      ? node?.last_error || m.node_state_error()
       : health === "ok"
-        ? "Healthy"
-        : "Never polled";
+        ? m.node_state_healthy()
+        : m.node_state_never_polled();
   const stateTone = !enabled ? "muted" : health === "error" ? "danger" : "muted";
   const txSpeed = enabled ? (node?.current_tx_speed ?? 0) : 0;
   const rxSpeed = enabled ? (node?.current_rx_speed ?? 0) : 0;
 
   return (
     <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
-      <RailItem label="Endpoint" className="sm:flex-[2]">
+      <RailItem label={m.node_rail_endpoint()} className="sm:flex-[2]">
         <div className="group/key flex items-center gap-1.5">
           <span className="block truncate font-mono text-[13px] text-(--foreground)">
-            {node?.api_url || "—"}
+            {node?.api_url || m.common_em_dash()}
           </span>
-          {node?.api_url && <CopyButton value={node.api_url} label="endpoint" />}
+          {node?.api_url && <CopyButton value={node.api_url} label={m.common_copy_endpoint()} />}
         </div>
       </RailItem>
-      <RailItem label="Poll interval">
+      <RailItem label={m.node_rail_poll_interval()}>
         <span className="font-mono text-[13px] tabular-nums">
-          {node?.poll_interval ? `${node.poll_interval}s` : "—"}
+          {node?.poll_interval ? `${node.poll_interval}s` : m.common_em_dash()}
         </span>
       </RailItem>
-      <RailItem label="TX speed">
+      <RailItem label={m.node_rail_tx_speed()}>
         <span className="font-mono text-[13px] tabular-nums">
           <span className="text-(--muted)">↑</span> {formatBytesPerSecond(txSpeed)}
         </span>
       </RailItem>
-      <RailItem label="RX speed">
+      <RailItem label={m.node_rail_rx_speed()}>
         <span className="font-mono text-[13px] tabular-nums">
           <span className="text-(--muted)">↓</span> {formatBytesPerSecond(rxSpeed)}
         </span>
       </RailItem>
-      <RailItem label="Last poll">
+      <RailItem label={m.node_rail_last_poll()}>
         <span className="font-mono text-[13px] tabular-nums">
-          {node?.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : "—"}
+          {node?.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : m.common_em_dash()}
         </span>
       </RailItem>
-      <RailItem label="State">
+      <RailItem label={m.node_rail_state()}>
         <span
           className={`block truncate text-[13px] ${stateTone === "danger" ? "text-(--danger)" : "text-(--foreground)"}`}
           title={stateLabel}
@@ -263,7 +264,7 @@ function TrafficSection({
 
   return (
     <Section
-      title="Traffic"
+      title={m.common_traffic()}
       meta={
         !loading ? (
           <span className="font-mono tabular-nums">
@@ -287,7 +288,7 @@ function TrafficSection({
           <div className="h-[220px] animate-pulse rounded bg-(--surface-secondary)" />
         ) : points.length === 0 ? (
           <div className="grid h-[220px] place-items-center text-[13px] text-(--muted)">
-            No traffic recorded in this window.
+            {m.common_no_traffic_in_window()}
           </div>
         ) : (
           <TrafficChart points={points} granularity={granularity} idPrefix="node-traffic" />
@@ -299,10 +300,10 @@ function TrafficSection({
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-                <Th>Top Users</Th>
-                <Th className="text-right">TX</Th>
-                <Th className="text-right">RX</Th>
-                <Th className="text-right">Total</Th>
+                <Th>{m.node_traffic_top_users()}</Th>
+                <Th className="text-right">{m.common_th_tx()}</Th>
+                <Th className="text-right">{m.common_th_rx()}</Th>
+                <Th className="text-right">{m.common_th_total()}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-(--separator)">
@@ -313,7 +314,7 @@ function TrafficSection({
                 >
                   <Td>
                     <span className="block max-w-[280px] truncate font-medium">
-                      {u.user?.email || "unknown"}
+                      {u.user?.email || m.common_unknown()}
                     </span>
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
@@ -354,7 +355,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
   const loading = liveQuery.isFetching;
   const fetchedAt = liveQuery.dataUpdatedAt || null;
   const reqError = liveQuery.error
-    ? queryErrorMessage(liveQuery.error, "Network error while fetching streams.")
+    ? queryErrorMessage(liveQuery.error, m.error_streams_network())
     : "";
   const byUser = live?.by_user ?? [];
   const topDomains = (live?.top_domains ?? []).slice(0, 12);
@@ -362,11 +363,14 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
 
   return (
     <Section
-      title="Live streams"
+      title={m.common_live_streams()}
       meta={
         live && !live.error ? (
           <span className="font-mono tabular-nums">
-            {live.online_devices ?? 0} devices online · {live.active_streams ?? 0} streams
+            {m.node_live_meta({
+              devices: live.online_devices ?? 0,
+              streams: live.active_streams ?? 0,
+            })}
           </span>
         ) : undefined
       }
@@ -388,7 +392,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
             }}
             isPending={loading}
           >
-            {fetchedAt === null ? "Fetch streams" : "Refresh"}
+            {fetchedAt === null ? m.common_fetch_streams() : m.common_refresh()}
           </Button>
         </div>
       }
@@ -402,15 +406,9 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
           {live.error}
         </div>
       ) : !live ? (
-        <Teaching
-          title="No snapshot yet"
-          hint="Fetch a live snapshot to see every active stream on this node, grouped by user."
-        />
+        <Teaching title={m.common_no_snapshot_title()} hint={m.node_live_empty_snapshot_hint()} />
       ) : byUser.length === 0 ? (
-        <Teaching
-          title="No active streams"
-          hint="Nobody is routing traffic through this node right now."
-        />
+        <Teaching title={m.common_no_active_streams_title()} hint={m.node_live_no_streams_hint()} />
       ) : (
         <div className="flex flex-col">
           {byUser.map((u, i) => (
@@ -438,27 +436,32 @@ function UserStreams({
       <div className="flex items-center justify-between gap-3 bg-(--surface-secondary) px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <Dot tone="ok" />
-          <span className="truncate text-xs font-medium">{group.user?.email || "unknown"}</span>
+          <span className="truncate text-xs font-medium">
+            {group.user?.email || m.common_unknown()}
+          </span>
         </div>
         <span className="shrink-0 font-mono text-xs tabular-nums text-(--muted)">
-          {group.online_devices ?? 0} devices online · {streams.length} streams
+          {m.node_live_user_meta({
+            devices: group.online_devices ?? 0,
+            count: streams.length,
+          })}
         </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="border-b border-(--separator) text-left">
-              <Th>Target</Th>
-              <Th>State</Th>
-              <Th className="text-right">TX</Th>
-              <Th className="text-right">RX</Th>
-              <Th className="text-right">Lifetime</Th>
-              <Th className="text-right">Idle</Th>
+              <Th>{m.common_th_target()}</Th>
+              <Th>{m.common_th_state()}</Th>
+              <Th className="text-right">{m.common_th_tx()}</Th>
+              <Th className="text-right">{m.common_th_rx()}</Th>
+              <Th className="text-right">{m.common_th_lifetime()}</Th>
+              <Th className="text-right">{m.common_th_idle()}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-(--separator)">
             {streams.map((s, i) => {
-              const target = s.hooked_req_addr || s.req_addr || "—";
+              const target = s.hooked_req_addr || s.req_addr || m.common_em_dash();
               return (
                 <tr
                   key={`${s.connection}-${s.stream}-${i}`}
@@ -473,7 +476,7 @@ function UserStreams({
                     </span>
                   </Td>
                   <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
-                    {s.state || "—"}
+                    {s.state || m.common_em_dash()}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
                     {formatBytes(s.tx ?? 0)}
@@ -504,16 +507,16 @@ function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> 
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
-              <Th>Top domains</Th>
-              <Th>ASN</Th>
-              <Th>Country</Th>
-              <Th className="text-right">Streams</Th>
-              <Th className="text-right">Total</Th>
+              <Th>{m.common_top_domains()}</Th>
+              <Th>{m.common_th_asn()}</Th>
+              <Th>{m.common_th_country()}</Th>
+              <Th className="text-right">{m.common_th_streams()}</Th>
+              <Th className="text-right">{m.common_th_total()}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-(--separator)">
             {rows.map((d, i) => {
-              const domain = d.domain || "—";
+              const domain = d.domain || m.common_em_dash();
               const meta = d.ip_meta;
               const countryTitle = meta?.country_name || meta?.country_code || "";
               return (
@@ -525,7 +528,7 @@ function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> 
                         target="_blank"
                         rel="noreferrer"
                         className="block max-w-[260px] truncate font-mono text-xs text-(--foreground) underline decoration-(--border) underline-offset-2 transition-colors duration-150 hover:text-(--accent)"
-                        title={`Open ${meta.ip || domain} on ipinfo.io`}
+                        title={m.common_ipinfo_open({ target: meta.ip || domain })}
                       >
                         {domain}
                       </a>
@@ -539,7 +542,7 @@ function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> 
                     )}
                   </Td>
                   <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
-                    {meta?.asn || "—"}
+                    {meta?.asn || m.common_em_dash()}
                   </Td>
                   <Td className="whitespace-nowrap text-xs text-(--muted)">
                     {meta?.country_code ? (
@@ -552,7 +555,7 @@ function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> 
                         )}
                       </span>
                     ) : (
-                      "—"
+                      m.common_em_dash()
                     )}
                   </Td>
                   <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
@@ -578,10 +581,10 @@ function ByConnectionTable({ rows }: { rows: NonNullable<NodeLive["by_connection
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
-              <Th>Device</Th>
-              <Th>Top domain</Th>
-              <Th className="text-right">Streams</Th>
-              <Th className="text-right">Total</Th>
+              <Th>{m.common_th_device()}</Th>
+              <Th>{m.common_th_top_domain()}</Th>
+              <Th className="text-right">{m.common_th_streams()}</Th>
+              <Th className="text-right">{m.common_th_total()}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-(--separator)">
@@ -595,7 +598,7 @@ function ByConnectionTable({ rows }: { rows: NonNullable<NodeLive["by_connection
                     className="block max-w-[200px] truncate font-mono text-xs"
                     title={c.top_domain || ""}
                   >
-                    {c.top_domain || "—"}
+                    {c.top_domain || m.common_em_dash()}
                   </span>
                 </Td>
                 <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">

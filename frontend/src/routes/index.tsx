@@ -35,7 +35,7 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { formatBytes, formatBytesPerSecond, plural, relTime, relTimeFromISO } from "~/lib/format";
+import { formatBytes, formatBytesPerSecond, relTime, relTimeFromISO } from "~/lib/format";
 import {
   defaultLocalTrafficRange,
   type LocalDateRange,
@@ -43,6 +43,7 @@ import {
   trafficShortcutRange,
 } from "~/lib/traffic-range";
 import { defaultUsersListSearch, type UsersListSearch } from "~/lib/users-list-search";
+import * as m from "~/paraglide/messages.js";
 
 type Node = components["schemas"]["Node"];
 type NodeTodayTraffic = NonNullable<
@@ -144,15 +145,21 @@ function DashboardPage() {
     ? queryErrorMessage(nodeTrafficSummaryQuery.error)
     : "";
   const queryErrors = [
-    { key: "nodes", message: nodesError ? `Nodes: ${nodesError}` : "" },
+    {
+      key: "nodes",
+      message: nodesError ? m.error_prefix_nodes({ message: nodesError }) : "",
+    },
     {
       key: "nodeTraffic",
-      message: nodeTrafficError ? `Node traffic: ${nodeTrafficError}` : "",
+      message: nodeTrafficError ? m.error_prefix_node_traffic({ message: nodeTrafficError }) : "",
     },
-    { key: "users", message: usersError ? `Users: ${usersError}` : "" },
+    {
+      key: "users",
+      message: usersError ? m.error_prefix_users({ message: usersError }) : "",
+    },
     {
       key: "traffic",
-      message: trafficError ? `Traffic: ${trafficError}` : "",
+      message: trafficError ? m.error_prefix_traffic({ message: trafficError }) : "",
     },
   ].filter((err) => err.message);
   const updatedAt =
@@ -189,7 +196,7 @@ function DashboardPage() {
               className="hidden tabular-nums sm:inline"
               title={new Date(updatedAt).toLocaleString()}
             >
-              Updated {relTime(updatedAt, now)}
+              {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
           <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
@@ -203,48 +210,50 @@ function DashboardPage() {
 
       {/* Summary rail: one connected strip, not free-floating metric cards. */}
       <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
-        <Stat label="Nodes" loading={nodesLoading} value={nodesError ? "—" : nodes.length}>
+        <Stat label={m.nav_nodes()} loading={nodesLoading} value={nodesError ? "—" : nodes.length}>
           {nodesError ? (
-            <span className="text-(--danger)">Unavailable</span>
+            <span className="text-(--danger)">{m.common_unavailable()}</span>
           ) : (
-            `${enabledNodes.length} enabled`
+            m.common_enabled_count({ count: String(enabledNodes.length) })
           )}
         </Stat>
         <Stat
-          label="Healthy"
+          label={m.nav_healthy()}
           loading={nodesLoading}
           value={nodesError ? "—" : healthyNodes.length}
           dot={<Dot tone={healthyTone} />}
         >
           {nodesError ? (
-            <span className="text-(--danger)">Unavailable</span>
+            <span className="text-(--danger)">{m.common_unavailable()}</span>
           ) : errorNodes.length > 0 ? (
-            <span className="text-(--danger)">{errorNodes.length} down</span>
+            <span className="text-(--danger)">
+              {m.common_down_count({ count: String(errorNodes.length) })}
+            </span>
           ) : enabledNodes.length > 0 ? (
-            `of ${enabledNodes.length} enabled`
+            m.common_of_enabled({ count: String(enabledNodes.length) })
           ) : null}
         </Stat>
         <Stat
-          label="Users"
+          label={m.nav_users_label()}
           loading={usersLoading}
           value={usersError ? "—" : (userStats?.total ?? 0)}
           href="/users"
           linkSearch={defaultUsersListSearch()}
         >
           {usersError ? (
-            <span className="text-(--danger)">Unavailable</span>
+            <span className="text-(--danger)">{m.common_unavailable()}</span>
           ) : (
-            `${activeUsers} active`
+            m.common_active_count({ count: String(activeUsers) })
           )}
         </Stat>
         <Stat
-          label="Traffic"
+          label={m.nav_traffic()}
           loading={trafficLoading}
           value={trafficError ? "—" : formatBytes(totalTx + totalRx)}
           headerAction={<TrafficPeriodToggle value={trafficPeriod} onChange={setTrafficPeriod} />}
         >
           {trafficError ? (
-            <span className="text-(--danger)">Unavailable</span>
+            <span className="text-(--danger)">{m.common_unavailable()}</span>
           ) : (
             <span className="font-mono">
               <span className="text-(--muted)">↑</span> {formatBytes(totalTx)}
@@ -256,16 +265,19 @@ function DashboardPage() {
       </div>
 
       <Section
-        title="Nodes"
+        title={m.nav_nodes()}
         meta={
           !nodesLoading && !nodesError && nodes.length > 0
-            ? `${nodes.length} ${plural(nodes.length, "node")} · ${enabledNodes.length} enabled`
+            ? m.common_nodes_meta({
+                count: String(nodes.length),
+                enabled: String(enabledNodes.length),
+              })
             : undefined
         }
         action={
           isAdmin ? (
             <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/nodes/new" })}>
-              Add node
+              {m.dashboard_add_node()}
             </Button>
           ) : undefined
         }
@@ -281,15 +293,15 @@ function DashboardPage() {
             todayTrafficUnavailable={Boolean(nodeTrafficError)}
           />
         ) : nodesError ? (
-          <PanelMessage>Couldn't load nodes.</PanelMessage>
+          <PanelMessage>{m.dashboard_couldnt_load_nodes()}</PanelMessage>
         ) : (
           <Teaching
-            title="No nodes yet"
-            hint="Add a node's API URL and secret to start collecting traffic."
+            title={m.dashboard_no_nodes_title()}
+            hint={m.dashboard_no_nodes_hint()}
             action={
               isAdmin ? (
                 <Button size="sm" variant="primary" onPress={() => navigate({ to: "/nodes/new" })}>
-                  Add your first node
+                  {m.dashboard_add_first_node()}
                 </Button>
               ) : undefined
             }
@@ -378,7 +390,7 @@ function Stat({
         {headerAction}
       </div>
       {loading ? (
-        <StatSkeleton withDot={Boolean(dot)} wide={label === "Traffic"} />
+        <StatSkeleton withDot={Boolean(dot)} wide={label === m.nav_traffic()} />
       ) : (
         <>
           <div className="mt-0.5 flex items-baseline gap-2">
@@ -501,19 +513,19 @@ function NodesTable({
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-            <SortableTh column={table.getColumn("name")!}>Name</SortableTh>
+            <SortableTh column={table.getColumn("name")!}>{m.common_name()}</SortableTh>
             <SortableTh column={table.getColumn("today")!} align="right" className="text-right">
-              Today
+              {m.dashboard_today()}
             </SortableTh>
             <SortableTh column={table.getColumn("txSpeed")!} align="right" className="text-right">
-              TX speed
+              {m.dashboard_tx_speed()}
             </SortableTh>
             <SortableTh column={table.getColumn("rxSpeed")!} align="right" className="text-right">
-              RX speed
+              {m.dashboard_rx_speed()}
             </SortableTh>
-            <Th className="text-right">Last poll</Th>
+            <Th className="text-right">{m.dashboard_last_poll()}</Th>
             <SortableTh column={table.getColumn("status")!} align="right" className="text-right">
-              Status
+              {m.common_status()}
             </SortableTh>
           </tr>
         </thead>
@@ -536,13 +548,13 @@ function NodesTable({
               >
                 <Td>
                   <div className="flex items-center gap-2.5">
-                    <Dot tone={tone} title={enabled ? health : "disabled"} />
+                    <Dot tone={tone} title={enabled ? health : m.common_disabled()} />
                     <Link
                       to="/nodes/$nodeId"
                       params={{ nodeId: node.id ?? "" }}
                       className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
                     >
-                      {node.name || "—"}
+                      {node.name || m.common_em_dash()}
                     </Link>
                   </div>
                 </Td>
@@ -560,7 +572,9 @@ function NodesTable({
                   <span className="text-(--muted)">↓</span> {formatBytesPerSecond(rxSpeed)}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
-                  {node.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : "—"}
+                  {node.last_polled_at
+                    ? relTimeFromISO(node.last_polled_at, now)
+                    : m.common_em_dash()}
                 </Td>
                 <Td className="text-right">
                   <NodeState enabled={enabled} health={health} lastError={node.last_error} />
@@ -606,7 +620,7 @@ function NodeTodayUsage({
     );
   }
   if (unavailable) {
-    return <span className="font-mono text-xs text-(--muted)">—</span>;
+    return <span className="font-mono text-xs text-(--muted)">{m.common_em_dash()}</span>;
   }
 
   const tx = traffic?.tx ?? 0;
@@ -614,7 +628,7 @@ function NodeTodayUsage({
   return (
     <span
       className="font-mono text-xs tabular-nums"
-      title={`TX ${formatBytes(tx)} · RX ${formatBytes(rx)}`}
+      title={m.dashboard_node_traffic_title({ tx: formatBytes(tx), rx: formatBytes(rx) })}
     >
       {formatBytes(tx + rx)}
     </span>
@@ -631,10 +645,10 @@ function NodeState({
   lastError?: string;
 }) {
   if (!enabled) {
-    return <span className="text-xs text-(--muted)">Disabled</span>;
+    return <span className="text-xs text-(--muted)">{m.common_disabled()}</span>;
   }
   if (health === "error") {
-    const msg = lastError || "Error";
+    const msg = lastError || m.common_error();
     return (
       <span className="block max-w-[260px] truncate text-xs text-(--danger)" title={msg}>
         {msg}
@@ -642,7 +656,7 @@ function NodeState({
     );
   }
   if (health === "ok") {
-    return <span className="text-xs text-(--muted)">Healthy</span>;
+    return <span className="text-xs text-(--muted)">{m.common_healthy()}</span>;
   }
-  return <span className="text-xs text-(--muted)">Never polled</span>;
+  return <span className="text-xs text-(--muted)">{m.common_never_polled()}</span>;
 }

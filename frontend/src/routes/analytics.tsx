@@ -36,7 +36,8 @@ import {
   Td,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { formatBytes, relTime } from "~/lib/format";
+import { formatBytes, formatLocaleDateTime, relTime } from "~/lib/format";
+import * as m from "~/paraglide/messages.js";
 
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
@@ -78,9 +79,12 @@ function AnalyticsPage() {
   const nodeTraffic = overview?.nodeTraffic ?? null;
   const rangeLoading = trafficQuery === null || overviewQuery.isPending;
   const rangeError = overviewQuery.error ? queryErrorMessage(overviewQuery.error) : "";
-  const queryErrors = [{ key: "range", message: rangeError ? `Range: ${rangeError}` : "" }].filter(
-    (e) => e.message
-  );
+  const queryErrors = [
+    {
+      key: "range",
+      message: rangeError ? m.analytics_error_range_prefix({ error: rangeError }) : "",
+    },
+  ].filter((e) => e.message);
   const updatedAt = overviewQuery.dataUpdatedAt || null;
 
   return (
@@ -88,17 +92,16 @@ function AnalyticsPage() {
       headerLeft={
         <div className="flex min-w-0 items-center gap-3">
           <BackLink />
-          <span className="truncate text-[13px] font-semibold tracking-tight">Analytics</span>
+          <span className="truncate text-[13px] font-semibold tracking-tight">
+            {m.analytics_title()}
+          </span>
         </div>
       }
       headerRight={
         <div className="flex items-center gap-3 text-xs text-(--muted)">
           {updatedAt !== null && (
-            <span
-              className="hidden tabular-nums sm:inline"
-              title={new Date(updatedAt).toLocaleString()}
-            >
-              Updated {relTime(updatedAt, now)}
+            <span className="hidden tabular-nums sm:inline" title={formatLocaleDateTime(updatedAt)}>
+              {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
           <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
@@ -111,7 +114,7 @@ function AnalyticsPage() {
       ))}
 
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[13px] font-semibold text-(--foreground)">Traffic</h2>
+        <h2 className="text-[13px] font-semibold text-(--foreground)">{m.common_traffic()}</h2>
         {trafficRange ? (
           <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
         ) : (
@@ -156,7 +159,7 @@ function RangeTrafficSection({
 
   return (
     <Section
-      title="All nodes traffic"
+      title={m.analytics_section_all_nodes()}
       meta={
         !loading && !error ? (
           <span className="font-mono tabular-nums">
@@ -174,7 +177,7 @@ function RangeTrafficSection({
               <div className="h-[220px] animate-pulse rounded bg-(--surface-secondary)" />
             ) : points.length === 0 ? (
               <div className="grid h-[220px] place-items-center text-[13px] text-(--muted)">
-                No traffic recorded in this window.
+                {m.common_no_traffic_in_window()}
               </div>
             ) : (
               <TrafficChart
@@ -200,13 +203,13 @@ function NodeBreakdownSection({
   rows: NonNullable<PanelNodeTraffic["by_node"]>;
 }) {
   return (
-    <Section title="By node">
+    <Section title={m.analytics_section_by_node()}>
       {error ? (
         <PanelMessage>{error}</PanelMessage>
       ) : loading ? (
         <TableSkeleton rows={4} />
       ) : rows.length === 0 ? (
-        <PanelMessage>No node traffic in this window.</PanelMessage>
+        <PanelMessage>{m.analytics_no_node_traffic()}</PanelMessage>
       ) : (
         <NodeBreakdownTable rows={rows} />
       )}
@@ -266,15 +269,15 @@ function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_n
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-            <SortableTh column={table.getColumn("name")!}>Name</SortableTh>
+            <SortableTh column={table.getColumn("name")!}>{m.common_name()}</SortableTh>
             <SortableTh column={table.getColumn("total")!} align="right" className="text-right">
-              Total
+              {m.common_th_total()}
             </SortableTh>
             <SortableTh column={table.getColumn("tx")!} align="right" className="text-right">
-              TX
+              {m.common_th_tx()}
             </SortableTh>
             <SortableTh column={table.getColumn("rx")!} align="right" className="text-right">
-              RX
+              {m.common_th_rx()}
             </SortableTh>
           </tr>
         </thead>
@@ -282,7 +285,7 @@ function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_n
           {table.getRowModel().rows.map((row) => {
             const { node, rx, tx, total } = row.original;
             const id = node?.id ?? "";
-            const name = node?.name || "—";
+            const name = node?.name || m.common_em_dash();
             return (
               <tr
                 key={id || `${name}-${row.id}`}

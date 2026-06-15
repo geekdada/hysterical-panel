@@ -24,7 +24,8 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { formatBytes, relTime } from "~/lib/format";
+import { formatBytes, formatLocaleCount, formatLocaleDateTime, relTime } from "~/lib/format";
+import * as m from "~/paraglide/messages.js";
 
 type DatabaseStats = components["schemas"]["DatabaseStatsResponse"];
 type DatabasePrune = components["schemas"]["DatabasePruneResponse"];
@@ -75,14 +76,14 @@ function DatabasePage() {
   const loading = statsQuery.isPending;
   const error = statsQuery.error ? queryErrorMessage(statsQuery.error) : "";
   const pruneError = pruneMutation.error
-    ? queryErrorMessage(pruneMutation.error, "Network error while deleting old traffic data.")
+    ? queryErrorMessage(pruneMutation.error, m.error_database_prune_network())
     : "";
   const updatedAt = statsQuery.dataUpdatedAt || null;
 
   function handlePrune() {
     if (pruneEligible <= 0 || pruneMutation.isPending) return;
     const ok = window.confirm(
-      `Delete ${formatCount(pruneEligible)} traffic data points older than 30 days? This cannot be undone.`
+      m.database_prune_confirm({ count: formatLocaleCount(pruneEligible) })
     );
     if (ok) pruneMutation.mutate();
   }
@@ -91,20 +92,17 @@ function DatabasePage() {
     <PageShell
       headerLeft={
         <div className="flex min-w-0 items-center gap-3">
-          <BackLink preferHistoryBack label="Settings" />
+          <BackLink preferHistoryBack label={m.common_back_settings()} />
           <span className="truncate text-[13px] font-semibold tracking-tight">
-            Database management
+            {m.database_title()}
           </span>
         </div>
       }
       headerRight={
         <div className="flex items-center gap-3 text-xs text-(--muted)">
           {updatedAt !== null && (
-            <span
-              className="hidden tabular-nums sm:inline"
-              title={new Date(updatedAt).toLocaleString()}
-            >
-              Updated {relTime(updatedAt, now)}
+            <span className="hidden tabular-nums sm:inline" title={formatLocaleDateTime(updatedAt)}>
+              {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
           <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
@@ -123,19 +121,23 @@ function DatabasePage() {
       />
 
       <Section
-        title="Traffic data points"
-        meta={stats?.cutoff ? `Retention cutoff ${formatCutoff(stats.cutoff)}` : undefined}
+        title={m.database_section_traffic_points()}
+        meta={
+          stats?.cutoff
+            ? m.database_retention_cutoff({ cutoff: formatCutoff(stats.cutoff) })
+            : undefined
+        }
       >
         <TrafficTableSection loading={loading} tables={tables} />
       </Section>
 
-      <Section title="Storage footprint">
+      <Section title={m.database_section_storage()}>
         <StorageTable loading={loading} files={files} totalBytes={storage?.total_bytes ?? 0} />
       </Section>
 
       <Section
-        title="Maintenance"
-        meta="Deletes only traffic_hourly and traffic_daily rows"
+        title={m.database_section_maintenance()}
+        meta={m.database_maintenance_meta()}
         action={
           <Button
             size="sm"
@@ -144,7 +146,7 @@ function DatabasePage() {
             onPress={handlePrune}
             className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
           >
-            {pruneMutation.isPending ? "Deleting..." : "Delete >30 days"}
+            {pruneMutation.isPending ? m.database_prune_deleting() : m.database_prune_button()}
           </Button>
         }
       >
@@ -174,22 +176,30 @@ function SummaryRail({
 }) {
   return (
     <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
-      <RailItem label="Storage" loading={loading} value={formatBytes(storageBytes)}>
-        data.db footprint
-      </RailItem>
-      <RailItem label="Hourly points" loading={loading} value={formatCount(hourly)}>
-        traffic_hourly rows
-      </RailItem>
-      <RailItem label="Daily points" loading={loading} value={formatCount(daily)}>
-        traffic_daily rows
+      <RailItem
+        label={m.database_rail_storage()}
+        loading={loading}
+        value={formatBytes(storageBytes)}
+      >
+        {m.database_rail_storage_hint()}
       </RailItem>
       <RailItem
-        label="Prune eligible"
+        label={m.database_rail_hourly()}
         loading={loading}
-        value={formatCount(pruneEligible)}
+        value={formatLocaleCount(hourly)}
+      >
+        {m.database_rail_hourly_hint()}
+      </RailItem>
+      <RailItem label={m.database_rail_daily()} loading={loading} value={formatLocaleCount(daily)}>
+        {m.database_rail_daily_hint()}
+      </RailItem>
+      <RailItem
+        label={m.database_rail_prune_eligible()}
+        loading={loading}
+        value={formatLocaleCount(pruneEligible)}
         tone={pruneEligible > 0 ? "danger" : "muted"}
       >
-        older than 30 days
+        {m.database_rail_prune_eligible_hint()}
       </RailItem>
     </div>
   );
@@ -232,16 +242,16 @@ function RailItem({
 
 function TrafficTableSection({ loading, tables }: { loading: boolean; tables: TrafficTable[] }) {
   if (loading) return <TableSkeleton rows={2} />;
-  if (tables.length === 0) return <PanelMessage>No traffic tables found.</PanelMessage>;
+  if (tables.length === 0) return <PanelMessage>{m.database_no_traffic_tables()}</PanelMessage>;
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-[13px]">
         <thead className="border-b border-(--border) bg-(--surface-secondary)">
           <tr>
-            <Th>Table</Th>
-            <Th className="text-right">Data points</Th>
-            <Th className="text-right">Older than 30 days</Th>
+            <Th>{m.database_th_table()}</Th>
+            <Th className="text-right">{m.database_th_data_points()}</Th>
+            <Th className="text-right">{m.database_th_older_than_30d()}</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-(--separator)">
@@ -254,17 +264,17 @@ function TrafficTableSection({ loading, tables }: { loading: boolean; tables: Tr
               >
                 <Td>
                   <span className="font-mono text-[13px] text-(--foreground)">
-                    {table.table ?? "—"}
+                    {table.table ?? m.common_em_dash()}
                   </span>
                   <span className="ml-2 text-xs text-(--muted)">{tableLabel(table.table)}</span>
                 </Td>
                 <Td className="text-right font-mono tabular-nums">
-                  {formatCount(table.points ?? 0)}
+                  {formatLocaleCount(table.points ?? 0)}
                 </Td>
                 <Td
                   className={`text-right font-mono tabular-nums ${old > 0 ? "text-(--danger)" : "text-(--muted)"}`}
                 >
-                  {formatCount(old)}
+                  {formatLocaleCount(old)}
                 </Td>
               </tr>
             );
@@ -291,8 +301,8 @@ function StorageTable({
       <table className="w-full text-left text-[13px]">
         <thead className="border-b border-(--border) bg-(--surface-secondary)">
           <tr>
-            <Th>File</Th>
-            <Th className="text-right">Size</Th>
+            <Th>{m.database_th_file()}</Th>
+            <Th className="text-right">{m.database_th_size()}</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-(--separator)">
@@ -301,12 +311,12 @@ function StorageTable({
               key={file.name}
               className="transition-colors duration-150 hover:bg-(--surface-secondary)"
             >
-              <Td className="font-mono text-(--foreground)">{file.name ?? "—"}</Td>
+              <Td className="font-mono text-(--foreground)">{file.name ?? m.common_em_dash()}</Td>
               <Td className="text-right font-mono tabular-nums">{formatBytes(file.bytes ?? 0)}</Td>
             </tr>
           ))}
           <tr className="border-t border-(--border) bg-(--surface-secondary)">
-            <Td className="font-medium text-(--foreground)">Total</Td>
+            <Td className="font-medium text-(--foreground)">{m.common_total()}</Td>
             <Td className="text-right font-mono font-medium tabular-nums">
               {formatBytes(totalBytes)}
             </Td>
@@ -334,13 +344,11 @@ function MaintenancePanel({
   return (
     <div className="divide-y divide-(--separator)">
       <div className="px-4 py-3 text-[13px] text-(--muted)">
-        Rows with <span className="font-mono text-(--foreground)">bucket</span> before{" "}
-        <span className="font-mono text-(--foreground)">{cutoff ? formatCutoff(cutoff) : "—"}</span>{" "}
-        are eligible. Current eligible rows:{" "}
-        <span className="font-mono text-(--foreground) tabular-nums">
-          {formatCount(pruneEligible)}
-        </span>
-        .
+        {m.database_maintenance_eligible({
+          bucketField: "bucket",
+          cutoff: cutoff ? formatCutoff(cutoff) : m.common_em_dash(),
+          count: formatLocaleCount(pruneEligible),
+        })}
       </div>
       {pruneError && (
         <div className="flex items-center gap-2 bg-(--danger-soft) px-4 py-3 text-[13px] text-(--danger-soft-foreground)">
@@ -350,11 +358,14 @@ function MaintenancePanel({
       )}
       {result && (
         <div className="px-4 py-3 text-[13px] text-(--foreground)">
-          Deleted <span className="font-mono tabular-nums">{formatCount(deletedTotal)}</span> rows.
+          {m.database_maintenance_deleted({ count: formatLocaleCount(deletedTotal) })}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-(--muted)">
             {deleted.map((row) => (
               <span key={row.table} className="font-mono tabular-nums">
-                {row.table}: {formatCount(row.deleted_rows ?? 0)}
+                {m.database_maintenance_deleted_row({
+                  table: row.table ?? m.common_em_dash(),
+                  count: formatLocaleCount(row.deleted_rows ?? 0),
+                })}
               </span>
             ))}
           </div>
@@ -369,17 +380,13 @@ function trafficTable(tables: TrafficTable[], tableName: string): TrafficTable |
 }
 
 function tableLabel(table?: string): string {
-  if (table === "traffic_hourly") return "hour buckets";
-  if (table === "traffic_daily") return "day buckets";
+  if (table === "traffic_hourly") return m.database_table_hour_buckets();
+  if (table === "traffic_daily") return m.database_table_day_buckets();
   return "";
-}
-
-function formatCount(value: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
 }
 
 function formatCutoff(value: string): string {
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) return value;
-  return new Date(parsed).toLocaleString();
+  return formatLocaleDateTime(parsed);
 }

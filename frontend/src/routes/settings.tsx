@@ -16,6 +16,7 @@ import {
 } from "~/api/queries";
 import { BackLink, CopyableCode, ErrorAlert, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/settings")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -43,7 +44,7 @@ function SettingsPage() {
   const settings = settingsQuery.data;
   const loadError = settingsQuery.error ? queryErrorMessage(settingsQuery.error) : "";
   const saveError = mutation.error
-    ? queryErrorMessage(mutation.error, "Network error while updating settings.")
+    ? queryErrorMessage(mutation.error, m.error_settings_update_network())
     : "";
 
   function patch(field: keyof AppSettings, value: boolean) {
@@ -56,38 +57,40 @@ function SettingsPage() {
       headerLeft={
         <div className="flex min-w-0 items-center gap-3">
           <BackLink />
-          <span className="truncate text-[13px] font-semibold tracking-tight">Settings</span>
+          <span className="truncate text-[13px] font-semibold tracking-tight">
+            {m.settings_title()}
+          </span>
         </div>
       }
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
       <div className="mb-5">
-        <h1 className="text-base font-semibold tracking-tight">Registration</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">Control who can create accounts.</p>
+        <h1 className="text-base font-semibold tracking-tight">{m.settings_registration()}</h1>
+        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_registration_desc()}</p>
       </div>
 
       <ErrorAlert message={loadError} className="mb-4" />
 
       <div className="flex flex-col gap-1 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
         <SettingSwitch
-          label="Invitation system"
-          description="Generate invite codes that let people sign up."
+          label={m.settings_invitation_system()}
+          description={m.settings_invitation_system_desc()}
           isSelected={settings?.invitations_enabled ?? false}
           isDisabled={!settings || mutation.isPending}
           onChange={(v) => patch("invitations_enabled", v)}
         />
         <div className="my-1 h-px bg-(--separator)" />
         <SettingSwitch
-          label="Open registration"
-          description="Anyone can sign up without an invite code."
+          label={m.settings_open_registration()}
+          description={m.settings_open_registration_desc()}
           isSelected={settings?.open_registration ?? false}
           isDisabled={!settings || mutation.isPending}
           onChange={(v) => patch("open_registration", v)}
         />
         <div className="my-1 h-px bg-(--separator)" />
         <SettingSwitch
-          label="Require invite code"
-          description="Open sign-ups still need a valid code. Requires the invitation system."
+          label={m.settings_require_invite()}
+          description={m.settings_require_invite_desc()}
           isSelected={settings?.require_invite_for_open ?? false}
           isDisabled={!settings || mutation.isPending || !(settings?.invitations_enabled ?? false)}
           onChange={(v) => patch("require_invite_for_open", v)}
@@ -95,17 +98,12 @@ function SettingsPage() {
       </div>
 
       {settings?.open_registration && !settings.require_invite_for_open && (
-        <p className="mt-3 text-xs text-(--muted)">
-          Sign-ups without a code must verify their email, which needs SMTP set up in the PocketBase
-          admin. Until then, those sign-ups are rejected.
-        </p>
+        <p className="mt-3 text-xs text-(--muted)">{m.settings_smtp_note()}</p>
       )}
 
       <div className="mt-8 mb-5">
-        <h1 className="text-base font-semibold tracking-tight">Database</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">
-          Keep traffic data from piling up over time.
-        </p>
+        <h1 className="text-base font-semibold tracking-tight">{m.settings_database()}</h1>
+        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_database_desc()}</p>
       </div>
 
       <Link
@@ -117,10 +115,10 @@ function SettingsPage() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] font-medium text-(--foreground)">
-            Database management
+            {m.settings_database_management()}
           </span>
           <span className="block text-xs text-(--muted)">
-            View storage usage and prune old data points.
+            {m.settings_database_management_desc()}
           </span>
         </span>
         <ChevronRight
@@ -210,19 +208,15 @@ function ManagementApiSection({
   return (
     <>
       <div className="mt-8 mb-5">
-        <h1 className="text-base font-semibold tracking-tight">Management API</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">
-          Let external services manage resources on this platform.
-        </p>
+        <h1 className="text-base font-semibold tracking-tight">{m.settings_management_api()}</h1>
+        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_management_api_desc()}</p>
       </div>
 
       <div className="flex flex-col gap-4 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
         <SettingSwitch
-          label="Enable management API"
+          label={m.settings_enable_mgmt_api()}
           description={
-            enabled
-              ? "The /api/mgmt/* endpoints are served, authenticated by a server-generated token."
-              : "Turning this on generates a token shown once. Copy it before leaving this page."
+            enabled ? m.settings_mgmt_api_enabled_desc() : m.settings_mgmt_api_disabled_desc()
           }
           isSelected={enabled}
           isDisabled={!settings || pending}
@@ -235,7 +229,7 @@ function ManagementApiSection({
 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-[13px]">
-                <span className="text-success font-semibold">Configured</span>
+                <span className="text-success font-semibold">{m.settings_configured()}</span>
               </div>
               <Button
                 variant="secondary"
@@ -243,7 +237,7 @@ function ManagementApiSection({
                 isDisabled={pending || rotateMutation.isPending}
                 onPress={() => rotateMutation.mutate()}
               >
-                {rotateMutation.isPending ? "Rotating…" : "Rotate token"}
+                {rotateMutation.isPending ? m.settings_rotating() : m.settings_rotate_token()}
               </Button>
             </div>
           </>
@@ -253,7 +247,7 @@ function ManagementApiSection({
       {revealedToken && (
         <div className="mt-4 rounded-(--radius) border border-(--warning) bg-(--warning-soft) px-4 py-3">
           <p className="text-[13px] font-semibold text-(--warning-soft-foreground)">
-            Copy your token now. It won't be shown again.
+            {m.settings_copy_token_now()}
           </p>
           <CopyableCode value={revealedToken} label="token" className="mt-2" />
         </div>
@@ -267,10 +261,10 @@ function ManagementApiSection({
           <Code className="size-4" aria-hidden />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium text-(--foreground)">API reference</span>
-          <span className="block text-xs text-(--muted)">
-            Endpoints with request and response examples.
+          <span className="block text-[13px] font-medium text-(--foreground)">
+            {m.settings_api_reference()}
           </span>
+          <span className="block text-xs text-(--muted)">{m.settings_api_reference_desc()}</span>
         </span>
         <ChevronRight
           className="size-4 shrink-0 text-(--muted) transition-colors duration-150 group-hover:text-(--foreground)"
@@ -284,10 +278,7 @@ function ManagementApiSection({
         className="mt-4"
         message={
           rotateMutation.error
-            ? queryErrorMessage(
-                rotateMutation.error,
-                "Network error while rotating the management API token."
-              )
+            ? queryErrorMessage(rotateMutation.error, m.error_mgmt_token_rotate_network())
             : ""
         }
       />

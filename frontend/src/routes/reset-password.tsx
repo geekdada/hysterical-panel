@@ -4,6 +4,8 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { confirmPasswordReset } from "~/api/auth";
 import { AuthShell } from "~/components/ui";
+import { localizeApiError } from "~/lib/api-error";
+import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/reset-password")({
   validateSearch: (search: Record<string, unknown>): { token?: string } => ({
@@ -19,7 +21,7 @@ function Header() {
         H
       </span>
       <Card.Title className="text-[15px] font-semibold tracking-tight text-(--foreground)">
-        Reset your password
+        {m.auth_reset_password()}
       </Card.Title>
     </Card.Header>
   );
@@ -39,16 +41,16 @@ function ResetPasswordPage() {
   const error =
     localError ||
     (resetMutation.error instanceof Error
-      ? resetMutation.error.message
+      ? localizeApiError(resetMutation.error.message)
       : resetMutation.error
-        ? "Password reset failed"
+        ? m.auth_password_reset_failed()
         : "");
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!token) return;
     if (password !== passwordConfirm) {
-      setLocalError("Passwords don't match.");
+      setLocalError(m.auth_passwords_dont_match());
       return;
     }
     setLocalError("");
@@ -62,10 +64,10 @@ function ResetPasswordPage() {
         <Card.Content className="px-6 pt-4 pb-6">
           <div className="flex flex-col gap-3 py-2">
             <p className="text-[13px] text-(--danger)" role="alert">
-              This reset link is invalid or has expired.
+              {m.auth_reset_link_invalid()}
             </p>
             <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
-              Back to sign in
+              {m.auth_back_to_sign_in()}
             </Link>
           </div>
         </Card.Content>
@@ -79,18 +81,16 @@ function ResetPasswordPage() {
       <Card.Content className="px-6 pt-4 pb-6">
         {resetMutation.isSuccess ? (
           <div className="flex flex-col gap-3 py-2">
-            <p className="text-[13px] text-(--foreground)">Your password has been reset.</p>
-            <p className="text-[13px] text-(--muted)">
-              You can now sign in with your new password.
-            </p>
+            <p className="text-[13px] text-(--foreground)">{m.auth_password_reset_success()}</p>
+            <p className="text-[13px] text-(--muted)">{m.auth_sign_in_new_password()}</p>
             <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
-              Go to sign in
+              {m.auth_go_to_sign_in()}
             </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <TextField>
-              <Label>New password</Label>
+              <Label>{m.auth_new_password()}</Label>
               <Input
                 type="password"
                 autoComplete="new-password"
@@ -104,7 +104,7 @@ function ResetPasswordPage() {
               />
             </TextField>
             <TextField>
-              <Label>Confirm new password</Label>
+              <Label>{m.auth_confirm_new_password()}</Label>
               <Input
                 type="password"
                 autoComplete="new-password"
@@ -131,13 +131,13 @@ function ResetPasswordPage() {
               isDisabled={resetMutation.isPending}
               className="mt-1"
             >
-              {resetMutation.isPending ? "Resetting…" : "Reset password"}
+              {resetMutation.isPending ? m.auth_resetting() : m.auth_reset_password_btn()}
             </Button>
             <Link
               to="/login"
               className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
             >
-              Back to sign in
+              {m.auth_back_to_sign_in()}
             </Link>
           </form>
         )}

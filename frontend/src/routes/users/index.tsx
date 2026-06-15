@@ -26,13 +26,14 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { formatBytes, plural, relTimeFromISO } from "~/lib/format";
+import { formatBytes, relTimeFromISO } from "~/lib/format";
 import {
   USER_LIST_PAGE_SIZE_OPTIONS,
   parseUsersListSearch,
   toggleUsersListSort,
   type UsersListSearch,
 } from "~/lib/users-list-search";
+import * as m from "~/paraglide/messages.js";
 
 type PanelUser = components["schemas"]["PanelUser"];
 
@@ -80,9 +81,12 @@ function UsersPage() {
   const sectionMeta =
     !usersQuery.isPending && !listError
       ? listSearch.search.trim()
-        ? `${total} ${plural(Number(total), "match")}`
+        ? m.users_meta_matches({ count: String(total) })
         : stats
-          ? `${stats.total} ${plural(Number(stats.total), "user")} · ${stats.active} active`
+          ? m.users_meta_stats({
+              total: String(stats.total),
+              active: String(stats.active),
+            })
           : undefined
       : undefined;
 
@@ -91,16 +95,18 @@ function UsersPage() {
       headerLeft={
         <div className="flex min-w-0 items-center gap-3">
           <BackLink />
-          <span className="truncate text-[13px] font-semibold tracking-tight">Users</span>
+          <span className="truncate text-[13px] font-semibold tracking-tight">
+            {m.users_title()}
+          </span>
         </div>
       }
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
-      <Section className="mt-0" title="All users" meta={sectionMeta}>
+      <Section className="mt-0" title={m.users_section_all()} meta={sectionMeta}>
         {usersQuery.isPending ? (
           <TableSkeleton />
         ) : listError ? (
-          <PanelMessage>Couldn't load users.</PanelMessage>
+          <PanelMessage>{m.users_load_error()}</PanelMessage>
         ) : users.length > 0 || listSearch.search.trim() ? (
           <UsersTable
             listSearch={listSearch}
@@ -119,10 +125,7 @@ function UsersPage() {
             }
           />
         ) : (
-          <Teaching
-            title="No users yet"
-            hint="Create a user to issue a Hysteria auth key and track its traffic."
-          />
+          <Teaching title={m.users_empty_title()} hint={m.users_empty_hint()} />
         )}
       </Section>
     </PageShell>
@@ -169,13 +172,13 @@ function UsersTable({
     <div>
       <div className="border-b border-(--border) p-3">
         <TextField
-          aria-label="Search users"
+          aria-label={m.users_search_aria()}
           className="max-w-sm"
           value={searchDraft}
           onChange={setSearchDraft}
         >
-          <Label className="sr-only">Search users</Label>
-          <Input placeholder="Search email, role, status, or full auth key…" />
+          <Label className="sr-only">{m.users_search_aria()}</Label>
+          <Input placeholder={m.users_search_placeholder()} />
         </TextField>
       </div>
 
@@ -184,11 +187,11 @@ function UsersTable({
           <thead>
             <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
               <ServerSortableTh columnId="email" sort={listSearch.sort} onSort={onSort}>
-                Email
+                {m.common_email()}
               </ServerSortableTh>
-              <Th>Auth key</Th>
+              <Th>{m.users_th_auth_key()}</Th>
               <ServerSortableTh columnId="role" sort={listSearch.sort} onSort={onSort}>
-                Role
+                {m.common_role()}
               </ServerSortableTh>
               <ServerSortableTh
                 columnId="used_tx"
@@ -197,7 +200,7 @@ function UsersTable({
                 align="right"
                 className="text-right"
               >
-                TX
+                {m.common_th_tx()}
               </ServerSortableTh>
               <ServerSortableTh
                 columnId="used_rx"
@@ -206,7 +209,7 @@ function UsersTable({
                 align="right"
                 className="text-right"
               >
-                RX
+                {m.common_th_rx()}
               </ServerSortableTh>
               <ServerSortableTh
                 columnId="status"
@@ -215,7 +218,7 @@ function UsersTable({
                 align="right"
                 className="text-right"
               >
-                Status
+                {m.common_status()}
               </ServerSortableTh>
               <ServerSortableTh
                 columnId="created"
@@ -224,7 +227,7 @@ function UsersTable({
                 align="right"
                 className="text-right"
               >
-                Created
+                {m.users_th_created()}
               </ServerSortableTh>
             </tr>
           </thead>
@@ -239,24 +242,27 @@ function UsersTable({
                   >
                     <Td>
                       <div className="flex items-center gap-2.5">
-                        <Dot tone={active ? "ok" : "idle"} title={active ? "active" : "disabled"} />
+                        <Dot
+                          tone={active ? "ok" : "idle"}
+                          title={active ? m.common_status_active() : m.common_status_disabled()}
+                        />
                         <Link
                           to="/users/$userId"
                           params={{ userId: user.id ?? "" }}
                           search={{ from: "users" }}
                           className="block max-w-[200px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
                         >
-                          {user.email || "—"}
+                          {user.email || m.common_em_dash()}
                         </Link>
                       </div>
                     </Td>
                     <Td>
                       <div className="group/key flex items-center gap-1.5">
                         <span className="block max-w-[200px] truncate font-mono text-xs text-(--muted)">
-                          {user.auth_string || "—"}
+                          {user.auth_string || m.common_em_dash()}
                         </span>
                         {user.auth_string && (
-                          <CopyButton value={user.auth_string} label="auth key" />
+                          <CopyButton value={user.auth_string} label={m.common_copy_auth_key()} />
                         )}
                       </div>
                     </Td>
@@ -273,11 +279,11 @@ function UsersTable({
                     </Td>
                     <Td className="text-right">
                       <span className="text-xs text-(--muted)">
-                        {active ? "Active" : "Disabled"}
+                        {active ? m.common_active() : m.common_disabled()}
                       </span>
                     </Td>
                     <Td className="whitespace-nowrap text-right text-xs text-(--muted)">
-                      {user.created ? relTimeFromISO(user.created, now) : "—"}
+                      {user.created ? relTimeFromISO(user.created, now) : m.common_em_dash()}
                     </Td>
                   </tr>
                 );
@@ -285,7 +291,7 @@ function UsersTable({
             ) : (
               <tr>
                 <td colSpan={7} className="px-3 py-8 text-center text-xs text-(--muted)">
-                  No users match your search.
+                  {m.users_no_search_results()}
                 </td>
               </tr>
             )}
@@ -296,12 +302,12 @@ function UsersTable({
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--border) px-3 py-2.5">
         <span className="text-xs text-(--muted)">
           {listSearch.search.trim()
-            ? `${total} ${plural(Number(total), "match")}`
-            : `${total} ${plural(Number(total), "user")}`}
+            ? m.users_footer_count_matches({ count: String(total) })
+            : m.users_footer_count_users({ count: String(total) })}
         </span>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-xs text-(--muted)">
-            Rows
+            {m.users_pagination_rows()}
             <select
               value={listSearch.per_page}
               onChange={(e) =>
@@ -323,7 +329,10 @@ function UsersTable({
             </select>
           </label>
           <span className="text-xs tabular-nums text-(--muted)">
-            Page {total === 0 ? 0 : listSearch.page} of {total === 0 ? 0 : pageCount}
+            {m.users_pagination_page({
+              page: String(total === 0 ? 0 : listSearch.page),
+              pageCount: String(total === 0 ? 0 : pageCount),
+            })}
           </span>
           <Button
             size="sm"
@@ -338,7 +347,7 @@ function UsersTable({
               })
             }
           >
-            Previous
+            {m.users_pagination_previous()}
           </Button>
           <Button
             size="sm"
@@ -353,7 +362,7 @@ function UsersTable({
               })
             }
           >
-            Next
+            {m.users_pagination_next()}
           </Button>
         </div>
       </div>

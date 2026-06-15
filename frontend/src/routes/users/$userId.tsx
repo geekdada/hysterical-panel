@@ -46,6 +46,7 @@ import {
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, formatDuration, relTime, relTimeFromISO } from "~/lib/format";
 import { defaultUsersListSearch, parseUserDetailSearch } from "~/lib/users-list-search";
+import * as m from "~/paraglide/messages.js";
 
 type PanelUser = components["schemas"]["PanelUser"];
 type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
@@ -107,7 +108,7 @@ function AccountDetailPage() {
             fromUsersList ? (
               <BackLink
                 to="/users"
-                label="Users"
+                label={m.common_back_users()}
                 search={defaultUsersListSearch()}
                 preferHistoryBack
               />
@@ -128,7 +129,7 @@ function AccountDetailPage() {
                 title={user?.status ?? "active"}
               />
               <span className="truncate text-[13px] font-semibold tracking-tight">
-                {user?.email || "Account"}
+                {user?.email || m.user_fallback_account()}
               </span>
             </div>
           )}
@@ -141,7 +142,7 @@ function AccountDetailPage() {
               className="hidden tabular-nums sm:inline"
               title={new Date(updatedAt).toLocaleString()}
             >
-              Updated {relTime(updatedAt, now)}
+              {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
           <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
@@ -153,16 +154,16 @@ function AccountDetailPage() {
 
       {notFound ? (
         <Teaching
-          title="Account not found"
-          hint="It may have been deleted or moved."
+          title={m.user_not_found_title()}
+          hint={m.user_not_found_hint()}
           action={
             isAdmin ? (
               <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
-                Back to dashboard
+                {m.common_back_dashboard()}
               </Button>
             ) : (
               <Button size="sm" variant="secondary" onPress={handleLogout}>
-                Sign out
+                {m.user_sign_out()}
               </Button>
             )
           }
@@ -226,23 +227,25 @@ function AccountRail({ user, loading }: { user: PanelUser | null; loading: boole
   return (
     <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
       <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem] md:divide-x md:divide-y-0">
-        <RailItem label="Email">
+        <RailItem label={m.user_rail_email()}>
           <span className="block truncate text-[13px]" title={user?.email || ""}>
-            {user?.email || "—"}
+            {user?.email || m.common_em_dash()}
           </span>
         </RailItem>
-        <RailItem label="Auth key">
+        <RailItem label={m.user_rail_auth_key()}>
           <div className="group/key flex min-w-0 items-center gap-1.5">
             <span className="block min-w-0 truncate font-mono text-[13px] text-(--foreground)">
-              {user?.auth_string || "—"}
+              {user?.auth_string || m.common_em_dash()}
             </span>
-            {user?.auth_string && <CopyButton value={user.auth_string} label="auth key" />}
+            {user?.auth_string && (
+              <CopyButton value={user.auth_string} label={m.common_copy_auth_key()} />
+            )}
           </div>
         </RailItem>
-        <RailItem label="Role">
-          <span className="font-mono text-[13px]">{user?.role || "—"}</span>
+        <RailItem label={m.common_role()}>
+          <span className="font-mono text-[13px]">{user?.role || m.common_em_dash()}</span>
         </RailItem>
-        <RailItem label="Status">
+        <RailItem label={m.common_status()}>
           <span className="inline-flex min-w-0 items-center gap-2">
             <Dot tone={active ? "ok" : "idle"} title={status} />
             <span className="truncate text-[13px] capitalize">{status}</span>
@@ -250,24 +253,24 @@ function AccountRail({ user, loading }: { user: PanelUser | null; loading: boole
         </RailItem>
       </div>
       <div className="grid border-t border-(--border) divide-y divide-(--border) md:grid-cols-4 md:divide-x md:divide-y-0">
-        <RailItem label="Used total">
+        <RailItem label={m.user_rail_used_total()}>
           <span className="font-mono text-[15px] font-semibold tabular-nums">
             {formatBytes(usedTx + usedRx)}
           </span>
         </RailItem>
-        <RailItem label="TX">
+        <RailItem label={m.common_th_tx()}>
           <span className="font-mono text-[13px] tabular-nums">
             <span className="text-(--muted)">↑</span> {formatBytes(usedTx)}
           </span>
         </RailItem>
-        <RailItem label="RX">
+        <RailItem label={m.common_th_rx()}>
           <span className="font-mono text-[13px] tabular-nums">
             <span className="text-(--muted)">↓</span> {formatBytes(usedRx)}
           </span>
         </RailItem>
-        <RailItem label="Quota">
+        <RailItem label={m.user_rail_quota()}>
           <span className="font-mono text-[13px] tabular-nums">
-            {quota > 0 ? formatBytes(quota) : "No quota"}
+            {quota > 0 ? formatBytes(quota) : m.user_no_quota()}
           </span>
         </RailItem>
       </div>
@@ -316,7 +319,7 @@ function PasskeysSection({
     enabled: canQueryPanelApi() && enabled,
   });
   const addMutation = useMutation({
-    mutationFn: () => registerPasskey(userId, "Passkey", false),
+    mutationFn: () => registerPasskey(userId, m.user_passkeys_default_name(), false),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: passkeysKey });
     },
@@ -334,10 +337,10 @@ function PasskeysSection({
   const loading = passkeysQuery.isPending;
   const addError =
     addMutation.error && !isPasskeySoftError(addMutation.error)
-      ? queryErrorMessage(addMutation.error, "Couldn't add passkey.")
+      ? queryErrorMessage(addMutation.error, m.error_passkey_add())
       : "";
   const deleteError = deleteMutation.error
-    ? queryErrorMessage(deleteMutation.error, "Couldn't delete passkey.")
+    ? queryErrorMessage(deleteMutation.error, m.error_passkey_delete())
     : "";
   const error = passkeysQuery.error
     ? queryErrorMessage(passkeysQuery.error)
@@ -345,10 +348,8 @@ function PasskeysSection({
 
   return (
     <Section
-      title="Passkeys"
-      meta={
-        loading ? undefined : `${rows.length} ${rows.length === 1 ? "credential" : "credentials"}`
-      }
+      title={m.user_passkeys_title()}
+      meta={loading ? undefined : m.user_passkeys_meta({ count: String(rows.length) })}
       action={
         isSelf ? (
           <Button
@@ -357,7 +358,7 @@ function PasskeysSection({
             isDisabled={addMutation.isPending}
             onPress={() => addMutation.mutate()}
           >
-            {addMutation.isPending ? "Adding..." : "Add passkey"}
+            {addMutation.isPending ? m.user_passkeys_adding() : m.user_passkeys_add()}
           </Button>
         ) : undefined
       }
@@ -374,12 +375,8 @@ function PasskeysSection({
         <TableSkeleton rows={2} />
       ) : rows.length === 0 ? (
         <Teaching
-          title="No passkeys"
-          hint={
-            isSelf
-              ? "Add a passkey to sign in without typing your password."
-              : "This account has not enrolled a passkey."
-          }
+          title={m.user_passkeys_empty_title()}
+          hint={isSelf ? m.user_passkeys_empty_hint_self() : m.user_passkeys_empty_hint_other()}
         />
       ) : (
         <PasskeysTable
@@ -391,7 +388,8 @@ function PasskeysSection({
               : undefined
           }
           onDelete={(passkey) => {
-            if (window.confirm(`Delete passkey "${passkey.name || "Passkey"}"?`)) {
+            const name = passkey.name || m.user_passkeys_default_name();
+            if (window.confirm(m.user_passkeys_delete_confirm({ name }))) {
               deleteMutation.mutate({ passkeyId: passkey.id });
             }
           }}
@@ -417,11 +415,11 @@ function PasskeysTable({
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-            <Th>Name</Th>
-            <Th>Transports</Th>
-            <Th>Backup</Th>
-            <Th className="text-right">Last used</Th>
-            {canManage && <Th className="text-right">Action</Th>}
+            <Th>{m.common_name()}</Th>
+            <Th>{m.user_passkeys_th_transports()}</Th>
+            <Th>{m.user_passkeys_th_backup()}</Th>
+            <Th className="text-right">{m.user_passkeys_th_last_used()}</Th>
+            {canManage && <Th className="text-right">{m.user_passkeys_th_action()}</Th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-(--separator)">
@@ -431,24 +429,28 @@ function PasskeysTable({
               className="transition-colors duration-150 hover:bg-(--surface-secondary)"
             >
               <Td>
-                <span className="font-medium">{passkey.name || "Passkey"}</span>
+                <span className="font-medium">
+                  {passkey.name || m.user_passkeys_default_name()}
+                </span>
               </Td>
               <Td>
                 <span className="font-mono text-xs text-(--muted)">
-                  {passkey.transports?.length ? passkey.transports.join(", ") : "—"}
+                  {passkey.transports?.length ? passkey.transports.join(", ") : m.common_em_dash()}
                 </span>
               </Td>
               <Td>
                 <span className="text-xs text-(--muted)">
                   {passkey.backup_state
-                    ? "Synced"
+                    ? m.user_passkeys_backup_synced()
                     : passkey.backup_eligible
-                      ? "Eligible"
-                      : "Device-bound"}
+                      ? m.user_passkeys_backup_eligible()
+                      : m.user_passkeys_backup_device_bound()}
                 </span>
               </Td>
               <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
-                {passkey.last_used_at ? relTimeFromISO(passkey.last_used_at, Date.now()) : "Never"}
+                {passkey.last_used_at
+                  ? relTimeFromISO(passkey.last_used_at, Date.now())
+                  : m.common_never()}
               </Td>
               {canManage && (
                 <Td className="text-right">
@@ -458,7 +460,7 @@ function PasskeysTable({
                     isDisabled={deletingId === passkey.id}
                     onPress={() => onDelete(passkey)}
                   >
-                    {deletingId === passkey.id ? "Deleting..." : "Delete"}
+                    {deletingId === passkey.id ? m.common_deleting() : m.common_delete()}
                   </Button>
                 </Td>
               )}
@@ -495,7 +497,7 @@ function TrafficSection({
 
   return (
     <Section
-      title="Traffic"
+      title={m.common_traffic()}
       meta={
         !loading ? (
           <span className="font-mono tabular-nums">
@@ -519,7 +521,7 @@ function TrafficSection({
           <div className="h-[220px] animate-pulse rounded bg-(--surface-secondary)" />
         ) : points.length === 0 ? (
           <div className="grid h-[220px] place-items-center text-[13px] text-(--muted)">
-            No traffic recorded in this window.
+            {m.common_no_traffic_in_window()}
           </div>
         ) : (
           <TrafficChart points={points} granularity={granularity} idPrefix="account-traffic" />
@@ -531,10 +533,10 @@ function TrafficSection({
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
-                <Th>Top Nodes</Th>
-                <Th className="text-right">TX</Th>
-                <Th className="text-right">RX</Th>
-                <Th className="text-right">Total</Th>
+                <Th>{m.user_traffic_top_nodes()}</Th>
+                <Th className="text-right">{m.common_th_tx()}</Th>
+                <Th className="text-right">{m.common_th_rx()}</Th>
+                <Th className="text-right">{m.common_th_total()}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-(--separator)">
@@ -550,11 +552,11 @@ function TrafficSection({
                         params={{ nodeId: n.node.id }}
                         className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
                       >
-                        {n.node?.name || "unknown"}
+                        {n.node?.name || m.common_unknown()}
                       </Link>
                     ) : (
                       <span className="block max-w-[280px] truncate font-medium">
-                        {n.node?.name || "unknown"}
+                        {n.node?.name || m.common_unknown()}
                       </span>
                     )}
                   </Td>
@@ -594,7 +596,7 @@ function LiveSection({ userId }: { userId: string }) {
   const loading = liveQuery.isFetching;
   const fetchedAt = liveQuery.dataUpdatedAt || null;
   const reqError = liveQuery.error
-    ? queryErrorMessage(liveQuery.error, "Network error while fetching streams.")
+    ? queryErrorMessage(liveQuery.error, m.error_streams_network())
     : "";
   const byNode = live?.by_node ?? [];
   const visibleByNode = byNode.filter((n) => n.error || (n.streams?.length ?? 0) > 0);
@@ -603,11 +605,14 @@ function LiveSection({ userId }: { userId: string }) {
 
   return (
     <Section
-      title="Live streams"
+      title={m.common_live_streams()}
       meta={
         live ? (
           <span className="font-mono tabular-nums">
-            {live.online_devices ?? 0} online · {live.active_streams ?? 0} streams
+            {m.user_live_meta({
+              devices: String(live.online_devices ?? 0),
+              streams: String(live.active_streams ?? 0),
+            })}
           </span>
         ) : undefined
       }
@@ -629,7 +634,7 @@ function LiveSection({ userId }: { userId: string }) {
             }}
             isPending={loading}
           >
-            {fetchedAt === null ? "Fetch streams" : "Refresh"}
+            {fetchedAt === null ? m.common_fetch_streams() : m.common_refresh()}
           </Button>
         </div>
       }
@@ -639,20 +644,11 @@ function LiveSection({ userId }: { userId: string }) {
       ) : loading && !live ? (
         <TableSkeleton />
       ) : !live ? (
-        <Teaching
-          title="No snapshot yet"
-          hint="Fetch a live snapshot to see this account's active streams across visible nodes."
-        />
+        <Teaching title={m.common_no_snapshot_title()} hint={m.user_live_empty_snapshot_hint()} />
       ) : byNode.length === 0 ? (
-        <Teaching
-          title="No visible nodes"
-          hint="This account has no enabled nodes available for live diagnostics."
-        />
+        <Teaching title={m.user_live_no_nodes_title()} hint={m.user_live_no_nodes_hint()} />
       ) : visibleByNode.length === 0 ? (
-        <Teaching
-          title="No active streams"
-          hint="This account is not routing traffic through visible nodes right now."
-        />
+        <Teaching title={m.common_no_active_streams_title()} hint={m.user_live_no_streams_hint()} />
       ) : (
         <div className="flex flex-col">
           {visibleByNode.map((n, i) => (
@@ -681,10 +677,15 @@ function NodeStreams({
       <div className="flex items-center justify-between gap-3 bg-(--surface-secondary) px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <Dot tone={hasError ? "error" : streams.length > 0 ? "ok" : "idle"} />
-          <span className="truncate text-xs font-medium">{group.node?.name || "unknown"}</span>
+          <span className="truncate text-xs font-medium">
+            {group.node?.name || m.common_unknown()}
+          </span>
         </div>
         <span className="shrink-0 font-mono text-xs tabular-nums text-(--muted)">
-          {group.online_devices ?? 0} online · {streams.length} streams
+          {m.user_live_node_meta({
+            devices: String(group.online_devices ?? 0),
+            count: String(streams.length),
+          })}
         </span>
       </div>
       {hasError ? (
@@ -696,17 +697,17 @@ function NodeStreams({
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-(--separator) text-left">
-                <Th>Target</Th>
-                <Th>State</Th>
-                <Th className="text-right">TX</Th>
-                <Th className="text-right">RX</Th>
-                <Th className="text-right">Lifetime</Th>
-                <Th className="text-right">Idle</Th>
+                <Th>{m.common_th_target()}</Th>
+                <Th>{m.common_th_state()}</Th>
+                <Th className="text-right">{m.common_th_tx()}</Th>
+                <Th className="text-right">{m.common_th_rx()}</Th>
+                <Th className="text-right">{m.common_th_lifetime()}</Th>
+                <Th className="text-right">{m.common_th_idle()}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-(--separator)">
               {streams.map((s, i) => {
-                const target = s.hooked_req_addr || s.req_addr || "—";
+                const target = s.hooked_req_addr || s.req_addr || m.common_em_dash();
                 return (
                   <tr
                     key={`${s.connection}-${s.stream}-${i}`}
@@ -721,7 +722,7 @@ function NodeStreams({
                       </span>
                     </Td>
                     <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
-                      {s.state || "—"}
+                      {s.state || m.common_em_dash()}
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
                       {formatBytes(s.tx ?? 0)}
@@ -753,16 +754,16 @@ function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> 
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
-              <Th>Top domains</Th>
-              <Th>ASN</Th>
-              <Th>Country</Th>
-              <Th className="text-right">Streams</Th>
-              <Th className="text-right">Total</Th>
+              <Th>{m.common_top_domains()}</Th>
+              <Th>{m.common_th_asn()}</Th>
+              <Th>{m.common_th_country()}</Th>
+              <Th className="text-right">{m.common_th_streams()}</Th>
+              <Th className="text-right">{m.common_th_total()}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-(--separator)">
             {rows.map((d, i) => {
-              const domain = d.domain || "—";
+              const domain = d.domain || m.common_em_dash();
               const meta = d.ip_meta;
               const countryTitle = meta?.country_name || meta?.country_code || "";
               return (
@@ -774,7 +775,7 @@ function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> 
                         target="_blank"
                         rel="noreferrer"
                         className="block max-w-[260px] truncate font-mono text-xs text-(--foreground) underline decoration-(--border) underline-offset-2 transition-colors duration-150 hover:text-(--accent)"
-                        title={`Open ${meta.ip || domain} on ipinfo.io`}
+                        title={m.common_ipinfo_open({ target: meta.ip || domain })}
                       >
                         {domain}
                       </a>
@@ -788,7 +789,7 @@ function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> 
                     )}
                   </Td>
                   <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
-                    {meta?.asn || "—"}
+                    {meta?.asn || m.common_em_dash()}
                   </Td>
                   <Td className="whitespace-nowrap text-xs text-(--muted)">
                     {meta?.country_code ? (
@@ -801,7 +802,7 @@ function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> 
                         )}
                       </span>
                     ) : (
-                      "—"
+                      m.common_em_dash()
                     )}
                   </Td>
                   <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
@@ -827,10 +828,10 @@ function ByConnectionTable({ rows }: { rows: NonNullable<UserLive["by_connection
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
-              <Th>Device</Th>
-              <Th>Top domain</Th>
-              <Th className="text-right">Streams</Th>
-              <Th className="text-right">Total</Th>
+              <Th>{m.common_th_device()}</Th>
+              <Th>{m.common_th_top_domain()}</Th>
+              <Th className="text-right">{m.common_th_streams()}</Th>
+              <Th className="text-right">{m.common_th_total()}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-(--separator)">
@@ -844,7 +845,7 @@ function ByConnectionTable({ rows }: { rows: NonNullable<UserLive["by_connection
                     className="block max-w-[200px] truncate font-mono text-xs"
                     title={c.top_domain || ""}
                   >
-                    {c.top_domain || "—"}
+                    {c.top_domain || m.common_em_dash()}
                   </span>
                 </Td>
                 <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">

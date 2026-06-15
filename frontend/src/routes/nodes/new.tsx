@@ -18,6 +18,7 @@ import type { components } from "~/api/schema";
 import { createNode, queryErrorMessage, queryKeys, testNode } from "~/api/queries";
 import { BackLink, ErrorAlert, PageShell } from "~/components/ui";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
+import * as m from "~/paraglide/messages.js";
 
 type Node = components["schemas"]["Node"];
 
@@ -40,7 +41,7 @@ function AddNodePage() {
     mutationFn: async (body: components["schemas"]["NodeCreateRequest"]) => {
       const node = await createNode(body);
       if (!node.id) {
-        throw new Error("Couldn't create the node.");
+        throw new Error(m.error_node_create());
       }
       return node as Node & { id: string };
     },
@@ -87,16 +88,14 @@ function AddNodePage() {
 
   const test = toTestState(testMutation);
   const submitError = createMutation.error
-    ? queryErrorMessage(createMutation.error, "Network error while creating the node.")
+    ? queryErrorMessage(createMutation.error, m.error_node_create_network())
     : "";
 
   return (
     <PageShell width="narrow" headerLeft={<BackLink />}>
       <div className="mb-5">
-        <h1 className="text-base font-semibold tracking-tight">Add node</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">
-          Register a Hysteria node's API endpoint to start collecting traffic.
-        </p>
+        <h1 className="text-base font-semibold tracking-tight">{m.nodes_add_title()}</h1>
+        <p className="mt-0.5 text-[13px] text-(--muted)">{m.nodes_add_description()}</p>
       </div>
 
       <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
@@ -137,9 +136,9 @@ function AddNodePage() {
               validators={{
                 onChange: ({ value }) =>
                   !value.trim()
-                    ? "Name is required"
+                    ? m.nodes_add_name_required()
                     : value.trim().length > 128
-                      ? "Keep the name under 128 characters"
+                      ? m.nodes_add_name_too_long()
                       : undefined,
               }}
             >
@@ -152,9 +151,9 @@ function AddNodePage() {
                   isInvalid={field.state.meta.errors.length > 0}
                   isRequired
                 >
-                  <Label>Name</Label>
+                  <Label>{m.nodes_add_name_label()}</Label>
                   <Input
-                    placeholder="hk-01"
+                    placeholder={m.nodes_add_name_placeholder()}
                     autoFocus
                     autoComplete="off"
                     data-1p-ignore
@@ -181,11 +180,11 @@ function AddNodePage() {
                   isInvalid={field.state.meta.errors.length > 0}
                   isRequired
                 >
-                  <Label>API URL</Label>
+                  <Label>{m.nodes_add_api_url_label()}</Label>
                   <Input
                     type="url"
                     inputMode="url"
-                    placeholder="http://203.0.113.10:9999"
+                    placeholder={m.nodes_add_api_url_placeholder()}
                     className="font-mono text-[13px]"
                     autoComplete="url"
                     pattern="https?://.*"
@@ -196,10 +195,7 @@ function AddNodePage() {
                   {field.state.meta.errors.length > 0 ? (
                     <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
                   ) : (
-                    <Description>
-                      The Traffic Stats API address (the `trafficStats` listen port, not the proxy
-                      port).
-                    </Description>
+                    <Description>{m.nodes_add_api_url_description()}</Description>
                   )}
                 </TextField>
               )}
@@ -208,7 +204,7 @@ function AddNodePage() {
             <form.Field
               name="api_secret"
               validators={{
-                onChange: ({ value }) => (!value ? "API secret is required" : undefined),
+                onChange: ({ value }) => (!value ? m.nodes_add_api_secret_required() : undefined),
               }}
             >
               {(field) => (
@@ -221,7 +217,7 @@ function AddNodePage() {
                   isRequired
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <Label>API secret</Label>
+                    <Label>{m.nodes_add_api_secret_label()}</Label>
                     <button
                       type="button"
                       onClick={() => {
@@ -229,7 +225,7 @@ function AddNodePage() {
                       }}
                       className="rounded text-xs font-medium text-(--accent) transition-opacity duration-150 hover:opacity-80 focus-visible:underline focus-visible:outline-none"
                     >
-                      Generate
+                      {m.nodes_add_api_secret_generate()}
                     </button>
                   </div>
                   <div className="relative">
@@ -242,16 +238,13 @@ function AddNodePage() {
                       data-form-type="other"
                     />
                     <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
-                      <CopyButton value={field.state.value} label="API secret" />
+                      <CopyButton value={field.state.value} label={m.nodes_add_copy_api_secret()} />
                     </div>
                   </div>
                   {field.state.meta.errors.length > 0 ? (
                     <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
                   ) : (
-                    <Description>
-                      Generate one or paste the node's secret, then copy it into the server config.
-                      Stored encrypted and hidden after saving.
-                    </Description>
+                    <Description>{m.nodes_add_api_secret_description()}</Description>
                   )}
                 </TextField>
               )}
@@ -262,9 +255,9 @@ function AddNodePage() {
               validators={{
                 onChange: ({ value }) =>
                   value == null || Number.isNaN(value)
-                    ? "Poll interval is required"
+                    ? m.nodes_add_poll_interval_required()
                     : !Number.isInteger(value) || value < 1
-                      ? "Use a whole number of seconds, at least 1"
+                      ? m.nodes_add_poll_interval_invalid()
                       : undefined,
               }}
             >
@@ -280,7 +273,7 @@ function AddNodePage() {
                   isRequired
                   className="max-w-48"
                 >
-                  <Label>Poll interval</Label>
+                  <Label>{m.nodes_add_poll_interval_label()}</Label>
                   <NumberField.Group>
                     <NumberField.DecrementButton />
                     <NumberField.Input />
@@ -289,7 +282,7 @@ function AddNodePage() {
                   {field.state.meta.errors.length > 0 ? (
                     <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
                   ) : (
-                    <Description>Seconds between traffic polls.</Description>
+                    <Description>{m.nodes_add_poll_interval_description()}</Description>
                   )}
                 </NumberField>
               )}
@@ -303,8 +296,8 @@ function AddNodePage() {
                   className="justify-between"
                 >
                   <Switch.Content>
-                    <Label>Enabled</Label>
-                    <Description>Poll this node as soon as it's saved.</Description>
+                    <Label>{m.nodes_add_enabled_label()}</Label>
+                    <Description>{m.nodes_add_enabled_description()}</Description>
                   </Switch.Content>
                   <Switch.Control>
                     <Switch.Thumb />
@@ -317,7 +310,7 @@ function AddNodePage() {
 
             <div className="flex items-center justify-end gap-2 border-t border-(--separator) pt-4">
               <Button variant="ghost" onPress={() => navigate({ to: "/" })}>
-                Cancel
+                {m.common_cancel()}
               </Button>
               <form.Subscribe
                 selector={(s) => ({
@@ -327,7 +320,7 @@ function AddNodePage() {
               >
                 {({ canSubmit, isSubmitting }) => (
                   <Button type="submit" variant="primary" isDisabled={!canSubmit}>
-                    {isSubmitting ? "Adding…" : "Add node"}
+                    {isSubmitting ? m.nodes_add_submitting() : m.nodes_add_submit()}
                   </Button>
                 )}
               </form.Subscribe>
@@ -356,11 +349,11 @@ function setupYaml(apiSecret: string): { code: string; note?: string }[] {
     { code: "trafficStats:" },
     {
       code: "  listen: :9999",
-      note: "API address; must be reachable from the panel",
+      note: m.nodes_setup_yaml_note_listen(),
     },
     {
       code: `  secret: ${secret}`,
-      note: "sent as the Authorization header",
+      note: m.nodes_setup_yaml_note_secret(),
     },
   ];
 }
@@ -372,10 +365,13 @@ function authYaml(panelOrigin: string): { code: string; note?: string }[] {
     { code: "auth:" },
     { code: "  type: http" },
     { code: "  http:" },
-    { code: `    url: ${panelOrigin}/api/hysteria/auth`, note: "this panel" },
+    {
+      code: `    url: ${panelOrigin}/api/hysteria/auth`,
+      note: m.nodes_setup_yaml_note_panel(),
+    },
     {
       code: "    insecure: false",
-      note: "true only if the panel uses self-signed TLS",
+      note: m.nodes_setup_yaml_note_insecure(),
     },
   ];
 }
@@ -386,11 +382,8 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
 
   return (
     <section className="mt-4 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
-      <h2 className="text-[13px] font-semibold tracking-tight">On the Hysteria server</h2>
-      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
-        The panel only reads stats; it never deploys the node. Enable the Traffic Stats API in the
-        node's <span className="font-mono">server.yaml</span>, then restart Hysteria.
-      </p>
+      <h2 className="text-[13px] font-semibold tracking-tight">{m.nodes_setup_title()}</h2>
+      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">{m.nodes_setup_intro()}</p>
 
       <pre className="mt-3 overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 font-mono text-xs leading-relaxed">
         {setupYaml(apiSecret).map((line) => (
@@ -402,13 +395,9 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
       </pre>
 
       <h3 className="mt-5 text-[13px] font-semibold tracking-tight">
-        Authenticate clients against this panel
+        {m.nodes_setup_auth_title()}
       </h3>
-      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
-        Point Hysteria's <span className="font-mono">auth.http.url</span> at the panel. Each connect
-        attempt is checked against the <span className="font-mono">auth_string</span> of the
-        matching user; disabled accounts are rejected.
-      </p>
+      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">{m.nodes_setup_auth_intro()}</p>
 
       <pre className="mt-3 overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 font-mono text-xs leading-relaxed">
         {authYaml(panelOrigin).map((line) => (
@@ -418,26 +407,18 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
           </div>
         ))}
       </pre>
-      <p className="mt-1.5 text-xs text-(--muted)">
-        Adjust the host if Hysteria reaches the panel through a different URL than your browser
-        does.
-      </p>
+      <p className="mt-1.5 text-xs text-(--muted)">{m.nodes_setup_host_note()}</p>
 
       <dl className="mt-4 flex flex-col gap-1.5 text-[13px]">
-        <SetupRow term="API URL">
-          <span className="font-mono">http://&lt;server-ip&gt;:9999</span> — the listen address
-          above, no trailing slash.
+        <SetupRow term={m.nodes_setup_term_api_url()}>{m.nodes_setup_api_url_value()}</SetupRow>
+        <SetupRow term={m.nodes_setup_term_api_secret()}>
+          {m.nodes_setup_api_secret_value()}
         </SetupRow>
-        <SetupRow term="API secret">
-          the <span className="font-mono">secret</span> value above; the panel stores it encrypted.
+        <SetupRow term={m.nodes_setup_term_auth_check()}>
+          {m.nodes_setup_auth_check_value()}
         </SetupRow>
-        <SetupRow term="Auth check">
-          the client's <span className="font-mono">auth</span> string must match a user's{" "}
-          <span className="font-mono">auth_string</span>; disabled users are rejected.
-        </SetupRow>
-        <SetupRow term="Reachability">
-          open the stats port to the panel only, and keep it behind a firewall or TLS. It exposes
-          per-user traffic.
+        <SetupRow term={m.nodes_setup_term_reachability()}>
+          {m.nodes_setup_reachability_value()}
         </SetupRow>
       </dl>
     </section>
@@ -473,9 +454,9 @@ function CreatedView({
       <div className="flex items-start gap-2.5">
         <StatusDot tone="ok" className="mt-1.5" />
         <div>
-          <p className="text-[13px] font-medium">Node created</p>
+          <p className="text-[13px] font-medium">{m.nodes_created_title()}</p>
           <p className="mt-0.5 text-xs text-(--muted)">
-            <span className="font-mono">{node.name}</span> is registered.
+            {m.nodes_created_registered({ name: node.name ?? "" })}
           </p>
         </div>
       </div>
@@ -484,15 +465,15 @@ function CreatedView({
         {test.status === "pending" && (
           <div className="flex items-center gap-2 text-(--muted)">
             <span className="inline-block size-2 shrink-0 animate-pulse rounded-full bg-(--muted)" />
-            Testing connection…
+            {m.nodes_created_testing()}
           </div>
         )}
         {test.status === "ok" && (
           <div className="flex items-center gap-2">
             <StatusDot tone="ok" />
-            <span>Reachable</span>
+            <span>{m.nodes_created_reachable()}</span>
             <span className="ml-auto font-mono tabular-nums text-(--muted)">
-              {test.latencyMs} ms
+              {m.nodes_created_latency_ms({ ms: test.latencyMs })}
             </span>
           </div>
         )}
@@ -508,22 +489,20 @@ function CreatedView({
                 onClick={onRetry}
                 className="ml-auto shrink-0 text-xs text-(--muted) underline-offset-2 transition-colors duration-150 hover:text-(--foreground) hover:underline"
               >
-                Retry
+                {m.common_retry()}
               </button>
             </div>
-            <p className="text-xs text-(--muted)">
-              The node was saved and will still be polled. You can retest it from the dashboard.
-            </p>
+            <p className="text-xs text-(--muted)">{m.nodes_created_saved_note()}</p>
           </div>
         )}
       </div>
 
       <div className="flex items-center justify-end gap-2 border-t border-(--separator) pt-4">
         <Button variant="ghost" onPress={onAddAnother}>
-          Add another
+          {m.nodes_created_add_another()}
         </Button>
         <Button variant="primary" onPress={onDone}>
-          Back to dashboard
+          {m.common_back_dashboard()}
         </Button>
       </div>
     </div>
@@ -586,7 +565,11 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   }
 
   return (
-    <IconAction label={copied ? "Copied" : `Copy ${label}`} onClick={copy} disabled={!value}>
+    <IconAction
+      label={copied ? m.common_copy_copied() : m.common_copy_copy({ label })}
+      onClick={copy}
+      disabled={!value}
+    >
       {copied ? (
         <span className="text-(--success)">
           <Check className="size-3.5" aria-hidden />
@@ -609,11 +592,11 @@ function generateSecret(): string {
 
 function validateUrl(value: string): string | undefined {
   const v = value.trim();
-  if (!v) return "API URL is required";
+  if (!v) return m.nodes_add_api_url_required();
   try {
     new URL(v);
   } catch {
-    return "Enter a valid URL, e.g. https://node.example.com:8443";
+    return m.nodes_add_api_url_invalid();
   }
   return undefined;
 }
@@ -629,7 +612,7 @@ function toTestState(mutation: {
   if (mutation.error) {
     return {
       status: "error",
-      message: queryErrorMessage(mutation.error, "Network error while testing the node."),
+      message: queryErrorMessage(mutation.error, m.error_node_test_network()),
     };
   }
   if (!mutation.data) {
@@ -640,6 +623,6 @@ function toTestState(mutation: {
   }
   return {
     status: "error",
-    message: mutation.data.error || "Node is unreachable.",
+    message: mutation.data.error || m.nodes_created_unreachable(),
   };
 }
