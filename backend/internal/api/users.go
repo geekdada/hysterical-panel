@@ -5,6 +5,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/token"
 )
 
 type userInput struct {
@@ -59,16 +61,24 @@ func (h *Handlers) newUserRecord(p newUserParams) (*core.Record, error) {
 	return u, nil
 }
 
+// createUser provisions a user. Only email is required: an admin can quick-create
+// an account by email alone, in which case the password and auth_string are
+// system-generated (the same scheme as self-registration and the management API).
+// Callers may still supply an explicit password and/or auth_string. Accounts are
+// always created verified, defaulting to role=user / status=active.
 func (h *Handlers) createUser(e *core.RequestEvent) error {
 	var in userInput
 	if err := e.BindBody(&in); err != nil {
 		return apis.NewBadRequestError("invalid body", err)
 	}
-	if in.Email == nil || *in.Email == "" || in.Password == nil || *in.Password == "" ||
-		in.AuthString == nil || *in.AuthString == "" {
-		return apis.NewBadRequestError("email, password and auth_string are required", nil)
+	email := ""
+	if in.Email != nil {
+		email = strings.TrimSpace(*in.Email)
 	}
-	role := strOr(in.Role, "admin")
+	if email == "" {
+		return apis.NewBadRequestError("email is required", nil)
+	}
+	role := strOr(in.Role, "user")
 	if !validUserRole(role) {
 		return apis.NewBadRequestError("role must be admin or user", nil)
 	}
@@ -76,10 +86,35 @@ func (h *Handlers) createUser(e *core.RequestEvent) error {
 	if !validUserStatus(status) {
 		return apis.NewBadRequestError("status must be active or disabled", nil)
 	}
+
+	password := ""
+	if in.Password != nil {
+		password = *in.Password
+	}
+	if password == "" {
+		generated, err := token.Alphanumeric(24)
+		if err != nil {
+			return apis.NewBadRequestError("failed to provision account", err)
+		}
+		password = generated
+	}
+
+	authString := ""
+	if in.AuthString != nil {
+		authString = strings.TrimSpace(*in.AuthString)
+	}
+	if authString == "" {
+		generated, err := h.generateUniqueAuthString()
+		if err != nil {
+			return apis.NewBadRequestError("failed to provision account", err)
+		}
+		authString = generated
+	}
+
 	u, err := h.newUserRecord(newUserParams{
-		Email:      *in.Email,
-		Password:   *in.Password,
-		AuthString: *in.AuthString,
+		Email:      email,
+		Password:   password,
+		AuthString: authString,
 		Role:       role,
 		Status:     status,
 		Verified:   true,

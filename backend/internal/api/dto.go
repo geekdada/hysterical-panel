@@ -72,11 +72,13 @@ type UserStatsResponse struct {
 	Active int64 `json:"active"`
 }
 
-// UserCreateRequest is the body for POST /users.
+// UserCreateRequest is the body for POST /users. Only email is required; an
+// admin can quick-create by email alone. Password and auth_string are
+// system-generated when omitted, and the account is always created verified.
 type UserCreateRequest struct {
 	Email      string  `json:"email"`
-	Password   string  `json:"password"`
-	AuthString string  `json:"auth_string"`
+	Password   *string `json:"password,omitempty"`
+	AuthString *string `json:"auth_string,omitempty"`
 	Role       *string `json:"role,omitempty"`
 	QuotaBytes *int64  `json:"quota_bytes,omitempty"`
 	Status     *string `json:"status,omitempty"`
