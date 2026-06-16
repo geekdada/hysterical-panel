@@ -231,6 +231,7 @@ func TestWebAuthn_explicitConfig(t *testing.T) {
 func TestWebAuthn_infersFromFrontendURL(t *testing.T) {
 	t.Setenv("PANEL_MASTER_KEY", "test-secret")
 	t.Setenv("PANEL_FRONTEND_URL_BASE", "https://panel.example.com")
+	t.Setenv("PANEL_BACKEND_URL_BASE", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -271,6 +272,7 @@ func TestWebAuthn_rejectsInsecureRemoteHTTP(t *testing.T) {
 func TestWebAuthn_implicitInsecureRemoteHTTPDisablesPasskeys(t *testing.T) {
 	t.Setenv("PANEL_MASTER_KEY", "test-secret")
 	t.Setenv("PANEL_FRONTEND_URL_BASE", "http://panel.example.com")
+	t.Setenv("PANEL_BACKEND_URL_BASE", "")
 
 	cfg, err := Load()
 	if err != nil {
