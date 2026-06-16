@@ -31,6 +31,7 @@ type PanelConfig = components["schemas"]["PanelConfigResponse"];
 type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
 type PanelTraffic = components["schemas"]["PanelTrafficResponse"];
 type PanelUser = components["schemas"]["PanelUser"];
+type UserCreateRequest = components["schemas"]["UserCreateRequest"];
 type UserListResponse = components["schemas"]["UserListResponse"];
 type UserStatsResponse = components["schemas"]["UserStatsResponse"];
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
@@ -206,6 +207,25 @@ export function fetchUsersList(query: UsersListQuery): Promise<UserListResponse>
         },
       },
     })
+  );
+}
+
+export function createUser(body: UserCreateRequest): Promise<PanelUser> {
+  return apiRequest<PanelUser>(
+    apiClient.POST("/api/panel/users", { body }),
+    m.error_user_create(),
+    m.error_user_create_network()
+  );
+}
+
+export function updateUserStatus(id: string, status: "active" | "disabled"): Promise<PanelUser> {
+  return apiRequest<PanelUser>(
+    apiClient.PATCH("/api/panel/users/{id}", {
+      params: { path: { id } },
+      body: { status },
+    }),
+    m.error_user_update(),
+    m.error_user_update_network()
   );
 }
 

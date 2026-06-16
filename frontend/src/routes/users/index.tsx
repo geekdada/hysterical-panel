@@ -1,21 +1,24 @@
-import { useEffect, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useEffect, useState, type FormEvent } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Input, Label, TextField } from "@heroui/react";
+import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
   canQueryPanelApi,
+  createUser,
   fetchUserStats,
   fetchUsersList,
   queryErrorMessage,
   queryKeys,
   REFRESH_MS,
+  updateUserStatus,
 } from "~/api/queries";
 import {
   BackLink,
   CopyButton,
   Dot,
+  ErrorAlert,
   PageShell,
   PanelMessage,
   Section,
@@ -71,6 +74,38 @@ function UsersPage() {
     refetchInterval: REFRESH_MS,
   });
 
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const invalidateUsers = () => {
+    void queryClient.invalidateQueries({ queryKey: [...queryKeys.all, "users"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.userStats() });
+  };
+
+  const createMutation = useMutation({ mutationFn: createUser, onSuccess: invalidateUsers });
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "active" | "disabled" }) =>
+      updateUserStatus(id, status),
+    onSuccess: invalidateUsers,
+  });
+
+  function handleToggleStatus(user: PanelUser) {
+    if (!user.id) return;
+    const next = (user.status ?? "active") === "active" ? "disabled" : "active";
+    toggleMutation.mutate({ id: user.id, status: next });
+  }
+
+  // Reset the create mutation when the modal closes so a stale success/error
+  // card never flashes the next time it opens.
+  function handleCreateOpenChange(open: boolean) {
+    setCreateOpen(open);
+    if (!open) createMutation.reset();
+  }
+
+  const toggleError = toggleMutation.error
+    ? queryErrorMessage(toggleMutation.error, m.error_user_update_network())
+    : "";
+
   const list = usersQuery.data;
   const users = (list?.items ?? []) as PanelUser[];
   const total = list?.total ?? 0;
@@ -102,7 +137,33 @@ function UsersPage() {
       }
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
-      <Section className="mt-0" title={m.users_section_all()} meta={sectionMeta}>
+      <ErrorAlert message={toggleError} className="mb-4" />
+
+      <CreateUserModal
+        isOpen={createOpen}
+        onOpenChange={handleCreateOpenChange}
+        pending={createMutation.isPending}
+        error={
+          createMutation.error
+            ? queryErrorMessage(createMutation.error, m.error_user_create_network())
+            : ""
+        }
+        created={createMutation.data ?? null}
+        onSubmit={(email) => createMutation.mutate({ email })}
+      />
+
+      <Section
+        className="mt-0"
+        title={m.users_section_all()}
+        meta={sectionMeta}
+        action={
+          <div className="flex sm:justify-end">
+            <Button size="sm" variant="secondary" onPress={() => setCreateOpen(true)}>
+              {m.users_new_button()}
+            </Button>
+          </div>
+        }
+      >
         {usersQuery.isPending ? (
           <TableSkeleton />
         ) : listError ? (
@@ -114,6 +175,8 @@ function UsersPage() {
             pageCount={pageCount}
             total={total}
             users={users}
+            togglingId={toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null}
+            onToggleStatus={handleToggleStatus}
             onSort={(columnId) =>
               navigate({
                 search: (prev) => ({
@@ -138,6 +201,8 @@ function UsersTable({
   pageCount,
   total,
   users,
+  togglingId,
+  onToggleStatus,
   onSort,
 }: {
   listSearch: UsersListSearch;
@@ -145,6 +210,8 @@ function UsersTable({
   pageCount: number;
   total: number;
   users: PanelUser[];
+  togglingId: string | null;
+  onToggleStatus: (user: PanelUser) => void;
   onSort: (columnId: string) => void;
 }) {
   const navigate = useNavigate({ from: Route.fullPath });
@@ -229,6 +296,7 @@ function UsersTable({
               >
                 {m.users_th_created()}
               </ServerSortableTh>
+              <Th className="text-right">{m.common_actions()}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-(--separator)">
@@ -285,12 +353,22 @@ function UsersTable({
                     <Td className="whitespace-nowrap text-right text-xs text-(--muted)">
                       {user.created ? relTimeFromISO(user.created, now) : m.common_em_dash()}
                     </Td>
+                    <Td className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        isPending={togglingId === user.id}
+                        onPress={() => onToggleStatus(user)}
+                      >
+                        {active ? m.users_deactivate() : m.users_activate()}
+                      </Button>
+                    </Td>
                   </tr>
                 );
               })
             ) : (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-xs text-(--muted)">
+                <td colSpan={8} className="px-3 py-8 text-center text-xs text-(--muted)">
                   {m.users_no_search_results()}
                 </td>
               </tr>
@@ -367,5 +445,102 @@ function UsersTable({
         </div>
       </div>
     </div>
+  );
+}
+
+function CreateUserModal({
+  isOpen,
+  onOpenChange,
+  pending,
+  error,
+  created,
+  onSubmit,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  pending: boolean;
+  error: string;
+  created: PanelUser | null;
+  onSubmit: (email: string) => void;
+}) {
+  const [email, setEmail] = useState("");
+
+  // Start each open with an empty field; the parent resets the mutation on close.
+  useEffect(() => {
+    if (!isOpen) setEmail("");
+  }, [isOpen]);
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    onSubmit(trimmed);
+    setEmail("");
+  }
+
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="sm" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <form onSubmit={handleSubmit}>
+            <Modal.Header>
+              <Modal.Heading>{m.users_create_title()}</Modal.Heading>
+              <p className="mt-1.5 text-sm leading-5 text-(--muted)">
+                {m.users_create_description()}
+              </p>
+            </Modal.Header>
+            <Modal.Body>
+              <TextField value={email} onChange={setEmail} autoFocus>
+                <Label>{m.users_create_email_label()}</Label>
+                <Input
+                  type="email"
+                  autoComplete="off"
+                  placeholder={m.users_create_email_placeholder()}
+                />
+              </TextField>
+
+              {error && (
+                <p className="mt-3 text-[13px] text-(--danger)" role="alert">
+                  {error}
+                </p>
+              )}
+
+              {created && (
+                <div className="mt-4 rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3">
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <Dot tone="ok" />
+                    <span className="font-medium">{m.users_created()}</span>
+                    <span className="min-w-0 truncate text-xs text-(--muted)">{created.email}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-(--muted)">{m.users_created_auth_key_hint()}</p>
+                  {created.auth_string && (
+                    <div className="group/key mt-2 flex items-center gap-1.5">
+                      <span className="min-w-0 truncate font-mono text-[12px] text-(--muted)">
+                        {created.auth_string}
+                      </span>
+                      <CopyButton value={created.auth_string} label={m.common_copy_auth_key()} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button slot="close" variant="secondary">
+                {m.users_create_cancel()}
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isPending={pending}
+                isDisabled={pending || email.trim().length === 0}
+              >
+                {pending ? m.users_create_submitting() : m.users_create_submit()}
+              </Button>
+            </Modal.Footer>
+          </form>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }
