@@ -113,16 +113,20 @@ function AnalyticsPage() {
         <ErrorAlert key={error.key} message={error.message} icon className="mb-4" />
       ))}
 
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[13px] font-semibold text-(--foreground)">{m.common_traffic()}</h2>
-        {trafficRange ? (
-          <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
-        ) : (
-          <div
-            className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
-            aria-hidden
-          />
-        )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <h2 className="shrink-0 text-[13px] font-semibold text-(--foreground)">
+          {m.common_traffic()}
+        </h2>
+        <div className="min-w-0 w-full sm:w-auto">
+          {trafficRange ? (
+            <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
+          ) : (
+            <div
+              className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
+              aria-hidden
+            />
+          )}
+        </div>
       </div>
 
       <RangeTrafficSection
