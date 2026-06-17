@@ -53,6 +53,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     ],
   }),
   component: RootComponent,
+  notFoundComponent: NotFoundComponent,
 });
 
 const SESSION_KEEPALIVE_MS = 4 * 60 * 60 * 1000;
@@ -99,6 +100,26 @@ function RootComponent() {
         </PanelQueryProvider>
       </RootDocument>
     </I18nProvider>
+  );
+}
+
+function NotFoundComponent() {
+  const { auth } = Route.useRouteContext();
+  return (
+    <div className="grid min-h-svh place-items-center bg-(--background) px-4 text-(--foreground)">
+      <div className="text-center">
+        <p className="text-[13px] font-medium">{m.not_found_title()}</p>
+        <p className="mx-auto mt-1 max-w-sm text-xs text-(--muted)">{m.not_found_hint()}</p>
+        <div className="mt-4 flex justify-center">
+          <Link
+            to={auth ? "/" : "/login"}
+            className="inline-flex cursor-pointer place-items-center rounded-[5px] border border-(--border) bg-(--surface-secondary) px-3 py-0.5 text-[11px] text-(--foreground) no-underline transition-colors duration-150 hover:bg-(--surface-tertiary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+          >
+            ← {auth ? m.not_found_back() : m.auth_back_to_sign_in()}
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
 
