@@ -1,5 +1,8 @@
 {
   "app_title": "Hysterical Panel",
+  "not_found_title": "页面不存在",
+  "not_found_hint": "你要找的页面不存在或可能已被移动。",
+  "not_found_back": "返回仪表盘",
   "nav_dashboard": "仪表盘",
   "nav_account_menu": "账户菜单",
   "nav_account": "账户",

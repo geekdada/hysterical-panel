@@ -2,6 +2,9 @@ import { writeFileSync } from "node:fs";
 
 const en = {
   app_title: "Hysterical Panel",
+  not_found_title: "Page not found",
+  not_found_hint: "The page you're looking for doesn't exist or may have moved.",
+  not_found_back: "Back to dashboard",
 
   nav_dashboard: "Dashboard",
   nav_account_menu: "Account menu",
@@ -500,6 +503,9 @@ const en = {
 
 const zh = {
   app_title: "Hysterical Panel",
+  not_found_title: "页面不存在",
+  not_found_hint: "你要找的页面不存在或可能已被移动。",
+  not_found_back: "返回仪表盘",
 
   nav_dashboard: "仪表盘",
   nav_account_menu: "账户菜单",
