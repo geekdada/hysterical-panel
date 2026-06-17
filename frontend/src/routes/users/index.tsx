@@ -296,7 +296,7 @@ function UsersTable({
               >
                 {m.users_th_created()}
               </ServerSortableTh>
-              <Th className="text-right">{m.common_actions()}</Th>
+              <Th>{m.common_actions()}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-(--separator)">
@@ -353,10 +353,15 @@ function UsersTable({
                     <Td className="whitespace-nowrap text-right text-xs text-(--muted)">
                       {user.created ? relTimeFromISO(user.created, now) : m.common_em_dash()}
                     </Td>
-                    <Td className="text-right">
+                    <Td>
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant={active ? "danger-soft" : "ghost"}
+                        className={
+                          active
+                            ? "h-7 min-h-7 px-2 text-xs"
+                            : "h-7 min-h-7 bg-(--success-soft) px-2 text-xs text-(--success-soft-foreground) hover:bg-(--success-soft-hover)"
+                        }
                         isPending={togglingId === user.id}
                         onPress={() => onToggleStatus(user)}
                       >
