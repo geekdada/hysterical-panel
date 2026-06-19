@@ -229,6 +229,16 @@ export function updateUserStatus(id: string, status: "active" | "disabled"): Pro
   );
 }
 
+export function resetUserAuthString(id: string): Promise<PanelUser> {
+  return apiRequest<PanelUser>(
+    apiClient.POST("/api/panel/users/{id}/reset-auth-string", {
+      params: { path: { id } },
+    }),
+    m.error_user_reset_auth(),
+    m.error_user_reset_auth_network()
+  );
+}
+
 export function fetchDashboardTraffic(range: TrafficRangeQuery): Promise<PanelTraffic | null> {
   return apiRequest<PanelTraffic | null>(
     apiClient.GET("/api/panel/traffic", {

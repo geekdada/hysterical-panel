@@ -306,7 +306,7 @@ function UsersTable({
                 return (
                   <tr
                     key={user.id}
-                    className={`transition-colors duration-150 hover:bg-(--surface-secondary) ${active ? "" : "opacity-60"}`}
+                    className="transition-colors duration-150 hover:bg-(--surface-secondary)"
                   >
                     <Td>
                       <div className="flex items-center gap-2.5">
@@ -356,12 +356,7 @@ function UsersTable({
                     <Td>
                       <Button
                         size="sm"
-                        variant={active ? "danger-soft" : "ghost"}
-                        className={
-                          active
-                            ? "h-7 min-h-7 px-2 text-xs"
-                            : "h-7 min-h-7 bg-(--success-soft) px-2 text-xs text-(--success-soft-foreground) hover:bg-(--success-soft-hover)"
-                        }
+                        variant={active ? "danger-soft" : "primary"}
                         isPending={togglingId === user.id}
                         onPress={() => onToggleStatus(user)}
                       >

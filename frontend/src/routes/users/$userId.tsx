@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button } from "@heroui/react";
+import { Button, Modal } from "@heroui/react";
 import {
   clearAuth,
   deletePasskey,
@@ -21,7 +21,9 @@ import {
   queryErrorMessage,
   queryKeys,
   REFRESH_MS,
+  resetUserAuthString,
   toTrafficRangeQuery,
+  updateUserStatus,
 } from "~/api/queries";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
@@ -172,6 +174,10 @@ function AccountDetailPage() {
         <>
           <AccountRail user={user} loading={loading && !user} />
 
+          {isAdmin && user && (
+            <ManageSection userId={userId} user={user} isSelf={auth?.user.id === userId} />
+          )}
+
           <PasskeysSection
             userId={userId}
             isSelf={auth?.user.id === userId}
@@ -292,6 +298,214 @@ function RailItem({
       <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
       <div className="mt-1 min-w-0">{children}</div>
     </div>
+  );
+}
+
+function ManageRow({
+  label,
+  description,
+  action,
+}: {
+  label: string;
+  description: string;
+  action: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-(--foreground)">{label}</p>
+        <p className="mt-0.5 text-xs leading-5 text-(--muted)">{description}</p>
+      </div>
+      <div className="shrink-0">{action}</div>
+    </div>
+  );
+}
+
+function ManageSection({
+  userId,
+  user,
+  isSelf,
+}: {
+  userId: string;
+  user: PanelUser;
+  isSelf: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetResult, setResetResult] = useState<PanelUser | null>(null);
+
+  function invalidateAllUsers() {
+    void queryClient.invalidateQueries({ queryKey: [...queryKeys.all, "users"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.userStats() });
+  }
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ status }: { status: "active" | "disabled" }) => updateUserStatus(userId, status),
+    onSuccess: invalidateAllUsers,
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: () => resetUserAuthString(userId),
+    onSuccess: (updated) => {
+      setResetResult(updated);
+      invalidateAllUsers();
+    },
+  });
+
+  const active = (user.status ?? "active") === "active";
+  const toggleError = toggleMutation.error
+    ? queryErrorMessage(toggleMutation.error, m.error_user_update_network())
+    : "";
+  const resetError = resetMutation.error
+    ? queryErrorMessage(resetMutation.error, m.error_user_reset_auth_network())
+    : "";
+  const error = toggleError || resetError;
+
+  function handleToggleStatus() {
+    const next: "active" | "disabled" = active ? "disabled" : "active";
+    toggleMutation.mutate({ status: next });
+  }
+
+  function handleResetOpenChange(open: boolean) {
+    setResetOpen(open);
+    if (!open) {
+      resetMutation.reset();
+      setResetResult(null);
+    }
+  }
+
+  function handleResetConfirm() {
+    resetMutation.mutate();
+  }
+
+  return (
+    <>
+      <Section title={m.user_manage_title()}>
+        {error && (
+          <div
+            className="border-b border-(--border) bg-(--danger-soft) px-4 py-2 text-[13px] text-(--danger-soft-foreground)"
+            role="alert"
+          >
+            {error}
+          </div>
+        )}
+        <div className="flex flex-col gap-4 p-4">
+          <ManageRow
+            label={m.user_manage_status_label()}
+            description={
+              active ? m.user_manage_status_active_desc() : m.user_manage_status_disabled_desc()
+            }
+            action={
+              <Button
+                size="sm"
+                variant={active ? "danger-soft" : "primary"}
+                isPending={toggleMutation.isPending}
+                isDisabled={isSelf}
+                onPress={handleToggleStatus}
+              >
+                {active ? m.users_deactivate() : m.users_activate()}
+              </Button>
+            }
+          />
+
+          <div className="h-px bg-(--separator)" />
+
+          <ManageRow
+            label={m.user_manage_reset_label()}
+            description={m.user_manage_reset_desc()}
+            action={
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => {
+                  setResetResult(null);
+                  resetMutation.reset();
+                  setResetOpen(true);
+                }}
+              >
+                {m.user_manage_reset_auth_key()}
+              </Button>
+            }
+          />
+        </div>
+      </Section>
+
+      <ResetAuthKeyModal
+        isOpen={resetOpen}
+        onOpenChange={handleResetOpenChange}
+        pending={resetMutation.isPending}
+        error={resetMutation.isError && !resetResult ? resetError : ""}
+        result={resetResult}
+        onConfirm={handleResetConfirm}
+      />
+    </>
+  );
+}
+
+function ResetAuthKeyModal({
+  isOpen,
+  onOpenChange,
+  pending,
+  error,
+  result,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  pending: boolean;
+  error: string;
+  result: PanelUser | null;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="sm" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{m.user_manage_reset_confirm_title()}</Modal.Heading>
+            <p className="mt-1.5 text-sm leading-5 text-(--muted)">
+              {m.user_manage_reset_confirm_body()}
+            </p>
+          </Modal.Header>
+          <Modal.Body>
+            {error && (
+              <p className="text-[13px] text-(--danger)" role="alert">
+                {error}
+              </p>
+            )}
+
+            {result && (
+              <div className="rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3">
+                <div className="flex items-center gap-2 text-[13px]">
+                  <Dot tone="ok" />
+                  <span className="font-medium">{m.user_manage_reset_done()}</span>
+                </div>
+                <p className="mt-1 text-xs text-(--muted)">{m.user_manage_reset_new_key_hint()}</p>
+                {result.auth_string && (
+                  <div className="group/key mt-2 flex items-center gap-1.5">
+                    <span className="min-w-0 truncate font-mono text-[12px] text-(--muted)">
+                      {result.auth_string}
+                    </span>
+                    <CopyButton value={result.auth_string} label={m.common_copy_auth_key()} />
+                  </div>
+                )}
+              </div>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button slot="close" variant="secondary">
+              {result ? m.common_cancel() : m.user_manage_reset_cancel()}
+            </Button>
+            {!result && (
+              <Button variant="danger" isPending={pending} isDisabled={pending} onPress={onConfirm}>
+                {pending ? m.user_manage_reset_submitting() : m.user_manage_reset_submit()}
+              </Button>
+            )}
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }
 
