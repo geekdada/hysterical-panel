@@ -734,6 +734,27 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		}(),
 	})
 
+	// ── /users/{id}/reset-auth-string ─────────────────────────────────────
+	t.Paths.Set("/api/panel/users/{id}/reset-auth-string", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "resetUserAuthString",
+				Summary:     "Regenerate a user's Hysteria auth key (admin)",
+				Tags:        []string{"users"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Updated user with the new auth_string"),
+						Content:     content(ref("PanelUser")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
 	// ── passkeys ─────────────────────────────────────────────────────────
 	t.Paths.Set("/api/panel/passkeys/login/options", &openapi3.PathItem{
 		Post: func() *openapi3.Operation {
