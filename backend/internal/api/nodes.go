@@ -18,8 +18,37 @@ type nodeInput struct {
 	Enabled      *bool   `json:"enabled"`
 }
 
+const activeNodesFilter = "deleted_at = ''"
+
+func nodeDeleted(n *core.Record) bool {
+	return !n.GetDateTime("deleted_at").IsZero()
+}
+
+func (h *Handlers) findActiveNode(id string) (*core.Record, error) {
+	n, err := h.app.FindRecordById("nodes", id)
+	if err != nil {
+		return nil, apis.NewNotFoundError("node not found", err)
+	}
+	if nodeDeleted(n) {
+		return nil, apis.NewNotFoundError("node not found", nil)
+	}
+	return n, nil
+}
+
+func (h *Handlers) nodeRefByID(nodeID string) map[string]any {
+	n, err := h.app.FindRecordById("nodes", nodeID)
+	if err != nil {
+		return map[string]any{"id": nodeID, "name": nodeID, "deleted": true}
+	}
+	return map[string]any{
+		"id":      n.Id,
+		"name":    n.GetString("name"),
+		"deleted": nodeDeleted(n),
+	}
+}
+
 func (h *Handlers) listNodes(e *core.RequestEvent) error {
-	nodes, err := h.app.FindRecordsByFilter("nodes", "", "-created", 0, 0)
+	nodes, err := h.app.FindRecordsByFilter("nodes", activeNodesFilter, "-created", 0, 0)
 	if err != nil {
 		return apis.NewBadRequestError("failed to list nodes", err)
 	}
@@ -31,9 +60,9 @@ func (h *Handlers) listNodes(e *core.RequestEvent) error {
 }
 
 func (h *Handlers) getNode(e *core.RequestEvent) error {
-	n, err := h.app.FindRecordById("nodes", e.Request.PathValue("id"))
+	n, err := h.findActiveNode(e.Request.PathValue("id"))
 	if err != nil {
-		return apis.NewNotFoundError("node not found", err)
+		return err
 	}
 	return ok(e, publicNode(n))
 }
@@ -77,9 +106,9 @@ func (h *Handlers) createNode(e *core.RequestEvent) error {
 
 func (h *Handlers) updateNode(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	n, err := h.app.FindRecordById("nodes", id)
+	n, err := h.findActiveNode(id)
 	if err != nil {
-		return apis.NewNotFoundError("node not found", err)
+		return err
 	}
 	var in nodeInput
 	if err := e.BindBody(&in); err != nil {
@@ -120,11 +149,15 @@ func (h *Handlers) updateNode(e *core.RequestEvent) error {
 
 func (h *Handlers) deleteNode(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	n, err := h.app.FindRecordById("nodes", id)
+	n, err := h.findActiveNode(id)
 	if err != nil {
-		return apis.NewNotFoundError("node not found", err)
+		return err
 	}
-	if err := h.app.Delete(n); err != nil {
+	n.Set("deleted_at", time.Now().UTC())
+	n.Set("enabled", false)
+	n.Set("current_tx_speed", 0)
+	n.Set("current_rx_speed", 0)
+	if err := h.app.Save(n); err != nil {
 		return apis.NewBadRequestError("failed to delete node", err)
 	}
 	return ok(e, map[string]any{"deleted": true})
@@ -132,9 +165,9 @@ func (h *Handlers) deleteNode(e *core.RequestEvent) error {
 
 func (h *Handlers) testNode(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	n, err := h.app.FindRecordById("nodes", id)
+	n, err := h.findActiveNode(id)
 	if err != nil {
-		return apis.NewNotFoundError("node not found", err)
+		return err
 	}
 	secret, err := h.box.Decrypt(n.GetString("api_secret"))
 	if err != nil {

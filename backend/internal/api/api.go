@@ -226,7 +226,7 @@ func (h *Handlers) bindAuthGate() {
 // enabled node is visible to every user; user-group filtering can be added here
 // later without touching callers.
 func (h *Handlers) nodesForUser(_ string) ([]*core.Record, error) {
-	return h.app.FindRecordsByFilter("nodes", "enabled = true", "", 0, 0)
+	return h.app.FindRecordsByFilter("nodes", activeNodesFilter+" && enabled = true", "", 0, 0)
 }
 
 // publicNode strips the secret and derives a health field.

@@ -53,7 +53,7 @@ func (c *Collector) Start(ctx context.Context) {
 }
 
 func (c *Collector) tick(ctx context.Context) {
-	nodes, err := c.app.FindRecordsByFilter("nodes", "enabled = true", "", 0, 0)
+	nodes, err := c.app.FindRecordsByFilter("nodes", "deleted_at = '' && enabled = true", "", 0, 0)
 	if err != nil {
 		log.Printf("[collector] list nodes: %v", err)
 		return

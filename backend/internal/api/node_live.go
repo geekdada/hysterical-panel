@@ -15,9 +15,9 @@ import (
 // groups every stream by the panel user that owns its auth string (no auth
 // filter, unlike the user-scoped endpoint). Never cached, never persisted.
 func (h *Handlers) nodeLive(e *core.RequestEvent) error {
-	n, err := h.app.FindRecordById("nodes", e.Request.PathValue("id"))
+	n, err := h.findActiveNode(e.Request.PathValue("id"))
 	if err != nil {
-		return apis.NewNotFoundError("node not found", err)
+		return err
 	}
 
 	secret, derr := h.box.Decrypt(n.GetString("api_secret"))

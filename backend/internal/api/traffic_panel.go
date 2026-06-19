@@ -147,12 +147,8 @@ func (h *Handlers) panelNodeTrafficSummary(e *core.RequestEvent) error {
 
 	byNode := make([]map[string]any, 0, len(perNode))
 	for nodeID, a := range perNode {
-		name := nodeID
-		if n, err := h.app.FindRecordById("nodes", nodeID); err == nil {
-			name = n.GetString("name")
-		}
 		byNode = append(byNode, map[string]any{
-			"node": map[string]any{"id": nodeID, "name": name},
+			"node": h.nodeRefByID(nodeID),
 			"tx":   a.tx,
 			"rx":   a.rx,
 		})

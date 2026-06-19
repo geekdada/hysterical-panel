@@ -241,8 +241,9 @@ type ByteCount struct {
 
 // NodeRef is a lightweight node identity used inside aggregation responses.
 type NodeRef struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Deleted bool   `json:"deleted"`
 }
 
 // UserRef is a lightweight user identity used inside aggregation responses.

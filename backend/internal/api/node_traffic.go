@@ -10,9 +10,9 @@ import (
 // GET /nodes/:id/traffic/summary?from=&to=
 // Node-wide traffic over a UTC datetime range, with a per-user breakdown sorted by total bytes.
 func (h *Handlers) nodeTrafficSummary(e *core.RequestEvent) error {
-	n, err := h.app.FindRecordById("nodes", e.Request.PathValue("id"))
+	n, err := h.findActiveNode(e.Request.PathValue("id"))
 	if err != nil {
-		return apis.NewNotFoundError("node not found", err)
+		return err
 	}
 	from, to, rangeErr := requiredTrafficRange(e)
 	if rangeErr != nil {
@@ -69,9 +69,9 @@ func (h *Handlers) nodeTrafficSummary(e *core.RequestEvent) error {
 // from/to are UTC datetimes (same format as bucket in responses). Collapses the
 // node's rows across all users into one point per bucket.
 func (h *Handlers) nodeTrafficSeries(e *core.RequestEvent) error {
-	n, err := h.app.FindRecordById("nodes", e.Request.PathValue("id"))
+	n, err := h.findActiveNode(e.Request.PathValue("id"))
 	if err != nil {
-		return apis.NewNotFoundError("node not found", err)
+		return err
 	}
 	q := e.Request.URL.Query()
 	gran := q.Get("granularity")
