@@ -36,6 +36,7 @@ import {
   Td,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { cn } from "~/lib/cn";
 import { formatBytes, formatLocaleDateTime, relTime } from "~/lib/format";
 import * as m from "~/paraglide/messages.js";
 
@@ -221,6 +222,11 @@ function NodeBreakdownSection({
   );
 }
 
+function formatNodeLabel(node: { name?: string; deleted?: boolean }) {
+  const name = node?.name || m.common_em_dash();
+  return node?.deleted ? `${name}${m.node_deleted_suffix()}` : name;
+}
+
 function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_node"]> }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "total", desc: true }]);
   const tableRows = useMemo<NodeBreakdownRow[]>(
@@ -289,23 +295,31 @@ function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_n
           {table.getRowModel().rows.map((row) => {
             const { node, rx, tx, total } = row.original;
             const id = node?.id ?? "";
-            const name = node?.name || m.common_em_dash();
+            const deleted = node?.deleted ?? false;
+            const label = formatNodeLabel(node ?? {});
             return (
               <tr
-                key={id || `${name}-${row.id}`}
+                key={id || `${label}-${row.id}`}
                 className="transition-colors duration-150 hover:bg-(--surface-secondary)"
               >
                 <Td>
-                  {id ? (
+                  {id && !deleted ? (
                     <Link
                       to="/nodes/$nodeId"
                       params={{ nodeId: id }}
                       className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
                     >
-                      {name}
+                      {label}
                     </Link>
                   ) : (
-                    <span className="font-medium">{name}</span>
+                    <span
+                      className={cn(
+                        "block max-w-[180px] truncate font-medium",
+                        deleted && "text-(--muted)"
+                      )}
+                    >
+                      {label}
+                    </span>
                   )}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
