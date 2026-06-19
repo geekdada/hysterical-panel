@@ -35,6 +35,7 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { cn } from "~/lib/cn";
 import {
   formatBytes,
   formatBytesPerSecond,
@@ -155,6 +156,9 @@ function NodeDetailPage() {
 
 /* ── Detail rail (config + health) ─────────────────────────────────────── */
 
+const railValue = "min-w-0 truncate text-[13px] leading-5 text-(--foreground)";
+const railMono = cn(railValue, "font-mono tabular-nums");
+
 function DetailRail({ node, loading, now }: { node: Node | null; loading: boolean; now: number }) {
   if (loading) {
     return (
@@ -162,7 +166,9 @@ function DetailRail({ node, loading, now }: { node: Node | null; loading: boolea
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="flex-1 px-4 py-3">
             <div className="h-3 w-16 animate-pulse rounded bg-(--surface-secondary)" />
-            <div className="mt-2 h-4 w-28 animate-pulse rounded bg-(--surface-secondary)" />
+            <div className="mt-1 flex h-5 items-center">
+              <div className="h-3.5 w-28 animate-pulse rounded bg-(--surface-secondary)" />
+            </div>
           </div>
         ))}
       </div>
@@ -185,36 +191,34 @@ function DetailRail({ node, loading, now }: { node: Node | null; loading: boolea
   return (
     <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
       <RailItem label={m.node_rail_endpoint()} className="sm:flex-[2]">
-        <div className="group/key flex items-center gap-1.5">
-          <span className="block truncate font-mono text-[13px] text-(--foreground)">
-            {node?.api_url || m.common_em_dash()}
-          </span>
+        <div className="group/key flex min-w-0 items-center gap-1.5">
+          <span className={railMono}>{node?.api_url || m.common_em_dash()}</span>
           {node?.api_url && <CopyButton value={node.api_url} label={m.common_copy_endpoint()} />}
         </div>
       </RailItem>
       <RailItem label={m.node_rail_poll_interval()}>
-        <span className="font-mono text-[13px] tabular-nums">
+        <span className={railMono}>
           {node?.poll_interval ? `${node.poll_interval}s` : m.common_em_dash()}
         </span>
       </RailItem>
       <RailItem label={m.node_rail_tx_speed()}>
-        <span className="font-mono text-[13px] tabular-nums">
+        <span className={railMono}>
           <span className="text-(--muted)">↑</span> {formatBytesPerSecond(txSpeed)}
         </span>
       </RailItem>
       <RailItem label={m.node_rail_rx_speed()}>
-        <span className="font-mono text-[13px] tabular-nums">
+        <span className={railMono}>
           <span className="text-(--muted)">↓</span> {formatBytesPerSecond(rxSpeed)}
         </span>
       </RailItem>
       <RailItem label={m.node_rail_last_poll()}>
-        <span className="font-mono text-[13px] tabular-nums">
+        <span className={railValue}>
           {node?.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : m.common_em_dash()}
         </span>
       </RailItem>
       <RailItem label={m.node_rail_state()}>
         <span
-          className={`block truncate text-[13px] ${stateTone === "danger" ? "text-(--danger)" : "text-(--foreground)"}`}
+          className={cn(railValue, stateTone === "danger" && "text-(--danger)")}
           title={stateLabel}
         >
           {stateLabel}
@@ -234,9 +238,9 @@ function RailItem({
   className?: string;
 }) {
   return (
-    <div className={`min-w-0 flex-1 px-4 py-3 ${className}`}>
+    <div className={cn("min-w-0 flex-1 px-4 py-3", className)}>
       <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
-      <div className="mt-1">{children}</div>
+      <div className="mt-1 flex h-5 min-w-0 items-center">{children}</div>
     </div>
   );
 }
