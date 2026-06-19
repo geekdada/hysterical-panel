@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button } from "@heroui/react";
+import { Button, Modal } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
   canQueryPanelApi,
+  deleteNode,
   fetchNodeLive,
   fetchNodeOverview,
   isNotFoundError,
@@ -59,9 +60,12 @@ function NodeDetailPage() {
   const { nodeId } = Route.useParams();
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
 
   useEffect(() => {
     setTrafficRange(defaultLocalTrafficRange());
@@ -90,6 +94,40 @@ function NodeDetailPage() {
   const health = node?.health ?? "never";
   const enabled = node?.enabled ?? false;
   const tone = !enabled ? "idle" : health === "ok" ? "ok" : health === "error" ? "error" : "idle";
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteNode(nodeId),
+    onSuccess: () => {
+      setDeleteOpen(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardBase() });
+      void navigate({ to: "/" });
+    },
+  });
+
+  const deleteError = deleteMutation.error
+    ? queryErrorMessage(deleteMutation.error, m.error_node_delete())
+    : "";
+
+  function handleDeleteOpenChange(open: boolean) {
+    setDeleteOpen(open);
+    if (!open) {
+      setDeleteStep(1);
+      deleteMutation.reset();
+    }
+  }
+
+  function handleDeleteRequest() {
+    setDeleteStep(1);
+    setDeleteOpen(true);
+  }
+
+  function handleDeleteContinue() {
+    setDeleteStep(2);
+  }
+
+  function handleDeleteConfirm() {
+    deleteMutation.mutate();
+  }
 
   return (
     <PageShell
@@ -148,6 +186,25 @@ function NodeDetailPage() {
           />
 
           <StreamsSection nodeId={nodeId} />
+
+          {node && (
+            <>
+              <DeleteNodeRow
+                pending={deleteMutation.isPending}
+                onDeleteRequest={handleDeleteRequest}
+              />
+              <DeleteNodeModal
+                isOpen={deleteOpen}
+                step={deleteStep}
+                name={node.name || m.node_fallback_title()}
+                pending={deleteMutation.isPending}
+                error={deleteError}
+                onOpenChange={handleDeleteOpenChange}
+                onContinue={handleDeleteContinue}
+                onConfirm={handleDeleteConfirm}
+              />
+            </>
+          )}
         </>
       )}
     </PageShell>
@@ -337,6 +394,100 @@ function TrafficSection({
         </div>
       )}
     </Section>
+  );
+}
+
+/* ── Delete node ───────────────────────────────────────────────────────── */
+
+function DeleteNodeRow({
+  pending,
+  onDeleteRequest,
+}: {
+  pending: boolean;
+  onDeleteRequest: () => void;
+}) {
+  return (
+    <Section title={m.node_danger_section_title()}>
+      <div className="p-4">
+        <p className="text-[13px] font-medium text-(--foreground)">{m.node_delete_title()}</p>
+        <p className="mt-0.5 text-[13px] leading-5 text-(--muted)">{m.node_delete_hint()}</p>
+        <div className="mt-3">
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={pending}
+            onPress={onDeleteRequest}
+            className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
+          >
+            {pending ? m.common_deleting() : m.common_delete()}
+          </Button>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function DeleteNodeModal({
+  isOpen,
+  step,
+  name,
+  pending,
+  error,
+  onOpenChange,
+  onContinue,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  step: 1 | 2;
+  name: string;
+  pending: boolean;
+  error: string;
+  onOpenChange: (open: boolean) => void;
+  onContinue: () => void;
+  onConfirm: () => void;
+}) {
+  const title = step === 1 ? m.node_delete_title() : m.node_delete_confirm_title();
+  const body = step === 1 ? m.node_delete_confirm({ name }) : m.node_delete_confirm_body({ name });
+
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="sm" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{title}</Modal.Heading>
+            <p className="mt-1.5 text-sm leading-5 text-(--muted)">{body}</p>
+          </Modal.Header>
+          {step === 2 && error ? (
+            <Modal.Body>
+              <p className="text-[13px] text-(--danger)" role="alert">
+                {error}
+              </p>
+            </Modal.Body>
+          ) : null}
+          <Modal.Footer>
+            <Button size="sm" variant="secondary" onPress={() => onOpenChange(false)}>
+              {m.common_cancel()}
+            </Button>
+            {step === 1 ? (
+              <Button size="sm" variant="primary" onPress={onContinue}>
+                {m.node_delete_continue()}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="primary"
+                isPending={pending}
+                onPress={onConfirm}
+                className="bg-(--danger) text-(--danger-foreground) hover:opacity-90"
+              >
+                {pending ? m.common_deleting() : m.common_delete()}
+              </Button>
+            )}
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }
 

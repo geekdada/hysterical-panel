@@ -392,6 +392,16 @@ export function testNode(nodeId: string): Promise<NodeTest> {
   );
 }
 
+export function deleteNode(nodeId: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/nodes/{id}", {
+      params: { path: { id: nodeId } },
+    }),
+    m.error_node_delete(),
+    m.error_node_delete_network()
+  );
+}
+
 export function fetchSettings(): Promise<AppSettings> {
   return apiRequest<AppSettings>(apiClient.GET("/api/panel/settings"), m.error_settings_load());
 }
