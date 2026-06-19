@@ -376,6 +376,25 @@ function authYaml(panelOrigin: string): { code: string; note?: string }[] {
   ];
 }
 
+function CodeBlock({ lines, label }: { lines: { code: string; note?: string }[]; label: string }) {
+  const codeText = lines.map((l) => l.code).join("\n");
+  return (
+    <div className="relative mt-3">
+      <pre className="overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 pr-10 font-mono text-xs leading-relaxed">
+        {lines.map((line) => (
+          <div key={line.code}>
+            <span className="text-(--foreground)">{line.code}</span>
+            {line.note && <span className="text-(--muted)">{`  # ${line.note}`}</span>}
+          </div>
+        ))}
+      </pre>
+      <div className="absolute right-1 top-1">
+        <CopyButton value={codeText} label={label} />
+      </div>
+    </div>
+  );
+}
+
 function ServerSetup({ apiSecret }: { apiSecret: string }) {
   const resolvedOrigin = usePanelApiOrigin();
   const panelOrigin = resolvedOrigin || PANEL_URL_PLACEHOLDER;
@@ -385,28 +404,14 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
       <h2 className="text-[13px] font-semibold tracking-tight">{m.nodes_setup_title()}</h2>
       <p className="mt-1 max-w-prose text-[13px] text-(--muted)">{m.nodes_setup_intro()}</p>
 
-      <pre className="mt-3 overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 font-mono text-xs leading-relaxed">
-        {setupYaml(apiSecret).map((line) => (
-          <div key={line.code}>
-            <span className="text-(--foreground)">{line.code}</span>
-            {line.note && <span className="text-(--muted)">{`  # ${line.note}`}</span>}
-          </div>
-        ))}
-      </pre>
+      <CodeBlock lines={setupYaml(apiSecret)} label={m.common_copy_config()} />
 
       <h3 className="mt-5 text-[13px] font-semibold tracking-tight">
         {m.nodes_setup_auth_title()}
       </h3>
       <p className="mt-1 max-w-prose text-[13px] text-(--muted)">{m.nodes_setup_auth_intro()}</p>
 
-      <pre className="mt-3 overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 font-mono text-xs leading-relaxed">
-        {authYaml(panelOrigin).map((line) => (
-          <div key={line.code}>
-            <span className="text-(--foreground)">{line.code}</span>
-            {line.note && <span className="text-(--muted)">{`  # ${line.note}`}</span>}
-          </div>
-        ))}
-      </pre>
+      <CodeBlock lines={authYaml(panelOrigin)} label={m.common_copy_config()} />
       <p className="mt-1.5 text-xs text-(--muted)">{m.nodes_setup_host_note()}</p>
 
       <dl className="mt-4 flex flex-col gap-1.5 text-[13px]">
