@@ -17,7 +17,7 @@
 - 自主轮询采集各节点流量，做用户级 / 节点级聚合。
 - 用户管理 + 实时诊断面板。
 - 作为 Hysteria 节点的 `auth.type: http` 回调端点，按 `auth_string` 鉴权客户端连接。
-- **不做**：订阅、用量计费、账号踢出、节点部署。这些是明确排除项，需求方已确认。
+- **不做**：订阅、用量计费、节点部署。这些是明确排除项，需求方已确认。
 
 ## 常用命令
 
@@ -70,7 +70,8 @@
    `admin` 可管理节点和用户；`user` 只能查看自己的账号详情、用量和实时诊断。新增管理接口默认走 `requireAdmin`；新增用户自查接口才走 admin-or-self 守卫。前端 `src/api/guards.ts` 的 `requireAdmin` / `requireAdminOrSelf` 与后端守卫一一对应。
 
 6. **`status` 是用户启停的单一来源，且真正生效；`verified` 是附加门禁。**
-   `active`/`disabled` 两态。落地在三处：登录鉴权 `bindAuthGate`（`OnRecordAuthRequest("users")`，非 active 一律 403 `account is disabled`，覆盖登录与 token 刷新）；Hysteria 回调 `hysteriaAuth`（非 active 返回 403，拒绝客户端新连接）；采集器 `pollNode` 里非 active 用户**仍推进 cursor 但不计量**（避免重新启用时把停用期间的 counter 一次性灌进单个 bucket）。注意：面板不踢 Hysteria 已建立的连接，`disabled` 只挡新连接 + 面板登录 + 停止记账。写 `status` 经 `validUserStatus` 校验。
+   `active`/`disabled` 两态。落地在三处：登录鉴权 `bindAuthGate`（`OnRecordAuthRequest("users")`，非 active 一律 403 `account is disabled`，覆盖登录与 token 刷新）；Hysteria 回调 `hysteriaAuth`（非 active 返回 403，拒绝客户端新连接）；采集器 `pollNode` 里非 active 用户**仍推进 cursor 但不计量**（避免重新启用时把停用期间的 counter 一次性灌进单个 bucket）。`disabled` 同时挡新连接 + 面板登录 + 停止记账；写 `status` 经 `validUserStatus` 校验。
+   **停用时（status `active`→`disabled`）会触发一次 best-effort `/kick` 扇出**：`updateUser` 检测到该转换后，起一个**后台 goroutine**（**不阻塞 PATCH 响应**），以 **3 并发**（信号量 `kickConcurrency`）对 `nodesForUser(userID)` 返回的每个节点 `POST /kick [auth_string]`（5s/节点超时，整体 30s 上限）。失败只记日志（`[kick] ...`）、单个失败不影响其余、`nodesForUser` 返回空也直接结束。落地在 `internal/api/kick.go` 的 `kickUser` / `fanOutKicks`，Hysteria client 在 `internal/hysteria/client.go` 的 `Kick`。**只清存量会话**：`hysteria_auth.go` 的 403 已挡客户端重连，`/kick` 只是把当前已建立的连接断掉。其他状态转换（建号 / 删除 / 改 auth_string）不触发 `/kick`，靠后续 401/403 自然清退。
    **账号「可用」= `status=active` 且 `verified=true`**：`bindAuthGate` 与 `hysteriaAuth` 都在 status 检查后再判 `verified`（非 verified → 403 `email not verified`）。admin 建号与邀请码注册者恒 `verified=true`，新门禁只挡「开放注册且无邀请码」的未验证用户，直到其点开验证邮件。
 
 7. **注册访问由 `app_settings` 三开关 + `registrationDecision` 收口。**
@@ -124,6 +125,7 @@ hysterical-panel/
 │           ├── live.go         用户实时诊断（重点）
 │           ├── node_live.go    节点维度实时诊断
 │           ├── hysteria_auth.go 公开 /api/hysteria/auth 回调
+│           ├── kick.go         停用时 best-effort /kick 扇出（kickUser / fanOutKicks，3 并发）
 │           ├── dto.go          OpenAPI 用的响应/请求结构体
 │           ├── openapi.go      生成 OpenAPI 3.1 spec
 │           ├── register_test.go registrationDecision / inviteValid 单测
@@ -195,7 +197,7 @@ hysterical-panel/
 
 - 凡是返回 node 的响应**必须经过 `publicNode()` 剥除 api_secret**。新增 node 相关接口时务必走这个函数。
 - `PATCH /nodes/{id}` 的 `api_secret`：**缺省=不变，传空字符串=报错**（防止误清空）。
-- `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。
+- `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。`PATCH /users/{id}` 在状态从 `active`→`disabled` 时，**异步**对 `nodesForUser(userID)` 返回的每个节点扇出 `POST /kick [auth_string]`（3 并发，5s/节点，best-effort，失败只记日志，不阻塞响应）；详见核心决策 #6。
 - 节点维度接口 `GET /nodes/{id}/traffic/summary|series`、`GET /nodes/{id}/live` 是**全节点跨用户**视角，仅 admin。
 - `GET|PATCH /settings`、`GET|POST /invitations`、`DELETE /invitations/{id}` 均 admin。`PATCH /settings` 校验 `require_invite_for_open` 依赖 `invitations_enabled`；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
 - `GET /api/panel/config`（公开）现额外回 `registration_open` / `registration_require_invite` / `invitations_enabled`（从 `app_settings` 实时读），供 `/login`、`/register` 渲染入口。

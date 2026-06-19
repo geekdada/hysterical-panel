@@ -6,7 +6,7 @@
 ## 模型
 
 两层：
-- **users** — 既是登录面板的人（`admin` 或 `user`），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账（但不会断开其 Hysteria 连接——面板不踢节点）。账号「可用」= `status=active` **且** `verified=true`：`verified` 是登录与 Hysteria 鉴权的附加门禁（admin 建号与邀请码注册者恒为 `verified=true`，仅开放无码注册者需先验证邮箱）。
+- **users** — 既是登录面板的人（`admin` 或 `user`），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick` 扇出以断开其在各节点上已建立的 Hysteria 连接（3 并发、异步、失败仅记日志）。账号「可用」= `status=active` **且** `verified=true`：`verified` 是登录与 Hysteria 鉴权的附加门禁（admin 建号与邀请码注册者恒为 `verified=true`，仅开放无码注册者需先验证邮箱）。
 - **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`）。
 
 另有两个辅助 collection：**`invitations`**（通用邀请码：`code` 唯一、`max_uses`/`expires_at`/`revoked`/`used_count`）与单例 **`app_settings`**（注册开关 `invitations_enabled` / `open_registration` / `require_invite_for_open`，默认全关）。
