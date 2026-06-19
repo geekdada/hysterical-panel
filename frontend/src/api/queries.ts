@@ -26,6 +26,7 @@ type Node = components["schemas"]["Node"];
 type NodeCreateRequest = components["schemas"]["NodeCreateRequest"];
 type NodeLive = components["schemas"]["NodeLiveResponse"];
 type NodeTest = components["schemas"]["NodeTestResponse"];
+type NodeAPISecretReset = components["schemas"]["NodeAPISecretResetResponse"];
 type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
 type PanelConfig = components["schemas"]["PanelConfigResponse"];
 type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
@@ -399,6 +400,16 @@ export function deleteNode(nodeId: string): Promise<{ deleted: boolean }> {
     }),
     m.error_node_delete(),
     m.error_node_delete_network()
+  );
+}
+
+export function resetNodeAPISecret(nodeId: string): Promise<NodeAPISecretReset> {
+  return apiRequest<NodeAPISecretReset>(
+    apiClient.POST("/api/panel/nodes/{id}/reset-api-secret", {
+      params: { path: { id: nodeId } },
+    }),
+    m.error_node_reset_api_secret(),
+    m.error_node_reset_api_secret_network()
   );
 }
 
