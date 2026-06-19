@@ -3,6 +3,7 @@
 package hysteria
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -68,6 +69,19 @@ func (c *Client) get(ctx context.Context, path string, accept string) (*http.Res
 	return c.http.Do(req)
 }
 
+// post issues a JSON POST and returns the raw response. The caller closes the body.
+func (c *Client) post(ctx context.Context, path string, body []byte) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	if c.secret != "" {
+		req.Header.Set("Authorization", c.secret)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return c.http.Do(req)
+}
+
 func decode(resp *http.Response, out any) error {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -130,4 +144,25 @@ func (c *Client) Ping(ctx context.Context) (time.Duration, error) {
 		return 0, fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
 	return time.Since(start), nil
+}
+
+// Kick tells the node to disconnect the given client IDs by POSTing them to
+// /kick. The node returns 200 on success; any other status is an error. This
+// only clears currently-established sessions: clients will retry, so the
+// caller must also block the user at the auth callback (the panel does this
+// in hysteria_auth.go for disabled users).
+func (c *Client) Kick(ctx context.Context, ids []string) error {
+	body, err := json.Marshal(ids)
+	if err != nil {
+		return err
+	}
+	resp, err := c.post(ctx, "/kick", body)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("hysteria api returned %d", resp.StatusCode)
+	}
+	return nil
 }

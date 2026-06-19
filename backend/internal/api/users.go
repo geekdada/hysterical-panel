@@ -138,6 +138,11 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 	if err := e.BindBody(&in); err != nil {
 		return apis.NewBadRequestError("invalid body", err)
 	}
+	// Capture the pre-mutation status so we can detect an active -> disabled
+	// transition after Save. That transition triggers a best-effort /kick
+	// fan-out to drop currently-established Hysteria sessions; reconnects are
+	// already denied by hysteriaAuth's 403 for disabled users.
+	wasActive := u.GetString("status") == "active"
 	if in.Email != nil {
 		u.SetEmail(*in.Email)
 	}
@@ -168,6 +173,9 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 	if err := h.app.Save(u); err != nil {
 		return apis.NewBadRequestError("failed to update user", err)
 	}
+	if wasActive && u.GetString("status") == "disabled" {
+		go h.kickUser(u.Id, u.GetString("auth_string"))
+	}
 	return ok(e, publicUser(u))
 }
 
@@ -180,6 +188,27 @@ func (h *Handlers) deleteUser(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("failed to delete user", err)
 	}
 	return ok(e, map[string]any{"deleted": true})
+}
+
+// resetUserAuthString rotates a user's Hysteria auth key. The new value is
+// server-generated (the client never supplies one) and the existing usage
+// counters / traffic history are preserved; the old key simply stops matching
+// on the next Hysteria connect callback, and the collector resumes tracking
+// the user under the new key on its next poll.
+func (h *Handlers) resetUserAuthString(e *core.RequestEvent) error {
+	u, err := h.app.FindRecordById("users", e.Request.PathValue("id"))
+	if err != nil {
+		return apis.NewNotFoundError("user not found", err)
+	}
+	authString, err := h.generateUniqueAuthString()
+	if err != nil {
+		return apis.NewBadRequestError("failed to reset auth key", err)
+	}
+	u.Set("auth_string", authString)
+	if err := h.app.Save(u); err != nil {
+		return apis.NewBadRequestError("failed to reset auth key", err)
+	}
+	return ok(e, publicUser(u))
 }
 
 func strOr(p *string, def string) string {

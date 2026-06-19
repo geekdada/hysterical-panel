@@ -90,6 +90,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/users/{id}", h.getUser).Bind(adminOrSelf)
 	g.PATCH("/users/{id}", h.updateUser).Bind(adminOnly)
 	g.DELETE("/users/{id}", h.deleteUser).Bind(adminOnly)
+	g.POST("/users/{id}/reset-auth-string", h.resetUserAuthString).Bind(adminOnly)
 	g.GET("/users/{id}/passkeys", h.listPasskeys).Bind(activeAdminOrSelf)
 	g.POST("/users/{id}/passkeys/registration/options", h.passkeyRegistrationOptions).Bind(activeSelf)
 	g.POST("/users/{id}/passkeys/registration/finish", h.passkeyRegistrationFinish).Bind(activeSelf)
