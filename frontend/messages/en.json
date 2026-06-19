@@ -62,6 +62,7 @@
   "common_copy_copy": "Copy {label}",
   "common_retry": "Retry",
   "common_cancel": "Cancel",
+  "common_sure": "Sure",
   "common_delete": "Delete",
   "common_deleting": "Deleting...",
   "common_name": "Name",

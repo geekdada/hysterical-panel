@@ -558,7 +558,7 @@ function ResetAPISecretModal({
           </Modal.Body>
           <Modal.Footer>
             <Button size="sm" variant="secondary" onPress={() => onOpenChange(false)}>
-              {result ? m.common_cancel() : m.user_manage_reset_cancel()}
+              {result ? m.common_sure() : m.user_manage_reset_cancel()}
             </Button>
             {!result && (
               <Button size="sm" variant="primary" isPending={pending} onPress={onConfirm}>
