@@ -962,8 +962,7 @@ const zh = {
   node_delete_continue: "继续",
   node_deleted_suffix: "（已删除）",
   node_delete_confirm_title: "确认删除",
-  node_delete_confirm_body:
-    "节点「{name}」将从列表中移除，无法在面板中恢复。历史流量数据会保留。",
+  node_delete_confirm_body: "节点「{name}」将从列表中移除，无法在面板中恢复。历史流量数据会保留。",
   node_traffic_top_users: "热门用户",
   node_live_meta: "{devices} 台设备在线 · {streams} 条连接",
   node_live_empty_snapshot_hint: "获取实时快照以查看此节点上按用户分组的活跃连接。",
