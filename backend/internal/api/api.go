@@ -67,6 +67,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.PATCH("/nodes/{id}", h.updateNode).Bind(adminOnly)
 	g.DELETE("/nodes/{id}", h.deleteNode).Bind(adminOnly)
 	g.POST("/nodes/{id}/test", h.testNode).Bind(adminOnly)
+	g.POST("/nodes/{id}/reset-api-secret", h.resetNodeAPISecret).Bind(adminOnly)
 
 	// node-scoped traffic + live (node-wide, across all users)
 	g.GET("/nodes/{id}/traffic/summary", h.nodeTrafficSummary).Bind(adminOnly)

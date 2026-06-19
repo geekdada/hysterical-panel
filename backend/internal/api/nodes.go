@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"hysterical-panel/internal/hysteria"
+	"hysterical-panel/internal/token"
 )
 
 type nodeInput struct {
@@ -181,4 +182,31 @@ func (h *Handlers) testNode(e *core.RequestEvent) error {
 		return ok(e, map[string]any{"ok": false, "error": err.Error()})
 	}
 	return ok(e, map[string]any{"ok": true, "latency_ms": latency.Milliseconds()})
+}
+
+// resetNodeAPISecret rotates a node's Hysteria Stats API secret. The new value
+// is server-generated; traffic history is unchanged. The old secret stops working
+// on the next collector poll until the Hysteria server is reconfigured.
+func (h *Handlers) resetNodeAPISecret(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	n, err := h.findActiveNode(id)
+	if err != nil {
+		return err
+	}
+	secret, err := token.New(32)
+	if err != nil {
+		return apis.NewBadRequestError("failed to reset api secret", err)
+	}
+	enc, err := h.box.Encrypt(secret)
+	if err != nil {
+		return apis.NewBadRequestError("failed to encrypt secret", err)
+	}
+	n.Set("api_secret", enc)
+	if err := h.app.Save(n); err != nil {
+		return apis.NewBadRequestError("failed to reset api secret", err)
+	}
+	return ok(e, map[string]any{
+		"api_secret": secret,
+		"node":       publicNode(n),
+	})
 }

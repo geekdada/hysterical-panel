@@ -23,6 +23,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"NodeCreateRequest":          NodeCreateRequest{},
 		"NodeUpdateRequest":          NodeUpdateRequest{},
 		"NodeTestResponse":           NodeTestResponse{},
+		"NodeAPISecretResetResponse": NodeAPISecretResetResponse{},
 		"PanelUser":                  PanelUser{},
 		"UserListResponse":           UserListResponse{},
 		"UserStatsResponse":          UserStatsResponse{},
@@ -474,6 +475,27 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					Value: &openapi3.Response{
 						Description: ptr("Test result"),
 						Content:     content(ref("NodeTestResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /nodes/{id}/reset-api-secret ──────────────────────────────────────
+	t.Paths.Set("/api/panel/nodes/{id}/reset-api-secret", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Node ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "resetNodeAPISecret",
+				Summary:     "Regenerate a node's Hysteria Stats API secret (admin)",
+				Tags:        []string{"nodes"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("New api_secret (shown once) and updated node"),
+						Content:     content(ref("NodeAPISecretResetResponse")),
 					},
 				})),
 			}

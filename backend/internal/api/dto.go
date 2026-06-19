@@ -43,6 +43,13 @@ type NodeTestResponse struct {
 	LatencyMs int64  `json:"latency_ms,omitempty"`
 }
 
+// NodeAPISecretResetResponse is returned by POST /nodes/{id}/reset-api-secret.
+// api_secret is revealed once so the admin can update the Hysteria server config.
+type NodeAPISecretResetResponse struct {
+	APISecret string `json:"api_secret"`
+	Node      Node   `json:"node"`
+}
+
 // ── User ──────────────────────────────────────────────────────────────────────
 
 // PanelUser is the public representation returned by user endpoints.
