@@ -57,6 +57,7 @@
   "common_live_streams": "Live streams",
   "common_copy_auth_key": "auth key",
   "common_copy_endpoint": "endpoint",
+  "common_copy_config": "config",
   "common_copy_copied": "Copied",
   "common_copy_copy": "Copy {label}",
   "common_retry": "Retry",

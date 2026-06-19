@@ -57,6 +57,7 @@
   "common_live_streams": "实时连接",
   "common_copy_auth_key": "认证密钥",
   "common_copy_endpoint": "端点",
+  "common_copy_config": "配置",
   "common_copy_copied": "已复制",
   "common_copy_copy": "复制{label}",
   "common_retry": "重试",
