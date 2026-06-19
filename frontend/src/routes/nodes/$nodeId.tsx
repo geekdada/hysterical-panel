@@ -13,6 +13,7 @@ import {
   queryErrorMessage,
   queryKeys,
   REFRESH_MS,
+  resetNodeAPISecret,
   toTrafficRangeQuery,
 } from "~/api/queries";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
@@ -50,6 +51,7 @@ type Node = components["schemas"]["Node"];
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
 type NodeLive = components["schemas"]["NodeLiveResponse"];
+type NodeAPISecretReset = components["schemas"]["NodeAPISecretResetResponse"];
 
 export const Route = createFileRoute("/nodes/$nodeId")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -66,6 +68,8 @@ function NodeDetailPage() {
   const [now, setNow] = useState(() => Date.now());
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetResult, setResetResult] = useState<NodeAPISecretReset | null>(null);
 
   useEffect(() => {
     setTrafficRange(defaultLocalTrafficRange());
@@ -129,6 +133,33 @@ function NodeDetailPage() {
     deleteMutation.mutate();
   }
 
+  const resetMutation = useMutation({
+    mutationFn: () => resetNodeAPISecret(nodeId),
+    onSuccess: (result) => {
+      setResetResult(result);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.nodeOverview(nodeId, trafficQuery),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardBase() });
+    },
+  });
+
+  const resetError = resetMutation.error
+    ? queryErrorMessage(resetMutation.error, m.error_node_reset_api_secret())
+    : "";
+
+  function handleResetOpenChange(open: boolean) {
+    setResetOpen(open);
+    if (!open) {
+      resetMutation.reset();
+      setResetResult(null);
+    }
+  }
+
+  function handleResetConfirm() {
+    resetMutation.mutate();
+  }
+
   return (
     <PageShell
       headerLeft={
@@ -189,9 +220,11 @@ function NodeDetailPage() {
 
           {node && (
             <>
-              <DeleteNodeRow
-                pending={deleteMutation.isPending}
+              <NodeDangerSection
+                deletePending={deleteMutation.isPending}
+                resetPending={resetMutation.isPending}
                 onDeleteRequest={handleDeleteRequest}
+                onResetRequest={() => setResetOpen(true)}
               />
               <DeleteNodeModal
                 isOpen={deleteOpen}
@@ -202,6 +235,14 @@ function NodeDetailPage() {
                 onOpenChange={handleDeleteOpenChange}
                 onContinue={handleDeleteContinue}
                 onConfirm={handleDeleteConfirm}
+              />
+              <ResetAPISecretModal
+                isOpen={resetOpen}
+                onOpenChange={handleResetOpenChange}
+                pending={resetMutation.isPending}
+                error={resetMutation.isError && !resetResult ? resetError : ""}
+                result={resetResult}
+                onConfirm={handleResetConfirm}
               />
             </>
           )}
@@ -397,35 +438,141 @@ function TrafficSection({
   );
 }
 
-/* ── Delete node ───────────────────────────────────────────────────────── */
+/* ── Danger zone ───────────────────────────────────────────────────────── */
 
-function DeleteNodeRow({
-  pending,
-  onDeleteRequest,
+function DangerRow({
+  label,
+  description,
+  action,
 }: {
-  pending: boolean;
+  label: string;
+  description: string;
+  action: ReactNode;
+}) {
+  return (
+    <div>
+      <p className="text-[13px] font-medium text-(--foreground)">{label}</p>
+      <p className="mt-0.5 text-[13px] leading-5 text-(--muted)">{description}</p>
+      <div className="mt-3">{action}</div>
+    </div>
+  );
+}
+
+function NodeDangerSection({
+  deletePending,
+  resetPending,
+  onDeleteRequest,
+  onResetRequest,
+}: {
+  deletePending: boolean;
+  resetPending: boolean;
   onDeleteRequest: () => void;
+  onResetRequest: () => void;
 }) {
   return (
     <Section title={m.node_danger_section_title()}>
-      <div className="p-4">
-        <p className="text-[13px] font-medium text-(--foreground)">{m.node_delete_title()}</p>
-        <p className="mt-0.5 text-[13px] leading-5 text-(--muted)">{m.node_delete_hint()}</p>
-        <div className="mt-3">
-          <Button
-            size="sm"
-            variant="secondary"
-            isDisabled={pending}
-            onPress={onDeleteRequest}
-            className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
-          >
-            {pending ? m.common_deleting() : m.common_delete()}
-          </Button>
-        </div>
+      <div className="flex flex-col gap-4 p-4">
+        <DangerRow
+          label={m.node_delete_title()}
+          description={m.node_delete_hint()}
+          action={
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={deletePending}
+              onPress={onDeleteRequest}
+              className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
+            >
+              {deletePending ? m.common_deleting() : m.common_delete()}
+            </Button>
+          }
+        />
+        <div className="border-t border-(--separator)" />
+        <DangerRow
+          label={m.node_reset_api_secret_title()}
+          description={m.node_reset_api_secret_desc()}
+          action={
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={resetPending}
+              onPress={onResetRequest}
+            >
+              {resetPending ? m.user_manage_reset_submitting() : m.node_reset_api_secret_button()}
+            </Button>
+          }
+        />
       </div>
     </Section>
   );
 }
+
+function ResetAPISecretModal({
+  isOpen,
+  onOpenChange,
+  pending,
+  error,
+  result,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  pending: boolean;
+  error: string;
+  result: NodeAPISecretReset | null;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="sm" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{m.node_reset_api_secret_confirm_title()}</Modal.Heading>
+            <p className="mt-1.5 text-sm leading-5 text-(--muted)">
+              {m.node_reset_api_secret_confirm_body()}
+            </p>
+          </Modal.Header>
+          <Modal.Body>
+            {error && (
+              <p className="text-[13px] text-(--danger)" role="alert">
+                {error}
+              </p>
+            )}
+
+            {result?.api_secret && (
+              <div className="rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3">
+                <div className="flex items-center gap-2 text-[13px]">
+                  <Dot tone="ok" />
+                  <span className="font-medium">{m.node_reset_api_secret_done()}</span>
+                </div>
+                <p className="mt-1 text-xs text-(--muted)">{m.node_reset_api_secret_new_hint()}</p>
+                <div className="group/key mt-2 flex items-center gap-1.5">
+                  <span className="min-w-0 truncate font-mono text-[12px] text-(--muted)">
+                    {result.api_secret}
+                  </span>
+                  <CopyButton value={result.api_secret} label={m.nodes_add_copy_api_secret()} />
+                </div>
+              </div>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button size="sm" variant="secondary" onPress={() => onOpenChange(false)}>
+              {result ? m.common_cancel() : m.user_manage_reset_cancel()}
+            </Button>
+            {!result && (
+              <Button size="sm" variant="primary" isPending={pending} onPress={onConfirm}>
+                {pending ? m.user_manage_reset_submitting() : m.node_reset_api_secret_button()}
+              </Button>
+            )}
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
+/* ── Delete node ───────────────────────────────────────────────────────── */
 
 function DeleteNodeModal({
   isOpen,
