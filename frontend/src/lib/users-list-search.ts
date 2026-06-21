@@ -24,6 +24,8 @@ const ALLOWED_SORTS = new Set([
   "-used_tx",
   "used_rx",
   "-used_rx",
+  "last_connected_at",
+  "-last_connected_at",
 ]);
 
 export function clampUsersListPage(raw: unknown): number {

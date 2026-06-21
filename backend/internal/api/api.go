@@ -261,8 +261,9 @@ func publicUser(u *core.Record) map[string]any {
 		"quota_bytes": u.GetInt("quota_bytes"),
 		"used_tx":     u.GetInt("used_tx"),
 		"used_rx":     u.GetInt("used_rx"),
-		"status":      u.GetString("status"),
-		"created":     u.GetString("created"),
+		"status":             u.GetString("status"),
+		"created":            u.GetString("created"),
+		"last_connected_at":  u.GetString("last_connected_at"),
 	}
 }
 
@@ -277,8 +278,9 @@ func panelUser(u *core.Record) PanelUser {
 		QuotaBytes: int64(u.GetInt("quota_bytes")),
 		UsedTx:     int64(u.GetInt("used_tx")),
 		UsedRx:     int64(u.GetInt("used_rx")),
-		Status:     u.GetString("status"),
-		Created:    u.GetString("created"),
+		Status:          u.GetString("status"),
+		Created:         u.GetString("created"),
+		LastConnectedAt: u.GetString("last_connected_at"),
 	}
 }
 

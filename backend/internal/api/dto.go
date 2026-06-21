@@ -61,8 +61,9 @@ type PanelUser struct {
 	QuotaBytes int64  `json:"quota_bytes"`
 	UsedTx     int64  `json:"used_tx"`
 	UsedRx     int64  `json:"used_rx"`
-	Status     string `json:"status"` // "active" | "disabled"
-	Created    string `json:"created"`
+	Status          string `json:"status"` // "active" | "disabled"
+	Created         string `json:"created"`
+	LastConnectedAt string `json:"last_connected_at"`
 }
 
 // UserListResponse is the paginated response for GET /users.

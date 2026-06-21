@@ -172,7 +172,7 @@ function AccountDetailPage() {
         />
       ) : (
         <>
-          <AccountRail user={user} loading={loading && !user} />
+          <AccountRail user={user} loading={loading && !user} now={now} />
 
           {isAdmin && user && (
             <ManageSection userId={userId} user={user} isSelf={auth?.user.id === userId} />
@@ -200,12 +200,20 @@ function AccountDetailPage() {
   );
 }
 
-function AccountRail({ user, loading }: { user: PanelUser | null; loading: boolean }) {
+function AccountRail({
+  user,
+  loading,
+  now,
+}: {
+  user: PanelUser | null;
+  loading: boolean;
+  now: number;
+}) {
   if (loading) {
     return (
       <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
-        <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem] md:divide-x md:divide-y-0">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="px-4 py-3">
               <div className="h-3 w-16 animate-pulse rounded bg-(--surface-secondary)" />
               <div className="mt-2 h-4 w-32 animate-pulse rounded bg-(--surface-secondary)" />
@@ -232,7 +240,7 @@ function AccountRail({ user, loading }: { user: PanelUser | null; loading: boole
 
   return (
     <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
-      <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem] md:divide-x md:divide-y-0">
+      <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
         <RailItem label={m.user_rail_email()}>
           <span className="block truncate text-[13px]" title={user?.email || ""}>
             {user?.email || m.common_em_dash()}
@@ -255,6 +263,20 @@ function AccountRail({ user, loading }: { user: PanelUser | null; loading: boole
           <span className="inline-flex min-w-0 items-center gap-2">
             <Dot tone={active ? "ok" : "idle"} title={status} />
             <span className="truncate text-[13px] capitalize">{status}</span>
+          </span>
+        </RailItem>
+        <RailItem label={m.user_rail_last_connect()}>
+          <span
+            className="text-[13px] tabular-nums"
+            title={
+              user?.last_connected_at
+                ? new Date(user.last_connected_at).toLocaleString()
+                : undefined
+            }
+          >
+            {user?.last_connected_at
+              ? relTimeFromISO(user.last_connected_at, now)
+              : m.common_never()}
           </span>
         </RailItem>
       </div>

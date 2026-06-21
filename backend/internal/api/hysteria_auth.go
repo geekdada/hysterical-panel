@@ -2,6 +2,7 @@ package api
 
 import (
 	"log"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -50,6 +51,19 @@ func (h *Handlers) hysteriaAuth(e *core.RequestEvent) error {
 		log.Printf("[hysteria-auth] reject addr=%s: email not verified", in.Addr)
 		return apis.NewForbiddenError("email not verified", nil)
 	}
+
+	userID := user.Id
+	go func() {
+		rec, err := h.app.FindRecordById("users", userID)
+		if err != nil {
+			log.Printf("[hysteria-auth] last_connected_at update: user %s not found: %v", userID, err)
+			return
+		}
+		rec.Set("last_connected_at", time.Now().UTC())
+		if err := h.app.Save(rec); err != nil {
+			log.Printf("[hysteria-auth] last_connected_at update failed for user %s: %v", userID, err)
+		}
+	}()
 
 	return ok(e, map[string]any{
 		"ok": true,

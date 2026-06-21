@@ -177,6 +177,7 @@ function UsersPage() {
             pageCount={pageCount}
             total={total}
             users={users}
+            currentUserId={auth?.user.id}
             togglingId={toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null}
             onToggleStatus={handleToggleStatus}
             onSort={(columnId) =>
@@ -203,6 +204,7 @@ function UsersTable({
   pageCount,
   total,
   users,
+  currentUserId,
   togglingId,
   onToggleStatus,
   onSort,
@@ -212,6 +214,7 @@ function UsersTable({
   pageCount: number;
   total: number;
   users: PanelUser[];
+  currentUserId?: string;
   togglingId: string | null;
   onToggleStatus: (user: PanelUser) => void;
   onSort: (columnId: string) => void;
@@ -260,7 +263,6 @@ function UsersTable({
               <ServerSortableTh columnId="email" sort={listSearch.sort} onSort={onSort}>
                 {m.common_email()}
               </ServerSortableTh>
-              <Th>{m.users_th_auth_key()}</Th>
               <ServerSortableTh columnId="role" sort={listSearch.sort} onSort={onSort}>
                 {m.common_role()}
               </ServerSortableTh>
@@ -292,6 +294,15 @@ function UsersTable({
                 {m.common_status()}
               </ServerSortableTh>
               <ServerSortableTh
+                columnId="last_connected_at"
+                sort={listSearch.sort}
+                onSort={onSort}
+                align="right"
+                className="text-right"
+              >
+                {m.users_th_last_connect()}
+              </ServerSortableTh>
+              <ServerSortableTh
                 columnId="created"
                 sort={listSearch.sort}
                 onSort={onSort}
@@ -307,6 +318,7 @@ function UsersTable({
             {users.length > 0 ? (
               users.map((user) => {
                 const active = (user.status ?? "active") === "active";
+                const isSelf = Boolean(currentUserId && user.id === currentUserId);
                 return (
                   <tr
                     key={user.id}
@@ -329,16 +341,6 @@ function UsersTable({
                       </div>
                     </Td>
                     <Td>
-                      <div className="group/key flex items-center gap-1.5">
-                        <span className="block max-w-[200px] truncate font-mono text-xs text-(--muted)">
-                          {user.auth_string || m.common_em_dash()}
-                        </span>
-                        {user.auth_string && (
-                          <CopyButton value={user.auth_string} label={m.common_copy_auth_key()} />
-                        )}
-                      </div>
-                    </Td>
-                    <Td>
                       <span className="text-xs capitalize text-(--muted)">
                         {user.role ?? "user"}
                       </span>
@@ -355,6 +357,19 @@ function UsersTable({
                       </span>
                     </Td>
                     <Td className="whitespace-nowrap text-right text-xs text-(--muted)">
+                      <span
+                        title={
+                          user.last_connected_at
+                            ? new Date(user.last_connected_at).toLocaleString()
+                            : undefined
+                        }
+                      >
+                        {user.last_connected_at
+                          ? relTimeFromISO(user.last_connected_at, now)
+                          : m.common_never()}
+                      </span>
+                    </Td>
+                    <Td className="whitespace-nowrap text-right text-xs text-(--muted)">
                       {user.created ? relTimeFromISO(user.created, now) : m.common_em_dash()}
                     </Td>
                     <Td>
@@ -362,6 +377,7 @@ function UsersTable({
                         size="sm"
                         variant={active ? "danger-soft" : "primary"}
                         isPending={togglingId === user.id}
+                        isDisabled={isSelf}
                         onPress={() => onToggleStatus(user)}
                       >
                         {active ? m.users_deactivate() : m.users_activate()}
