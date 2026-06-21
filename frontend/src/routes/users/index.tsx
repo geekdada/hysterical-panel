@@ -49,7 +49,9 @@ export const Route = createFileRoute("/users/")({
 function UsersPage() {
   const { auth } = Route.useRouteContext();
   const listSearch = Route.useSearch();
-  const navigate = useNavigate({ from: Route.fullPath });
+  const routerNavigate = useNavigate({ from: Route.fullPath });
+  const updateSearch: typeof routerNavigate = (options) =>
+    routerNavigate({ ...options, replace: true });
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -178,7 +180,7 @@ function UsersPage() {
             togglingId={toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null}
             onToggleStatus={handleToggleStatus}
             onSort={(columnId) =>
-              navigate({
+              updateSearch({
                 search: (prev) => ({
                   ...prev,
                   sort: toggleUsersListSort(prev.sort, columnId),
@@ -214,7 +216,9 @@ function UsersTable({
   onToggleStatus: (user: PanelUser) => void;
   onSort: (columnId: string) => void;
 }) {
-  const navigate = useNavigate({ from: Route.fullPath });
+  const routerNavigate = useNavigate({ from: Route.fullPath });
+  const updateSearch: typeof routerNavigate = (options) =>
+    routerNavigate({ ...options, replace: true });
   const [searchDraft, setSearchDraft] = useState(listSearch.search);
 
   useEffect(() => {
@@ -224,7 +228,7 @@ function UsersTable({
   useEffect(() => {
     if (searchDraft === listSearch.search) return;
     const id = window.setTimeout(() => {
-      navigate({
+      updateSearch({
         search: (prev) => ({
           ...prev,
           search: searchDraft,
@@ -233,7 +237,7 @@ function UsersTable({
       });
     }, 300);
     return () => window.clearTimeout(id);
-  }, [searchDraft, listSearch.search, navigate]);
+  }, [searchDraft, listSearch.search, updateSearch]);
 
   return (
     <div>
@@ -389,7 +393,7 @@ function UsersTable({
             <select
               value={listSearch.per_page}
               onChange={(e) =>
-                navigate({
+                updateSearch({
                   search: (prev) => ({
                     ...prev,
                     per_page: Number(e.target.value) as UsersListSearch["per_page"],
@@ -417,7 +421,7 @@ function UsersTable({
             variant="secondary"
             isDisabled={listSearch.page <= 1}
             onPress={() =>
-              navigate({
+              updateSearch({
                 search: (prev) => ({
                   ...prev,
                   page: Math.max(1, prev.page - 1),
@@ -432,7 +436,7 @@ function UsersTable({
             variant="secondary"
             isDisabled={listSearch.page >= pageCount || total === 0}
             onPress={() =>
-              navigate({
+              updateSearch({
                 search: (prev) => ({
                   ...prev,
                   page: prev.page + 1,
