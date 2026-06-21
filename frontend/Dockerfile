@@ -1,11 +1,12 @@
 FROM node:22-alpine AS build
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 WORKDIR /app/frontend
 
 COPY VERSION /app/VERSION
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN corepack enable && corepack install
 RUN pnpm install --frozen-lockfile
 
 COPY frontend/ ./
