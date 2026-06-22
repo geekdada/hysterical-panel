@@ -6,7 +6,7 @@
 ## 模型
 
 两层：
-- **users** — 既是登录面板的人（`admin` 或 `user`），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick` 扇出以断开其在各节点上已建立的 Hysteria 连接（3 并发、异步、失败仅记日志）。账号「可用」= `status=active` **且** `verified=true`：`verified` 是登录与 Hysteria 鉴权的附加门禁（admin 建号与邀请码注册者恒为 `verified=true`，仅开放无码注册者需先验证邮箱）。
+- **users** — 既是登录面板的人（`admin` 或 `user`），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick` 扇出以断开其在各节点上已建立的 Hysteria 连接（3 并发、异步、失败仅记日志）。账号「可用」= `status=active` **且** `verified=true`：`verified` 是登录与 Hysteria 鉴权的附加门禁（admin 建号与邀请码注册者恒为 `verified=true`，仅开放无码注册者需先验证邮箱）。成功 Hysteria 鉴权会更新 `last_connected_at` 与 `recent_connections`（最近 10 个唯一客户端 IP，不含端口；ASN / 国家等 MMDB 信息仅在 API 返回时补充，不落库）。
 - **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`）。
 
 另有两个辅助 collection：**`invitations`**（通用邀请码：`code` 唯一、`max_uses`/`expires_at`/`revoked`/`used_count`）与单例 **`app_settings`**（注册开关 `invitations_enabled` / `open_registration` / `require_invite_for_open`，默认全关）。
@@ -118,7 +118,7 @@ docker run --rm \
 
 ### Hysteria 回调 `POST /api/hysteria/auth`（供 Hysteria 节点调用）
 
-给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<client-auth-key>","tx":1000000}`；后端按 `auth` 在 `users.auth_string` 里查匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<auth_string>"}`，其它返回非 200。返回的 `id` 故意回填为 `auth_string`，让节点后续 `/traffic` 上报的 key 与采集器查询用的字段一致。
+给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<client-auth-key>","tx":1000000}`；后端按 `auth` 在 `users.auth_string` 里查匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<auth_string>"}`，其它返回非 200。返回的 `id` 故意回填为 `auth_string`，让节点后续 `/traffic` 上报的 key 与采集器查询用的字段一致。成功鉴权会异步更新 `users.last_connected_at`，并从 `addr` 提取客户端 IP 写入 `users.recent_connections`：只存 IP、不存端口，最多保留最近 10 个唯一 IP；重复 IP 更新 `last_seen_at` 与 `count`。用户 API 返回时会用 MMDB 临时补充 ASN / 国家 / IPv4 ipinfo 链接，这些元数据不落库。
 
 | 状态码 | 含义 |
 |---|---|

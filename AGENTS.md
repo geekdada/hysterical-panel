@@ -150,6 +150,7 @@ hysterical-panel/
 - `role` (select [admin, user])、`status` (select [active, disabled]) — `status` 是用户启停的单一来源（active = 启用）
 - `verified` (PocketBase 内置 auth 字段) — 账号可用的附加门禁；admin 建号与邀请注册者恒 true，仅开放无码注册者初始 false
 - `quota_bytes`、`used_tx`、`used_rx` (number, int64) — quota 当前不计费，仅留字段
+- `last_connected_at` (date)、`recent_connections` (json) — Hysteria 鉴权成功后更新；`recent_connections` 只保留最近 10 个唯一客户端 IP（不含端口），MMDB ASN / 国家等信息在 API 序列化时临时补充，不落库
 
 `nodes`：
 
@@ -214,7 +215,7 @@ hysterical-panel/
 
 **找回密码**（无自建后端代码，纯走 PocketBase 内置）：前端 `/forgot-password` 调内置 `POST /api/collections/users/request-password-reset`（`{email}`，恒 204，内置反枚举 + 2 分钟重发节流）；`/reset-password?token=` 调内置 `POST /api/collections/users/confirm-password-reset`（`{token,password,passwordConfirm}`，成功且 token 邮箱匹配会顺带置 `verified=true`）。两端点不触发 `OnRecordAuthRequest`，不受 `bindAuthGate` 阻挡（`disabled` 用户可重置但仍无法登录）。前端函数在 `src/api/auth.ts` 的 `requestPasswordReset`/`confirmPasswordReset`。**部署须一次性配置**：把 PocketBase `Settings → Application URL` 设为前端域名，并把 users collection 的 **Reset password** 邮件模板链接由默认的 `{APP_URL}/_/#/auth/confirm-password-reset/{TOKEN}` 改成 `{APP_URL}/reset-password?token={TOKEN}`，否则邮件链接落到 PocketBase 后台而非前端重置页。该模板邮件走内置 SMTP，不经 `mailer.go`。
 
-`POST /api/hysteria/auth` — Hysteria 2 节点 `auth.type: http` 回调，每次客户端连接时触发。按请求体 `auth` 在 `users.auth_string` 查匹配，命中且 `status=active` 且 `verified=true` → `200 {"ok":true,"id":"<auth_string>"}`；查无此人 401；存在但 disabled 或未验证 403；缺 `auth`/非法 JSON 400。返回的 `id` **故意回填为 `auth_string`**，让节点后续 `/traffic` 上报的 key 与采集器查询字段一致（见 `hysteria_auth.go` 注释）。**绝不记录 `auth` 值本身**（凭据），只记 addr 与拒绝原因。该路由不进 OpenAPI。
+`POST /api/hysteria/auth` — Hysteria 2 节点 `auth.type: http` 回调，每次客户端连接时触发。按请求体 `auth` 在 `users.auth_string` 查匹配，命中且 `status=active` 且 `verified=true` → `200 {"ok":true,"id":"<auth_string>"}`；查无此人 401；存在但 disabled 或未验证 403；缺 `auth`/非法 JSON 400。返回的 `id` **故意回填为 `auth_string`**，让节点后续 `/traffic` 上报的 key 与采集器查询字段一致（见 `hysteria_auth.go` 注释）。成功鉴权会异步更新 `users.last_connected_at`，并从请求体 `addr` 提取客户端 IP 写入 `users.recent_connections`（最近 10 个唯一 IP，重复 IP 更新 last_seen/count；只存 IP，不存端口；ASN / 国家 / ipinfo 链接由 API 返回用户记录时用 MMDB 临时补充）。**绝不记录 `auth` 值本身**（凭据），拒绝日志只记 addr 与拒绝原因。该路由不进 OpenAPI。
 
 > 邮件走 PocketBase 内置 SMTP（`/_/` 后台配置，无新增 env）。`mailer.go` 在 `SMTP.Enabled=false` 时不发信：邀请接口仍返回 `link` 供手动分享，开放无码注册因依赖验证邮件而不可用。
 
