@@ -54,16 +54,25 @@ type NodeAPISecretResetResponse struct {
 
 // PanelUser is the public representation returned by user endpoints.
 type PanelUser struct {
-	ID         string `json:"id"`
-	Email      string `json:"email"`
-	Role       string `json:"role"` // "admin" | "user"
-	AuthString string `json:"auth_string"`
-	QuotaBytes int64  `json:"quota_bytes"`
-	UsedTx     int64  `json:"used_tx"`
-	UsedRx     int64  `json:"used_rx"`
-	Status          string `json:"status"` // "active" | "disabled"
-	Created         string `json:"created"`
-	LastConnectedAt string `json:"last_connected_at"`
+	ID                string             `json:"id"`
+	Email             string             `json:"email"`
+	Role              string             `json:"role"` // "admin" | "user"
+	AuthString        string             `json:"auth_string"`
+	QuotaBytes        int64              `json:"quota_bytes"`
+	UsedTx            int64              `json:"used_tx"`
+	UsedRx            int64              `json:"used_rx"`
+	Status            string             `json:"status"` // "active" | "disabled"
+	Created           string             `json:"created"`
+	LastConnectedAt   string             `json:"last_connected_at"`
+	RecentConnections []RecentConnection `json:"recent_connections"`
+}
+
+// RecentConnection is one recent successful Hysteria auth source for a user.
+type RecentConnection struct {
+	IP         string  `json:"ip"`
+	LastSeenAt string  `json:"last_seen_at"`
+	Count      int64   `json:"count"`
+	IPMeta     *IPMeta `json:"ip_meta,omitempty"`
 }
 
 // UserListResponse is the paginated response for GET /users.

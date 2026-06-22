@@ -13,18 +13,18 @@ import (
 var (
 	allowedUserListPerPage = []int{25, 50, 100}
 	allowedUserListSorts   = map[string]struct{}{
-		"created":  {},
-		"-created": {},
-		"email":    {},
-		"-email":   {},
-		"role":     {},
-		"-role":    {},
-		"status":   {},
-		"-status":  {},
-		"used_tx":  {},
-		"-used_tx": {},
-		"used_rx":  {},
-		"-used_rx": {},
+		"created":            {},
+		"-created":           {},
+		"email":              {},
+		"-email":             {},
+		"role":               {},
+		"-role":              {},
+		"status":             {},
+		"-status":            {},
+		"used_tx":            {},
+		"-used_tx":           {},
+		"used_rx":            {},
+		"-used_rx":           {},
 		"last_connected_at":  {},
 		"-last_connected_at": {},
 	}
@@ -159,7 +159,7 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 
 	items := make([]PanelUser, 0, len(users))
 	for _, u := range users {
-		items = append(items, panelUser(u))
+		items = append(items, panelUser(u, h.ipLookup))
 	}
 
 	return ok(e, UserListResponse{

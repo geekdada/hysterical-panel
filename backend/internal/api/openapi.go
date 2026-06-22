@@ -25,6 +25,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"NodeTestResponse":           NodeTestResponse{},
 		"NodeAPISecretResetResponse": NodeAPISecretResetResponse{},
 		"PanelUser":                  PanelUser{},
+		"RecentConnection":           RecentConnection{},
 		"UserListResponse":           UserListResponse{},
 		"UserStatsResponse":          UserStatsResponse{},
 		"UserCreateRequest":          UserCreateRequest{},

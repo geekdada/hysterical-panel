@@ -252,35 +252,37 @@ func publicNode(n *core.Record) map[string]any {
 	}
 }
 
-func publicUser(u *core.Record) map[string]any {
+func publicUser(u *core.Record, lookup ipMetadataLookup) map[string]any {
 	return map[string]any{
-		"id":          u.Id,
-		"email":       u.GetString("email"),
-		"role":        u.GetString("role"),
-		"auth_string": u.GetString("auth_string"),
-		"quota_bytes": u.GetInt("quota_bytes"),
-		"used_tx":     u.GetInt("used_tx"),
-		"used_rx":     u.GetInt("used_rx"),
+		"id":                 u.Id,
+		"email":              u.GetString("email"),
+		"role":               u.GetString("role"),
+		"auth_string":        u.GetString("auth_string"),
+		"quota_bytes":        u.GetInt("quota_bytes"),
+		"used_tx":            u.GetInt("used_tx"),
+		"used_rx":            u.GetInt("used_rx"),
 		"status":             u.GetString("status"),
 		"created":            u.GetString("created"),
 		"last_connected_at":  u.GetString("last_connected_at"),
+		"recent_connections": recentConnectionsFromRecord(u, lookup),
 	}
 }
 
 // panelUser is the typed counterpart of publicUser, used where a PanelUser DTO
 // is needed directly (e.g. the registration auth response).
-func panelUser(u *core.Record) PanelUser {
+func panelUser(u *core.Record, lookup ipMetadataLookup) PanelUser {
 	return PanelUser{
-		ID:         u.Id,
-		Email:      u.GetString("email"),
-		Role:       u.GetString("role"),
-		AuthString: u.GetString("auth_string"),
-		QuotaBytes: int64(u.GetInt("quota_bytes")),
-		UsedTx:     int64(u.GetInt("used_tx")),
-		UsedRx:     int64(u.GetInt("used_rx")),
-		Status:          u.GetString("status"),
-		Created:         u.GetString("created"),
-		LastConnectedAt: u.GetString("last_connected_at"),
+		ID:                u.Id,
+		Email:             u.GetString("email"),
+		Role:              u.GetString("role"),
+		AuthString:        u.GetString("auth_string"),
+		QuotaBytes:        int64(u.GetInt("quota_bytes")),
+		UsedTx:            int64(u.GetInt("used_tx")),
+		UsedRx:            int64(u.GetInt("used_rx")),
+		Status:            u.GetString("status"),
+		Created:           u.GetString("created"),
+		LastConnectedAt:   u.GetString("last_connected_at"),
+		RecentConnections: recentConnectionsFromRecord(u, lookup),
 	}
 }
 

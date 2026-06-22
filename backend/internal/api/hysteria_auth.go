@@ -53,15 +53,23 @@ func (h *Handlers) hysteriaAuth(e *core.RequestEvent) error {
 	}
 
 	userID := user.Id
+	clientIP, hasClientIP := clientIPFromHysteriaAddr(in.Addr)
 	go func() {
 		rec, err := h.app.FindRecordById("users", userID)
 		if err != nil {
-			log.Printf("[hysteria-auth] last_connected_at update: user %s not found: %v", userID, err)
+			log.Printf("[hysteria-auth] connection metadata update: user %s not found: %v", userID, err)
 			return
 		}
-		rec.Set("last_connected_at", time.Now().UTC())
+		now := time.Now().UTC()
+		rec.Set("last_connected_at", now)
+		if hasClientIP {
+			if err := updateRecentConnections(rec, clientIP, now); err != nil {
+				log.Printf("[hysteria-auth] recent connections update failed for user %s: %v", userID, err)
+				return
+			}
+		}
 		if err := h.app.Save(rec); err != nil {
-			log.Printf("[hysteria-auth] last_connected_at update failed for user %s: %v", userID, err)
+			log.Printf("[hysteria-auth] connection metadata update failed for user %s: %v", userID, err)
 		}
 	}()
 
