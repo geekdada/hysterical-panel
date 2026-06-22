@@ -193,6 +193,8 @@ function AccountDetailPage() {
             isAdmin={isAdmin}
           />
 
+          {user && <RecentConnectionsSection rows={user.recent_connections ?? []} now={now} />}
+
           {isAdmin && <LiveSection userId={userId} />}
         </>
       )}
@@ -213,20 +215,17 @@ function AccountRail({
     return (
       <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
         <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="px-4 py-3">
-              <div className="h-3 w-16 animate-pulse rounded bg-(--surface-secondary)" />
-              <div className="mt-2 h-4 w-32 animate-pulse rounded bg-(--surface-secondary)" />
-            </div>
-          ))}
+          <RailSkeletonCell labelClassName="max-w-16" valueClassName="max-w-44" />
+          <RailSkeletonCell labelClassName="max-w-20" valueClassName="max-w-48" />
+          <RailSkeletonCell labelClassName="max-w-12" valueClassName="max-w-16" />
+          <RailSkeletonCell labelClassName="max-w-14" valueClassName="max-w-20" />
+          <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-24" />
         </div>
         <div className="grid border-t border-(--border) divide-y divide-(--border) md:grid-cols-4 md:divide-x md:divide-y-0">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="px-4 py-3">
-              <div className="h-3 w-16 animate-pulse rounded bg-(--surface-secondary)" />
-              <div className="mt-2 h-4 w-24 animate-pulse rounded bg-(--surface-secondary)" />
-            </div>
-          ))}
+          <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-28" />
+          <RailSkeletonCell labelClassName="max-w-10" valueClassName="max-w-24" />
+          <RailSkeletonCell labelClassName="max-w-10" valueClassName="max-w-24" />
+          <RailSkeletonCell labelClassName="max-w-16" valueClassName="max-w-24" />
         </div>
       </div>
     );
@@ -306,6 +305,25 @@ function AccountRail({
   );
 }
 
+function RailSkeletonCell({
+  labelClassName,
+  valueClassName,
+}: {
+  labelClassName: string;
+  valueClassName: string;
+}) {
+  return (
+    <div className="min-w-0 px-4 py-3">
+      <div
+        className={`h-3 w-full animate-pulse rounded bg-(--surface-secondary) ${labelClassName}`}
+      />
+      <div
+        className={`mt-2 h-4 w-full animate-pulse rounded bg-(--surface-secondary) ${valueClassName}`}
+      />
+    </div>
+  );
+}
+
 function RailItem({
   label,
   children,
@@ -320,6 +338,101 @@ function RailItem({
       <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
       <div className="mt-1 min-w-0">{children}</div>
     </div>
+  );
+}
+
+function RecentConnectionsSection({
+  rows,
+  now,
+}: {
+  rows: NonNullable<PanelUser["recent_connections"]>;
+  now: number;
+}) {
+  return (
+    <Section
+      title={m.user_recent_connections_title()}
+      meta={m.user_recent_connections_meta({ count: String(rows.length) })}
+    >
+      {rows.length === 0 ? (
+        <Teaching
+          title={m.user_recent_connections_empty_title()}
+          hint={m.user_recent_connections_empty_hint()}
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+                <Th>{m.common_th_ip()}</Th>
+                <Th>{m.common_th_asn()}</Th>
+                <Th>{m.common_th_country()}</Th>
+                <Th className="text-right">{m.common_th_last_seen()}</Th>
+                <Th className="text-right">{m.common_th_count()}</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-(--separator)">
+              {rows.map((row, i) => {
+                const ip = row.ip || m.common_em_dash();
+                const meta = row.ip_meta;
+                const countryTitle = meta?.country_name || meta?.country_code || "";
+                return (
+                  <tr key={`${row.ip || "ip"}-${i}`} className="hover:bg-(--surface-secondary)">
+                    <Td>
+                      {meta?.ipinfo_url ? (
+                        <a
+                          href={meta.ipinfo_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block max-w-[260px] truncate font-mono text-xs text-(--foreground) underline decoration-(--border) underline-offset-2 transition-colors duration-150 hover:text-(--accent)"
+                          title={m.common_ipinfo_open({ target: meta.ip || ip })}
+                        >
+                          {ip}
+                        </a>
+                      ) : (
+                        <span className="block max-w-[260px] truncate font-mono text-xs" title={ip}>
+                          {ip}
+                        </span>
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
+                      {meta?.asn || m.common_em_dash()}
+                    </Td>
+                    <Td className="whitespace-nowrap text-xs text-(--muted)">
+                      {meta?.country_code ? (
+                        <span title={countryTitle}>
+                          <span className="font-mono text-(--foreground)">{meta.country_code}</span>
+                          {meta.country_name && (
+                            <span className="ml-1 hidden max-w-[140px] truncate align-bottom sm:inline-block">
+                              {meta.country_name}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        m.common_em_dash()
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                      <span
+                        title={
+                          row.last_seen_at ? new Date(row.last_seen_at).toLocaleString() : undefined
+                        }
+                      >
+                        {row.last_seen_at
+                          ? relTimeFromISO(row.last_seen_at, now)
+                          : m.common_em_dash()}
+                      </span>
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                      {row.count ?? 0}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Section>
   );
 }
 
