@@ -78,7 +78,7 @@ func updateRecentConnections(u *core.Record, ip string, now time.Time) error {
 	return nil
 }
 
-func recentConnectionsFromRecord(u *core.Record, lookup ipMetadataLookup) []RecentConnection {
+func recentConnectionsFromRecord(u *core.Record, lookup ipMetadataLookup, ignored map[string]struct{}) []RecentConnection {
 	var stored []storedRecentConnection
 	if err := u.UnmarshalJSONField("recent_connections", &stored); err != nil {
 		return []RecentConnection{}
@@ -94,6 +94,11 @@ func recentConnectionsFromRecord(u *core.Record, lookup ipMetadataLookup) []Rece
 		if _, exists := seen[ip]; exists {
 			continue
 		}
+		if ignored != nil {
+			if _, skip := ignored[ip]; skip {
+				continue
+			}
+		}
 		row := RecentConnection{
 			IP:         ip,
 			LastSeenAt: entry.LastSeenAt,
@@ -108,6 +113,31 @@ func recentConnectionsFromRecord(u *core.Record, lookup ipMetadataLookup) []Rece
 		}
 	}
 	return out
+}
+
+func removeIPFromRecentConnections(u *core.Record, ip string) bool {
+	var stored []storedRecentConnection
+	if err := u.UnmarshalJSONField("recent_connections", &stored); err != nil || len(stored) == 0 {
+		return false
+	}
+	out := make([]storedRecentConnection, 0, len(stored))
+	removed := false
+	for _, entry := range stored {
+		entryIP, ok := normalizeStoredConnectionIP(entry.IP)
+		if !ok || entryIP == ip {
+			if ok && entryIP == ip {
+				removed = true
+			}
+			continue
+		}
+		entry.IP = entryIP
+		out = append(out, entry)
+	}
+	if !removed {
+		return false
+	}
+	u.Set("recent_connections", out)
+	return true
 }
 
 func normalizeStoredConnectionIP(ip string) (string, bool) {

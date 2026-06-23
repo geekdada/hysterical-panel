@@ -140,7 +140,7 @@ func TestRecentConnectionsFromRecord(t *testing.T) {
 			CountryName: "United States",
 			IPInfoURL:   "https://ipinfo.io/8.8.8.8",
 		},
-	})
+	}, nil)
 
 	if len(rows) != 2 {
 		t.Fatalf("len = %d, want 2", len(rows))
@@ -153,6 +153,42 @@ func TestRecentConnectionsFromRecord(t *testing.T) {
 	}
 	if rows[1].IPMeta != nil {
 		t.Fatalf("second ip_meta = %#v, want nil", rows[1].IPMeta)
+	}
+}
+
+func TestRecentConnectionsFromRecordFiltersIgnored(t *testing.T) {
+	rec := newRecentConnectionsRecord()
+	rec.Set("recent_connections", []storedRecentConnection{
+		{IP: "8.8.8.8", LastSeenAt: "2026-06-22T12:34:56Z"},
+		{IP: "1.1.1.1", LastSeenAt: "2026-06-22T12:00:00Z"},
+	})
+
+	ignored := map[string]struct{}{"8.8.8.8": {}}
+	rows := recentConnectionsFromRecord(rec, nil, ignored)
+	if len(rows) != 1 {
+		t.Fatalf("len = %d, want 1", len(rows))
+	}
+	if rows[0].IP != "1.1.1.1" {
+		t.Fatalf("ip = %q, want 1.1.1.1", rows[0].IP)
+	}
+}
+
+func TestRemoveIPFromRecentConnections(t *testing.T) {
+	rec := newRecentConnectionsRecord()
+	rec.Set("recent_connections", []storedRecentConnection{
+		{IP: "8.8.8.8", LastSeenAt: "2026-06-22T12:34:56Z"},
+		{IP: "1.1.1.1", LastSeenAt: "2026-06-22T12:00:00Z"},
+	})
+
+	if !removeIPFromRecentConnections(rec, "8.8.8.8") {
+		t.Fatal("expected removal")
+	}
+	got := readStoredRecentConnections(t, rec)
+	if len(got) != 1 || got[0].IP != "1.1.1.1" {
+		t.Fatalf("got %#v, want only 1.1.1.1", got)
+	}
+	if removeIPFromRecentConnections(rec, "8.8.8.8") {
+		t.Fatal("expected no-op for missing ip")
 	}
 }
 

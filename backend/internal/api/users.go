@@ -23,7 +23,8 @@ func (h *Handlers) getUser(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewNotFoundError("user not found", err)
 	}
-	return ok(e, publicUser(u, h.ipLookup))
+	ignored := h.loadIgnoredConnectionIPSet()
+	return ok(e, publicUser(u, h.ipLookup, ignored))
 }
 
 // newUserParams carries resolved field values for a new users record. Callers
@@ -126,7 +127,8 @@ func (h *Handlers) createUser(e *core.RequestEvent) error {
 	if err := h.app.Save(u); err != nil {
 		return apis.NewBadRequestError("failed to create user (email or auth_string may be taken)", err)
 	}
-	return ok(e, publicUser(u, h.ipLookup))
+	ignored := h.loadIgnoredConnectionIPSet()
+	return ok(e, publicUser(u, h.ipLookup, ignored))
 }
 
 func (h *Handlers) updateUser(e *core.RequestEvent) error {
@@ -176,7 +178,8 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 	if wasActive && u.GetString("status") == "disabled" {
 		go h.kickUser(u.Id, u.GetString("auth_string"))
 	}
-	return ok(e, publicUser(u, h.ipLookup))
+	ignored := h.loadIgnoredConnectionIPSet()
+	return ok(e, publicUser(u, h.ipLookup, ignored))
 }
 
 func (h *Handlers) deleteUser(e *core.RequestEvent) error {
@@ -208,7 +211,8 @@ func (h *Handlers) resetUserAuthString(e *core.RequestEvent) error {
 	if err := h.app.Save(u); err != nil {
 		return apis.NewBadRequestError("failed to reset auth key", err)
 	}
-	return ok(e, publicUser(u, h.ipLookup))
+	ignored := h.loadIgnoredConnectionIPSet()
+	return ok(e, publicUser(u, h.ipLookup, ignored))
 }
 
 func strOr(p *string, def string) string {

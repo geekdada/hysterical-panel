@@ -62,7 +62,7 @@ func (h *Handlers) hysteriaAuth(e *core.RequestEvent) error {
 		}
 		now := time.Now().UTC()
 		rec.Set("last_connected_at", now)
-		if hasClientIP {
+		if hasClientIP && !h.isConnectionIPIgnored(clientIP) {
 			if err := updateRecentConnections(rec, clientIP, now); err != nil {
 				log.Printf("[hysteria-auth] recent connections update failed for user %s: %v", userID, err)
 				return

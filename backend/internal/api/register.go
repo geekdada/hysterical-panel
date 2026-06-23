@@ -149,6 +149,6 @@ func (h *Handlers) register(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewBadRequestError("failed to issue auth token", err)
 	}
-	record := panelUser(u, h.ipLookup)
+	record := panelUser(u, h.ipLookup, h.loadIgnoredConnectionIPSet())
 	return ok(e, RegisterResponse{Token: authToken, Record: &record})
 }

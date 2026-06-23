@@ -84,6 +84,11 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.POST("/invitations", h.createInvitation).Bind(adminOnly)
 	g.DELETE("/invitations/{id}", h.deleteInvitation).Bind(adminOnly)
 
+	// ignored connection IPs (global recent-connections filter)
+	g.GET("/ignored-connection-ips", h.listIgnoredConnectionIPs).Bind(adminOnly)
+	g.POST("/ignored-connection-ips", h.createIgnoredConnectionIP).Bind(adminOnly)
+	g.DELETE("/ignored-connection-ips/{id}", h.deleteIgnoredConnectionIP).Bind(adminOnly)
+
 	// users
 	g.GET("/users", h.listUsers).Bind(adminOnly)
 	g.GET("/users/stats", h.getUserStats).Bind(adminOnly)
@@ -252,7 +257,7 @@ func publicNode(n *core.Record) map[string]any {
 	}
 }
 
-func publicUser(u *core.Record, lookup ipMetadataLookup) map[string]any {
+func publicUser(u *core.Record, lookup ipMetadataLookup, ignored map[string]struct{}) map[string]any {
 	return map[string]any{
 		"id":                 u.Id,
 		"email":              u.GetString("email"),
@@ -264,13 +269,13 @@ func publicUser(u *core.Record, lookup ipMetadataLookup) map[string]any {
 		"status":             u.GetString("status"),
 		"created":            u.GetString("created"),
 		"last_connected_at":  u.GetString("last_connected_at"),
-		"recent_connections": recentConnectionsFromRecord(u, lookup),
+		"recent_connections": recentConnectionsFromRecord(u, lookup, ignored),
 	}
 }
 
 // panelUser is the typed counterpart of publicUser, used where a PanelUser DTO
 // is needed directly (e.g. the registration auth response).
-func panelUser(u *core.Record, lookup ipMetadataLookup) PanelUser {
+func panelUser(u *core.Record, lookup ipMetadataLookup, ignored map[string]struct{}) PanelUser {
 	return PanelUser{
 		ID:                u.Id,
 		Email:             u.GetString("email"),
@@ -282,7 +287,7 @@ func panelUser(u *core.Record, lookup ipMetadataLookup) PanelUser {
 		Status:            u.GetString("status"),
 		Created:           u.GetString("created"),
 		LastConnectedAt:   u.GetString("last_connected_at"),
-		RecentConnections: recentConnectionsFromRecord(u, lookup),
+		RecentConnections: recentConnectionsFromRecord(u, lookup, ignored),
 	}
 }
 

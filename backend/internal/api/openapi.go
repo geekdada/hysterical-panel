@@ -48,9 +48,11 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"PanelConfigResponse":        PanelConfigResponse{},
 		"RegisterRequest":            RegisterRequest{},
 		"RegisterResponse":           RegisterResponse{},
-		"Invitation":                 Invitation{},
-		"InvitationCreateRequest":    InvitationCreateRequest{},
-		"SettingsResponse":           SettingsResponse{},
+		"Invitation":                      Invitation{},
+		"InvitationCreateRequest":         InvitationCreateRequest{},
+		"IgnoredConnectionIP":             IgnoredConnectionIP{},
+		"IgnoredConnectionIPCreateRequest": IgnoredConnectionIPCreateRequest{},
+		"SettingsResponse":                SettingsResponse{},
 		"SettingsUpdateRequest":      SettingsUpdateRequest{},
 		"ManagementAPITokenResponse": ManagementAPITokenResponse{},
 	}
@@ -1171,6 +1173,67 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 				OperationID: "deleteInvitation",
 				Summary:     "Delete an invitation",
 				Tags:        []string{"invitations"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Deletion confirmed"),
+						Content:     content(ref("DeleteResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /ignored-connection-ips ────────────────────────────────────────────
+	t.Paths.Set("/api/panel/ignored-connection-ips", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listIgnoredConnectionIPs",
+				Summary:     "List globally ignored connection IPs",
+				Tags:        []string{"ignored-connection-ips"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Ignored connection IP list"),
+						Content:     content(arrayRef("IgnoredConnectionIP")),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "createIgnoredConnectionIP",
+				Summary:     "Ignore a connection IP globally",
+				Tags:        []string{"ignored-connection-ips"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("IgnoredConnectionIPCreateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Ignored connection IP (existing or newly created)"),
+						Content:     content(ref("IgnoredConnectionIP")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /ignored-connection-ips/{id} ───────────────────────────────────────
+	t.Paths.Set("/api/panel/ignored-connection-ips/{id}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Ignored connection IP ID")},
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "deleteIgnoredConnectionIP",
+				Summary:     "Remove a globally ignored connection IP",
+				Tags:        []string{"ignored-connection-ips"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
 						Description: ptr("Deletion confirmed"),

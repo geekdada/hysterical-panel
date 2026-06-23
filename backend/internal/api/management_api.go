@@ -75,7 +75,7 @@ func (h *Handlers) mgmtGetUser(e *core.RequestEvent) error {
 	if err != nil || user == nil {
 		return apis.NewNotFoundError("user not found", nil)
 	}
-	return e.JSON(http.StatusOK, panelUser(user, h.ipLookup))
+	return e.JSON(http.StatusOK, panelUser(user, h.ipLookup, h.loadIgnoredConnectionIPSet()))
 }
 
 // mgmtCreateUser provisions a user from an email only. Password and

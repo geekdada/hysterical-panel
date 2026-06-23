@@ -158,6 +158,18 @@ type InvitationCreateRequest struct {
 	SendEmail      *bool   `json:"send_email,omitempty"`
 }
 
+// IgnoredConnectionIP is a globally ignored client IP for recent-connections tracking.
+type IgnoredConnectionIP struct {
+	ID      string `json:"id"`
+	IP      string `json:"ip"`
+	Created string `json:"created"`
+}
+
+// IgnoredConnectionIPCreateRequest is the body for POST /ignored-connection-ips.
+type IgnoredConnectionIPCreateRequest struct {
+	IP string `json:"ip"`
+}
+
 // ── App settings ───────────────────────────────────────────────────────────────
 
 // SettingsResponse is returned by GET/PATCH /settings.

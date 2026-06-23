@@ -158,8 +158,9 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 	}
 
 	items := make([]PanelUser, 0, len(users))
+	ignored := h.loadIgnoredConnectionIPSet()
 	for _, u := range users {
-		items = append(items, panelUser(u, h.ipLookup))
+		items = append(items, panelUser(u, h.ipLookup, ignored))
 	}
 
 	return ok(e, UserListResponse{
