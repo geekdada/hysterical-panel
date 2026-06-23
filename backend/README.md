@@ -118,7 +118,7 @@ docker run --rm \
 
 ### Hysteria 回调 `POST /api/hysteria/auth`（供 Hysteria 节点调用）
 
-给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<client-auth-key>","tx":1000000}`；后端按 `auth` 在 `users.auth_string` 里查匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<auth_string>"}`，其它返回非 200。返回的 `id` 故意回填为 `auth_string`，让节点后续 `/traffic` 上报的 key 与采集器查询用的字段一致。成功鉴权会异步更新 `users.last_connected_at`，并从 `addr` 提取客户端 IP 写入 `users.recent_connections`：只存 IP、不存端口，最多保留最近 10 个唯一 IP；重复 IP 更新 `last_seen_at` 与 `count`。用户 API 返回时会用 MMDB 临时补充 ASN / 国家 / IPv4 ipinfo 链接，这些元数据不落库。
+给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<client-auth-key>","tx":1000000}`；后端按 `auth` 在 `users.auth_string` 里查匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<auth_string>"}`，其它返回非 200。返回的 `id` 故意回填为 `auth_string`，让节点后续 `/traffic` 上报的 key 与采集器查询用的字段一致。成功鉴权会异步更新 `users.last_connected_at`，并从 `addr` 提取客户端 IP 写入 `users.recent_connections`：只存 IP、不存端口，最多保留最近 10 个唯一 IP；重复 IP 更新 `last_seen_at`。用户 API 返回时会用 MMDB 临时补充 ASN / 国家 / IPv4 ipinfo 链接，这些元数据不落库。
 
 | 状态码 | 含义 |
 |---|---|
