@@ -30,6 +30,7 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, relTimeFromISO } from "~/lib/format";
+import { useActiveTimeZone } from "~/lib/use-timezone";
 import {
   USER_LIST_PAGE_SIZE_OPTIONS,
   parseUsersListSearch,
@@ -222,6 +223,7 @@ function UsersTable({
   const routerNavigate = useNavigate({ from: Route.fullPath });
   const updateSearch: typeof routerNavigate = (options) =>
     routerNavigate({ ...options, replace: true });
+  const tz = useActiveTimeZone();
   const [searchDraft, setSearchDraft] = useState(listSearch.search);
 
   useEffect(() => {
@@ -360,7 +362,9 @@ function UsersTable({
                       <span
                         title={
                           user.last_connected_at
-                            ? new Date(user.last_connected_at).toLocaleString()
+                            ? new Date(user.last_connected_at).toLocaleString(undefined, {
+                                timeZone: tz,
+                              })
                             : undefined
                         }
                       >

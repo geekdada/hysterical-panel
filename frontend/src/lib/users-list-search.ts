@@ -8,7 +8,7 @@ export type UsersListSearch = {
 };
 
 export type UserDetailSearch = {
-  from?: "users";
+  from?: "users" | "nodes";
 };
 
 const ALLOWED_SORTS = new Set([
@@ -65,7 +65,7 @@ export function parseUsersListSearch(search: Record<string, unknown>): UsersList
 }
 
 export function parseUserDetailSearch(search: Record<string, unknown>): UserDetailSearch {
-  return search.from === "users" ? { from: "users" } : {};
+  return search.from === "users" || search.from === "nodes" ? { from: search.from } : {};
 }
 
 export function defaultUsersListSearch(): UsersListSearch {

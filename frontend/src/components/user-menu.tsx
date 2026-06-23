@@ -131,12 +131,10 @@ export function UserMenu({ auth }: { auth: Auth }) {
               <Label className="truncate">{m.nav_invitations()}</Label>
             </Dropdown.Item>
           )}
-          {auth.user.role === "admin" && (
-            <Dropdown.Item id="settings" textValue={m.nav_settings()} className={itemClass}>
-              <Gear className={iconClass} aria-hidden />
-              <Label className="truncate">{m.nav_settings()}</Label>
-            </Dropdown.Item>
-          )}
+          <Dropdown.Item id="settings" textValue={m.nav_settings()} className={itemClass}>
+            <Gear className={iconClass} aria-hidden />
+            <Label className="truncate">{m.nav_settings()}</Label>
+          </Dropdown.Item>
           <Separator className="my-1 bg-(--separator)" />
           <Dropdown.Item
             id="sign-out"

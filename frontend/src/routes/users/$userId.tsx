@@ -47,6 +47,7 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, formatDuration, relTime, relTimeFromISO } from "~/lib/format";
+import { useActiveTimeZone } from "~/lib/use-timezone";
 import { defaultUsersListSearch, parseUserDetailSearch } from "~/lib/users-list-search";
 import * as m from "~/paraglide/messages.js";
 
@@ -68,15 +69,17 @@ function AccountDetailPage() {
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
   const fromUsersList = isAdmin && from === "users";
+  const fromNode = isAdmin && from === "nodes";
+  const tz = useActiveTimeZone();
 
   const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    setTrafficRange(defaultLocalTrafficRange());
-  }, []);
+    setTrafficRange(defaultLocalTrafficRange(tz));
+  }, [tz]);
 
-  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange) : null;
+  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange, tz) : null;
   const overviewQuery = useQuery({
     queryKey: queryKeys.userOverview(userId, trafficQuery),
     queryFn: () => fetchUserOverview(userId, trafficQuery!),
@@ -114,6 +117,8 @@ function AccountDetailPage() {
                 search={defaultUsersListSearch()}
                 preferHistoryBack
               />
+            ) : fromNode ? (
+              <BackLink label={m.common_back_node()} preferHistoryBack />
             ) : (
               <BackLink />
             )
@@ -142,7 +147,7 @@ function AccountDetailPage() {
           {updatedAt !== null && (
             <span
               className="hidden tabular-nums sm:inline"
-              title={new Date(updatedAt).toLocaleString()}
+              title={new Date(updatedAt).toLocaleString(undefined, { timeZone: tz })}
             >
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
@@ -211,6 +216,7 @@ function AccountRail({
   loading: boolean;
   now: number;
 }) {
+  const tz = useActiveTimeZone();
   if (loading) {
     return (
       <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
@@ -269,7 +275,7 @@ function AccountRail({
             className="text-[13px] tabular-nums"
             title={
               user?.last_connected_at
-                ? new Date(user.last_connected_at).toLocaleString()
+                ? new Date(user.last_connected_at).toLocaleString(undefined, { timeZone: tz })
                 : undefined
             }
           >
@@ -348,11 +354,9 @@ function RecentConnectionsSection({
   rows: NonNullable<PanelUser["recent_connections"]>;
   now: number;
 }) {
+  const tz = useActiveTimeZone();
   return (
-    <Section
-      title={m.user_recent_connections_title()}
-      meta={m.user_recent_connections_meta({ count: String(rows.length) })}
-    >
+    <Section title={m.user_recent_connections_title()}>
       {rows.length === 0 ? (
         <Teaching
           title={m.user_recent_connections_empty_title()}
@@ -367,7 +371,6 @@ function RecentConnectionsSection({
                 <Th>{m.common_th_asn()}</Th>
                 <Th>{m.common_th_country()}</Th>
                 <Th className="text-right">{m.common_th_last_seen()}</Th>
-                <Th className="text-right">{m.common_th_count()}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-(--separator)">
@@ -414,16 +417,15 @@ function RecentConnectionsSection({
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
                       <span
                         title={
-                          row.last_seen_at ? new Date(row.last_seen_at).toLocaleString() : undefined
+                          row.last_seen_at
+                            ? new Date(row.last_seen_at).toLocaleString(undefined, { timeZone: tz })
+                            : undefined
                         }
                       >
                         {row.last_seen_at
                           ? relTimeFromISO(row.last_seen_at, now)
                           : m.common_em_dash()}
                       </span>
-                    </Td>
-                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      {row.count ?? 0}
                     </Td>
                   </tr>
                 );
@@ -929,6 +931,7 @@ function TrafficSection({
 }
 
 function LiveSection({ userId }: { userId: string }) {
+  const tz = useActiveTimeZone();
   const [now, setNow] = useState(() => Date.now());
   const liveQuery = useQuery({
     queryKey: queryKeys.userLive(userId),
@@ -970,7 +973,7 @@ function LiveSection({ userId }: { userId: string }) {
           {fetchedAt !== null && (
             <span
               className="hidden text-xs tabular-nums text-(--muted) sm:inline"
-              title={new Date(fetchedAt).toLocaleString()}
+              title={new Date(fetchedAt).toLocaleString(undefined, { timeZone: tz })}
             >
               {relTime(fetchedAt, now)}
             </span>

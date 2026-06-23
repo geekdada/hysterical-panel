@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Button, Description, Label, Switch } from "@heroui/react";
+import { Button, Description, Label, ListBox, Select, Switch } from "@heroui/react";
 import { ChevronRight, Code, Database } from "@gravity-ui/icons";
-import { requireAdmin } from "~/api/guards";
+import { requireAuth } from "~/api/guards";
 import {
   canQueryPanelApi,
   fetchSettings,
@@ -16,21 +16,24 @@ import {
 } from "~/api/queries";
 import { BackLink, CopyableCode, ErrorAlert, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { offsetLabel, SYSTEM_TIMEZONE_ID, TIMEZONE_OPTIONS } from "~/lib/timezone";
+import { useTimezonePreference } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/settings")({
-  beforeLoad: ({ context }) => requireAdmin(context.auth),
+  beforeLoad: ({ context }) => requireAuth(context.auth),
   component: SettingsPage,
 });
 
 function SettingsPage() {
   const { auth } = Route.useRouteContext();
   const queryClient = useQueryClient();
+  const isAdmin = auth?.user.role === "admin";
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings(),
     queryFn: fetchSettings,
-    enabled: canQueryPanelApi(),
+    enabled: canQueryPanelApi() && isAdmin,
   });
 
   const mutation = useMutation({
@@ -65,76 +68,131 @@ function SettingsPage() {
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
       <div className="mb-5">
-        <h1 className="text-base font-semibold tracking-tight">{m.settings_registration()}</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_registration_desc()}</p>
+        <h1 className="text-base font-semibold tracking-tight">{m.settings_timezone()}</h1>
+        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_timezone_desc()}</p>
       </div>
 
-      <ErrorAlert message={loadError} className="mb-4" />
-
-      <div className="flex flex-col gap-1 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
-        <SettingSwitch
-          label={m.settings_invitation_system()}
-          description={m.settings_invitation_system_desc()}
-          isSelected={settings?.invitations_enabled ?? false}
-          isDisabled={!settings || mutation.isPending}
-          onChange={(v) => patch("invitations_enabled", v)}
-        />
-        <div className="my-1 h-px bg-(--separator)" />
-        <SettingSwitch
-          label={m.settings_open_registration()}
-          description={m.settings_open_registration_desc()}
-          isSelected={settings?.open_registration ?? false}
-          isDisabled={!settings || mutation.isPending}
-          onChange={(v) => patch("open_registration", v)}
-        />
-        <div className="my-1 h-px bg-(--separator)" />
-        <SettingSwitch
-          label={m.settings_require_invite()}
-          description={m.settings_require_invite_desc()}
-          isSelected={settings?.require_invite_for_open ?? false}
-          isDisabled={!settings || mutation.isPending || !(settings?.invitations_enabled ?? false)}
-          onChange={(v) => patch("require_invite_for_open", v)}
-        />
+      <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+        <TimezoneSetting />
       </div>
 
-      {settings?.open_registration && !settings.require_invite_for_open && (
-        <p className="mt-3 text-xs text-(--muted)">{m.settings_smtp_note()}</p>
+      {isAdmin && (
+        <>
+          <div className="mt-8 mb-5">
+            <h1 className="text-base font-semibold tracking-tight">{m.settings_registration()}</h1>
+            <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_registration_desc()}</p>
+          </div>
+
+          <ErrorAlert message={loadError} className="mb-4" />
+
+          <div className="flex flex-col gap-1 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+            <SettingSwitch
+              label={m.settings_invitation_system()}
+              description={m.settings_invitation_system_desc()}
+              isSelected={settings?.invitations_enabled ?? false}
+              isDisabled={!settings || mutation.isPending}
+              onChange={(v) => patch("invitations_enabled", v)}
+            />
+            <div className="my-1 h-px bg-(--separator)" />
+            <SettingSwitch
+              label={m.settings_open_registration()}
+              description={m.settings_open_registration_desc()}
+              isSelected={settings?.open_registration ?? false}
+              isDisabled={!settings || mutation.isPending}
+              onChange={(v) => patch("open_registration", v)}
+            />
+            <div className="my-1 h-px bg-(--separator)" />
+            <SettingSwitch
+              label={m.settings_require_invite()}
+              description={m.settings_require_invite_desc()}
+              isSelected={settings?.require_invite_for_open ?? false}
+              isDisabled={
+                !settings || mutation.isPending || !(settings?.invitations_enabled ?? false)
+              }
+              onChange={(v) => patch("require_invite_for_open", v)}
+            />
+          </div>
+
+          {settings?.open_registration && !settings.require_invite_for_open && (
+            <p className="mt-3 text-xs text-(--muted)">{m.settings_smtp_note()}</p>
+          )}
+
+          <div className="mt-8 mb-5">
+            <h1 className="text-base font-semibold tracking-tight">{m.settings_database()}</h1>
+            <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_database_desc()}</p>
+          </div>
+
+          <Link
+            to="/database"
+            className="group flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+          >
+            <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
+              <Database className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-(--foreground)">
+                {m.settings_database_management()}
+              </span>
+              <span className="block text-xs text-(--muted)">
+                {m.settings_database_management_desc()}
+              </span>
+            </span>
+            <ChevronRight
+              className="size-4 shrink-0 text-(--muted) transition-colors duration-150 group-hover:text-(--foreground)"
+              aria-hidden
+            />
+          </Link>
+
+          <ManagementApiSection
+            settings={settings}
+            pending={mutation.isPending}
+            onSave={(patch) => mutation.mutate(patch)}
+            error={saveError}
+            newToken={mutation.data?.management_api_token}
+          />
+        </>
       )}
-
-      <div className="mt-8 mb-5">
-        <h1 className="text-base font-semibold tracking-tight">{m.settings_database()}</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_database_desc()}</p>
-      </div>
-
-      <Link
-        to="/database"
-        className="group flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
-      >
-        <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
-          <Database className="size-4" aria-hidden />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium text-(--foreground)">
-            {m.settings_database_management()}
-          </span>
-          <span className="block text-xs text-(--muted)">
-            {m.settings_database_management_desc()}
-          </span>
-        </span>
-        <ChevronRight
-          className="size-4 shrink-0 text-(--muted) transition-colors duration-150 group-hover:text-(--foreground)"
-          aria-hidden
-        />
-      </Link>
-
-      <ManagementApiSection
-        settings={settings}
-        pending={mutation.isPending}
-        onSave={(patch) => mutation.mutate(patch)}
-        error={saveError}
-        newToken={mutation.data?.management_api_token}
-      />
     </PageShell>
+  );
+}
+
+// Available to every signed-in user (the page guard is requireAuth, not requireAdmin).
+// Stored preference is null for "follow system"; the Select uses a sentinel id instead.
+function TimezoneSetting() {
+  const [pref, setPref] = useTimezonePreference();
+  const value = pref ?? SYSTEM_TIMEZONE_ID;
+
+  return (
+    <Select
+      className="w-full sm:max-w-xs"
+      value={value}
+      onChange={(key) => {
+        const next = Array.isArray(key) ? key[0] : key;
+        setPref(next == null || next === SYSTEM_TIMEZONE_ID ? null : String(next));
+      }}
+    >
+      <Label>{m.settings_timezone_label()}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox className="max-h-72 overflow-y-auto">
+          {TIMEZONE_OPTIONS.map((option) => {
+            const text =
+              option.offset === null
+                ? m.settings_timezone_follow_system()
+                : offsetLabel(option.offset);
+            return (
+              <ListBox.Item key={option.id} id={option.id} textValue={text}>
+                {text}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            );
+          })}
+        </ListBox>
+      </Select.Popover>
+    </Select>
   );
 }
 
