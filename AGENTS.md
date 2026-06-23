@@ -103,7 +103,7 @@ hysterical-panel/
 │   ├── Makefile / README.md    命令与人类向运行说明 + 接口表
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
-│   ├── mmdb/                    Country-asn.mmdb / Country-without-asn.mmdb（ipmeta 读取）
+│   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
 │   ├── migrations/             代码式迁移，启动自动应用（1730000001..10）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
@@ -239,7 +239,7 @@ hysterical-panel/
 | `PANEL_FRONTEND_URL_BASE` | 否 | 面板 UI 的 CORS 来源（`http://` / `https://`，无路径）；未设置则 `*`。写入 `apis.ServeConfig.AllowedOrigins` |
 | `PANEL_CORS_MAX_AGE` | 否 | 预检缓存 `Access-Control-Max-Age`（秒），默认 `7200`；`0` 关闭 |
 | `PB_DATA_DIR` | 否 | PocketBase 数据目录，默认 `./pb_data`；CLI `--dir` 优先级更高 |
-| `MMDB_DIR` | 否 | IP 元数据 MMDB 目录，默认 `./mmdb`，需含 `Country-asn.mmdb` 与 `Country-without-asn.mmdb`。缺失/损坏会让服务**启动失败**（避免静默丢 ASN/国家信息） |
+| `MMDB_DIR` | 否 | IP 元数据 MMDB 目录，默认 `./mmdb`，需含 `ipinfo_lite.mmdb`。缺失/损坏会让服务**启动失败**（避免静默丢 ASN/国家信息） |
 | `PB_ENCRYPTION_KEY` | 否 | PocketBase 设置库加密密钥，须 **32 字符**；未设则设置库明文存储 |
 
 - `api_secret` 绝不能明文返回给前端，也不要写进日志。Hysteria API 调用都带 `Authorization: <secret>` header。

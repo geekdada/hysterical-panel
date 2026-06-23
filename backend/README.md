@@ -33,7 +33,7 @@ make serve     # 或: go run . serve
 | `PANEL_FRONTEND_URL_BASE` | 否 | 面板 UI 的 CORS 来源（`http://` 或 `https://`，不含路径）；未设置则允许 `*` |
 | `PANEL_CORS_MAX_AGE` | 否 | 预检 `Access-Control-Max-Age`（秒），默认 `7200`；`0` 表示不发送 |
 | `PB_DATA_DIR` | 否 | PocketBase 数据目录，默认 `./pb_data`；CLI `--dir` 优先级更高 |
-| `MMDB_DIR` | 否 | IP 元数据 MMDB 目录，默认 `./mmdb`，需包含 `Country-asn.mmdb` 与 `Country-without-asn.mmdb` |
+| `MMDB_DIR` | 否 | IP 元数据 MMDB 目录，默认 `./mmdb`，需包含 `ipinfo_lite.mmdb` |
 | `PB_ENCRYPTION_KEY` | 否 | PocketBase 设置库加密密钥，须为 **32 字符**；未设置则设置库明文存储 |
 
 `PANEL_MASTER_KEY` 由 `internal/config`（[caarlos0/env](https://github.com/caarlos0/env)）解析，未设置则拒绝启动；`PB_DATA_DIR` / `PB_ENCRYPTION_KEY` 在 `main.go` 注入 `pocketbase.NewWithConfig`。`MMDB_DIR` 用于实时诊断的 Top domains IP 元数据；缺失或损坏会让服务启动失败，避免静默丢失 ASN / 国家信息。

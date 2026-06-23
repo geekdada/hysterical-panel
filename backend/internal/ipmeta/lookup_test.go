@@ -2,6 +2,7 @@ package ipmeta
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -19,8 +20,8 @@ func TestLookupHost(t *testing.T) {
 	if info.IP != "8.8.8.8" {
 		t.Fatalf("IP = %q, want 8.8.8.8", info.IP)
 	}
-	if info.ASN != "GOOGLE" {
-		t.Fatalf("ASN = %q, want GOOGLE", info.ASN)
+	if !strings.HasPrefix(info.ASN, "AS15169") {
+		t.Fatalf("ASN = %q, want prefix AS15169", info.ASN)
 	}
 	if info.CountryCode != "US" {
 		t.Fatalf("CountryCode = %q, want US", info.CountryCode)

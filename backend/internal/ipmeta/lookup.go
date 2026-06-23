@@ -2,7 +2,6 @@
 package ipmeta
 
 import (
-	"errors"
 	"fmt"
 	"net/netip"
 	"path/filepath"
@@ -11,10 +10,7 @@ import (
 	"github.com/oschwald/maxminddb-golang/v2"
 )
 
-const (
-	asnDBName     = "Country-asn.mmdb"
-	countryDBName = "Country-without-asn.mmdb"
-)
+const dbName = "ipinfo_lite.mmdb"
 
 // Info is the metadata returned for an IP literal.
 type Info struct {
@@ -25,41 +21,27 @@ type Info struct {
 	IPInfoURL   string `json:"ipinfo_url,omitempty"`
 }
 
-// Lookup holds open MMDB readers. It is safe to reuse across requests.
+// Lookup holds an open MMDB reader. It is safe to reuse across requests.
 type Lookup struct {
-	asn     *maxminddb.Reader
-	country *maxminddb.Reader
+	reader *maxminddb.Reader
 }
 
-// New opens the bundled MMDB files from dir.
+// New opens the bundled MMDB file from dir.
 func New(dir string) (*Lookup, error) {
-	asn, err := maxminddb.Open(filepath.Join(dir, asnDBName))
+	reader, err := maxminddb.Open(filepath.Join(dir, dbName))
 	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", asnDBName, err)
+		return nil, fmt.Errorf("open %s: %w", dbName, err)
 	}
 
-	country, err := maxminddb.Open(filepath.Join(dir, countryDBName))
-	if err != nil {
-		_ = asn.Close()
-		return nil, fmt.Errorf("open %s: %w", countryDBName, err)
-	}
-
-	return &Lookup{asn: asn, country: country}, nil
+	return &Lookup{reader: reader}, nil
 }
 
-// Close releases both MMDB readers.
+// Close releases the MMDB reader.
 func (l *Lookup) Close() error {
-	if l == nil {
+	if l == nil || l.reader == nil {
 		return nil
 	}
-	return errors.Join(closeReader(l.asn), closeReader(l.country))
-}
-
-func closeReader(r *maxminddb.Reader) error {
-	if r == nil {
-		return nil
-	}
-	return r.Close()
+	return l.reader.Close()
 }
 
 // LookupHost returns metadata for an IP literal host. Non-IP hosts return nil.
@@ -74,37 +56,37 @@ func (l *Lookup) LookupHost(host string) *Info {
 		info.IPInfoURL = "https://ipinfo.io/" + info.IP
 	}
 
-	if l == nil {
+	if l == nil || l.reader == nil {
 		return info
 	}
 
-	if l.asn != nil {
-		var record struct {
-			Country struct {
-				ISOCode string `maxminddb:"iso_code"`
-			} `maxminddb:"country"`
-		}
-		result := l.asn.Lookup(addr)
-		if result.Found() && result.Decode(&record) == nil {
-			info.ASN = record.Country.ISOCode
-		}
+	var record struct {
+		ASN         string `maxminddb:"asn"`
+		ASName      string `maxminddb:"as_name"`
+		Country     string `maxminddb:"country"`
+		CountryCode string `maxminddb:"country_code"`
 	}
-
-	if l.country != nil {
-		var record struct {
-			Country struct {
-				ISOCode string            `maxminddb:"iso_code"`
-				Names   map[string]string `maxminddb:"names"`
-			} `maxminddb:"country"`
-		}
-		result := l.country.Lookup(addr)
-		if result.Found() && result.Decode(&record) == nil {
-			info.CountryCode = record.Country.ISOCode
-			info.CountryName = record.Country.Names["en"]
-		}
+	result := l.reader.Lookup(addr)
+	if result.Found() && result.Decode(&record) == nil {
+		info.ASN = formatASN(record.ASN, record.ASName)
+		info.CountryCode = record.CountryCode
+		info.CountryName = record.Country
 	}
 
 	return info
+}
+
+// formatASN combines the AS number and org name into a single label,
+// e.g. "AS4134 CHINANET BACKBONE". Either part may be empty.
+func formatASN(number, name string) string {
+	switch {
+	case number != "" && name != "":
+		return number + " " + name
+	case number != "":
+		return number
+	default:
+		return name
+	}
 }
 
 func parseIPHost(host string) (netip.Addr, bool) {
