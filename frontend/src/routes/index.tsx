@@ -42,6 +42,7 @@ import {
   type TrafficRangeShortcut,
   trafficShortcutRange,
 } from "~/lib/traffic-range";
+import { useActiveTimeZone } from "~/lib/use-timezone";
 import { defaultUsersListSearch, type UsersListSearch } from "~/lib/users-list-search";
 import * as m from "~/paraglide/messages.js";
 
@@ -77,14 +78,16 @@ function DashboardPage() {
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
+  const tz = useActiveTimeZone();
   const [trafficPeriod, setTrafficPeriod] = useState<TrafficPeriod>("today");
   const [nodeTrafficRange, setNodeTrafficRange] = useState<LocalDateRange | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const queryEnabled = canQueryPanelApi();
-  const nodeTrafficQuery = nodeTrafficRange ? toTrafficRangeQuery(nodeTrafficRange) : null;
+  const nodeTrafficQuery = nodeTrafficRange ? toTrafficRangeQuery(nodeTrafficRange, tz) : null;
   const trafficRangeQuery = toTrafficRangeQuery(
-    trafficShortcutRange(TRAFFIC_PERIOD_SHORTCUT[trafficPeriod])
+    trafficShortcutRange(TRAFFIC_PERIOD_SHORTCUT[trafficPeriod], tz),
+    tz
   );
   const nodesQuery = useQuery({
     queryKey: queryKeys.dashboardNodes(),
@@ -111,10 +114,11 @@ function DashboardPage() {
     refetchInterval: REFRESH_MS,
   });
 
-  // Tick the clock so relative timestamps stay current and local today rolls over.
+  // Tick the clock so relative timestamps stay current and today rolls over. Also
+  // re-seeds when the timezone preference changes so "today" tracks the active tz.
   useEffect(() => {
     const updateToday = () => {
-      const today = defaultLocalTrafficRange();
+      const today = defaultLocalTrafficRange(tz);
       setNodeTrafficRange((current) =>
         current && current.start.compare(today.start) === 0 && current.end.compare(today.end) === 0
           ? current
@@ -128,7 +132,7 @@ function DashboardPage() {
       updateToday();
     }, 5_000);
     return () => clearInterval(id);
-  }, []);
+  }, [tz]);
 
   const nodes = nodesQuery.data ?? [];
   const userStats = userStatsQuery.data ?? null;
@@ -194,7 +198,7 @@ function DashboardPage() {
           {updatedAt !== null && (
             <span
               className="hidden tabular-nums sm:inline"
-              title={new Date(updatedAt).toLocaleString()}
+              title={new Date(updatedAt).toLocaleString(undefined, { timeZone: tz })}
             >
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, Modal } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
@@ -45,6 +45,7 @@ import {
   relTime,
   relTimeFromISO,
 } from "~/lib/format";
+import { useActiveTimeZone } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
 
 type Node = components["schemas"]["Node"];
@@ -63,6 +64,7 @@ function NodeDetailPage() {
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const tz = useActiveTimeZone();
 
   const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -72,10 +74,10 @@ function NodeDetailPage() {
   const [resetResult, setResetResult] = useState<NodeAPISecretReset | null>(null);
 
   useEffect(() => {
-    setTrafficRange(defaultLocalTrafficRange());
-  }, []);
+    setTrafficRange(defaultLocalTrafficRange(tz));
+  }, [tz]);
 
-  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange) : null;
+  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange, tz) : null;
   const overviewQuery = useQuery({
     queryKey: queryKeys.nodeOverview(nodeId, trafficQuery),
     queryFn: () => fetchNodeOverview(nodeId, trafficQuery!),
@@ -182,7 +184,7 @@ function NodeDetailPage() {
           {updatedAt !== null && (
             <span
               className="hidden tabular-nums sm:inline"
-              title={new Date(updatedAt).toLocaleString()}
+              title={new Date(updatedAt).toLocaleString(undefined, { timeZone: tz })}
             >
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
@@ -415,9 +417,20 @@ function TrafficSection({
                   className="transition-colors duration-150 hover:bg-(--surface-secondary)"
                 >
                   <Td>
-                    <span className="block max-w-[280px] truncate font-medium">
-                      {u.user?.email || m.common_unknown()}
-                    </span>
+                    {u.user?.id ? (
+                      <Link
+                        to="/users/$userId"
+                        params={{ userId: u.user.id }}
+                        search={{ from: "nodes" }}
+                        className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                      >
+                        {u.user?.email || m.common_unknown()}
+                      </Link>
+                    ) : (
+                      <span className="block max-w-[280px] truncate font-medium">
+                        {u.user?.email || m.common_unknown()}
+                      </span>
+                    )}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
                     <span className="text-(--muted)">↑</span> {formatBytes(u.tx ?? 0)}
@@ -641,6 +654,7 @@ function DeleteNodeModal({
 /* ── Streams dump (on demand) ──────────────────────────────────────────── */
 
 function StreamsSection({ nodeId }: { nodeId: string }) {
+  const tz = useActiveTimeZone();
   const [now, setNow] = useState(() => Date.now());
   const liveQuery = useQuery({
     queryKey: queryKeys.nodeLive(nodeId),
@@ -681,7 +695,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
           {fetchedAt !== null && (
             <span
               className="hidden text-xs tabular-nums text-(--muted) sm:inline"
-              title={new Date(fetchedAt).toLocaleString()}
+              title={new Date(fetchedAt).toLocaleString(undefined, { timeZone: tz })}
             >
               {relTime(fetchedAt, now)}
             </span>

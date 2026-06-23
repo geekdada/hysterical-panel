@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import { formatBytes } from "~/lib/format";
 import { intlLocale } from "~/lib/locale";
+import { useActiveTimeZone } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
 
 export type Granularity = "hourly" | "daily";
@@ -66,8 +67,9 @@ export function TrafficChart({
   granularity: Granularity;
   idPrefix: string;
 }) {
+  const tz = useActiveTimeZone();
   const data = points.map((p) => ({
-    label: bucketLabel(p.bucket ?? "", granularity),
+    label: bucketLabel(p.bucket ?? "", granularity, tz),
     rx: p.rx ?? 0,
     tx: p.tx ?? 0,
   }));
@@ -189,13 +191,13 @@ export function toPbDateTime(d: Date): string {
   );
 }
 
-function bucketLabel(bucket: string, granularity: Granularity): string {
+function bucketLabel(bucket: string, granularity: Granularity, tz: string): string {
   const ms = Date.parse(bucket.replace(" ", "T"));
   if (Number.isNaN(ms)) return bucket;
   const d = new Date(ms);
   const locale = intlLocale();
   if (granularity === "hourly") {
-    return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone: tz });
   }
-  return d.toLocaleDateString(locale, { month: "numeric", day: "numeric" });
+  return d.toLocaleDateString(locale, { month: "numeric", day: "numeric", timeZone: tz });
 }

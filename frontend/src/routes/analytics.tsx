@@ -38,6 +38,7 @@ import {
 import { UserMenu } from "~/components/user-menu";
 import { cn } from "~/lib/cn";
 import { formatBytes, formatLocaleDateTime, relTime } from "~/lib/format";
+import { useActiveTimeZone } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
 
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
@@ -53,20 +54,21 @@ export const Route = createFileRoute("/analytics")({
 
 function AnalyticsPage() {
   const { auth } = Route.useRouteContext();
+  const tz = useActiveTimeZone();
   const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    setTrafficRange(defaultLocalTrafficRange());
+    setTrafficRange(defaultLocalTrafficRange(tz));
 
     const id = setInterval(() => {
       setNow(Date.now());
     }, 5_000);
     return () => clearInterval(id);
-  }, []);
+  }, [tz]);
 
   const queryEnabled = canQueryPanelApi();
-  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange) : null;
+  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange, tz) : null;
 
   const overviewQuery = useQuery({
     queryKey: queryKeys.analyticsOverview(trafficQuery),
@@ -101,7 +103,10 @@ function AnalyticsPage() {
       headerRight={
         <div className="flex items-center gap-3 text-xs text-(--muted)">
           {updatedAt !== null && (
-            <span className="hidden tabular-nums sm:inline" title={formatLocaleDateTime(updatedAt)}>
+            <span
+              className="hidden tabular-nums sm:inline"
+              title={formatLocaleDateTime(updatedAt, undefined, tz)}
+            >
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}

@@ -25,6 +25,7 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, formatLocaleCount, formatLocaleDateTime, relTime } from "~/lib/format";
+import { useActiveTimeZone } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
 
 type DatabaseStats = components["schemas"]["DatabaseStatsResponse"];
@@ -40,6 +41,7 @@ export const Route = createFileRoute("/database")({
 function DatabasePage() {
   const { auth } = Route.useRouteContext();
   const queryClient = useQueryClient();
+  const tz = useActiveTimeZone();
   const [now, setNow] = useState(() => Date.now());
 
   const statsQuery = useQuery({
@@ -101,7 +103,10 @@ function DatabasePage() {
       headerRight={
         <div className="flex items-center gap-3 text-xs text-(--muted)">
           {updatedAt !== null && (
-            <span className="hidden tabular-nums sm:inline" title={formatLocaleDateTime(updatedAt)}>
+            <span
+              className="hidden tabular-nums sm:inline"
+              title={formatLocaleDateTime(updatedAt, undefined, tz)}
+            >
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
@@ -124,7 +129,7 @@ function DatabasePage() {
         title={m.database_section_traffic_points()}
         meta={
           stats?.cutoff
-            ? m.database_retention_cutoff({ cutoff: formatCutoff(stats.cutoff) })
+            ? m.database_retention_cutoff({ cutoff: formatCutoff(stats.cutoff, tz) })
             : undefined
         }
       >
@@ -338,6 +343,7 @@ function MaintenancePanel({
   pruneError: string;
   result: DatabasePrune | null;
 }) {
+  const tz = useActiveTimeZone();
   const deleted = result?.deleted ?? [];
   const deletedTotal = deleted.reduce((sum, row) => sum + (row.deleted_rows ?? 0), 0);
 
@@ -346,7 +352,7 @@ function MaintenancePanel({
       <div className="px-4 py-3 text-[13px] text-(--muted)">
         {m.database_maintenance_eligible({
           bucketField: "bucket",
-          cutoff: cutoff ? formatCutoff(cutoff) : m.common_em_dash(),
+          cutoff: cutoff ? formatCutoff(cutoff, tz) : m.common_em_dash(),
           count: formatLocaleCount(pruneEligible),
         })}
       </div>
@@ -385,8 +391,8 @@ function tableLabel(table?: string): string {
   return "";
 }
 
-function formatCutoff(value: string): string {
+function formatCutoff(value: string, tz: string): string {
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) return value;
-  return formatLocaleDateTime(parsed);
+  return formatLocaleDateTime(parsed, undefined, tz);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Chip, DateField, DateRangePicker, RangeCalendar, useLocale } from "@heroui/react";
-import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
+import { DateFormatter } from "@internationalized/date";
 import { useState } from "react";
 import {
   clampLocalTrafficRange,
@@ -12,6 +12,7 @@ import {
   type TrafficRangeShortcut,
 } from "~/lib/traffic-range";
 import { useMounted } from "~/lib/use-mounted";
+import { useActiveTimeZone } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
 
 const SHORTCUT_LABELS: Record<TrafficRangeShortcut, () => string> = {
@@ -42,18 +43,17 @@ const CALENDAR_CELL =
 const TRIGGER =
   "inline-flex h-8 w-full min-w-0 items-center gap-1.5 border border-(--border) bg-(--surface) px-2.5 font-mono text-[11px] font-medium tabular-nums text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) sm:w-auto sm:max-w-[min(100%,16rem)]";
 
-function rangeLabelFormatter(locale: string) {
+function rangeLabelFormatter(locale: string, tz: string) {
   return new DateFormatter(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
-    timeZone: getLocalTimeZone(),
+    timeZone: tz,
   });
 }
 
-function formatTriggerRange(range: LocalDateRange, locale: string): string {
-  const formatter = rangeLabelFormatter(locale);
-  const tz = getLocalTimeZone();
+function formatTriggerRange(range: LocalDateRange, locale: string, tz: string): string {
+  const formatter = rangeLabelFormatter(locale, tz);
   const start = range.start.toDate(tz);
   if (range.start.compare(range.end) === 0) {
     return formatter.format(start);
@@ -70,16 +70,17 @@ export function TrafficRangePicker({
 }) {
   const mounted = useMounted();
   const { locale } = useLocale();
+  const tz = useActiveTimeZone();
   const [open, setOpen] = useState(false);
-  const maxDay = localTrafficMaxDay();
-  const activeShortcut = shortcutForLocalRange(value);
+  const maxDay = localTrafficMaxDay(tz);
+  const activeShortcut = shortcutForLocalRange(value, tz);
 
   function selectShortcut(key: TrafficRangeShortcut) {
-    onChange(trafficShortcutRange(key));
+    onChange(trafficShortcutRange(key, tz));
     setOpen(false);
   }
-  const pickerValue = value.shortcut ? trafficShortcutRange(value.shortcut) : value;
-  const triggerLabel = formatTriggerRange(pickerValue, locale);
+  const pickerValue = value.shortcut ? trafficShortcutRange(value.shortcut, tz) : value;
+  const triggerLabel = formatTriggerRange(pickerValue, locale, tz);
 
   return (
     <div className="flex w-full min-w-0 justify-end">
@@ -102,7 +103,7 @@ export function TrafficRangePicker({
           onChange={(next) => {
             if (next) {
               const range = next as LocalDateRange;
-              onChange(clampLocalTrafficRange({ start: range.start, end: range.end }));
+              onChange(clampLocalTrafficRange({ start: range.start, end: range.end }, tz));
             }
           }}
         >

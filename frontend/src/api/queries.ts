@@ -165,8 +165,8 @@ export function canQueryPanelApi(): boolean {
   return typeof window !== "undefined";
 }
 
-export function toTrafficRangeQuery(range: LocalDateRange): TrafficRangeQuery {
-  const { from, to } = localRangeToUtcQuery(range);
+export function toTrafficRangeQuery(range: LocalDateRange, tz: string): TrafficRangeQuery {
+  const { from, to } = localRangeToUtcQuery(range, tz);
   return {
     from,
     granularity: granularityForLocalRange(range),

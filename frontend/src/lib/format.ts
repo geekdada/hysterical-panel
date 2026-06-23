@@ -48,8 +48,8 @@ export function formatDuration(seconds: number): string {
   return `${days}d ${hours % 24}h`;
 }
 
-export function formatLocaleDateTime(ms: number, locale = intlLocale()): string {
-  return new Date(ms).toLocaleString(locale);
+export function formatLocaleDateTime(ms: number, locale = intlLocale(), tz?: string): string {
+  return new Date(ms).toLocaleString(locale, tz ? { timeZone: tz } : undefined);
 }
 
 export function formatLocaleCount(n: number, locale = intlLocale()): string {

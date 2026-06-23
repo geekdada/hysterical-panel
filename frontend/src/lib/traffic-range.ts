@@ -1,7 +1,6 @@
 import {
   type CalendarDate,
   fromDate,
-  getLocalTimeZone,
   parseZonedDateTime,
   today,
   toCalendarDate,
@@ -44,28 +43,27 @@ function rollingWindow(hours: number): { from: Date; to: Date } {
   return { from: new Date(to.getTime() - hours * 60 * 60 * 1000), to };
 }
 
-/** Latest selectable end day (local timezone). */
-export function localTrafficMaxDay(): CalendarDate {
-  return today(getLocalTimeZone());
+/** Latest selectable end day (in the active timezone). */
+export function localTrafficMaxDay(tz: string): CalendarDate {
+  return today(tz);
 }
 
-/** Keep start <= end and end <= today (local). */
-export function clampLocalTrafficRange(range: LocalDateRange): LocalDateRange {
-  const cap = localTrafficMaxDay();
+/** Keep start <= end and end <= today (active timezone). */
+export function clampLocalTrafficRange(range: LocalDateRange, tz: string): LocalDateRange {
+  const cap = localTrafficMaxDay(tz);
   let { start, end } = range;
   if (end.compare(cap) > 0) end = cap;
   if (start.compare(end) > 0) start = end;
   return { start, end };
 }
 
-/** Default node traffic window: local today through today. */
-export function defaultLocalTrafficRange(): LocalDateRange {
-  return trafficShortcutRange("today");
+/** Default node traffic window: today through today (active timezone). */
+export function defaultLocalTrafficRange(tz: string): LocalDateRange {
+  return trafficShortcutRange("today", tz);
 }
 
-export function trafficShortcutRange(shortcut: TrafficRangeShortcut): LocalDateRange {
-  const tz = getLocalTimeZone();
-  const end = localTrafficMaxDay();
+export function trafficShortcutRange(shortcut: TrafficRangeShortcut, tz: string): LocalDateRange {
+  const end = localTrafficMaxDay(tz);
   switch (shortcut) {
     case "today":
       return { start: end, end, shortcut };
@@ -119,10 +117,13 @@ export function trafficShortcutRange(shortcut: TrafficRangeShortcut): LocalDateR
   }
 }
 
-export function shortcutForLocalRange(range: LocalDateRange): TrafficRangeShortcut | null {
+export function shortcutForLocalRange(
+  range: LocalDateRange,
+  tz: string
+): TrafficRangeShortcut | null {
   if (range.shortcut) return range.shortcut;
 
-  const end = localTrafficMaxDay();
+  const end = localTrafficMaxDay(tz);
   const yesterday = end.subtract({ days: 1 });
   const thisMonthStart = end.set({ day: 1 });
   const lastMonthStart = thisMonthStart.subtract({ months: 1 });
@@ -143,15 +144,17 @@ export function shortcutForLocalRange(range: LocalDateRange): TrafficRangeShortc
   return null;
 }
 
-/** Local calendar days → UTC API query bounds (start 00:00, end 23:59:59 local). */
-export function localRangeToUtcQuery(range: LocalDateRange): { from: string; to: string } {
-  const tz = getLocalTimeZone();
+/** Calendar days → UTC API query bounds (start 00:00, end 23:59:59 in the active tz). */
+export function localRangeToUtcQuery(
+  range: LocalDateRange,
+  tz: string
+): { from: string; to: string } {
   switch (range.shortcut) {
     case "today":
     case "yesterday":
     case "this-month":
     case "last-month": {
-      const { start, end } = trafficShortcutRange(range.shortcut);
+      const { start, end } = trafficShortcutRange(range.shortcut, tz);
       return {
         from: toPbDateTime(zonedMidnight(start, tz).toDate()),
         to: toPbDateTime(zonedEndOfDay(end, tz).toDate()),
@@ -175,7 +178,7 @@ export function localRangeToUtcQuery(range: LocalDateRange): { from: string; to:
     }
   }
 
-  const { start, end } = clampLocalTrafficRange(range);
+  const { start, end } = clampLocalTrafficRange(range, tz);
   return {
     from: toPbDateTime(zonedMidnight(start, tz).toDate()),
     to: toPbDateTime(zonedEndOfDay(end, tz).toDate()),
