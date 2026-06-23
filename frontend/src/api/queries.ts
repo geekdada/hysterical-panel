@@ -40,6 +40,8 @@ type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
 type UserLive = components["schemas"]["LiveResponse"];
 type Invitation = components["schemas"]["Invitation"];
 type InvitationCreateRequest = components["schemas"]["InvitationCreateRequest"];
+type IgnoredConnectionIP = components["schemas"]["IgnoredConnectionIP"];
+type IgnoredConnectionIPCreateRequest = components["schemas"]["IgnoredConnectionIPCreateRequest"];
 type AppSettings = components["schemas"]["SettingsResponse"];
 type SettingsUpdateRequest = components["schemas"]["SettingsUpdateRequest"];
 type ManagementAPIToken = components["schemas"]["ManagementAPITokenResponse"];
@@ -47,6 +49,8 @@ type ManagementAPIToken = components["schemas"]["ManagementAPITokenResponse"];
 export type {
   Invitation,
   InvitationCreateRequest,
+  IgnoredConnectionIP,
+  IgnoredConnectionIPCreateRequest,
   AppSettings,
   SettingsUpdateRequest,
   ManagementAPIToken,
@@ -136,6 +140,7 @@ export const queryKeys = {
     ] as const,
   databaseStats: () => [...queryKeys.all, "database", "stats"] as const,
   invitations: () => [...queryKeys.all, "invitations"] as const,
+  ignoredConnectionIPs: () => [...queryKeys.all, "ignored-connection-ips"] as const,
   settings: () => [...queryKeys.all, "settings"] as const,
   nodeLive: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "live"] as const,
   nodeOverview: (nodeId: string, range: TrafficRangeQuery | null) =>
@@ -455,6 +460,33 @@ export function deleteInvitation(id: string): Promise<{ deleted: boolean }> {
     }),
     m.error_invitation_delete(),
     m.error_invitation_delete_network()
+  );
+}
+
+export function fetchIgnoredConnectionIPs(): Promise<IgnoredConnectionIP[]> {
+  return apiRequest<IgnoredConnectionIP[]>(
+    apiClient.GET("/api/panel/ignored-connection-ips"),
+    m.error_ignored_ips_load()
+  );
+}
+
+export function createIgnoredConnectionIP(
+  body: IgnoredConnectionIPCreateRequest
+): Promise<IgnoredConnectionIP> {
+  return apiRequest<IgnoredConnectionIP>(
+    apiClient.POST("/api/panel/ignored-connection-ips", { body }),
+    m.error_ignored_ip_create(),
+    m.error_ignored_ip_create_network()
+  );
+}
+
+export function deleteIgnoredConnectionIP(id: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/ignored-connection-ips/{id}", {
+      params: { path: { id } },
+    }),
+    m.error_ignored_ip_delete(),
+    m.error_ignored_ip_delete_network()
   );
 }
 

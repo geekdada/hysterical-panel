@@ -14,6 +14,7 @@ import { requireAdminOrSelf } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
   canQueryPanelApi,
+  createIgnoredConnectionIP,
   fetchPanelConfigQuery,
   fetchUserLive,
   fetchUserOverview,
@@ -47,6 +48,7 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, formatDuration, relTime, relTimeFromISO } from "~/lib/format";
+import { cn } from "~/lib/cn";
 import { useActiveTimeZone } from "~/lib/use-timezone";
 import { defaultUsersListSearch, parseUserDetailSearch } from "~/lib/users-list-search";
 import * as m from "~/paraglide/messages.js";
@@ -198,7 +200,14 @@ function AccountDetailPage() {
             isAdmin={isAdmin}
           />
 
-          {user && <RecentConnectionsSection rows={user.recent_connections ?? []} now={now} />}
+          {user && (
+            <RecentConnectionsSection
+              rows={user.recent_connections ?? []}
+              now={now}
+              isAdmin={isAdmin}
+              userId={userId}
+            />
+          )}
 
           {isAdmin && <LiveSection userId={userId} />}
         </>
@@ -321,10 +330,13 @@ function RailSkeletonCell({
   return (
     <div className="min-w-0 px-4 py-3">
       <div
-        className={`h-3 w-full animate-pulse rounded bg-(--surface-secondary) ${labelClassName}`}
+        className={cn("h-3 w-full animate-pulse rounded bg-(--surface-secondary)", labelClassName)}
       />
       <div
-        className={`mt-2 h-4 w-full animate-pulse rounded bg-(--surface-secondary) ${valueClassName}`}
+        className={cn(
+          "mt-2 h-4 w-full animate-pulse rounded bg-(--surface-secondary)",
+          valueClassName
+        )}
       />
     </div>
   );
@@ -340,7 +352,7 @@ function RailItem({
   className?: string;
 }) {
   return (
-    <div className={`min-w-0 flex-1 px-4 py-3 ${className}`}>
+    <div className={cn("min-w-0 flex-1 px-4 py-3", className)}>
       <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
       <div className="mt-1 min-w-0">{children}</div>
     </div>
@@ -350,11 +362,28 @@ function RailItem({
 function RecentConnectionsSection({
   rows,
   now,
+  isAdmin,
+  userId,
 }: {
   rows: NonNullable<PanelUser["recent_connections"]>;
   now: number;
+  isAdmin: boolean;
+  userId: string;
 }) {
   const tz = useActiveTimeZone();
+  const queryClient = useQueryClient();
+  const [ignoringIp, setIgnoringIp] = useState<string | null>(null);
+
+  const ignoreMutation = useMutation({
+    mutationFn: (ip: string) => createIgnoredConnectionIP({ ip }),
+    onMutate: (ip) => setIgnoringIp(ip),
+    onSettled: () => setIgnoringIp(null),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.all, "users", userId] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.ignoredConnectionIPs() });
+    },
+  });
+
   return (
     <Section title={m.user_recent_connections_title()}>
       {rows.length === 0 ? (
@@ -371,6 +400,7 @@ function RecentConnectionsSection({
                 <Th>{m.common_th_asn()}</Th>
                 <Th>{m.common_th_country()}</Th>
                 <Th className="text-right">{m.common_th_last_seen()}</Th>
+                {isAdmin && <Th className="w-24 text-right" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-(--separator)">
@@ -378,6 +408,8 @@ function RecentConnectionsSection({
                 const ip = row.ip || m.common_em_dash();
                 const meta = row.ip_meta;
                 const countryTitle = meta?.country_name || meta?.country_code || "";
+                const canIgnore = Boolean(row.ip) && ignoringIp !== row.ip;
+                const isIgnoring = Boolean(row.ip) && ignoringIp === row.ip;
                 return (
                   <tr key={`${row.ip || "ip"}-${i}`} className="hover:bg-(--surface-secondary)">
                     <Td>
@@ -427,6 +459,22 @@ function RecentConnectionsSection({
                           : m.common_em_dash()}
                       </span>
                     </Td>
+                    {isAdmin && (
+                      <Td className="text-right">
+                        {row.ip ? (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            isDisabled={!canIgnore || ignoreMutation.isPending}
+                            onPress={() => ignoreMutation.mutate(row.ip!)}
+                          >
+                            {isIgnoring
+                              ? m.user_recent_connections_ignoring()
+                              : m.user_recent_connections_ignore()}
+                          </Button>
+                        ) : null}
+                      </Td>
+                    )}
                   </tr>
                 );
               })}

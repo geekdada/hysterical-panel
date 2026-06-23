@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Description, Label, ListBox, Select, Switch } from "@heroui/react";
-import { ChevronRight, Code, Database } from "@gravity-ui/icons";
+import { ChevronRight, Code, Database, Xmark } from "@gravity-ui/icons";
 import { requireAuth } from "~/api/guards";
 import {
   canQueryPanelApi,
+  deleteIgnoredConnectionIP,
+  fetchIgnoredConnectionIPs,
   fetchSettings,
   queryErrorMessage,
   queryKeys,
@@ -17,6 +19,7 @@ import {
 import { BackLink, CopyableCode, ErrorAlert, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { offsetLabel, SYSTEM_TIMEZONE_ID, TIMEZONE_OPTIONS } from "~/lib/timezone";
+import { cn } from "~/lib/cn";
 import { useTimezonePreference } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
 
@@ -117,6 +120,8 @@ function SettingsPage() {
             <p className="mt-3 text-xs text-(--muted)">{m.settings_smtp_note()}</p>
           )}
 
+          <IgnoredConnectionIPsSection />
+
           <div className="mt-8 mb-5">
             <h1 className="text-base font-semibold tracking-tight">{m.settings_database()}</h1>
             <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_database_desc()}</p>
@@ -193,6 +198,89 @@ function TimezoneSetting() {
         </ListBox>
       </Select.Popover>
     </Select>
+  );
+}
+
+function IgnoredConnectionIPsSection() {
+  const queryClient = useQueryClient();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const ignoredQuery = useQuery({
+    queryKey: queryKeys.ignoredConnectionIPs(),
+    queryFn: fetchIgnoredConnectionIPs,
+    enabled: canQueryPanelApi(),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteIgnoredConnectionIP(id),
+    onMutate: (id) => setDeletingId(id),
+    onSettled: () => setDeletingId(null),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.ignoredConnectionIPs() });
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.all, "users"] });
+    },
+  });
+
+  const loadError = ignoredQuery.error ? queryErrorMessage(ignoredQuery.error) : "";
+  const deleteError = deleteMutation.error
+    ? queryErrorMessage(deleteMutation.error, m.error_ignored_ip_delete_network())
+    : "";
+  const items = ignoredQuery.data ?? [];
+
+  return (
+    <>
+      <div className="mt-8 mb-5">
+        <h1 className="text-base font-semibold tracking-tight">{m.settings_ignored_ips()}</h1>
+        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_ignored_ips_desc()}</p>
+      </div>
+
+      <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+        {ignoredQuery.isPending ? (
+          <IgnoredIPsSkeleton />
+        ) : items.length === 0 ? (
+          <p className="text-[13px] text-(--muted)">{m.settings_ignored_ips_empty()}</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {items.map((item) => {
+              if (!item.id) return null;
+              const pending = deletingId === item.id;
+              return (
+                <Button
+                  key={item.id}
+                  variant="tertiary"
+                  size="sm"
+                  isDisabled={pending || deleteMutation.isPending}
+                  aria-label={item.ip}
+                  className="font-mono text-xs"
+                  onPress={() => deleteMutation.mutate(item.id!)}
+                >
+                  {item.ip}
+                  <Xmark className="size-3.5 shrink-0" aria-hidden />
+                </Button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <ErrorAlert message={loadError} className="mt-4" />
+      <ErrorAlert message={deleteError} className="mt-4" />
+    </>
+  );
+}
+
+function IgnoredIPsSkeleton() {
+  const widths = ["w-24", "w-28", "w-20"] as const;
+
+  return (
+    <div className="flex flex-wrap gap-2" aria-hidden>
+      {widths.map((width) => (
+        <div
+          key={width}
+          className={cn("h-8 animate-pulse rounded-full bg-(--surface-secondary)", width)}
+        />
+      ))}
+    </div>
   );
 }
 
