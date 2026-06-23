@@ -88,6 +88,9 @@ docker run --rm \
 | GET | `/invitations` | 邀请码列表（含有效性、`link`） |
 | POST | `/invitations` | 新建邀请码（可选 `email`/`max_uses`/`expires_in_hours`/`note`/`send_email`；`invitations_enabled=false` 时 400） |
 | DELETE | `/invitations/{id}` | 删除邀请码 |
+| GET | `/ignored-connection-ips` | 全局忽略的客户端 IP 列表（用于最近连接统计） |
+| POST | `/ignored-connection-ips` | 忽略一个 IP（body `{ "ip": "1.2.3.4" }`；已存在则幂等返回） |
+| DELETE | `/ignored-connection-ips/{id}` | 取消忽略 |
 
 所有返回 node 的接口都已剥除 `api_secret`。
 

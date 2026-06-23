@@ -163,6 +163,8 @@ hysterical-panel/
 
 `invitations`：`code` (text, unique) — 通用邀请码；`email`（可选，仅记录/发信，不绑定）、`max_uses`（0=不限）、`used_count`、`expires_at` (date, 空=永不)、`revoked` (bool)、`note`、`created_by` (relation→users)、`last_used_at`。
 
+`ignored_connection_ips`：`ip` (text, unique, required) — 全局忽略的客户端 IP；命中后不再写入 `users.recent_connections`（`last_connected_at` 仍更新），API 返回时过滤历史记录。admin 通过 `GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 管理。
+
 `app_settings`（单例，迁移时 seed 一条全 false 记录）：`invitations_enabled`、`open_registration`、`require_invite_for_open` (bool)。运行期可变，注册与 `/config` 实时读。
 
 > 字节一律 int64，禁止 float。
@@ -200,7 +202,7 @@ hysterical-panel/
 - `PATCH /nodes/{id}` 的 `api_secret`：**缺省=不变，传空字符串=报错**（防止误清空）。
 - `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。`PATCH /users/{id}` 在状态从 `active`→`disabled` 时，**异步**对 `nodesForUser(userID)` 返回的每个节点扇出 `POST /kick [auth_string]`（3 并发，5s/节点，best-effort，失败只记日志，不阻塞响应）；详见核心决策 #6。
 - 节点维度接口 `GET /nodes/{id}/traffic/summary|series`、`GET /nodes/{id}/live` 是**全节点跨用户**视角，仅 admin。
-- `GET|PATCH /settings`、`GET|POST /invitations`、`DELETE /invitations/{id}` 均 admin。`PATCH /settings` 校验 `require_invite_for_open` 依赖 `invitations_enabled`；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
+- `GET|PATCH /settings`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验 `require_invite_for_open` 依赖 `invitations_enabled`；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
 - `GET /api/panel/config`（公开）现额外回 `registration_open` / `registration_require_invite` / `invitations_enabled`（从 `app_settings` 实时读），供 `/login`、`/register` 渲染入口。
 - `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时诊断核心：并发拉可见节点的 `/dump/streams` + `/online`（5s 超时），按 `auth_string` 过滤/聚合出 `online_devices` / `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按设备分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
 
