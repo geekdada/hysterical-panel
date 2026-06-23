@@ -16,7 +16,6 @@ const recentConnectionLimit = 10
 type storedRecentConnection struct {
 	IP         string `json:"ip"`
 	LastSeenAt string `json:"last_seen_at"`
-	Count      int64  `json:"count"`
 }
 
 func clientIPFromHysteriaAddr(addr string) (string, bool) {
@@ -56,26 +55,16 @@ func updateRecentConnections(u *core.Record, ip string, now time.Time) error {
 
 	seenAt := now.UTC().Format(time.RFC3339)
 	out := make([]storedRecentConnection, 0, recentConnectionLimit)
-	out = append(out, storedRecentConnection{IP: ip, LastSeenAt: seenAt, Count: 1})
+	out = append(out, storedRecentConnection{IP: ip, LastSeenAt: seenAt})
 	seen := map[string]struct{}{ip: {}}
 
 	for _, entry := range existing {
 		entryIP, ok := normalizeStoredConnectionIP(entry.IP)
-		if !ok {
-			continue
-		}
-		if entryIP == ip {
-			if entry.Count < 1 {
-				entry.Count = 1
-			}
-			out[0].Count += entry.Count
+		if !ok || entryIP == ip {
 			continue
 		}
 		if _, exists := seen[entryIP]; exists {
 			continue
-		}
-		if entry.Count < 1 {
-			entry.Count = 1
 		}
 		entry.IP = entryIP
 		out = append(out, entry)
@@ -105,13 +94,9 @@ func recentConnectionsFromRecord(u *core.Record, lookup ipMetadataLookup) []Rece
 		if _, exists := seen[ip]; exists {
 			continue
 		}
-		if entry.Count < 1 {
-			entry.Count = 1
-		}
 		row := RecentConnection{
 			IP:         ip,
 			LastSeenAt: entry.LastSeenAt,
-			Count:      entry.Count,
 		}
 		if lookup != nil {
 			row.IPMeta = ipMetaDTO(lookup.LookupHost(ip))

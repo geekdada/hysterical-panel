@@ -71,7 +71,6 @@ type PanelUser struct {
 type RecentConnection struct {
 	IP         string  `json:"ip"`
 	LastSeenAt string  `json:"last_seen_at"`
-	Count      int64   `json:"count"`
 	IPMeta     *IPMeta `json:"ip_meta,omitempty"`
 }
 

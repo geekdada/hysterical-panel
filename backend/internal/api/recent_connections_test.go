@@ -49,16 +49,16 @@ func TestUpdateRecentConnections(t *testing.T) {
 		if len(got) != 1 {
 			t.Fatalf("len = %d, want 1", len(got))
 		}
-		if got[0].IP != "8.8.8.8" || got[0].LastSeenAt != now.Format(time.RFC3339) || got[0].Count != 1 {
+		if got[0].IP != "8.8.8.8" || got[0].LastSeenAt != now.Format(time.RFC3339) {
 			t.Fatalf("entry = %#v", got[0])
 		}
 	})
 
-	t.Run("repeated ip updates count timestamp and order", func(t *testing.T) {
+	t.Run("repeated ip updates timestamp and order", func(t *testing.T) {
 		rec := newRecentConnectionsRecord()
 		rec.Set("recent_connections", []storedRecentConnection{
-			{IP: "1.1.1.1", LastSeenAt: "old-1", Count: 2},
-			{IP: "8.8.8.8", LastSeenAt: "old-2", Count: 4},
+			{IP: "1.1.1.1", LastSeenAt: "old-1"},
+			{IP: "8.8.8.8", LastSeenAt: "old-2"},
 		})
 
 		if err := updateRecentConnections(rec, "8.8.8.8", now); err != nil {
@@ -68,10 +68,10 @@ func TestUpdateRecentConnections(t *testing.T) {
 		if len(got) != 2 {
 			t.Fatalf("len = %d, want 2", len(got))
 		}
-		if got[0].IP != "8.8.8.8" || got[0].LastSeenAt != now.Format(time.RFC3339) || got[0].Count != 5 {
+		if got[0].IP != "8.8.8.8" || got[0].LastSeenAt != now.Format(time.RFC3339) {
 			t.Fatalf("first entry = %#v", got[0])
 		}
-		if got[1].IP != "1.1.1.1" || got[1].Count != 2 {
+		if got[1].IP != "1.1.1.1" {
 			t.Fatalf("second entry = %#v", got[1])
 		}
 	})
@@ -109,8 +109,8 @@ func TestUpdateRecentConnections(t *testing.T) {
 		}
 
 		rec.Set("recent_connections", []storedRecentConnection{
-			{IP: "bad", Count: 10},
-			{IP: "2001:db8::1", Count: 0},
+			{IP: "bad"},
+			{IP: "2001:db8::1"},
 		})
 		if err := updateRecentConnections(rec, "8.8.8.8", now); err != nil {
 			t.Fatalf("updateRecentConnections() error = %v", err)
@@ -119,7 +119,7 @@ func TestUpdateRecentConnections(t *testing.T) {
 		if len(got) != 2 {
 			t.Fatalf("len = %d, want 2", len(got))
 		}
-		if got[0].IP != "8.8.8.8" || got[1].IP != "2001:db8::1" || got[1].Count != 1 {
+		if got[0].IP != "8.8.8.8" || got[1].IP != "2001:db8::1" {
 			t.Fatalf("got %#v", got)
 		}
 	})
@@ -128,8 +128,8 @@ func TestUpdateRecentConnections(t *testing.T) {
 func TestRecentConnectionsFromRecord(t *testing.T) {
 	rec := newRecentConnectionsRecord()
 	rec.Set("recent_connections", []storedRecentConnection{
-		{IP: "8.8.8.8", LastSeenAt: "2026-06-22T12:34:56Z", Count: 2},
-		{IP: "1.1.1.1", LastSeenAt: "2026-06-22T12:00:00Z", Count: 1},
+		{IP: "8.8.8.8", LastSeenAt: "2026-06-22T12:34:56Z"},
+		{IP: "1.1.1.1", LastSeenAt: "2026-06-22T12:00:00Z"},
 	})
 
 	rows := recentConnectionsFromRecord(rec, recentConnectionFakeLookup{
