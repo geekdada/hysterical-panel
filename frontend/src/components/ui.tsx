@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useCanGoBack, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
 import { Check, Copy } from "@gravity-ui/icons";
 import { Card } from "@heroui/react";
+import { BreadcrumbTitleProvider, BreadcrumbBar } from "~/components/breadcrumbs";
 import { cn } from "~/lib/cn";
-import type { UsersListSearch } from "~/lib/users-list-search";
 import * as m from "~/paraglide/messages.js";
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
@@ -27,56 +27,18 @@ export function PageShell({
 }) {
   const max = width === "narrow" ? "max-w-3xl" : "max-w-7xl";
   return (
-    <div className="min-h-svh bg-(--background) text-(--foreground)">
-      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
-        <div className={`mx-auto flex h-12 ${max} items-center justify-between px-4 sm:px-6`}>
-          {headerLeft}
-          {headerRight}
-        </div>
-      </header>
-      <main className={`mx-auto ${max} px-4 py-6 sm:px-6`}>{children}</main>
-    </div>
-  );
-}
-
-const backLinkClassName =
-  "inline-flex cursor-pointer place-items-center rounded-[5px] border border-(--border) bg-(--surface-secondary) px-3 py-0.5 text-[11px] text-(--foreground) no-underline transition-colors duration-150 hover:bg-(--surface-tertiary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)";
-
-// "← <label>" link placed to the left of the title on secondary pages, for
-// returning to a parent page. Defaults to the dashboard home; pass `to`/`label`
-// (and optional `search`) to point it elsewhere, e.g. back to the users list.
-// With `preferHistoryBack`, pops the router history when safe instead of pushing
-// a new entry (e.g. returning from a user detail opened from the users list).
-export function BackLink({
-  to = "/",
-  label = m.nav_dashboard(),
-  search,
-  preferHistoryBack = false,
-}: {
-  to?: string;
-  label?: string;
-  search?: UsersListSearch;
-  preferHistoryBack?: boolean;
-}) {
-  const router = useRouter();
-  const canGoBack = useCanGoBack();
-  const useHistoryBack = preferHistoryBack && canGoBack;
-
-  return (
-    <Link
-      to={to}
-      search={search}
-      activeOptions={{ exact: true }}
-      className={backLinkClassName}
-      onClick={(e) => {
-        if (useHistoryBack) {
-          e.preventDefault();
-          router.history.back();
-        }
-      }}
-    >
-      ← {label}
-    </Link>
+    <BreadcrumbTitleProvider>
+      <div className="min-h-svh bg-(--background) text-(--foreground)">
+        <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
+          <div className={`mx-auto flex h-12 ${max} items-center justify-between px-4 sm:px-6`}>
+            {headerLeft}
+            {headerRight}
+          </div>
+          <BreadcrumbBar className={`mx-auto ${max} px-4 sm:px-6`} />
+        </header>
+        <main className={`mx-auto ${max} px-4 py-6 sm:px-6`}>{children}</main>
+      </div>
+    </BreadcrumbTitleProvider>
   );
 }
 
@@ -89,6 +51,19 @@ export function Brand() {
       </span>
       <span className="text-[13px] font-semibold tracking-tight">{m.app_title()}</span>
     </div>
+  );
+}
+
+// Brand linked to the dashboard home — sits in the header on secondary pages,
+// where the breadcrumb trail handles upward navigation.
+export function BrandLink() {
+  return (
+    <Link
+      to="/"
+      className="shrink-0 rounded-sm no-underline transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+    >
+      <Brand />
+    </Link>
   );
 }
 
