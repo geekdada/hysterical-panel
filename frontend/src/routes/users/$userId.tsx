@@ -153,16 +153,6 @@ function AccountDetailPage() {
         <>
           <AccountRail user={user} loading={loading && !user} now={now} />
 
-          {isAdmin && user && (
-            <ManageSection userId={userId} user={user} isSelf={auth?.user.id === userId} />
-          )}
-
-          <PasskeysSection
-            userId={userId}
-            isSelf={auth?.user.id === userId}
-            canManage={Boolean(auth && (auth.user.role === "admin" || auth.user.id === userId))}
-          />
-
           <TrafficSection
             loading={loading && !series}
             trafficRange={trafficRange}
@@ -182,6 +172,12 @@ function AccountDetailPage() {
           )}
 
           {isAdmin && <LiveSection userId={userId} />}
+
+          {isAdmin && user && (
+            <ManageSection userId={userId} user={user} isSelf={auth?.user.id === userId} />
+          )}
+
+          {isAdmin && user && <PasskeysSection userId={userId} isSelf={auth?.user.id === userId} />}
         </>
       )}
     </PageShell>
@@ -666,15 +662,7 @@ function ResetAuthKeyModal({
   );
 }
 
-function PasskeysSection({
-  userId,
-  isSelf,
-  canManage,
-}: {
-  userId: string;
-  isSelf: boolean;
-  canManage: boolean;
-}) {
+function PasskeysSection({ userId, isSelf }: { userId: string; isSelf: boolean }) {
   const queryClient = useQueryClient();
   const passkeysKey = ["panel", "users", userId, "passkeys"] as const;
   const configQuery = useQuery({
@@ -752,7 +740,6 @@ function PasskeysSection({
       ) : (
         <PasskeysTable
           rows={rows}
-          canManage={canManage}
           deletingId={
             deleteMutation.isPending && deleteMutation.variables
               ? deleteMutation.variables.passkeyId
@@ -772,12 +759,10 @@ function PasskeysSection({
 
 function PasskeysTable({
   rows,
-  canManage,
   deletingId,
   onDelete,
 }: {
   rows: Passkey[];
-  canManage: boolean;
   deletingId?: string;
   onDelete: (passkey: Passkey) => void;
 }) {
@@ -790,7 +775,7 @@ function PasskeysTable({
             <Th>{m.user_passkeys_th_transports()}</Th>
             <Th>{m.user_passkeys_th_backup()}</Th>
             <Th className="text-right">{m.user_passkeys_th_last_used()}</Th>
-            {canManage && <Th className="text-right">{m.user_passkeys_th_action()}</Th>}
+            <Th className="text-right">{m.user_passkeys_th_action()}</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-(--separator)">
@@ -823,18 +808,16 @@ function PasskeysTable({
                   ? relTimeFromISO(passkey.last_used_at, Date.now())
                   : m.common_never()}
               </Td>
-              {canManage && (
-                <Td className="text-right">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    isDisabled={deletingId === passkey.id}
-                    onPress={() => onDelete(passkey)}
-                  >
-                    {deletingId === passkey.id ? m.common_deleting() : m.common_delete()}
-                  </Button>
-                </Td>
-              )}
+              <Td className="text-right">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  isDisabled={deletingId === passkey.id}
+                  onPress={() => onDelete(passkey)}
+                >
+                  {deletingId === passkey.id ? m.common_deleting() : m.common_delete()}
+                </Button>
+              </Td>
             </tr>
           ))}
         </tbody>
