@@ -18,6 +18,7 @@ import {
 import {
   BrandLink,
   CopyButton,
+  DestructiveConfirmModal,
   Dot,
   LabeledSwitch,
   PageShell,
@@ -45,6 +46,10 @@ function InvitationsPage() {
   const { auth } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const now = Date.now();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [pendingInvitation, setPendingInvitation] = useState<{ id: string; code: string } | null>(
+    null
+  );
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings(),
@@ -62,16 +67,36 @@ function InvitationsPage() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.invitations() });
 
   const createMutation = useMutation({ mutationFn: createInvitation, onSuccess: invalidate });
-  const deleteMutation = useMutation({ mutationFn: deleteInvitation, onSuccess: invalidate });
+  const deleteMutation = useMutation({
+    mutationFn: deleteInvitation,
+    onSuccess: () => {
+      setDeleteOpen(false);
+      invalidate();
+    },
+  });
 
   const invitations = invitationsQuery.data ?? [];
   const invitationsEnabled = settingsQuery.data?.invitations_enabled ?? false;
   const listError = invitationsQuery.error ? queryErrorMessage(invitationsQuery.error) : "";
+  const deleteError = deleteMutation.error
+    ? queryErrorMessage(deleteMutation.error, m.error_invitation_delete_network())
+    : "";
 
-  function handleDelete(id: string, code: string) {
-    if (window.confirm(m.invitations_delete_confirm({ code }))) {
-      deleteMutation.mutate(id);
+  function handleDeleteOpenChange(open: boolean) {
+    setDeleteOpen(open);
+    if (!open) {
+      setPendingInvitation(null);
+      deleteMutation.reset();
     }
+  }
+
+  function handleDeleteRequest(id: string, code: string) {
+    setPendingInvitation({ id, code });
+    setDeleteOpen(true);
+  }
+
+  function handleDeleteConfirm() {
+    if (pendingInvitation?.id) deleteMutation.mutate(pendingInvitation.id);
   }
 
   return (
@@ -135,7 +160,7 @@ function InvitationsPage() {
                     key={inv.id}
                     inv={inv}
                     now={now}
-                    onDelete={() => handleDelete(inv.id ?? "", inv.code ?? "")}
+                    onDelete={() => handleDeleteRequest(inv.id ?? "", inv.code ?? "")}
                   />
                 ))}
               </tbody>
@@ -143,6 +168,20 @@ function InvitationsPage() {
           </div>
         )}
       </Section>
+
+      <DestructiveConfirmModal
+        isOpen={deleteOpen}
+        title={m.invitations_delete_title()}
+        body={m.invitations_delete_confirm({
+          code: pendingInvitation?.code ?? "",
+        })}
+        confirmLabel={m.common_delete()}
+        pendingLabel={m.common_deleting()}
+        pending={deleteMutation.isPending}
+        error={deleteError}
+        onOpenChange={handleDeleteOpenChange}
+        onConfirm={handleDeleteConfirm}
+      />
     </PageShell>
   );
 }
