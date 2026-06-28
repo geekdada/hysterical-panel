@@ -127,7 +127,7 @@ export function TrafficRangePicker({
             placement="bottom end"
             shouldFlip
           >
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5 px-2">
               {SHORTCUTS.map(({ key, label }) => {
                 const active = activeShortcut === key;
                 return (
@@ -136,7 +136,7 @@ export function TrafficRangePicker({
                     type="button"
                     aria-pressed={active}
                     onClick={() => selectShortcut(key)}
-                    className="group inline-flex rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                    className="group inline-flex rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-(--focus) cursor-pointer"
                   >
                     <Chip
                       color={active ? "accent" : "default"}
@@ -153,9 +153,9 @@ export function TrafficRangePicker({
                 );
               })}
             </div>
-            <div className="mt-4 border-t border-(--separator) pt-4">
+            <div className="mt-4 border-t border-(--separator) pt-2">
               <RangeCalendar aria-label={m.traffic_range_aria()} className="mx-auto w-full">
-                <RangeCalendar.Header className="mb-2 flex h-7 items-center gap-1">
+                <RangeCalendar.Header className="flex items-center">
                   <RangeCalendar.YearPickerTrigger className="inline-flex h-7 min-w-0 flex-1 items-center gap-1 px-2 text-left text-[12px] font-semibold text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) sm:text-[13px]">
                     <RangeCalendar.YearPickerTriggerHeading />
                     <RangeCalendar.YearPickerTriggerIndicator className="text-(--muted)" />
@@ -188,12 +188,12 @@ export function TrafficRangePicker({
                     )}
                   </RangeCalendar.GridBody>
                 </RangeCalendar.Grid>
-                <RangeCalendar.YearPickerGrid className="mt-2 overflow-hidden border border-(--border) bg-(--surface)">
+                <RangeCalendar.YearPickerGrid>
                   <RangeCalendar.YearPickerGridBody>
                     {({ year }) => (
                       <RangeCalendar.YearPickerCell
                         year={year}
-                        className="h-7 px-2 text-[11px] font-medium text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                        className="text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
                       />
                     )}
                   </RangeCalendar.YearPickerGridBody>
