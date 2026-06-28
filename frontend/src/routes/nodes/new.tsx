@@ -16,7 +16,8 @@ import { Check, Copy } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import { createNode, queryErrorMessage, queryKeys, testNode } from "~/api/queries";
-import { BackLink, ErrorAlert, PageShell } from "~/components/ui";
+import { BrandLink, ErrorAlert, PageShell } from "~/components/ui";
+import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 import * as m from "~/paraglide/messages.js";
 
@@ -24,6 +25,9 @@ type Node = components["schemas"]["Node"];
 
 export const Route = createFileRoute("/nodes/new")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
+  staticData: breadcrumbStaticData({
+    label: () => m.nodes_add_title(),
+  }),
   component: AddNodePage,
 });
 
@@ -92,7 +96,7 @@ function AddNodePage() {
     : "";
 
   return (
-    <PageShell width="narrow" headerLeft={<BackLink />}>
+    <PageShell width="narrow" headerLeft={<BrandLink />}>
       <div className="mb-5">
         <h1 className="text-base font-semibold tracking-tight">{m.nodes_add_title()}</h1>
         <p className="mt-0.5 text-[13px] text-(--muted)">{m.nodes_add_description()}</p>

@@ -15,7 +15,7 @@ import {
   updateUserStatus,
 } from "~/api/queries";
 import {
-  BackLink,
+  BrandLink,
   CopyButton,
   Dot,
   ErrorAlert,
@@ -129,17 +129,7 @@ function UsersPage() {
       : undefined;
 
   return (
-    <PageShell
-      headerLeft={
-        <div className="flex min-w-0 items-center gap-3">
-          <BackLink />
-          <span className="truncate text-[13px] font-semibold tracking-tight">
-            {m.users_title()}
-          </span>
-        </div>
-      }
-      headerRight={auth ? <UserMenu auth={auth} /> : undefined}
-    >
+    <PageShell headerLeft={<BrandLink />} headerRight={auth ? <UserMenu auth={auth} /> : undefined}>
       <ErrorAlert message={toggleError} className="mb-4" />
 
       <CreateUserModal
@@ -335,7 +325,6 @@ function UsersTable({
                         <Link
                           to="/users/$userId"
                           params={{ userId: user.id ?? "" }}
-                          search={{ from: "users" }}
                           className="block max-w-[200px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
                         >
                           {user.email || m.common_em_dash()}

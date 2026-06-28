@@ -24,7 +24,7 @@ import {
   type LocalDateRange,
 } from "~/lib/traffic-range";
 import {
-  BackLink,
+  BrandLink,
   CopyButton,
   Dot,
   ErrorAlert,
@@ -36,8 +36,10 @@ import {
   Teaching,
   Th,
 } from "~/components/ui";
+import { SetBreadcrumbTitle } from "~/components/breadcrumbs";
 import { UserMenu } from "~/components/user-menu";
 import { cn } from "~/lib/cn";
+import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import {
   formatBytes,
   formatBytesPerSecond,
@@ -56,6 +58,10 @@ type NodeAPISecretReset = components["schemas"]["NodeAPISecretResetResponse"];
 
 export const Route = createFileRoute("/nodes/$nodeId")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
+  staticData: breadcrumbStaticData({
+    label: () => m.node_fallback_title(),
+    dynamic: true,
+  }),
   component: NodeDetailPage,
 });
 
@@ -165,19 +171,10 @@ function NodeDetailPage() {
   return (
     <PageShell
       headerLeft={
-        <div className="flex min-w-0 items-center gap-3">
-          <BackLink />
-          {loading && !node ? (
-            <span className="h-3.5 w-32 animate-pulse rounded bg-(--surface-secondary)" />
-          ) : (
-            <div className="flex min-w-0 items-center gap-2">
-              <Dot tone={tone} title={enabled ? health : m.common_status_disabled()} />
-              <span className="truncate text-[13px] font-semibold tracking-tight">
-                {node?.name || m.node_fallback_title()}
-              </span>
-            </div>
-          )}
-        </div>
+        <>
+          <SetBreadcrumbTitle title={node?.name} />
+          <BrandLink />
+        </>
       }
       headerRight={
         <div className="flex items-center gap-3 text-xs text-(--muted)">
@@ -421,7 +418,6 @@ function TrafficSection({
                       <Link
                         to="/users/$userId"
                         params={{ userId: u.user.id }}
-                        search={{ from: "nodes" }}
                         className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
                       >
                         {u.user?.email || m.common_unknown()}

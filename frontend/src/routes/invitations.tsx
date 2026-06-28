@@ -16,7 +16,7 @@ import {
   type Invitation,
 } from "~/api/queries";
 import {
-  BackLink,
+  BrandLink,
   CopyButton,
   Dot,
   PageShell,
@@ -27,11 +27,16 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { formatLocaleCount, relTimeFromISO } from "~/lib/format";
 import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/invitations")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
+  staticData: breadcrumbStaticData({
+    label: () => m.invitations_title(),
+    href: "/invitations",
+  }),
   component: InvitationsPage,
 });
 
@@ -71,14 +76,7 @@ function InvitationsPage() {
   return (
     <PageShell
       width="narrow"
-      headerLeft={
-        <div className="flex min-w-0 items-center gap-3">
-          <BackLink />
-          <span className="truncate text-[13px] font-semibold tracking-tight">
-            {m.invitations_title()}
-          </span>
-        </div>
-      }
+      headerLeft={<BrandLink />}
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
       {!settingsQuery.isPending && !invitationsEnabled && (

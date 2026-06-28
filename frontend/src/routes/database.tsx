@@ -13,7 +13,7 @@ import {
   REFRESH_MS,
 } from "~/api/queries";
 import {
-  BackLink,
+  BrandLink,
   Dot,
   ErrorAlert,
   PageShell,
@@ -24,6 +24,7 @@ import {
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { formatBytes, formatLocaleCount, formatLocaleDateTime, relTime } from "~/lib/format";
 import { useActiveTimeZone } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
@@ -35,6 +36,10 @@ type TrafficTable = NonNullable<DatabaseStats["traffic_tables"]>[number];
 
 export const Route = createFileRoute("/database")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
+  staticData: breadcrumbStaticData({
+    label: () => m.database_title(),
+    href: "/database",
+  }),
   component: DatabasePage,
 });
 
@@ -92,14 +97,7 @@ function DatabasePage() {
 
   return (
     <PageShell
-      headerLeft={
-        <div className="flex min-w-0 items-center gap-3">
-          <BackLink preferHistoryBack label={m.common_back_settings()} />
-          <span className="truncate text-[13px] font-semibold tracking-tight">
-            {m.database_title()}
-          </span>
-        </div>
-      }
+      headerLeft={<BrandLink />}
       headerRight={
         <div className="flex items-center gap-3 text-xs text-(--muted)">
           {updatedAt !== null && (

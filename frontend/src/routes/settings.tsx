@@ -16,8 +16,9 @@ import {
   type AppSettings,
   type SettingsUpdateRequest,
 } from "~/api/queries";
-import { BackLink, CopyableCode, ErrorAlert, PageShell } from "~/components/ui";
+import { BrandLink, CopyableCode, ErrorAlert, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { offsetLabel, SYSTEM_TIMEZONE_ID, TIMEZONE_OPTIONS } from "~/lib/timezone";
 import { cn } from "~/lib/cn";
 import { useTimezonePreference } from "~/lib/use-timezone";
@@ -25,6 +26,10 @@ import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/settings")({
   beforeLoad: ({ context }) => requireAuth(context.auth),
+  staticData: breadcrumbStaticData({
+    label: () => m.settings_title(),
+    href: "/settings",
+  }),
   component: SettingsPage,
 });
 
@@ -60,14 +65,7 @@ function SettingsPage() {
   return (
     <PageShell
       width="narrow"
-      headerLeft={
-        <div className="flex min-w-0 items-center gap-3">
-          <BackLink />
-          <span className="truncate text-[13px] font-semibold tracking-tight">
-            {m.settings_title()}
-          </span>
-        </div>
-      }
+      headerLeft={<BrandLink />}
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
       <div className="mb-5">

@@ -2,12 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { requireAdmin } from "~/api/guards";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
-import { BackLink, CopyableCode, PageShell } from "~/components/ui";
+import { BrandLink, CopyableCode, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/management-api")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
+  staticData: breadcrumbStaticData({
+    label: () => m.mgmt_api_title(),
+    href: "/management-api",
+  }),
   component: ManagementApiDocsPage,
 });
 
@@ -50,14 +55,7 @@ function ManagementApiDocsPage() {
   return (
     <PageShell
       width="narrow"
-      headerLeft={
-        <div className="flex min-w-0 items-center gap-3">
-          <BackLink to="/settings" label={m.common_back_settings()} />
-          <span className="truncate text-[13px] font-semibold tracking-tight">
-            {m.mgmt_api_title()}
-          </span>
-        </div>
-      }
+      headerLeft={<BrandLink />}
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
       <div className="mb-6">

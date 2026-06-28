@@ -34,7 +34,7 @@ import {
   type LocalDateRange,
 } from "~/lib/traffic-range";
 import {
-  BackLink,
+  BrandLink,
   CopyButton,
   Dot,
   ErrorAlert,
@@ -46,11 +46,12 @@ import {
   Teaching,
   Th,
 } from "~/components/ui";
+import { SetBreadcrumbTitle } from "~/components/breadcrumbs";
 import { UserMenu } from "~/components/user-menu";
+import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { formatBytes, formatDuration, relTime, relTimeFromISO } from "~/lib/format";
 import { cn } from "~/lib/cn";
 import { useActiveTimeZone } from "~/lib/use-timezone";
-import { defaultUsersListSearch, parseUserDetailSearch } from "~/lib/users-list-search";
 import * as m from "~/paraglide/messages.js";
 
 type PanelUser = components["schemas"]["PanelUser"];
@@ -59,19 +60,19 @@ type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type UserLive = components["schemas"]["LiveResponse"];
 
 export const Route = createFileRoute("/users/$userId")({
-  validateSearch: parseUserDetailSearch,
   beforeLoad: ({ context, params }) => requireAdminOrSelf(context.auth, params.userId),
+  staticData: breadcrumbStaticData({
+    label: () => m.user_fallback_account(),
+    dynamic: true,
+  }),
   component: AccountDetailPage,
 });
 
 function AccountDetailPage() {
   const { userId } = Route.useParams();
-  const { from } = Route.useSearch();
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
-  const fromUsersList = isAdmin && from === "users";
-  const fromNode = isAdmin && from === "nodes";
   const tz = useActiveTimeZone();
 
   const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
@@ -110,39 +111,10 @@ function AccountDetailPage() {
   return (
     <PageShell
       headerLeft={
-        <div className="flex min-w-0 items-center gap-3">
-          {isAdmin ? (
-            fromUsersList ? (
-              <BackLink
-                to="/users"
-                label={m.common_back_users()}
-                search={defaultUsersListSearch()}
-                preferHistoryBack
-              />
-            ) : fromNode ? (
-              <BackLink label={m.common_back_node()} preferHistoryBack />
-            ) : (
-              <BackLink />
-            )
-          ) : (
-            <span className="grid size-5 shrink-0 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
-              H
-            </span>
-          )}
-          {loading && !user ? (
-            <span className="h-3.5 w-40 animate-pulse rounded bg-(--surface-secondary)" />
-          ) : (
-            <div className="flex min-w-0 items-center gap-2">
-              <Dot
-                tone={(user?.status ?? "active") === "active" ? "ok" : "idle"}
-                title={user?.status ?? "active"}
-              />
-              <span className="truncate text-[13px] font-semibold tracking-tight">
-                {user?.email || m.user_fallback_account()}
-              </span>
-            </div>
-          )}
-        </div>
+        <>
+          <SetBreadcrumbTitle title={user?.email} />
+          <BrandLink />
+        </>
       }
       headerRight={
         <div className="flex items-center gap-3 text-xs text-(--muted)">

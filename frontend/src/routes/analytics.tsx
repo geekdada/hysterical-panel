@@ -26,7 +26,7 @@ import {
   type LocalDateRange,
 } from "~/lib/traffic-range";
 import {
-  BackLink,
+  BrandLink,
   ErrorAlert,
   PageShell,
   PanelMessage,
@@ -36,6 +36,7 @@ import {
   Td,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { cn } from "~/lib/cn";
 import { formatBytes, formatLocaleDateTime, relTime } from "~/lib/format";
 import { useActiveTimeZone } from "~/lib/use-timezone";
@@ -49,6 +50,10 @@ type NodeBreakdownRow = NonNullable<PanelNodeTraffic["by_node"]>[number] & {
 
 export const Route = createFileRoute("/analytics")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
+  staticData: breadcrumbStaticData({
+    label: () => m.analytics_title(),
+    href: "/analytics",
+  }),
   component: AnalyticsPage,
 });
 
@@ -92,14 +97,7 @@ function AnalyticsPage() {
 
   return (
     <PageShell
-      headerLeft={
-        <div className="flex min-w-0 items-center gap-3">
-          <BackLink />
-          <span className="truncate text-[13px] font-semibold tracking-tight">
-            {m.analytics_title()}
-          </span>
-        </div>
-      }
+      headerLeft={<BrandLink />}
       headerRight={
         <div className="flex items-center gap-3 text-xs text-(--muted)">
           {updatedAt !== null && (
