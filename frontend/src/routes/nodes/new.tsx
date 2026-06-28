@@ -9,14 +9,13 @@ import {
   Input,
   Label,
   NumberField,
-  Switch,
   TextField,
 } from "@heroui/react";
 import { Check, Copy } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import { createNode, queryErrorMessage, queryKeys, testNode } from "~/api/queries";
-import { BrandLink, ErrorAlert, PageShell } from "~/components/ui";
+import { BrandLink, ErrorAlert, LabeledSwitch, PageShell } from "~/components/ui";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 import * as m from "~/paraglide/messages.js";
@@ -294,19 +293,12 @@ function AddNodePage() {
 
             <form.Field name="enabled">
               {(field) => (
-                <Switch
+                <LabeledSwitch
+                  label={m.nodes_add_enabled_label()}
+                  description={m.nodes_add_enabled_description()}
                   isSelected={field.state.value}
                   onChange={field.handleChange}
-                  className="justify-between"
-                >
-                  <Switch.Content>
-                    <Label>{m.nodes_add_enabled_label()}</Label>
-                    <Description>{m.nodes_add_enabled_description()}</Description>
-                  </Switch.Content>
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                </Switch>
+                />
               )}
             </form.Field>
 

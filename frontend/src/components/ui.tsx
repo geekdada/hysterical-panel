@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
 import { Check, Copy } from "@gravity-ui/icons";
-import { Card } from "@heroui/react";
+import { Card, Description, Switch } from "@heroui/react";
 import { BreadcrumbTitleProvider, BreadcrumbBar } from "~/components/breadcrumbs";
 import { cn } from "~/lib/cn";
 import * as m from "~/paraglide/messages.js";
@@ -105,6 +105,38 @@ export function Section({
         {children}
       </div>
     </section>
+  );
+}
+
+/* ── Form controls ─────────────────────────────────────────────────────── */
+
+// A boolean toggle laid out the HeroUI v3 way: the switch sits inline to the
+// left of its label, with the description below. Label text lives inside
+// Switch.Content (the clickable <label>, so it's the accessible name), and
+// Description is a sibling that React Aria wires up as aria-describedby.
+export function LabeledSwitch({
+  label,
+  description,
+  isSelected,
+  isDisabled = false,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  isSelected: boolean;
+  isDisabled?: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <Switch isSelected={isSelected} isDisabled={isDisabled} onChange={onChange}>
+      <Switch.Content>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+        {label}
+      </Switch.Content>
+      <Description>{description}</Description>
+    </Switch>
   );
 }
 

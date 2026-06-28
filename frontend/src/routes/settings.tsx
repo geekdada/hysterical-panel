@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Button, Description, Label, ListBox, Select, Switch } from "@heroui/react";
+import { Button, Label, ListBox, Select } from "@heroui/react";
 import { ChevronRight, Code, Database, Xmark } from "@gravity-ui/icons";
 import { requireAuth } from "~/api/guards";
 import {
@@ -16,7 +16,7 @@ import {
   type AppSettings,
   type SettingsUpdateRequest,
 } from "~/api/queries";
-import { BrandLink, CopyableCode, ErrorAlert, PageShell } from "~/components/ui";
+import { BrandLink, CopyableCode, ErrorAlert, LabeledSwitch, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { offsetLabel, SYSTEM_TIMEZONE_ID, TIMEZONE_OPTIONS } from "~/lib/timezone";
@@ -86,24 +86,22 @@ function SettingsPage() {
 
           <ErrorAlert message={loadError} className="mb-4" />
 
-          <div className="flex flex-col gap-1 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
-            <SettingSwitch
+          <div className="flex flex-col gap-5 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+            <LabeledSwitch
               label={m.settings_invitation_system()}
               description={m.settings_invitation_system_desc()}
               isSelected={settings?.invitations_enabled ?? false}
               isDisabled={!settings || mutation.isPending}
               onChange={(v) => patch("invitations_enabled", v)}
             />
-            <div className="my-1 h-px bg-(--separator)" />
-            <SettingSwitch
+            <LabeledSwitch
               label={m.settings_open_registration()}
               description={m.settings_open_registration_desc()}
               isSelected={settings?.open_registration ?? false}
               isDisabled={!settings || mutation.isPending}
               onChange={(v) => patch("open_registration", v)}
             />
-            <div className="my-1 h-px bg-(--separator)" />
-            <SettingSwitch
+            <LabeledSwitch
               label={m.settings_require_invite()}
               description={m.settings_require_invite_desc()}
               isSelected={settings?.require_invite_for_open ?? false}
@@ -282,37 +280,6 @@ function IgnoredIPsSkeleton() {
   );
 }
 
-function SettingSwitch({
-  label,
-  description,
-  isSelected,
-  isDisabled,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  isSelected: boolean;
-  isDisabled: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <Switch
-      isSelected={isSelected}
-      isDisabled={isDisabled}
-      onChange={onChange}
-      className="justify-between gap-4 py-1.5"
-    >
-      <Switch.Content>
-        <Label>{label}</Label>
-        <Description>{description}</Description>
-      </Switch.Content>
-      <Switch.Control>
-        <Switch.Thumb />
-      </Switch.Control>
-    </Switch>
-  );
-}
-
 function ManagementApiSection({
   settings,
   pending,
@@ -357,7 +324,7 @@ function ManagementApiSection({
       </div>
 
       <div className="flex flex-col gap-4 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
-        <SettingSwitch
+        <LabeledSwitch
           label={m.settings_enable_mgmt_api()}
           description={
             enabled ? m.settings_mgmt_api_enabled_desc() : m.settings_mgmt_api_disabled_desc()

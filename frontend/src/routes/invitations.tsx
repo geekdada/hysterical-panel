@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Button, Description, Input, Label, NumberField, Switch, TextField } from "@heroui/react";
+import { Button, Description, Input, Label, NumberField, TextField } from "@heroui/react";
 import { TrashBin } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import {
@@ -19,6 +19,7 @@ import {
   BrandLink,
   CopyButton,
   Dot,
+  LabeledSwitch,
   PageShell,
   PanelMessage,
   Section,
@@ -286,20 +287,13 @@ function CreateInvitationForm({
           </TextField>
         </div>
 
-        <Switch
+        <LabeledSwitch
+          label={m.invitations_label_email_invite()}
+          description={m.invitations_email_invite_description()}
           isSelected={sendEmail}
-          onChange={setSendEmail}
           isDisabled={email.trim().length === 0}
-          className="justify-between gap-4"
-        >
-          <Switch.Content>
-            <Label>{m.invitations_label_email_invite()}</Label>
-            <Description>{m.invitations_email_invite_description()}</Description>
-          </Switch.Content>
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-        </Switch>
+          onChange={setSendEmail}
+        />
 
         {error && (
           <p className="text-[13px] text-(--danger)" role="alert">
