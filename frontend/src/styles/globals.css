@@ -80,3 +80,10 @@ h2,
 h3 {
   letter-spacing: -0.018em;
 }
+
+/* The active crumb reads heavier than its muted ancestors, the way Linear
+ * weights the current location. Unlayered, so it wins over HeroUI's font-medium. */
+.breadcrumbs__link[data-current="true"] {
+  font-weight: 600;
+  color: var(--foreground);
+}
