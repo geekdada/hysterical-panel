@@ -34,11 +34,10 @@ type DatabasePrune = components["schemas"]["DatabasePruneResponse"];
 type StorageFile = NonNullable<NonNullable<DatabaseStats["storage"]>["files"]>[number];
 type TrafficTable = NonNullable<DatabaseStats["traffic_tables"]>[number];
 
-export const Route = createFileRoute("/database")({
+export const Route = createFileRoute("/settings/database")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
   staticData: breadcrumbStaticData({
     label: () => m.database_title(),
-    href: "/database",
   }),
   component: DatabasePage,
 });

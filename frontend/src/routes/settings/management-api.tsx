@@ -7,11 +7,10 @@ import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import * as m from "~/paraglide/messages.js";
 
-export const Route = createFileRoute("/management-api")({
+export const Route = createFileRoute("/settings/management-api")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
   staticData: breadcrumbStaticData({
     label: () => m.mgmt_api_title(),
-    href: "/management-api",
   }),
   component: ManagementApiDocsPage,
 });

@@ -10,31 +10,27 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyRouteImport } from './routes/verify'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
-import { Route as ManagementApiRouteImport } from './routes/management-api'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as UsersRouteRouteImport } from './routes/users/route'
+import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as NodesRouteRouteImport } from './routes/nodes/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersIndexRouteImport } from './routes/users/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
+import { Route as SettingsManagementApiRouteImport } from './routes/settings/management-api'
+import { Route as SettingsDatabaseRouteImport } from './routes/settings/database'
 import { Route as NodesNewRouteImport } from './routes/nodes/new'
 import { Route as NodesNodeIdRouteImport } from './routes/nodes/$nodeId'
 
 const VerifyRoute = VerifyRouteImport.update({
   id: '/verify',
   path: '/verify',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -45,11 +41,6 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ManagementApiRoute = ManagementApiRouteImport.update({
-  id: '/management-api',
-  path: '/management-api',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -67,11 +58,6 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DatabaseRoute = DatabaseRouteImport.update({
-  id: '/database',
-  path: '/database',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -80,6 +66,11 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
 const UsersRouteRoute = UsersRouteRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRouteRoute = SettingsRouteRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NodesRouteRoute = NodesRouteRouteImport.update({
@@ -97,10 +88,25 @@ const UsersIndexRoute = UsersIndexRouteImport.update({
   path: '/',
   getParentRoute: () => UsersRouteRoute,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const UsersUserIdRoute = UsersUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
   getParentRoute: () => UsersRouteRoute,
+} as any)
+const SettingsManagementApiRoute = SettingsManagementApiRouteImport.update({
+  id: '/management-api',
+  path: '/management-api',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsDatabaseRoute = SettingsDatabaseRouteImport.update({
+  id: '/database',
+  path: '/database',
+  getParentRoute: () => SettingsRouteRoute,
 } as any)
 const NodesNewRoute = NodesNewRouteImport.update({
   id: '/new',
@@ -116,58 +122,60 @@ const NodesNodeIdRoute = NodesNodeIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/nodes': typeof NodesRouteRouteWithChildren
+  '/settings': typeof SettingsRouteRouteWithChildren
   '/users': typeof UsersRouteRouteWithChildren
   '/analytics': typeof AnalyticsRoute
-  '/database': typeof DatabaseRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
-  '/management-api': typeof ManagementApiRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/settings': typeof SettingsRoute
   '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
+  '/settings/database': typeof SettingsDatabaseRoute
+  '/settings/management-api': typeof SettingsManagementApiRoute
   '/users/$userId': typeof UsersUserIdRoute
+  '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/nodes': typeof NodesRouteRouteWithChildren
   '/analytics': typeof AnalyticsRoute
-  '/database': typeof DatabaseRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
-  '/management-api': typeof ManagementApiRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/settings': typeof SettingsRoute
   '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
+  '/settings/database': typeof SettingsDatabaseRoute
+  '/settings/management-api': typeof SettingsManagementApiRoute
   '/users/$userId': typeof UsersUserIdRoute
+  '/settings': typeof SettingsIndexRoute
   '/users': typeof UsersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/nodes': typeof NodesRouteRouteWithChildren
+  '/settings': typeof SettingsRouteRouteWithChildren
   '/users': typeof UsersRouteRouteWithChildren
   '/analytics': typeof AnalyticsRoute
-  '/database': typeof DatabaseRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
-  '/management-api': typeof ManagementApiRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/settings': typeof SettingsRoute
   '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
+  '/settings/database': typeof SettingsDatabaseRoute
+  '/settings/management-api': typeof SettingsManagementApiRoute
   '/users/$userId': typeof UsersUserIdRoute
+  '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
 }
 export interface FileRouteTypes {
@@ -175,73 +183,73 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/nodes'
+    | '/settings'
     | '/users'
     | '/analytics'
-    | '/database'
     | '/forgot-password'
     | '/invitations'
     | '/login'
-    | '/management-api'
     | '/register'
     | '/reset-password'
-    | '/settings'
     | '/verify'
     | '/nodes/$nodeId'
     | '/nodes/new'
+    | '/settings/database'
+    | '/settings/management-api'
     | '/users/$userId'
+    | '/settings/'
     | '/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/nodes'
     | '/analytics'
-    | '/database'
     | '/forgot-password'
     | '/invitations'
     | '/login'
-    | '/management-api'
     | '/register'
     | '/reset-password'
-    | '/settings'
     | '/verify'
     | '/nodes/$nodeId'
     | '/nodes/new'
+    | '/settings/database'
+    | '/settings/management-api'
     | '/users/$userId'
+    | '/settings'
     | '/users'
   id:
     | '__root__'
     | '/'
     | '/nodes'
+    | '/settings'
     | '/users'
     | '/analytics'
-    | '/database'
     | '/forgot-password'
     | '/invitations'
     | '/login'
-    | '/management-api'
     | '/register'
     | '/reset-password'
-    | '/settings'
     | '/verify'
     | '/nodes/$nodeId'
     | '/nodes/new'
+    | '/settings/database'
+    | '/settings/management-api'
     | '/users/$userId'
+    | '/settings/'
     | '/users/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   NodesRouteRoute: typeof NodesRouteRouteWithChildren
+  SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
   UsersRouteRoute: typeof UsersRouteRouteWithChildren
   AnalyticsRoute: typeof AnalyticsRoute
-  DatabaseRoute: typeof DatabaseRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
-  ManagementApiRoute: typeof ManagementApiRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
-  SettingsRoute: typeof SettingsRoute
   VerifyRoute: typeof VerifyRoute
 }
 
@@ -252,13 +260,6 @@ declare module '@tanstack/react-router' {
       path: '/verify'
       fullPath: '/verify'
       preLoaderRoute: typeof VerifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -273,13 +274,6 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/management-api': {
-      id: '/management-api'
-      path: '/management-api'
-      fullPath: '/management-api'
-      preLoaderRoute: typeof ManagementApiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -303,13 +297,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/database': {
-      id: '/database'
-      path: '/database'
-      fullPath: '/database'
-      preLoaderRoute: typeof DatabaseRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/analytics': {
       id: '/analytics'
       path: '/analytics'
@@ -322,6 +309,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof UsersRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nodes': {
@@ -345,12 +339,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UsersIndexRouteImport
       parentRoute: typeof UsersRouteRoute
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/users/$userId': {
       id: '/users/$userId'
       path: '/$userId'
       fullPath: '/users/$userId'
       preLoaderRoute: typeof UsersUserIdRouteImport
       parentRoute: typeof UsersRouteRoute
+    }
+    '/settings/management-api': {
+      id: '/settings/management-api'
+      path: '/management-api'
+      fullPath: '/settings/management-api'
+      preLoaderRoute: typeof SettingsManagementApiRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/database': {
+      id: '/settings/database'
+      path: '/database'
+      fullPath: '/settings/database'
+      preLoaderRoute: typeof SettingsDatabaseRouteImport
+      parentRoute: typeof SettingsRouteRoute
     }
     '/nodes/new': {
       id: '/nodes/new'
@@ -383,6 +398,22 @@ const NodesRouteRouteWithChildren = NodesRouteRoute._addFileChildren(
   NodesRouteRouteChildren,
 )
 
+interface SettingsRouteRouteChildren {
+  SettingsDatabaseRoute: typeof SettingsDatabaseRoute
+  SettingsManagementApiRoute: typeof SettingsManagementApiRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsDatabaseRoute: SettingsDatabaseRoute,
+  SettingsManagementApiRoute: SettingsManagementApiRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
+  SettingsRouteRouteChildren,
+)
+
 interface UsersRouteRouteChildren {
   UsersUserIdRoute: typeof UsersUserIdRoute
   UsersIndexRoute: typeof UsersIndexRoute
@@ -400,16 +431,14 @@ const UsersRouteRouteWithChildren = UsersRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   NodesRouteRoute: NodesRouteRouteWithChildren,
+  SettingsRouteRoute: SettingsRouteRouteWithChildren,
   UsersRouteRoute: UsersRouteRouteWithChildren,
   AnalyticsRoute: AnalyticsRoute,
-  DatabaseRoute: DatabaseRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
-  ManagementApiRoute: ManagementApiRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
-  SettingsRoute: SettingsRoute,
   VerifyRoute: VerifyRoute,
 }
 export const routeTree = rootRouteImport

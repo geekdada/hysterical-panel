@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Label, ListBox, Select } from "@heroui/react";
 import { ChevronRight, Code, Database, Xmark } from "@gravity-ui/icons";
-import { requireAuth } from "~/api/guards";
 import {
   canQueryPanelApi,
   deleteIgnoredConnectionIP,
@@ -18,18 +17,12 @@ import {
 } from "~/api/queries";
 import { BrandLink, CopyableCode, ErrorAlert, LabeledSwitch, PageShell } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { offsetLabel, SYSTEM_TIMEZONE_ID, TIMEZONE_OPTIONS } from "~/lib/timezone";
 import { cn } from "~/lib/cn";
 import { useTimezonePreference } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
 
-export const Route = createFileRoute("/settings")({
-  beforeLoad: ({ context }) => requireAuth(context.auth),
-  staticData: breadcrumbStaticData({
-    label: () => m.settings_title(),
-    href: "/settings",
-  }),
+export const Route = createFileRoute("/settings/")({
   component: SettingsPage,
 });
 
@@ -124,7 +117,7 @@ function SettingsPage() {
           </div>
 
           <Link
-            to="/database"
+            to="/settings/database"
             className="group flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
           >
             <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
@@ -365,7 +358,7 @@ function ManagementApiSection({
       )}
 
       <Link
-        to="/management-api"
+        to="/settings/management-api"
         className="group mt-3 flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
       >
         <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
