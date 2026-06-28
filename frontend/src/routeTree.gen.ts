@@ -19,6 +19,8 @@ import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as UsersRouteRouteImport } from './routes/users/route'
+import { Route as NodesRouteRouteImport } from './routes/nodes/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersIndexRouteImport } from './routes/users/index'
 import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
@@ -75,34 +77,46 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UsersRouteRoute = UsersRouteRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NodesRouteRoute = NodesRouteRouteImport.update({
+  id: '/nodes',
+  path: '/nodes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UsersIndexRoute = UsersIndexRouteImport.update({
-  id: '/users/',
-  path: '/users/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => UsersRouteRoute,
 } as any)
 const UsersUserIdRoute = UsersUserIdRouteImport.update({
-  id: '/users/$userId',
-  path: '/users/$userId',
-  getParentRoute: () => rootRouteImport,
+  id: '/$userId',
+  path: '/$userId',
+  getParentRoute: () => UsersRouteRoute,
 } as any)
 const NodesNewRoute = NodesNewRouteImport.update({
-  id: '/nodes/new',
-  path: '/nodes/new',
-  getParentRoute: () => rootRouteImport,
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => NodesRouteRoute,
 } as any)
 const NodesNodeIdRoute = NodesNodeIdRouteImport.update({
-  id: '/nodes/$nodeId',
-  path: '/nodes/$nodeId',
-  getParentRoute: () => rootRouteImport,
+  id: '/$nodeId',
+  path: '/$nodeId',
+  getParentRoute: () => NodesRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/nodes': typeof NodesRouteRouteWithChildren
+  '/users': typeof UsersRouteRouteWithChildren
   '/analytics': typeof AnalyticsRoute
   '/database': typeof DatabaseRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -120,6 +134,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/nodes': typeof NodesRouteRouteWithChildren
   '/analytics': typeof AnalyticsRoute
   '/database': typeof DatabaseRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -138,6 +153,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/nodes': typeof NodesRouteRouteWithChildren
+  '/users': typeof UsersRouteRouteWithChildren
   '/analytics': typeof AnalyticsRoute
   '/database': typeof DatabaseRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -157,6 +174,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/nodes'
+    | '/users'
     | '/analytics'
     | '/database'
     | '/forgot-password'
@@ -174,6 +193,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/nodes'
     | '/analytics'
     | '/database'
     | '/forgot-password'
@@ -191,6 +211,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/nodes'
+    | '/users'
     | '/analytics'
     | '/database'
     | '/forgot-password'
@@ -209,6 +231,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  NodesRouteRoute: typeof NodesRouteRouteWithChildren
+  UsersRouteRoute: typeof UsersRouteRouteWithChildren
   AnalyticsRoute: typeof AnalyticsRoute
   DatabaseRoute: typeof DatabaseRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -219,10 +243,6 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
   VerifyRoute: typeof VerifyRoute
-  NodesNodeIdRoute: typeof NodesNodeIdRoute
-  NodesNewRoute: typeof NodesNewRoute
-  UsersUserIdRoute: typeof UsersUserIdRoute
-  UsersIndexRoute: typeof UsersIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -297,6 +317,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nodes': {
+      id: '/nodes'
+      path: '/nodes'
+      fullPath: '/nodes'
+      preLoaderRoute: typeof NodesRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -306,37 +340,67 @@ declare module '@tanstack/react-router' {
     }
     '/users/': {
       id: '/users/'
-      path: '/users'
+      path: '/'
       fullPath: '/users/'
       preLoaderRoute: typeof UsersIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof UsersRouteRoute
     }
     '/users/$userId': {
       id: '/users/$userId'
-      path: '/users/$userId'
+      path: '/$userId'
       fullPath: '/users/$userId'
       preLoaderRoute: typeof UsersUserIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof UsersRouteRoute
     }
     '/nodes/new': {
       id: '/nodes/new'
-      path: '/nodes/new'
+      path: '/new'
       fullPath: '/nodes/new'
       preLoaderRoute: typeof NodesNewRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof NodesRouteRoute
     }
     '/nodes/$nodeId': {
       id: '/nodes/$nodeId'
-      path: '/nodes/$nodeId'
+      path: '/$nodeId'
       fullPath: '/nodes/$nodeId'
       preLoaderRoute: typeof NodesNodeIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof NodesRouteRoute
     }
   }
 }
 
+interface NodesRouteRouteChildren {
+  NodesNodeIdRoute: typeof NodesNodeIdRoute
+  NodesNewRoute: typeof NodesNewRoute
+}
+
+const NodesRouteRouteChildren: NodesRouteRouteChildren = {
+  NodesNodeIdRoute: NodesNodeIdRoute,
+  NodesNewRoute: NodesNewRoute,
+}
+
+const NodesRouteRouteWithChildren = NodesRouteRoute._addFileChildren(
+  NodesRouteRouteChildren,
+)
+
+interface UsersRouteRouteChildren {
+  UsersUserIdRoute: typeof UsersUserIdRoute
+  UsersIndexRoute: typeof UsersIndexRoute
+}
+
+const UsersRouteRouteChildren: UsersRouteRouteChildren = {
+  UsersUserIdRoute: UsersUserIdRoute,
+  UsersIndexRoute: UsersIndexRoute,
+}
+
+const UsersRouteRouteWithChildren = UsersRouteRoute._addFileChildren(
+  UsersRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  NodesRouteRoute: NodesRouteRouteWithChildren,
+  UsersRouteRoute: UsersRouteRouteWithChildren,
   AnalyticsRoute: AnalyticsRoute,
   DatabaseRoute: DatabaseRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
@@ -347,10 +411,6 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
   VerifyRoute: VerifyRoute,
-  NodesNodeIdRoute: NodesNodeIdRoute,
-  NodesNewRoute: NodesNewRoute,
-  UsersUserIdRoute: UsersUserIdRoute,
-  UsersIndexRoute: UsersIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
