@@ -459,10 +459,12 @@ function DangerRow({
   action: ReactNode;
 }) {
   return (
-    <div>
-      <p className="text-[13px] font-medium text-(--foreground)">{label}</p>
-      <p className="mt-0.5 text-[13px] leading-5 text-(--muted)">{description}</p>
-      <div className="mt-3">{action}</div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-(--foreground)">{label}</p>
+        <p className="mt-0.5 text-xs leading-5 text-(--muted)">{description}</p>
+      </div>
+      <div className="shrink-0">{action}</div>
     </div>
   );
 }
@@ -487,16 +489,15 @@ function NodeDangerSection({
           action={
             <Button
               size="sm"
-              variant="secondary"
+              variant="danger-soft"
               isDisabled={deletePending}
               onPress={onDeleteRequest}
-              className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
             >
               {deletePending ? m.common_deleting() : m.common_delete()}
             </Button>
           }
         />
-        <div className="border-t border-(--separator)" />
+        <div className="h-px bg-(--separator)" />
         <DangerRow
           label={m.node_reset_api_secret_title()}
           description={m.node_reset_api_secret_desc()}
