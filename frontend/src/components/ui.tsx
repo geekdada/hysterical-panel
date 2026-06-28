@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
 import { Check, Copy } from "@gravity-ui/icons";
-import { Card, Description, Switch } from "@heroui/react";
+import { Card, Description, Switch, Button, Modal } from "@heroui/react";
 import { BreadcrumbTitleProvider, BreadcrumbBar } from "~/components/breadcrumbs";
 import { cn } from "~/lib/cn";
 import * as m from "~/paraglide/messages.js";
@@ -395,5 +395,62 @@ export function TableSkeleton({ rows = 4 }: { rows?: number }) {
         </div>
       ))}
     </div>
+  );
+}
+
+export function DestructiveConfirmModal({
+  isOpen,
+  title,
+  body,
+  confirmLabel,
+  pendingLabel,
+  pending,
+  error,
+  onOpenChange,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  title: string;
+  body: string;
+  confirmLabel: string;
+  pendingLabel: string;
+  pending: boolean;
+  error: string;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="sm" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{title}</Modal.Heading>
+            <p className="mt-1.5 text-sm leading-5 text-(--muted)">{body}</p>
+          </Modal.Header>
+          {error ? (
+            <Modal.Body>
+              <p className="text-[13px] text-(--danger)" role="alert">
+                {error}
+              </p>
+            </Modal.Body>
+          ) : null}
+          <Modal.Footer>
+            <Button size="sm" variant="secondary" onPress={() => onOpenChange(false)}>
+              {m.common_cancel()}
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              isPending={pending}
+              onPress={onConfirm}
+              className="bg-(--danger) text-(--danger-foreground) hover:opacity-90"
+            >
+              {pending ? pendingLabel : confirmLabel}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }
