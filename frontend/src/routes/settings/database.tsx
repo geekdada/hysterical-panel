@@ -14,7 +14,7 @@ import {
 } from "~/api/queries";
 import {
   BrandLink,
-  Dot,
+  DestructiveConfirmModal,
   ErrorAlert,
   PageShell,
   PanelMessage,
@@ -47,6 +47,7 @@ function DatabasePage() {
   const queryClient = useQueryClient();
   const tz = useActiveTimeZone();
   const [now, setNow] = useState(() => Date.now());
+  const [pruneOpen, setPruneOpen] = useState(false);
 
   const statsQuery = useQuery({
     queryKey: queryKeys.databaseStats(),
@@ -58,6 +59,7 @@ function DatabasePage() {
   const pruneMutation = useMutation({
     mutationFn: pruneDatabaseTraffic,
     onSuccess: () => {
+      setPruneOpen(false);
       void queryClient.invalidateQueries({
         queryKey: queryKeys.databaseStats(),
       });
@@ -86,12 +88,18 @@ function DatabasePage() {
     : "";
   const updatedAt = statsQuery.dataUpdatedAt || null;
 
-  function handlePrune() {
+  function handlePruneOpenChange(open: boolean) {
+    setPruneOpen(open);
+    if (!open) pruneMutation.reset();
+  }
+
+  function handlePruneRequest() {
     if (pruneEligible <= 0 || pruneMutation.isPending) return;
-    const ok = window.confirm(
-      m.database_prune_confirm({ count: formatLocaleCount(pruneEligible) })
-    );
-    if (ok) pruneMutation.mutate();
+    setPruneOpen(true);
+  }
+
+  function handlePruneConfirm() {
+    pruneMutation.mutate();
   }
 
   return (
@@ -145,7 +153,7 @@ function DatabasePage() {
             size="sm"
             variant="secondary"
             isDisabled={pruneEligible <= 0 || pruneMutation.isPending}
-            onPress={handlePrune}
+            onPress={handlePruneRequest}
             className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
           >
             {pruneMutation.isPending ? m.database_prune_deleting() : m.database_prune_button()}
@@ -155,10 +163,21 @@ function DatabasePage() {
         <MaintenancePanel
           cutoff={stats?.cutoff ?? ""}
           pruneEligible={pruneEligible}
-          pruneError={pruneError}
           result={pruneMutation.data ?? null}
         />
       </Section>
+
+      <DestructiveConfirmModal
+        isOpen={pruneOpen}
+        title={m.database_prune_title()}
+        body={m.database_prune_confirm({ count: formatLocaleCount(pruneEligible) })}
+        confirmLabel={m.database_prune_button()}
+        pendingLabel={m.database_prune_deleting()}
+        pending={pruneMutation.isPending}
+        error={pruneError}
+        onOpenChange={handlePruneOpenChange}
+        onConfirm={handlePruneConfirm}
+      />
     </PageShell>
   );
 }
@@ -332,12 +351,10 @@ function StorageTable({
 function MaintenancePanel({
   cutoff,
   pruneEligible,
-  pruneError,
   result,
 }: {
   cutoff: string;
   pruneEligible: number;
-  pruneError: string;
   result: DatabasePrune | null;
 }) {
   const tz = useActiveTimeZone();
@@ -353,12 +370,6 @@ function MaintenancePanel({
           count: formatLocaleCount(pruneEligible),
         })}
       </div>
-      {pruneError && (
-        <div className="flex items-center gap-2 bg-(--danger-soft) px-4 py-3 text-[13px] text-(--danger-soft-foreground)">
-          <Dot tone="error" />
-          <span>{pruneError}</span>
-        </div>
-      )}
       {result && (
         <div className="px-4 py-3 text-[13px] text-(--foreground)">
           {m.database_maintenance_deleted({ count: formatLocaleCount(deletedTotal) })}
