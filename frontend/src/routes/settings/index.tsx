@@ -4,9 +4,17 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Label, ListBox, Select } from "@heroui/react";
 import { ChevronRight, Code, Database, Xmark } from "@gravity-ui/icons";
 import {
+  deletePasskey,
+  isPasskeySoftError,
+  listPasskeys,
+  registerPasskey,
+  type Passkey,
+} from "~/api/auth";
+import {
   canQueryPanelApi,
   deleteIgnoredConnectionIP,
   fetchIgnoredConnectionIPs,
+  fetchPanelConfigQuery,
   fetchSettings,
   queryErrorMessage,
   queryKeys,
@@ -15,8 +23,16 @@ import {
   type AppSettings,
   type SettingsUpdateRequest,
 } from "~/api/queries";
-import { BrandLink, CopyableCode, ErrorAlert, LabeledSwitch, PageShell } from "~/components/ui";
+import {
+  BrandLink,
+  CopyableCode,
+  DestructiveConfirmModal,
+  ErrorAlert,
+  LabeledSwitch,
+  PageShell,
+} from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
+import { relTimeFromISO } from "~/lib/format";
 import { offsetLabel, SYSTEM_TIMEZONE_ID, TIMEZONE_OPTIONS } from "~/lib/timezone";
 import { cn } from "~/lib/cn";
 import { useTimezonePreference } from "~/lib/use-timezone";
@@ -69,6 +85,8 @@ function SettingsPage() {
       <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
         <TimezoneSetting />
       </div>
+
+      {auth && <PasskeysSection userId={auth.user.id} />}
 
       {isAdmin && (
         <>
@@ -147,6 +165,234 @@ function SettingsPage() {
         </>
       )}
     </PageShell>
+  );
+}
+
+// Self-service passkey management for the signed-in user. Adding a passkey runs
+// WebAuthn registration in this browser, so it's inherently scoped to the
+// current account — admins manage their own keys here like anyone else, and
+// revoking another user's key is left to the PocketBase admin. Hidden entirely
+// when passkeys are disabled platform-wide.
+function PasskeysSection({ userId }: { userId: string }) {
+  const queryClient = useQueryClient();
+  const passkeysKey = ["panel", "users", userId, "passkeys"] as const;
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [pendingPasskey, setPendingPasskey] = useState<Passkey | null>(null);
+
+  const configQuery = useQuery({
+    queryKey: queryKeys.config(),
+    queryFn: fetchPanelConfigQuery,
+    enabled: canQueryPanelApi(),
+    staleTime: Infinity,
+  });
+  const enabled = configQuery.data?.passkeys_enabled ?? false;
+
+  const passkeysQuery = useQuery({
+    queryKey: passkeysKey,
+    queryFn: () => listPasskeys(userId),
+    enabled: canQueryPanelApi() && enabled,
+  });
+  const addMutation = useMutation({
+    mutationFn: () => registerPasskey(userId, m.user_passkeys_default_name(), false),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: passkeysKey });
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (passkeyId: string) => deletePasskey(userId, passkeyId),
+    onSuccess: () => {
+      setDeleteOpen(false);
+      void queryClient.invalidateQueries({ queryKey: passkeysKey });
+    },
+  });
+
+  function handleDeleteOpenChange(open: boolean) {
+    setDeleteOpen(open);
+    if (!open) {
+      setPendingPasskey(null);
+      deleteMutation.reset();
+    }
+  }
+
+  function handleDeleteRequest(passkey: Passkey) {
+    setPendingPasskey(passkey);
+    setDeleteOpen(true);
+  }
+
+  function handleDeleteConfirm() {
+    if (pendingPasskey?.id) deleteMutation.mutate(pendingPasskey.id);
+  }
+
+  if (configQuery.isPending) {
+    return <PasskeysSectionSkeleton />;
+  }
+
+  if (!enabled) return null;
+
+  const rows = passkeysQuery.data ?? [];
+  const loading = passkeysQuery.isPending;
+  // A cancelled WebAuthn prompt is a normal outcome, not an error to surface.
+  const addError =
+    addMutation.error && !isPasskeySoftError(addMutation.error)
+      ? queryErrorMessage(addMutation.error, m.error_passkey_add())
+      : "";
+  const deleteError = deleteMutation.error
+    ? queryErrorMessage(deleteMutation.error, m.error_passkey_delete())
+    : "";
+  const error = passkeysQuery.error ? queryErrorMessage(passkeysQuery.error) : addError;
+  const deletingId =
+    deleteMutation.isPending && deleteMutation.variables ? deleteMutation.variables : undefined;
+  const pendingPasskeyName = pendingPasskey?.name || m.user_passkeys_default_name();
+
+  return (
+    <>
+      <PasskeysSectionHeader />
+
+      <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
+        <div className="flex items-center justify-between gap-3 px-5 py-3">
+          {loading ? (
+            <span
+              className="inline-block h-3.5 w-20 animate-pulse rounded bg-(--surface-secondary)"
+              aria-hidden
+            />
+          ) : (
+            <span className="text-[13px] text-(--muted)">
+              {m.user_passkeys_meta({ count: String(rows.length) })}
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={addMutation.isPending || loading}
+            onPress={() => addMutation.mutate()}
+          >
+            {addMutation.isPending ? m.user_passkeys_adding() : m.user_passkeys_add()}
+          </Button>
+        </div>
+
+        {error && (
+          <div
+            className="border-t border-(--border) bg-(--danger-soft) px-5 py-2.5 text-[13px] text-(--danger-soft-foreground)"
+            role="alert"
+          >
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <PasskeysListSkeleton />
+        ) : rows.length === 0 ? (
+          <p className="border-t border-(--border) px-5 py-4 text-[13px] text-(--muted)">
+            {m.user_passkeys_empty_hint_self()}
+          </p>
+        ) : (
+          <ul className="divide-y divide-(--separator) border-t border-(--border)">
+            {rows.map((passkey) => (
+              <PasskeyRow
+                key={passkey.id}
+                passkey={passkey}
+                deleting={deletingId === passkey.id}
+                onDelete={() => handleDeleteRequest(passkey)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <DestructiveConfirmModal
+        isOpen={deleteOpen}
+        title={m.user_passkeys_delete_title()}
+        body={m.user_passkeys_delete_confirm({ name: pendingPasskeyName })}
+        confirmLabel={m.common_delete()}
+        pendingLabel={m.common_deleting()}
+        pending={deleteMutation.isPending}
+        error={deleteError}
+        onOpenChange={handleDeleteOpenChange}
+        onConfirm={handleDeleteConfirm}
+      />
+    </>
+  );
+}
+
+function PasskeysSectionHeader() {
+  return (
+    <div className="mt-8 mb-5">
+      <h1 className="text-base font-semibold tracking-tight">{m.user_passkeys_title()}</h1>
+      <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_passkeys_desc()}</p>
+    </div>
+  );
+}
+
+function PasskeysSectionSkeleton() {
+  return (
+    <>
+      <PasskeysSectionHeader />
+      <PasskeysCardSkeleton />
+    </>
+  );
+}
+
+function PasskeysCardSkeleton() {
+  return (
+    <div
+      className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)"
+      aria-hidden
+    >
+      <div className="flex items-center justify-between gap-3 px-5 py-3">
+        <div className="h-3.5 w-20 animate-pulse rounded bg-(--surface-secondary)" />
+        <div className="h-8 w-28 shrink-0 animate-pulse rounded-full bg-(--surface-secondary)" />
+      </div>
+      <PasskeysListSkeleton />
+    </div>
+  );
+}
+
+function PasskeysListSkeleton() {
+  return (
+    <div className="border-t border-(--border)" aria-hidden>
+      <div className="flex items-center justify-between gap-3 px-5 py-3">
+        <div className="min-w-0 space-y-1.5">
+          <div className="h-3.5 w-24 animate-pulse rounded bg-(--surface-secondary)" />
+          <div className="h-3 w-36 animate-pulse rounded bg-(--surface-secondary)" />
+        </div>
+        <div className="h-8 w-14 shrink-0 animate-pulse rounded-full bg-(--surface-secondary)" />
+      </div>
+    </div>
+  );
+}
+
+function PasskeyRow({
+  passkey,
+  deleting,
+  onDelete,
+}: {
+  passkey: Passkey;
+  deleting: boolean;
+  onDelete: () => void;
+}) {
+  const backup = passkey.backup_state
+    ? m.user_passkeys_backup_synced()
+    : passkey.backup_eligible
+      ? m.user_passkeys_backup_eligible()
+      : m.user_passkeys_backup_device_bound();
+  const lastUsed = passkey.last_used_at
+    ? relTimeFromISO(passkey.last_used_at, Date.now())
+    : m.common_never();
+
+  return (
+    <li className="flex items-center justify-between gap-3 px-5 py-3">
+      <div className="min-w-0">
+        <p className="truncate text-[13px] font-medium text-(--foreground)">
+          {passkey.name || m.user_passkeys_default_name()}
+        </p>
+        <p className="mt-0.5 text-xs text-(--muted)">
+          {backup} · {lastUsed}
+        </p>
+      </div>
+      <Button size="sm" variant="secondary" isDisabled={deleting} onPress={onDelete}>
+        {deleting ? m.common_deleting() : m.common_delete()}
+      </Button>
+    </li>
   );
 }
 
