@@ -86,3 +86,21 @@ func TestAlphanumericRejectsNonPositive(t *testing.T) {
 		t.Error("Alphanumeric(-1) expected error, got nil")
 	}
 }
+
+func TestSha256Hex(t *testing.T) {
+	// Known vectors from the SHA-256 spec; must match hex(sha256(x)) exactly,
+	// lowercase and 64 chars, since this is what anytls clients send.
+	cases := map[string]string{
+		"":      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		"abc":   "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+		"hello": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+	}
+	for in, want := range cases {
+		if got := Sha256Hex(in); got != want {
+			t.Errorf("Sha256Hex(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := Sha256Hex("abc"); len(got) != 64 {
+		t.Errorf("Sha256Hex length = %d, want 64", len(got))
+	}
+}
