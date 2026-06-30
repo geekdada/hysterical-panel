@@ -9,6 +9,7 @@ import {
   Input,
   Label,
   NumberField,
+  Tabs,
   TextField,
 } from "@heroui/react";
 import { Check, Copy } from "@gravity-ui/icons";
@@ -334,17 +335,29 @@ function AddNodePage() {
   );
 }
 
-/* ── Hysteria server setup guidance ────────────────────────────────────── */
+/* ── Node server setup guidance ─────────────────────────────────────────── */
+
+// The panel polls each node's Traffic Stats API and authenticates clients the
+// same way regardless of protocol; the only per-protocol differences in the
+// setup snippet are the auth callback path and the stats listen port. anytls
+// uses :9898 so its stats API doesn't clash with a Hysteria instance on the
+// same host. Tab labels are product names, so they stay literal (not translated).
+const PROTOCOLS = [
+  { id: "hysteria", name: "Hysteria", port: "9999", authPath: "/api/hysteria/auth" },
+  { id: "anytls", name: "anytls", port: "9898", authPath: "/api/anytls/auth" },
+] as const;
+
+type Protocol = (typeof PROTOCOLS)[number];
 
 const SECRET_PLACEHOLDER = "<random-string>";
 
-function setupYaml(apiSecret: string): { code: string; note?: string }[] {
+function setupYaml(apiSecret: string, port: string): { code: string; note?: string }[] {
   const secret = apiSecret || SECRET_PLACEHOLDER;
 
   return [
     { code: "trafficStats:" },
     {
-      code: "  listen: :9999",
+      code: `  listen: :${port}`,
       note: m.nodes_setup_yaml_note_listen(),
     },
     {
@@ -356,13 +369,13 @@ function setupYaml(apiSecret: string): { code: string; note?: string }[] {
 
 const PANEL_URL_PLACEHOLDER = "<panel-base-url>";
 
-function authYaml(panelOrigin: string): { code: string; note?: string }[] {
+function authYaml(panelOrigin: string, authPath: string): { code: string; note?: string }[] {
   return [
     { code: "auth:" },
     { code: "  type: http" },
     { code: "  http:" },
     {
-      code: `    url: ${panelOrigin}/api/hysteria/auth`,
+      code: `    url: ${panelOrigin}${authPath}`,
       note: m.nodes_setup_yaml_note_panel(),
     },
     {
@@ -397,21 +410,61 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
 
   return (
     <section className="mt-4 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
-      <h2 className="text-[13px] font-semibold tracking-tight">{m.nodes_setup_title()}</h2>
-      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">{m.nodes_setup_intro()}</p>
+      <Tabs defaultSelectedKey="hysteria" variant="secondary">
+        <Tabs.ListContainer>
+          <Tabs.List aria-label={m.nodes_setup_protocol_label()}>
+            {PROTOCOLS.map((p) => (
+              <Tabs.Tab key={p.id} id={p.id}>
+                {p.name}
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
+        {PROTOCOLS.map((p) => (
+          <Tabs.Panel key={p.id} id={p.id} className="pt-4">
+            <ServerSetupPanel apiSecret={apiSecret} panelOrigin={panelOrigin} protocol={p} />
+          </Tabs.Panel>
+        ))}
+      </Tabs>
+    </section>
+  );
+}
 
-      <CodeBlock lines={setupYaml(apiSecret)} label={m.common_copy_config()} />
+function ServerSetupPanel({
+  apiSecret,
+  panelOrigin,
+  protocol,
+}: {
+  apiSecret: string;
+  panelOrigin: string;
+  protocol: Protocol;
+}) {
+  return (
+    <>
+      <h2 className="text-[13px] font-semibold tracking-tight">
+        {m.nodes_setup_title({ protocol: protocol.name })}
+      </h2>
+      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
+        {m.nodes_setup_intro({ protocol: protocol.name })}
+      </p>
+
+      <CodeBlock lines={setupYaml(apiSecret, protocol.port)} label={m.common_copy_config()} />
 
       <h3 className="mt-5 text-[13px] font-semibold tracking-tight">
         {m.nodes_setup_auth_title()}
       </h3>
-      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">{m.nodes_setup_auth_intro()}</p>
+      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
+        {m.nodes_setup_auth_intro({ protocol: protocol.name })}
+      </p>
 
-      <CodeBlock lines={authYaml(panelOrigin)} label={m.common_copy_config()} />
+      <CodeBlock lines={authYaml(panelOrigin, protocol.authPath)} label={m.common_copy_config()} />
       <p className="mt-1.5 text-xs text-(--muted)">{m.nodes_setup_host_note()}</p>
 
       <dl className="mt-4 flex flex-col gap-1.5 text-[13px]">
-        <SetupRow term={m.nodes_setup_term_api_url()}>{m.nodes_setup_api_url_value()}</SetupRow>
+        <SetupRow term={m.nodes_setup_term_api_url()}>
+          {m.nodes_setup_api_url_value({ port: protocol.port })}
+        </SetupRow>
         <SetupRow term={m.nodes_setup_term_api_secret()}>
           {m.nodes_setup_api_secret_value()}
         </SetupRow>
@@ -422,7 +475,7 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
           {m.nodes_setup_reachability_value()}
         </SetupRow>
       </dl>
-    </section>
+    </>
   );
 }
 
