@@ -124,7 +124,7 @@ hysterical-panel/
 │           ├── node_traffic.go 节点维度用量 summary / series
 │           ├── live.go         用户实时诊断（重点）
 │           ├── node_live.go    节点维度实时诊断
-│           ├── hysteria_auth.go 公开 /api/hysteria/auth 回调
+│           ├── hysteria_auth.go 公开 /api/hysteria/auth + /api/anytls/auth 回调（共用 handleClientAuth）
 │           ├── kick.go         停用时 best-effort /kick 扇出（kickUser / fanOutKicks，3 并发）
 │           ├── dto.go          OpenAPI 用的响应/请求结构体
 │           ├── openapi.go      生成 OpenAPI 3.1 spec
@@ -147,6 +147,7 @@ hysterical-panel/
 `users`（扩展 PocketBase 内置 auth collection）：
 
 - `auth_string` (text, unique, required) — Hysteria auth key，= /traffic 返回的 key；自助注册时由系统随机生成
+- `auth_string_hash` (text, unique, required) — `hex(sha256(auth_string))`，64 位小写十六进制，供 anytls 回调按客户端发来的哈希匹配用户。**由 `users` 集合的 `OnRecordCreate`/`OnRecordUpdate` 钩子（`bindUserHashSync`）在每次保存时自动从 `auth_string` 派生**，禁止手动设置；存量数据由迁移 `1730000016` 回填
 - `role` (select [admin, user])、`status` (select [active, disabled]) — `status` 是用户启停的单一来源（active = 启用）
 - `verified` (PocketBase 内置 auth 字段) — 账号可用的附加门禁；admin 建号与邀请注册者恒 true，仅开放无码注册者初始 false
 - `quota_bytes`、`used_tx`、`used_rx` (number, int64) — quota 当前不计费，仅留字段
@@ -218,6 +219,8 @@ hysterical-panel/
 **找回密码**（无自建后端代码，纯走 PocketBase 内置）：前端 `/forgot-password` 调内置 `POST /api/collections/users/request-password-reset`（`{email}`，恒 204，内置反枚举 + 2 分钟重发节流）；`/reset-password?token=` 调内置 `POST /api/collections/users/confirm-password-reset`（`{token,password,passwordConfirm}`，成功且 token 邮箱匹配会顺带置 `verified=true`）。两端点不触发 `OnRecordAuthRequest`，不受 `bindAuthGate` 阻挡（`disabled` 用户可重置但仍无法登录）。前端函数在 `src/api/auth.ts` 的 `requestPasswordReset`/`confirmPasswordReset`。**部署须一次性配置**：把 PocketBase `Settings → Application URL` 设为前端域名，并把 users collection 的 **Reset password** 邮件模板链接由默认的 `{APP_URL}/_/#/auth/confirm-password-reset/{TOKEN}` 改成 `{APP_URL}/reset-password?token={TOKEN}`，否则邮件链接落到 PocketBase 后台而非前端重置页。该模板邮件走内置 SMTP，不经 `mailer.go`。
 
 `POST /api/hysteria/auth` — Hysteria 2 节点 `auth.type: http` 回调，每次客户端连接时触发。按请求体 `auth` 在 `users.auth_string` 查匹配，命中且 `status=active` 且 `verified=true` → `200 {"ok":true,"id":"<auth_string>"}`；查无此人 401；存在但 disabled 或未验证 403；缺 `auth`/非法 JSON 400。返回的 `id` **故意回填为 `auth_string`**，让节点后续 `/traffic` 上报的 key 与采集器查询字段一致（见 `hysteria_auth.go` 注释）。成功鉴权会异步更新 `users.last_connected_at`，并从请求体 `addr` 提取客户端 IP 写入 `users.recent_connections`（最近 10 个唯一 IP，重复 IP 更新 `last_seen_at`；只存 IP，不存端口；ASN / 国家 / ipinfo 链接由 API 返回用户记录时用 MMDB 临时补充）。**绝不记录 `auth` 值本身**（凭据），拒绝日志只记 addr 与拒绝原因。该路由不进 OpenAPI。
+
+`POST /api/anytls/auth` — [anytls fork](https://github.com/geekdada/anytls-go/tree/feat/stats-and-http-auth) 节点 `auth.type: http` 回调。与 hysteria 回调共用同一实现核心（`hysteria_auth.go` 的 `handleClientAuth`），契约、状态码、`{"ok","id"}` 响应、连接元数据更新完全一致；**唯一区别**：anytls 客户端发送 `hex(sha256(password))`（64 位小写十六进制）而非原始密码，故后端按 `auth`（小写化后）查 `users.auth_string_hash` 而非 `auth_string`。返回的 `id` **仍回填 `auth_string`**，使 anytls 的 `/traffic` key 与采集器一致——采集器 / live / kick 因此零改动。用户的 anytls 密码即其 `auth_string`（两协议共用同一凭据）。同样不进 OpenAPI。
 
 > 邮件走 PocketBase 内置 SMTP（`/_/` 后台配置，无新增 env）。`mailer.go` 在 `SMTP.Enabled=false` 时不发信：邀请接口仍返回 `link` 供手动分享，开放无码注册因依赖验证邮件而不可用。
 

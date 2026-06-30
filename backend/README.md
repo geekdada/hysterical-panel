@@ -141,6 +141,23 @@ auth:
 
 该路由**不**进 `openapi.json`：它由 Hysteria 节点调用，不是前端 client 的一部分。
 
+### anytls 回调 `POST /api/anytls/auth`（供 anytls 节点调用）
+
+给 [anytls fork](https://github.com/geekdada/anytls-go/tree/feat/stats-and-http-auth) 的 `auth.type: http` 用。契约与 `/api/hysteria/auth` 完全一致（请求体、状态码语义、`{"ok","id"}` 响应、异步连接元数据更新都相同），唯一区别：anytls 客户端发送 `hex(sha256(password))`（64 位小写十六进制）而非原始密码，因此后端按 `auth`（小写化后）在 `users.auth_string_hash` 里查匹配，而不是 `auth_string`。命中后返回的 `id` **仍是 `auth_string`**——让 anytls 上报的 `/traffic` key 与采集器一致，采集器 / live / kick 因此零改动。用户的 anytls 密码即其 `auth_string`（两协议共用同一凭据）。
+
+`auth_string_hash` 由 `users` 集合上的 `OnRecordCreate` / `OnRecordUpdate` 钩子在每次保存时自动从 `auth_string` 派生（见 `internal/api/api.go` 的 `bindUserHashSync`），所有写入路径（admin CRUD、注册、重置、管理 API、PocketBase 后台）自动保持同步；存量数据由迁移 `1730000016` 回填。
+
+节点侧 `server.yaml` 示例：
+```yaml
+auth:
+  type: http
+  http:
+    url: http://<panel-base-url>/api/anytls/auth
+    insecure: false
+```
+
+该路由同样**不**进 `openapi.json`。
+
 ### 管理接口（Management API）`/api/mgmt/*`（供外部系统调用）
 
 供**外部系统**（非面板前端）通过共享 bearer token 查询与创建用户。**默认关闭**，需管理员在 `/settings` 页面启用。启用时由服务器自动生成 token（明文仅显示一次，需立即复制保存），token 经 SHA-256 哈希存储，无法回读；管理员可随时 rotate。与 `/api/hysteria/auth` 一样不进 `openapi.json`。
