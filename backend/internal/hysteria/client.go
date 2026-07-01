@@ -150,7 +150,7 @@ func (c *Client) Ping(ctx context.Context) (time.Duration, error) {
 // /kick. The node returns 200 on success; any other status is an error. This
 // only clears currently-established sessions: clients will retry, so the
 // caller must also block the user at the auth callback (the panel does this
-// in hysteria_auth.go for disabled users).
+// in node_client_auth.go for disabled users).
 func (c *Client) Kick(ctx context.Context, ids []string) error {
 	body, err := json.Marshal(ids)
 	if err != nil {

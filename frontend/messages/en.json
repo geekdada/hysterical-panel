@@ -369,7 +369,7 @@
   "user_live_no_streams_hint": "This account is not routing traffic through visible nodes right now.",
   "user_live_node_meta": "{devices} online · {count} streams",
   "nodes_add_title": "Add node",
-  "nodes_add_description": "Register a Hysteria or anytls node's API endpoint to start collecting traffic.",
+  "nodes_add_description": "Register a Hysteria or AnyTLS node's API endpoint to start collecting traffic.",
   "nodes_add_name_label": "Name",
   "nodes_add_name_placeholder": "hk-01",
   "nodes_add_name_required": "Name is required",

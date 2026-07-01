@@ -369,7 +369,7 @@
   "user_live_no_streams_hint": "此账户当前未通过可见节点传输流量。",
   "user_live_node_meta": "{devices} 在线 · {count} 条连接",
   "nodes_add_title": "添加节点",
-  "nodes_add_description": "注册 Hysteria 或 anytls 节点的 API 端点以开始采集流量。",
+  "nodes_add_description": "注册 Hysteria 或 AnyTLS 节点的 API 端点以开始采集流量。",
   "nodes_add_name_label": "名称",
   "nodes_add_name_placeholder": "hk-01",
   "nodes_add_name_required": "名称为必填项",
