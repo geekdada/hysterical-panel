@@ -4,7 +4,9 @@ package token
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 )
 
@@ -20,6 +22,15 @@ func New(nBytes int) (string, error) {
 		return "", fmt.Errorf("token: read random: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// Sha256Hex returns the lowercase hex-encoded SHA-256 of s. anytls clients send
+// hex(sha256(password)) as their auth credential, so storing this over a user's
+// auth_string lets the anytls /auth callback match clients by the hash without
+// ever holding the plaintext on the wire.
+func Sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
 }
 
 const alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

@@ -13,6 +13,7 @@ import (
 
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/ipmeta"
+	"hysterical-panel/internal/token"
 )
 
 type ipMetadataLookup interface {
@@ -43,6 +44,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	}
 
 	h.bindAuthGate()
+	h.bindUserAnytlsHashSync()
 
 	g := se.Router.Group("/api/panel")
 	g.Bind(apis.RequireAuth("users")) // must be a logged-in users-collection record
@@ -126,6 +128,12 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	// TypeScript client, but this endpoint is called by Hysteria servers,
 	// not the panel UI.
 	se.Router.POST("/api/hysteria/auth", h.hysteriaAuth)
+
+	// Public: anytls servers POST here to authenticate clients. anytls sends
+	// hex(sha256(password)) as the auth value, so it's matched against
+	// users.auth_string_anytls_hash; otherwise the contract mirrors /api/hysteria/auth
+	// and is likewise kept out of openapi.go.
+	se.Router.POST("/api/anytls/auth", h.anytlsAuth)
 
 	// Management API: external integrations (not the panel UI) call these to
 	// look up and create users via a shared bearer token. Gated at runtime by
@@ -226,6 +234,21 @@ func (h *Handlers) bindAuthGate() {
 		}
 		return e.Next()
 	})
+}
+
+// bindUserAnytlsHashSync keeps users.auth_string_anytls_hash derived from
+// auth_string on every save. This is the single sync choke point: it fires before
+// validation/persist inside app.Save for both create and update, so every write
+// path — admin CRUD, self-registration, auth-key reset, the management API, and
+// the PocketBase admin UI — stays in sync without per-call-site code. The anytls
+// /auth callback matches clients against this hash (see anytls_auth.go).
+func (h *Handlers) bindUserAnytlsHashSync() {
+	setHash := func(e *core.RecordEvent) error {
+		e.Record.Set("auth_string_anytls_hash", token.Sha256Hex(e.Record.GetString("auth_string")))
+		return e.Next()
+	}
+	h.app.OnRecordCreate("users").BindFunc(setHash)
+	h.app.OnRecordUpdate("users").BindFunc(setHash)
 }
 
 // nodesForUser is the single choke point for node visibility. Today every
