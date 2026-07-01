@@ -339,12 +339,12 @@ function AddNodePage() {
 
 // The panel polls each node's Traffic Stats API and authenticates clients the
 // same way regardless of protocol; the only per-protocol differences in the
-// setup snippet are the auth callback path and the stats listen port. anytls
+// setup snippet are the auth callback path and the stats listen port. AnyTLS
 // uses :9898 so its stats API doesn't clash with a Hysteria instance on the
 // same host. Tab labels are product names, so they stay literal (not translated).
 const PROTOCOLS = [
   { id: "hysteria", name: "Hysteria", port: "9999", authPath: "/api/hysteria/auth" },
-  { id: "anytls", name: "anytls", port: "9898", authPath: "/api/anytls/auth" },
+  { id: "anytls", name: "AnyTLS", port: "9898", authPath: "/api/anytls/auth" },
 ] as const;
 
 type Protocol = (typeof PROTOCOLS)[number];
