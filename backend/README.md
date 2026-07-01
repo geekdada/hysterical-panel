@@ -143,9 +143,9 @@ auth:
 
 ### anytls 回调 `POST /api/anytls/auth`（供 anytls 节点调用）
 
-给 [anytls fork](https://github.com/geekdada/anytls-go/tree/feat/stats-and-http-auth) 的 `auth.type: http` 用。契约与 `/api/hysteria/auth` 完全一致（请求体、状态码语义、`{"ok","id"}` 响应、异步连接元数据更新都相同），唯一区别：anytls 客户端发送 `hex(sha256(password))`（64 位小写十六进制）而非原始密码，因此后端按 `auth`（小写化后）在 `users.auth_string_hash` 里查匹配，而不是 `auth_string`。命中后返回的 `id` **仍是 `auth_string`**——让 anytls 上报的 `/traffic` key 与采集器一致，采集器 / live / kick 因此零改动。用户的 anytls 密码即其 `auth_string`（两协议共用同一凭据）。
+给 [anytls fork](https://github.com/geekdada/anytls-go/tree/feat/stats-and-http-auth) 的 `auth.type: http` 用。契约与 `/api/hysteria/auth` 完全一致（请求体、状态码语义、`{"ok","id"}` 响应、异步连接元数据更新都相同），唯一区别：anytls 客户端发送 `hex(sha256(password))`（64 位小写十六进制）而非原始密码，因此后端按 `auth`（小写化后）在 `users.auth_string_anytls_hash` 里查匹配，而不是 `auth_string`。命中后返回的 `id` **仍是 `auth_string`**——让 anytls 上报的 `/traffic` key 与采集器一致，采集器 / live / kick 因此零改动。用户的 anytls 密码即其 `auth_string`（两协议共用同一凭据）。
 
-`auth_string_hash` 由 `users` 集合上的 `OnRecordCreate` / `OnRecordUpdate` 钩子在每次保存时自动从 `auth_string` 派生（见 `internal/api/api.go` 的 `bindUserHashSync`），所有写入路径（admin CRUD、注册、重置、管理 API、PocketBase 后台）自动保持同步；存量数据由迁移 `1730000016` 回填。
+`auth_string_anytls_hash` 由 `users` 集合上的 `OnRecordCreate` / `OnRecordUpdate` 钩子在每次保存时自动从 `auth_string` 派生（见 `internal/api/api.go` 的 `bindUserAnytlsHashSync`），所有写入路径（admin CRUD、注册、重置、管理 API、PocketBase 后台）自动保持同步；存量数据由迁移 `1730000016` 回填。
 
 节点侧 `server.yaml` 示例：
 ```yaml
