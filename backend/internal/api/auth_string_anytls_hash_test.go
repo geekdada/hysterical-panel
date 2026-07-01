@@ -11,8 +11,8 @@ import (
 
 // newMigratedTestApp spins up a PocketBase app on a throwaway data dir and applies
 // every registered migration (PocketBase's base schema plus the panel's, including
-// the auth_string_hash field). A fresh DB has no demo users, so the unique indexes
-// our migrations add apply cleanly — unlike tests.NewTestApp's bundled fixture.
+// the auth_string_anytls_hash field). A fresh DB has no demo users, so the unique
+// indexes our migrations add apply cleanly — unlike tests.NewTestApp's bundled fixture.
 func newMigratedTestApp(t *testing.T) core.App {
 	t.Helper()
 	app := core.NewBaseApp(core.BaseAppConfig{DataDir: t.TempDir()})
@@ -26,9 +26,9 @@ func newMigratedTestApp(t *testing.T) core.App {
 	return app
 }
 
-// newUsersTestRecord builds a valid users record. auth_string_hash is left unset
-// on purpose — the sync hook is expected to populate it (it's a required field,
-// so a save would otherwise fail validation, which is exactly the invariant
+// newUsersTestRecord builds a valid users record. auth_string_anytls_hash is left
+// unset on purpose — the sync hook is expected to populate it (it's a required
+// field, so a save would otherwise fail validation, which is exactly the invariant
 // under test).
 func newUsersTestRecord(t *testing.T, app core.App, email, authString string) *core.Record {
 	t.Helper()
@@ -46,14 +46,15 @@ func newUsersTestRecord(t *testing.T, app core.App, email, authString string) *c
 	return rec
 }
 
-// TestUserHashSyncHook verifies that bindUserHashSync keeps auth_string_hash =
-// hex(sha256(auth_string)) on both create and update, and that the resulting
-// hash is matchable the way the anytls /auth callback matches it.
-func TestUserHashSyncHook(t *testing.T) {
+// TestUserAnytlsHashSyncHook verifies that bindUserAnytlsHashSync keeps
+// auth_string_anytls_hash = hex(sha256(auth_string)) on both create and update,
+// and that the resulting hash is matchable the way the anytls /auth callback
+// matches it.
+func TestUserAnytlsHashSyncHook(t *testing.T) {
 	app := newMigratedTestApp(t)
 
 	h := &Handlers{app: app}
-	h.bindUserHashSync()
+	h.bindUserAnytlsHashSync()
 
 	const authString = "Abc123XyZ789"
 	rec := newUsersTestRecord(t, app, "sync@example.com", authString)
@@ -62,15 +63,15 @@ func TestUserHashSyncHook(t *testing.T) {
 	}
 
 	want := token.Sha256Hex(authString)
-	if got := rec.GetString("auth_string_hash"); got != want {
-		t.Fatalf("after create: auth_string_hash = %q, want %q", got, want)
+	if got := rec.GetString("auth_string_anytls_hash"); got != want {
+		t.Fatalf("after create: auth_string_anytls_hash = %q, want %q", got, want)
 	}
 
 	// The anytls callback looks up the lowercased incoming hash against
-	// auth_string_hash; the stored value must be findable that way.
-	found, err := app.FindFirstRecordByFilter("users", "auth_string_hash = {:a}", map[string]any{"a": want})
+	// auth_string_anytls_hash; the stored value must be findable that way.
+	found, err := app.FindFirstRecordByFilter("users", "auth_string_anytls_hash = {:a}", map[string]any{"a": want})
 	if err != nil || found == nil || found.Id != rec.Id {
-		t.Fatalf("lookup by auth_string_hash failed: rec=%v err=%v", found, err)
+		t.Fatalf("lookup by auth_string_anytls_hash failed: rec=%v err=%v", found, err)
 	}
 
 	// Rotating auth_string must re-derive the hash on update.
@@ -79,8 +80,8 @@ func TestUserHashSyncHook(t *testing.T) {
 	if err := app.Save(rec); err != nil {
 		t.Fatalf("save (update): %v", err)
 	}
-	if got, want := rec.GetString("auth_string_hash"), token.Sha256Hex(rotated); got != want {
-		t.Fatalf("after update: auth_string_hash = %q, want %q", got, want)
+	if got, want := rec.GetString("auth_string_anytls_hash"), token.Sha256Hex(rotated); got != want {
+		t.Fatalf("after update: auth_string_anytls_hash = %q, want %q", got, want)
 	}
 
 	// Reload from the database to confirm the new hash was persisted, not just
@@ -89,7 +90,7 @@ func TestUserHashSyncHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reload: %v", err)
 	}
-	if got, want := reloaded.GetString("auth_string_hash"), token.Sha256Hex(rotated); got != want {
-		t.Fatalf("persisted auth_string_hash = %q, want %q", got, want)
+	if got, want := reloaded.GetString("auth_string_anytls_hash"), token.Sha256Hex(rotated); got != want {
+		t.Fatalf("persisted auth_string_anytls_hash = %q, want %q", got, want)
 	}
 }
