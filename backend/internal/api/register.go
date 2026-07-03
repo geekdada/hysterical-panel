@@ -26,16 +26,13 @@ type registerInput struct {
 
 // registrationDecision derives, from the runtime settings, whether self-service
 // registration is allowed and whether a valid invite code is required. The
-// returned codeRequired also determines email-verification: code-backed signups
-// are trusted (verified), the open no-code path must verify their email.
+// three flags form a strict hierarchy: open_registration is the master switch,
+// invitations_enabled depends on it, and require_invite_for_open depends on
+// invitations_enabled. The returned codeRequired also determines
+// email-verification: code-backed signups are trusted (verified), the open
+// no-code path must verify their email.
 func registrationDecision(s settings) (allowed, codeRequired bool) {
-	if s.OpenRegistration {
-		return true, s.RequireInviteForOpen
-	}
-	if s.InvitationsEnabled {
-		return true, true // invite-only
-	}
-	return false, false // closed
+	return s.OpenRegistration, s.OpenRegistration && s.RequireInviteForOpen
 }
 
 // generateUniqueAuthString mints a random Hysteria auth key, retrying on the

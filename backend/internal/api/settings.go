@@ -99,9 +99,13 @@ func (h *Handlers) updateSettings(e *core.RequestEvent) error {
 	if in.RequireInviteForOpen != nil {
 		rec.Set("require_invite_for_open", *in.RequireInviteForOpen)
 	}
-	// Requiring an invite code on open registration only makes sense when the
-	// invitation system is enabled — otherwise no codes are valid and the open
-	// path becomes an inescapable dead end.
+	// The three registration flags form a strict hierarchy: the invitation
+	// system only makes sense when open registration is on, and requiring an
+	// invite code only makes sense when the invitation system is on. Reject any
+	// final state that violates this nesting.
+	if rec.GetBool("invitations_enabled") && !rec.GetBool("open_registration") {
+		return apis.NewBadRequestError("invitations_enabled requires open_registration", nil)
+	}
 	if rec.GetBool("require_invite_for_open") && !rec.GetBool("invitations_enabled") {
 		return apis.NewBadRequestError("require_invite_for_open requires invitations_enabled", nil)
 	}
