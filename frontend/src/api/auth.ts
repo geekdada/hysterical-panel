@@ -20,7 +20,6 @@ export interface AuthUser {
   id: string;
   email: string;
   role: "admin" | "user";
-  auth_string: string;
   status: "active" | "disabled";
 }
 

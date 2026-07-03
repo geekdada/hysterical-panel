@@ -32,6 +32,29 @@ export function cookieMaxAgeFromToken(token: string): number {
   return Math.min(remaining, MAX_AGE_CAP_SECONDS);
 }
 
+const AUTH_RECORD_FIELDS = ["id", "email", "role", "status"] as const;
+
+/** Keep only the fields the frontend consumes; the raw auth record carries
+ * heavy, sensitive data (auth_string, recent_connections, usage counters) that
+ * has no business living in a non-HttpOnly cookie sent on every request. */
+export function sanitizeAuthRecord(record: unknown): Record<string, unknown> | null {
+  if (!record || typeof record !== "object") return null;
+  const source = record as Record<string, unknown>;
+  const slim: Record<string, unknown> = {};
+  for (const field of AUTH_RECORD_FIELDS) {
+    if (field in source) slim[field] = source[field];
+  }
+  return slim;
+}
+
+/** True when a record carries keys beyond the sanitized whitelist. */
+function recordHasExtraFields(record: unknown): boolean {
+  if (!record || typeof record !== "object") return false;
+  return Object.keys(record as Record<string, unknown>).some(
+    (key) => !(AUTH_RECORD_FIELDS as readonly string[]).includes(key)
+  );
+}
+
 function readRawCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
   const prefix = `${name}=`;
@@ -69,7 +92,7 @@ export function buildLegacyAuthCookieExpired(): string {
 export function writeAuthCookie(token: string, record: unknown): void {
   if (typeof document === "undefined") return;
   document.cookie = buildAuthCookie(
-    JSON.stringify({ token, record }),
+    JSON.stringify({ token, record: sanitizeAuthRecord(record) }),
     cookieMaxAgeFromToken(token)
   );
 }
@@ -87,7 +110,18 @@ export function clearAuthCookies(): void {
  */
 export function readAuthCookieValueClient(): string | null {
   const current = readRawCookie(AUTH_COOKIE);
-  if (current) return current;
+  if (current) {
+    try {
+      const data = JSON.parse(current) as { token?: string; record?: unknown };
+      if (data.token && recordHasExtraFields(data.record)) {
+        writeAuthCookie(data.token, data.record);
+        return readRawCookie(AUTH_COOKIE) ?? current;
+      }
+    } catch {
+      // Fall through and serve the raw value.
+    }
+    return current;
+  }
 
   const legacy = readRawCookie(LEGACY_AUTH_COOKIE);
   if (!legacy) return null;
