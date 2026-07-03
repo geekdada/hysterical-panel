@@ -13,11 +13,12 @@ func TestRegistrationDecision(t *testing.T) {
 		wantCodeRequired bool
 	}{
 		{"all off → closed", settings{}, false, false},
-		{"invitations only → invite-only", settings{InvitationsEnabled: true}, true, true},
+		{"invitations without open → closed", settings{InvitationsEnabled: true}, false, false},
+		{"require invite without open → closed", settings{RequireInviteForOpen: true}, false, false},
 		{"open, no code", settings{OpenRegistration: true}, true, false},
-		{"open + require invite", settings{OpenRegistration: true, RequireInviteForOpen: true}, true, true},
-		{"open wins over invitations off", settings{OpenRegistration: true, InvitationsEnabled: false}, true, false},
-		{"open + require + invitations on", settings{OpenRegistration: true, RequireInviteForOpen: true, InvitationsEnabled: true}, true, true},
+		{"open + invitations, no require → no code", settings{OpenRegistration: true, InvitationsEnabled: true}, true, false},
+		{"open + require + invitations → code required", settings{OpenRegistration: true, InvitationsEnabled: true, RequireInviteForOpen: true}, true, true},
+		{"require without invitations ignored", settings{OpenRegistration: true, RequireInviteForOpen: true}, true, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
