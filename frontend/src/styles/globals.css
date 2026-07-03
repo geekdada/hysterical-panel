@@ -65,7 +65,7 @@
   --separator: oklch(0.245 0.006 274);
 
   --field-background: oklch(0.18 0.006 274);
-  --field-border: oklch(0.30 0.006 274);
+  --field-border: oklch(0.3 0.006 274);
 
   --accent: oklch(0.62 0.15 274);
   --accent-foreground: oklch(0.99 0 0);
