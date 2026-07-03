@@ -435,17 +435,6 @@ const en = {
     "Point Hysteria's auth.http.url at the panel. Each connect attempt is checked against the auth_string of the matching user; disabled accounts are rejected.",
   nodes_setup_host_note:
     "Adjust the host if Hysteria reaches the panel through a different URL than your browser does.",
-  nodes_setup_term_api_url: "API URL",
-  nodes_setup_api_url_value:
-    "http://<server-ip>:9999 — the listen address above, no trailing slash.",
-  nodes_setup_term_api_secret: "API secret",
-  nodes_setup_api_secret_value: "the secret value above; the panel stores it encrypted.",
-  nodes_setup_term_auth_check: "Auth check",
-  nodes_setup_auth_check_value:
-    "the client's auth string must match a user's auth_string; disabled users are rejected.",
-  nodes_setup_term_reachability: "Reachability",
-  nodes_setup_reachability_value:
-    "open the stats port to the panel only, and keep it behind a firewall or TLS. It exposes per-user traffic.",
   nodes_setup_yaml_note_listen: "API address; must be reachable from the panel",
   nodes_setup_yaml_note_secret: "sent as the Authorization header",
   nodes_setup_yaml_note_panel: "this panel",
@@ -980,15 +969,6 @@ const zh = {
   nodes_setup_auth_intro:
     "将 Hysteria 的 auth.http.url 指向本面板。每次连接尝试会检查匹配用户的 auth_string；停用账户将被拒绝。",
   nodes_setup_host_note: "如果 Hysteria 通过不同于浏览器的 URL 访问面板，请调整主机地址。",
-  nodes_setup_term_api_url: "API URL",
-  nodes_setup_api_url_value: "http://<server-ip>:9999，即上述监听地址，无尾部斜杠。",
-  nodes_setup_term_api_secret: "API 密钥",
-  nodes_setup_api_secret_value: "上述密钥值；面板加密存储。",
-  nodes_setup_term_auth_check: "认证检查",
-  nodes_setup_auth_check_value: "客户端 auth string 必须匹配用户的 auth_string；停用用户将被拒绝。",
-  nodes_setup_term_reachability: "可达性",
-  nodes_setup_reachability_value:
-    "仅向面板开放统计端口，并通过防火墙或 TLS 保护。该端口暴露每用户流量数据。",
   nodes_setup_yaml_note_listen: "API 地址；面板必须可达",
   nodes_setup_yaml_note_secret: "作为 Authorization 请求头发送",
   nodes_setup_yaml_note_panel: "本面板",

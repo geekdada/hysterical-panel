@@ -460,31 +460,7 @@ function ServerSetupPanel({
 
       <CodeBlock lines={authYaml(panelOrigin, protocol.authPath)} label={m.common_copy_config()} />
       <p className="mt-1.5 text-xs text-(--muted)">{m.nodes_setup_host_note()}</p>
-
-      <dl className="mt-4 flex flex-col gap-1.5 text-[13px]">
-        <SetupRow term={m.nodes_setup_term_api_url()}>
-          {m.nodes_setup_api_url_value({ port: protocol.port })}
-        </SetupRow>
-        <SetupRow term={m.nodes_setup_term_api_secret()}>
-          {m.nodes_setup_api_secret_value()}
-        </SetupRow>
-        <SetupRow term={m.nodes_setup_term_auth_check()}>
-          {m.nodes_setup_auth_check_value()}
-        </SetupRow>
-        <SetupRow term={m.nodes_setup_term_reachability()}>
-          {m.nodes_setup_reachability_value()}
-        </SetupRow>
-      </dl>
     </>
-  );
-}
-
-function SetupRow({ term, children }: { term: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-2">
-      <dt className="shrink-0 font-medium text-(--foreground) sm:w-28">{term}</dt>
-      <dd className="text-(--muted)">{children}</dd>
-    </div>
   );
 }
 
