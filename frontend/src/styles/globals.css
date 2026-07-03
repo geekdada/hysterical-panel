@@ -36,6 +36,9 @@
   --border: oklch(0.92 0.004 270);
   --separator: oklch(0.935 0.003 270);
 
+  --field-border: var(--border);
+  --field-border-width: 1px;
+
   --accent: oklch(0.54 0.16 274);
   --accent-foreground: oklch(0.99 0 0);
   --focus: var(--accent);
@@ -60,6 +63,9 @@
 
   --border: oklch(0.275 0.006 274);
   --separator: oklch(0.245 0.006 274);
+
+  --field-background: oklch(0.18 0.006 274);
+  --field-border: oklch(0.30 0.006 274);
 
   --accent: oklch(0.62 0.15 274);
   --accent-foreground: oklch(0.99 0 0);
@@ -86,4 +92,50 @@ h3 {
 .breadcrumbs__link[data-current="true"] {
   font-weight: 600;
   color: var(--foreground);
+}
+
+/* Linear buttons are small-radius rounded rectangles, not full pills. Unlayered
+ * so it wins over HeroUI's rounded-3xl on the base .button. */
+.button {
+  border-radius: var(--radius);
+}
+
+/* Secondary reads as a quiet, hairline-bordered action with neutral text.
+ * HeroUI's default paints it as an accent-colored label on a flat gray fill,
+ * which conflicts with reserving the accent for links / focus / primary. */
+.button--secondary {
+  --button-bg: transparent;
+  --button-bg-hover: color-mix(in oklab, var(--foreground) 6%, transparent);
+  --button-bg-pressed: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --button-fg: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+/* HeroUI's default heights (40/36px) read tall against the ~13px base and dense
+ * layout. Drop the default and small sizes a step, keeping a mobile touch bump. */
+.button {
+  height: 2.25rem;
+}
+.button--sm {
+  height: 2rem;
+}
+.button--icon-only {
+  width: 2.25rem;
+}
+.button--icon-only.button--sm {
+  width: 2rem;
+}
+@media (min-width: 48rem) {
+  .button {
+    height: 2rem;
+  }
+  .button--sm {
+    height: 1.75rem;
+  }
+  .button--icon-only {
+    width: 2rem;
+  }
+  .button--icon-only.button--sm {
+    width: 1.75rem;
+  }
 }
