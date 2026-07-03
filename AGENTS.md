@@ -77,8 +77,8 @@
    **停用时（status `active`→`disabled`）会触发一次 best-effort `/kick` 扇出**：`updateUser` 检测到该转换后，起一个**后台 goroutine**（**不阻塞 PATCH 响应**），以 **3 并发**（信号量 `kickConcurrency`）对 `nodesForUser(userID)` 返回的每个节点 `POST /kick [auth_string]`（5s/节点超时，整体 30s 上限）。失败只记日志（`[kick] ...`）、单个失败不影响其余、`nodesForUser` 返回空也直接结束。落地在 `internal/api/kick.go` 的 `kickUser` / `fanOutKicks`，Hysteria client 在 `internal/hysteria/client.go` 的 `Kick`。**只清存量会话**：`node_client_auth.go` 的 403 已挡客户端重连，`/kick` 只是把当前已建立的连接断掉。其他状态转换（建号 / 删除 / 改 auth_string）不触发 `/kick`，靠后续 401/403 自然清退。
    **账号「可用」= `status=active` 且 `verified=true`**：`bindAuthGate` 与 `hysteriaAuth` 都在 status 检查后再判 `verified`（非 verified → 403 `email not verified`）。admin 建号与邀请码注册者恒 `verified=true`，新门禁只挡「开放注册且无邀请码」的未验证用户，直到其点开验证邮件。
 
-7. **注册访问由 `app_settings` 三开关 + `registrationDecision` 收口。**
-   公开 `POST /api/panel/register`（见 `register.go`）。判定：`open_registration` → 看 `require_invite_for_open` 是否要码；否则 `invitations_enabled` → 仅邀请（必须有码）；都关 → 403。`verified := codeRequired`（经码即验证并自动登录；开放无码 → `verified=false`、发验证邮件、依赖 SMTP、未配则 503）。新用户固定 `role=user`/`status=active`、`auth_string` 由 `internal/token` 随机生成并查重，**不信任客户端传入的 role/auth_string/status**。`registrationDecision` / `invalidInviteReason` 有单测（`register_test.go`），改判定逻辑务必同步测试。邀请码是通用码（`max_uses`/`expires_at`/`revoked`）。
+7. **注册访问由 `app_settings` 三开关 + `registrationDecision` 收口，三开关是严格层级。**
+   公开 `POST /api/panel/register`（见 `register.go`）。三开关层级：`open_registration`（总开关）> `invitations_enabled`（依赖总开关）> `require_invite_for_open`（依赖邀请系统）。判定：`open_registration=false` → 403（无论邀请系统开否）；`open_registration=true` → `require_invite_for_open` 决定是否要码。`PATCH /settings` 强制校验该嵌套（`invitations_enabled` 需 `open_registration`；`require_invite_for_open` 需 `invitations_enabled`，违反 400）；前端关父开关时在同一 PATCH 里级联把子开关置 false。`verified := codeRequired`（经码即验证并自动登录；开放无码 → `verified=false`、发验证邮件、依赖 SMTP、未配则 503）。新用户固定 `role=user`/`status=active`、`auth_string` 由 `internal/token` 随机生成并查重，**不信任客户端传入的 role/auth_string/status**。`registrationDecision` / `invalidInviteReason` 有单测（`register_test.go`），改判定逻辑务必同步测试。邀请码是通用码（`max_uses`/`expires_at`/`revoked`）。存量「仅邀请」部署（`invitations_enabled=true && open_registration=false`）由迁移 `1730000017` 提升为三开关全开以保持行为不变。
 
 8. **后端是 OpenAPI 契约的唯一来源。**
    `internal/api/dto.go` 的结构体 + `internal/api/openapi.go` 生成 `/api/openapi.json`（也可 `make openapi` 落地成文件），前端据此生成 TS 类型。**新增/改动 `/api/panel/*` 接口时同步更新 DTO 并重生成 schema**。`/api/hysteria/auth`、`/api/anytls/auth`、`/api/mgmt/*` 故意不进 schema（它们由节点 / 外部系统调用，不是前端 client 的一部分）。
@@ -114,7 +114,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..16）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..17）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -234,7 +234,7 @@ hysterical-panel/
 - `GET /database/stats`、`POST /database/prune`（仅 admin，`database.go`）：查看库体量并按 **30 天 UTC 留存**裁剪 `traffic_hourly`/`traffic_daily` 历史。
 - passkey：`GET /users/{id}/passkeys`、`DELETE /users/{id}/passkeys/{passkeyId}`（`requireActiveAdminOrSelf`）；注册 `POST /users/{id}/passkeys/registration/{options,finish}`（`requireActiveSelf`）。详见核心决策 #9。
 - 节点维度接口 `GET /nodes/{id}/traffic/summary|series`、`GET /nodes/{id}/live` 是**单节点跨用户**视角，仅 admin。
-- `GET|PATCH /settings`、`POST /management-api/rotate`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验 `require_invite_for_open` 依赖 `invitations_enabled`，并在首次置 `management_api_enabled=true` 时生成明文 token 回显一次（见决策 #10）；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
+- `GET|PATCH /settings`、`POST /management-api/rotate`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验注册开关层级（`invitations_enabled` 依赖 `open_registration`；`require_invite_for_open` 依赖 `invitations_enabled`），并在首次置 `management_api_enabled=true` 时生成明文 token 回显一次（见决策 #10）；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
 - `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口。
 - `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时诊断核心：并发拉可见节点的 `/dump/streams` + `/online`（5s 超时），按 `auth_string` 过滤/聚合出 `online_devices` / `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按设备分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
 

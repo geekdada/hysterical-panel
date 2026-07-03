@@ -84,7 +84,7 @@ docker run --rm \
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |
 | GET | `/users/{id}/live` | 实时诊断（admin；在线设备、活跃流、域名榜、设备维度） |
 | GET | `/settings` | 读取注册/邀请开关 |
-| PATCH | `/settings` | 改开关（`require_invite_for_open=true` 需 `invitations_enabled=true`，否则 400） |
+| PATCH | `/settings` | 改开关（层级校验：`invitations_enabled=true` 需 `open_registration=true`；`require_invite_for_open=true` 需 `invitations_enabled=true`，否则 400） |
 | GET | `/invitations` | 邀请码列表（含有效性、`link`） |
 | POST | `/invitations` | 新建邀请码（可选 `email`/`max_uses`/`expires_in_hours`/`note`/`send_email`；`invitations_enabled=false` 时 400） |
 | DELETE | `/invitations/{id}` | 删除邀请码 |
@@ -100,11 +100,10 @@ docker run --rm \
 
 ### 自助注册 `POST /api/panel/register`
 
-请求体 `{ email, password, code? }`。访问与「是否需邀请码」由 `app_settings` 实时决定（见 `registrationDecision`）：
+请求体 `{ email, password, code? }`。访问与「是否需邀请码」由 `app_settings` 实时决定（见 `registrationDecision`）。三开关是严格层级：`open_registration` 是总开关，`invitations_enabled` 依赖它，`require_invite_for_open` 依赖 `invitations_enabled`：
 
-- 关闭（`open_registration` 与 `invitations_enabled` 均 false）→ 403。
-- 仅邀请（`open_registration=false` 且 `invitations_enabled=true`）→ 必须带有效 `code`。
-- 开放（`open_registration=true`）→ `require_invite_for_open` 决定是否仍需 `code`。
+- 关闭（`open_registration=false`）→ 403（无论邀请系统是否开启）。
+- 开放（`open_registration=true`）→ `require_invite_for_open` 决定是否需 `code`（要求 `code` 时须 `invitations_enabled=true`）。
 
 新用户固定 `role=user`、`status=active`、`auth_string` 由系统随机生成（客户端无法指定 role/auth_string/status）。`verified := 是否经邀请码`：
 
