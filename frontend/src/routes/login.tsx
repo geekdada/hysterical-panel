@@ -38,8 +38,7 @@ function LoginPage() {
     queryFn: fetchPanelConfigQuery,
     enabled: canQueryPanelApi(),
   });
-  const canRegister =
-    (configQuery.data?.registration_open || configQuery.data?.invitations_enabled) ?? false;
+  const canRegister = configQuery.data?.registration_open ?? false;
   const passkeysEnabled = configQuery.data?.passkeys_enabled ?? false;
 
   useEffect(() => {

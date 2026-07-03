@@ -48,10 +48,9 @@ function RegisterPage() {
   });
 
   const open = config?.registration_open ?? false;
-  const invitationsEnabled = config?.invitations_enabled ?? false;
   const requireInviteForOpen = config?.registration_require_invite ?? false;
-  const canRegister = open || invitationsEnabled;
-  const codeRequired = open ? requireInviteForOpen : invitationsEnabled;
+  const canRegister = open;
+  const codeRequired = open && requireInviteForOpen;
   const showCode = codeRequired || code.length > 0;
 
   const result = registerMutation.data;

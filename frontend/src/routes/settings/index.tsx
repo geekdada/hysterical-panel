@@ -71,6 +71,26 @@ function SettingsPage() {
     mutation.mutate({ [field]: value });
   }
 
+  // The three registration flags form a strict hierarchy (open_registration >
+  // invitations_enabled > require_invite_for_open). Turning a parent off must
+  // cascade its descendants off in the same request so the backend never sees
+  // an invalid nested state.
+  function patchOpenRegistration(value: boolean) {
+    mutation.mutate(
+      value
+        ? { open_registration: true }
+        : { open_registration: false, invitations_enabled: false, require_invite_for_open: false }
+    );
+  }
+
+  function patchInvitations(value: boolean) {
+    mutation.mutate(
+      value
+        ? { invitations_enabled: true }
+        : { invitations_enabled: false, require_invite_for_open: false }
+    );
+  }
+
   return (
     <PageShell
       width="narrow"
@@ -99,18 +119,20 @@ function SettingsPage() {
 
           <div className="flex flex-col gap-5 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
             <LabeledSwitch
-              label={m.settings_invitation_system()}
-              description={m.settings_invitation_system_desc()}
-              isSelected={settings?.invitations_enabled ?? false}
-              isDisabled={!settings || mutation.isPending}
-              onChange={(v) => patch("invitations_enabled", v)}
-            />
-            <LabeledSwitch
               label={m.settings_open_registration()}
               description={m.settings_open_registration_desc()}
               isSelected={settings?.open_registration ?? false}
               isDisabled={!settings || mutation.isPending}
-              onChange={(v) => patch("open_registration", v)}
+              onChange={patchOpenRegistration}
+            />
+            <LabeledSwitch
+              label={m.settings_invitation_system()}
+              description={m.settings_invitation_system_desc()}
+              isSelected={settings?.invitations_enabled ?? false}
+              isDisabled={
+                !settings || mutation.isPending || !(settings?.open_registration ?? false)
+              }
+              onChange={patchInvitations}
             />
             <LabeledSwitch
               label={m.settings_require_invite()}
