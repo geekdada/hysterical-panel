@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createIsomorphicFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
 import {
   getCoreRowModel,
   getSortedRowModel,
@@ -21,6 +19,7 @@ import {
   userStatsQueryOptions,
   type TrafficRangeQuery,
 } from "~/api/queries";
+import { markResponsePrivate } from "~/api/ssr";
 import {
   Brand,
   Dot,
@@ -42,7 +41,7 @@ import {
   type TrafficRangeShortcut,
   trafficShortcutRange,
 } from "~/lib/traffic-range";
-import { useMounted } from "~/lib/use-mounted";
+import { FALLBACK_TIME_ZONE } from "~/lib/timezone";
 import { useActiveTimeZone } from "~/lib/use-timezone";
 import { defaultUsersListSearch, type UsersListSearch } from "~/lib/users-list-search";
 import * as m from "~/paraglide/messages.js";
@@ -61,8 +60,6 @@ type NodeTableRow = {
 };
 
 type TrafficPeriod = "today" | "t-1" | "7d";
-
-const DASHBOARD_SSR_TIME_ZONE = "UTC";
 
 const TRAFFIC_PERIOD_LABELS: Record<TrafficPeriod, string> = {
   today: "T",
@@ -85,12 +82,6 @@ function dashboardNodeTrafficRangeQuery(tz: string): TrafficRangeQuery {
   return toTrafficRangeQuery(defaultLocalTrafficRange(tz), tz);
 }
 
-const markDashboardResponsePrivate = createIsomorphicFn()
-  .server(() => {
-    setResponseHeader("cache-control", "private, no-store");
-  })
-  .client(() => {});
-
 export const Route = createFileRoute("/")({
   beforeLoad: ({ context }) => {
     if (!context.auth) {
@@ -104,15 +95,16 @@ export const Route = createFileRoute("/")({
     }
   },
   loader: async ({ context }) => {
-    markDashboardResponsePrivate();
+    markResponsePrivate();
+    const tz = context.timeZone ?? FALLBACK_TIME_ZONE;
     await Promise.allSettled([
       context.queryClient.ensureQueryData(dashboardNodesQueryOptions()),
       context.queryClient.ensureQueryData(userStatsQueryOptions()),
       context.queryClient.ensureQueryData(
-        dashboardTrafficQueryOptions(dashboardTrafficRangeQuery("today", DASHBOARD_SSR_TIME_ZONE))
+        dashboardTrafficQueryOptions(dashboardTrafficRangeQuery("today", tz))
       ),
       context.queryClient.ensureQueryData(
-        dashboardNodeTrafficQueryOptions(dashboardNodeTrafficRangeQuery(DASHBOARD_SSR_TIME_ZONE))
+        dashboardNodeTrafficQueryOptions(dashboardNodeTrafficRangeQuery(tz))
       ),
     ]);
   },
@@ -123,12 +115,10 @@ function DashboardPage() {
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
-  const activeTz = useActiveTimeZone();
-  const mounted = useMounted();
-  const tz = mounted ? activeTz : DASHBOARD_SSR_TIME_ZONE;
+  const tz = useActiveTimeZone();
   const [trafficPeriod, setTrafficPeriod] = useState<TrafficPeriod>("today");
   const [nodeTrafficRange, setNodeTrafficRange] = useState<LocalDateRange>(() =>
-    defaultLocalTrafficRange(DASHBOARD_SSR_TIME_ZONE)
+    defaultLocalTrafficRange(tz)
   );
   const [now, setNow] = useState(() => Date.now());
 

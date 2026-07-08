@@ -5,13 +5,12 @@ import { Button } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
-  canQueryPanelApi,
-  fetchDatabaseStats,
+  databaseStatsQueryOptions,
   pruneDatabaseTraffic,
   queryErrorMessage,
   queryKeys,
-  REFRESH_MS,
 } from "~/api/queries";
+import { markResponsePrivate } from "~/api/ssr";
 import {
   BrandLink,
   DestructiveConfirmModal,
@@ -39,6 +38,10 @@ export const Route = createFileRoute("/settings/database")({
   staticData: breadcrumbStaticData({
     label: () => m.database_title(),
   }),
+  loader: async ({ context }) => {
+    markResponsePrivate();
+    await Promise.allSettled([context.queryClient.ensureQueryData(databaseStatsQueryOptions())]);
+  },
   component: DatabasePage,
 });
 
@@ -49,12 +52,7 @@ function DatabasePage() {
   const [now, setNow] = useState(() => Date.now());
   const [pruneOpen, setPruneOpen] = useState(false);
 
-  const statsQuery = useQuery({
-    queryKey: queryKeys.databaseStats(),
-    queryFn: fetchDatabaseStats,
-    enabled: canQueryPanelApi(),
-    refetchInterval: REFRESH_MS,
-  });
+  const statsQuery = useQuery(databaseStatsQueryOptions());
 
   const pruneMutation = useMutation({
     mutationFn: pruneDatabaseTraffic,

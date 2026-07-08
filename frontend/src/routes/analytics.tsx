@@ -11,13 +11,11 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
-  canQueryPanelApi,
-  fetchAnalyticsOverview,
+  analyticsOverviewQueryOptions,
   queryErrorMessage,
-  queryKeys,
-  REFRESH_MS,
   toTrafficRangeQuery,
 } from "~/api/queries";
+import { markResponsePrivate } from "~/api/ssr";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
 import {
@@ -25,6 +23,7 @@ import {
   granularityForLocalRange,
   type LocalDateRange,
 } from "~/lib/traffic-range";
+import { FALLBACK_TIME_ZONE } from "~/lib/timezone";
 import {
   BrandLink,
   ErrorAlert,
@@ -54,38 +53,48 @@ export const Route = createFileRoute("/analytics")({
     label: () => m.analytics_title(),
     href: "/analytics",
   }),
+  loader: async ({ context }) => {
+    markResponsePrivate();
+    const tz = context.timeZone ?? FALLBACK_TIME_ZONE;
+    const range = toTrafficRangeQuery(defaultLocalTrafficRange(tz), tz);
+    await Promise.allSettled([
+      context.queryClient.ensureQueryData(analyticsOverviewQueryOptions(range)),
+    ]);
+  },
   component: AnalyticsPage,
 });
 
 function AnalyticsPage() {
   const { auth } = Route.useRouteContext();
   const tz = useActiveTimeZone();
-  const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
+  const [trafficRange, setTrafficRange] = useState<LocalDateRange>(() =>
+    defaultLocalTrafficRange(tz)
+  );
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    setTrafficRange(defaultLocalTrafficRange(tz));
+    setTrafficRange((current) => {
+      const next = defaultLocalTrafficRange(tz);
+      return current.start.compare(next.start) === 0 && current.end.compare(next.end) === 0
+        ? current
+        : next;
+    });
+  }, [tz]);
 
+  useEffect(() => {
     const id = setInterval(() => {
       setNow(Date.now());
     }, 5_000);
     return () => clearInterval(id);
-  }, [tz]);
+  }, []);
 
-  const queryEnabled = canQueryPanelApi();
-  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange, tz) : null;
-
-  const overviewQuery = useQuery({
-    queryKey: queryKeys.analyticsOverview(trafficQuery),
-    queryFn: () => fetchAnalyticsOverview(trafficQuery!),
-    enabled: queryEnabled && trafficQuery !== null,
-    refetchInterval: REFRESH_MS,
-  });
+  const trafficQuery = toTrafficRangeQuery(trafficRange, tz);
+  const overviewQuery = useQuery(analyticsOverviewQueryOptions(trafficQuery));
 
   const overview = overviewQuery.data ?? null;
   const series = overview?.series ?? null;
   const nodeTraffic = overview?.nodeTraffic ?? null;
-  const rangeLoading = trafficQuery === null || overviewQuery.isPending;
+  const rangeLoading = overviewQuery.isPending;
   const rangeError = overviewQuery.error ? queryErrorMessage(overviewQuery.error) : "";
   const queryErrors = [
     {
@@ -122,14 +131,7 @@ function AnalyticsPage() {
           {m.common_traffic()}
         </h2>
         <div className="min-w-0 w-full sm:w-auto">
-          {trafficRange ? (
-            <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
-          ) : (
-            <div
-              className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
-              aria-hidden
-            />
-          )}
+          <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
         </div>
       </div>
 
@@ -158,10 +160,10 @@ function RangeTrafficSection({
   error: string;
   loading: boolean;
   series: TrafficSeries | null;
-  trafficRange: LocalDateRange | null;
+  trafficRange: LocalDateRange;
 }) {
   const points = series?.points ?? [];
-  const granularity = trafficRange ? granularityForLocalRange(trafficRange) : "hourly";
+  const granularity = granularityForLocalRange(trafficRange);
   const totalTx = points.reduce((sum, p) => sum + (p.tx ?? 0), 0);
   const totalRx = points.reduce((sum, p) => sum + (p.rx ?? 0), 0);
 

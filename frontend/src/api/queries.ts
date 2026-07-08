@@ -314,6 +314,16 @@ export function dashboardTrafficQueryOptions(range: TrafficRangeQuery) {
   });
 }
 
+export function analyticsOverviewQueryOptions(range: TrafficRangeQuery) {
+  return queryOptions({
+    queryKey: queryKeys.analyticsOverview(range),
+    queryFn: () => fetchAnalyticsOverview(range),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
 export function fetchPanelTrafficSeries(range: TrafficRangeQuery): Promise<TrafficSeries | null> {
   return apiRequest<TrafficSeries | null>(
     apiClient.GET("/api/panel/traffic/series", {
@@ -341,6 +351,16 @@ export async function fetchAnalyticsOverview(
 
 export function fetchDatabaseStats(): Promise<DatabaseStats | null> {
   return apiRequest<DatabaseStats | null>(apiClient.GET("/api/panel/database/stats"));
+}
+
+export function databaseStatsQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.databaseStats(),
+    queryFn: fetchDatabaseStats,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
 }
 
 export function pruneDatabaseTraffic(): Promise<DatabasePrune> {
@@ -386,6 +406,16 @@ export async function fetchNodeOverview(
   return { node, series, summary };
 }
 
+export function nodeOverviewQueryOptions(nodeId: string, range: TrafficRangeQuery) {
+  return queryOptions({
+    queryKey: queryKeys.nodeOverview(nodeId, range),
+    queryFn: () => fetchNodeOverview(nodeId, range),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
 export async function fetchUserOverview(
   userId: string,
   range: TrafficRangeQuery
@@ -419,6 +449,16 @@ export async function fetchUserOverview(
   ]);
 
   return { series, summary, user };
+}
+
+export function userOverviewQueryOptions(userId: string, range: TrafficRangeQuery) {
+  return queryOptions({
+    queryKey: queryKeys.userOverview(userId, range),
+    queryFn: () => fetchUserOverview(userId, range),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
 }
 
 export function fetchNodeLive(nodeId: string): Promise<NodeLive | null> {
@@ -483,6 +523,15 @@ export function fetchSettings(): Promise<AppSettings> {
   return apiRequest<AppSettings>(apiClient.GET("/api/panel/settings"), m.error_settings_load());
 }
 
+export function settingsQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.settings(),
+    queryFn: fetchSettings,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
 export function updateSettings(body: SettingsUpdateRequest): Promise<AppSettings> {
   return apiRequest<AppSettings>(
     apiClient.PATCH("/api/panel/settings", { body }),
@@ -504,6 +553,16 @@ export function fetchInvitations(): Promise<Invitation[]> {
     apiClient.GET("/api/panel/invitations"),
     m.error_invitations_load()
   );
+}
+
+export function invitationsQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.invitations(),
+    queryFn: fetchInvitations,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
 }
 
 export function createInvitation(body: InvitationCreateRequest): Promise<Invitation> {

@@ -1,20 +1,19 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Description, Input, Label, NumberField, TextField } from "@heroui/react";
 import { TrashBin } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import {
-  canQueryPanelApi,
   createInvitation,
   deleteInvitation,
-  fetchInvitations,
-  fetchSettings,
+  invitationsQueryOptions,
   queryErrorMessage,
   queryKeys,
-  REFRESH_MS,
+  settingsQueryOptions,
   type Invitation,
 } from "~/api/queries";
+import { markResponsePrivate } from "~/api/ssr";
 import {
   BrandLink,
   CopyButton,
@@ -39,29 +38,32 @@ export const Route = createFileRoute("/invitations")({
     label: () => m.invitations_title(),
     href: "/invitations",
   }),
+  loader: async ({ context }) => {
+    markResponsePrivate();
+    await Promise.allSettled([
+      context.queryClient.ensureQueryData(settingsQueryOptions()),
+      context.queryClient.ensureQueryData(invitationsQueryOptions()),
+    ]);
+  },
   component: InvitationsPage,
 });
 
 function InvitationsPage() {
   const { auth } = Route.useRouteContext();
   const queryClient = useQueryClient();
-  const now = Date.now();
+  const [now, setNow] = useState(() => Date.now());
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingInvitation, setPendingInvitation] = useState<{ id: string; code: string } | null>(
     null
   );
 
-  const settingsQuery = useQuery({
-    queryKey: queryKeys.settings(),
-    queryFn: fetchSettings,
-    enabled: canQueryPanelApi(),
-  });
-  const invitationsQuery = useQuery({
-    queryKey: queryKeys.invitations(),
-    queryFn: fetchInvitations,
-    enabled: canQueryPanelApi(),
-    refetchInterval: REFRESH_MS,
-  });
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const settingsQuery = useQuery(settingsQueryOptions());
+  const invitationsQuery = useQuery(invitationsQueryOptions());
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: queryKeys.invitations() });

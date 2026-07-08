@@ -1,7 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createIsomorphicFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
@@ -14,6 +12,7 @@ import {
   usersListQueryOptions,
   updateUserStatus,
 } from "~/api/queries";
+import { markResponsePrivate } from "~/api/ssr";
 import {
   BrandLink,
   CopyButton,
@@ -41,18 +40,12 @@ import * as m from "~/paraglide/messages.js";
 
 type PanelUser = components["schemas"]["PanelUser"];
 
-const markUsersResponsePrivate = createIsomorphicFn()
-  .server(() => {
-    setResponseHeader("cache-control", "private, no-store");
-  })
-  .client(() => {});
-
 export const Route = createFileRoute("/users/")({
   validateSearch: parseUsersListSearch,
   beforeLoad: ({ context }) => requireAdmin(context.auth),
   loaderDeps: ({ search }) => search,
   loader: async ({ context, deps }) => {
-    markUsersResponsePrivate();
+    markResponsePrivate();
     await Promise.allSettled([
       context.queryClient.ensureQueryData(usersListQueryOptions(deps)),
       context.queryClient.ensureQueryData(userStatsQueryOptions()),

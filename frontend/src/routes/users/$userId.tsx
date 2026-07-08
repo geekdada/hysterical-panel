@@ -17,15 +17,16 @@ import {
   createIgnoredConnectionIP,
   fetchPanelConfigQuery,
   fetchUserLive,
-  fetchUserOverview,
   isNotFoundError,
+  panelConfigQueryOptions,
   queryErrorMessage,
   queryKeys,
-  REFRESH_MS,
   resetUserAuthString,
   toTrafficRangeQuery,
   updateUserStatus,
+  userOverviewQueryOptions,
 } from "~/api/queries";
+import { markResponsePrivate } from "~/api/ssr";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
 import {
@@ -33,6 +34,7 @@ import {
   granularityForLocalRange,
   type LocalDateRange,
 } from "~/lib/traffic-range";
+import { FALLBACK_TIME_ZONE } from "~/lib/timezone";
 import {
   BrandLink,
   CopyButton,
@@ -65,6 +67,15 @@ export const Route = createFileRoute("/users/$userId")({
     label: () => m.user_fallback_account(),
     dynamic: true,
   }),
+  loader: async ({ context, params }) => {
+    markResponsePrivate();
+    const tz = context.timeZone ?? FALLBACK_TIME_ZONE;
+    const range = toTrafficRangeQuery(defaultLocalTrafficRange(tz), tz);
+    await Promise.allSettled([
+      context.queryClient.ensureQueryData(userOverviewQueryOptions(params.userId, range)),
+      context.queryClient.ensureQueryData(panelConfigQueryOptions()),
+    ]);
+  },
   component: AccountDetailPage,
 });
 
@@ -75,20 +86,22 @@ function AccountDetailPage() {
   const isAdmin = auth?.user.role === "admin";
   const tz = useActiveTimeZone();
 
-  const [trafficRange, setTrafficRange] = useState<LocalDateRange | null>(null);
+  const [trafficRange, setTrafficRange] = useState<LocalDateRange>(() =>
+    defaultLocalTrafficRange(tz)
+  );
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    setTrafficRange(defaultLocalTrafficRange(tz));
+    setTrafficRange((current) => {
+      const next = defaultLocalTrafficRange(tz);
+      return current.start.compare(next.start) === 0 && current.end.compare(next.end) === 0
+        ? current
+        : next;
+    });
   }, [tz]);
 
-  const trafficQuery = trafficRange ? toTrafficRangeQuery(trafficRange, tz) : null;
-  const overviewQuery = useQuery({
-    queryKey: queryKeys.userOverview(userId, trafficQuery),
-    queryFn: () => fetchUserOverview(userId, trafficQuery!),
-    enabled: canQueryPanelApi() && trafficQuery !== null,
-    refetchInterval: REFRESH_MS,
-  });
+  const trafficQuery = toTrafficRangeQuery(trafficRange, tz);
+  const overviewQuery = useQuery(userOverviewQueryOptions(userId, trafficQuery));
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 5_000);
@@ -98,7 +111,7 @@ function AccountDetailPage() {
   const user = overviewQuery.data?.user ?? null;
   const summary = overviewQuery.data?.summary ?? null;
   const series = overviewQuery.data?.series ?? null;
-  const loading = trafficQuery === null || overviewQuery.isPending;
+  const loading = overviewQuery.isPending;
   const notFound = isNotFoundError(overviewQuery.error);
   const error = overviewQuery.error && !notFound ? queryErrorMessage(overviewQuery.error) : "";
   const updatedAt = overviewQuery.dataUpdatedAt || null;
@@ -835,14 +848,14 @@ function TrafficSection({
   isAdmin,
 }: {
   loading: boolean;
-  trafficRange: LocalDateRange | null;
+  trafficRange: LocalDateRange;
   onTrafficRangeChange: (range: LocalDateRange) => void;
   series: TrafficSeries | null;
   summary: TrafficSummary | null;
   isAdmin: boolean;
 }) {
   const points = series?.points ?? [];
-  const granularity = trafficRange ? granularityForLocalRange(trafficRange) : "hourly";
+  const granularity = granularityForLocalRange(trafficRange);
   const totalTx = points.reduce((sum, p) => sum + (p.tx ?? 0), 0);
   const totalRx = points.reduce((sum, p) => sum + (p.rx ?? 0), 0);
   const byNode = [...(summary?.by_node ?? [])]
@@ -859,16 +872,7 @@ function TrafficSection({
           </span>
         ) : undefined
       }
-      action={
-        trafficRange ? (
-          <TrafficRangePicker value={trafficRange} onChange={onTrafficRangeChange} />
-        ) : (
-          <div
-            className="h-8 w-full shrink-0 rounded-(--radius) border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
-            aria-hidden
-          />
-        )
-      }
+      action={<TrafficRangePicker value={trafficRange} onChange={onTrafficRangeChange} />}
     >
       <div className="p-3 sm:p-4">
         {loading ? (
