@@ -279,6 +279,7 @@ hysterical-panel/
 | `PANEL_FRONTEND_URL_BASE` | 否 | 面板 UI 的 CORS 来源（`http://` / `https://`，无路径）；未设置则 `*`。写入 `apis.ServeConfig.AllowedOrigins` |
 | `PANEL_BACKEND_URL_BASE` | 否 | 公开 API 来源，经 `GET /api/panel/config` 的 `api_url` 回给前端；未设置则省略该字段，前端回退同域 / 构建期配置 |
 | `PANEL_SSR_API_BASE_URL` | 否 | 前端 Nitro SSR 进程访问后端的运行期地址；Docker Compose 默认 `http://backend:8090` |
+| `PANEL_LOG_LEVEL` | 否 | 前端 Nitro SSR 服务端日志级别（`error` / `warn` / `info` / `debug`），默认 `info`；只影响服务端 stdout/stderr，不进浏览器 |
 | `PANEL_CORS_MAX_AGE` | 否 | 预检缓存 `Access-Control-Max-Age`（秒），默认 `7200`；`0` 关闭 |
 | `PANEL_WEBAUTHN_RP_ID` | 否 | passkey 的稳定 Relying Party ID（通常是面板域名，无端口/协议）|
 | `PANEL_WEBAUTHN_ORIGINS` | 否 | passkey 允许的精确前端 origin，逗号分隔。**与 `PANEL_WEBAUTHN_RP_ID` 都未设、且无静态面板 origin 时 passkey 整体禁用** |

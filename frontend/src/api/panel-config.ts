@@ -1,5 +1,6 @@
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequestUrl } from "@tanstack/react-start/server";
+import { errorMessage, hostFromBaseUrl, serverLog, statusFromError } from "~/lib/server-log";
 import type { components } from "./schema";
 
 export type PanelConfig = components["schemas"]["PanelConfigResponse"];
@@ -58,11 +59,14 @@ export function fetchPanelConfig(): Promise<PanelConfig> {
   if (!server && cached) return Promise.resolve(cached);
   if (!server && inflight) return inflight;
 
-  const url = `${resolveConfigFetchBase()}/api/panel/config`;
+  const base = resolveConfigFetchBase();
+  const url = `${base}/api/panel/config`;
   const request = fetch(url)
     .then(async (res) => {
       if (!res.ok) {
-        throw new Error(`panel config failed (${res.status})`);
+        throw Object.assign(new Error(`panel config failed (${res.status})`), {
+          status: res.status,
+        });
       }
       return (await res.json()) as PanelConfig;
     })
@@ -70,7 +74,15 @@ export function fetchPanelConfig(): Promise<PanelConfig> {
       if (!server) cached = data;
       return data;
     })
-    .catch(() => {
+    .catch((error: unknown) => {
+      if (server) {
+        serverLog.error("ssr_panel_config_failed", {
+          path: "/api/panel/config",
+          host: hostFromBaseUrl(base),
+          status: statusFromError(error),
+          message: errorMessage(error),
+        });
+      }
       return EMPTY_CONFIG;
     })
     .finally(() => {

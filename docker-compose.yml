@@ -73,6 +73,7 @@ services:
       PORT: 3000
       HOST: 0.0.0.0
       PANEL_SSR_API_BASE_URL: ${PANEL_SSR_API_BASE_URL:-http://backend:8090}
+      PANEL_LOG_LEVEL: ${PANEL_LOG_LEVEL:-info}
     depends_on:
       backend:
         condition: service_healthy
