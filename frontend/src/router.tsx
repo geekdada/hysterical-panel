@@ -1,10 +1,20 @@
 import { createRouter } from "@tanstack/react-router";
+import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { createPanelQueryClient } from "./api/query-provider";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
-  return createRouter({
+  const queryClient = createPanelQueryClient();
+  const router = createRouter({
     routeTree,
     scrollRestoration: true,
-    context: { auth: null }, // overwritten by the root beforeLoad on every load
+    context: {
+      auth: null, // overwritten by the root beforeLoad on every load
+      queryClient,
+    },
   });
+
+  setupRouterSsrQueryIntegration({ router, queryClient });
+
+  return router;
 }

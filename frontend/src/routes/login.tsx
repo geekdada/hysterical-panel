@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { login, loginWithPasskey } from "~/api/auth";
-import { canQueryPanelApi, fetchPanelConfigQuery, queryKeys } from "~/api/queries";
+import { panelConfigQueryOptions } from "~/api/queries";
 import { AuthShell } from "~/components/ui";
 import { localizeApiError } from "~/lib/api-error";
 import * as m from "~/paraglide/messages.js";
@@ -13,6 +13,9 @@ export const Route = createFileRoute("/login")({
     if (context.auth) {
       throw redirect({ to: "/" });
     }
+  },
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(panelConfigQueryOptions()).catch(() => undefined);
   },
   component: LoginPage,
 });
@@ -33,11 +36,7 @@ function LoginPage() {
       window.location.href = "/";
     },
   });
-  const configQuery = useQuery({
-    queryKey: queryKeys.config(),
-    queryFn: fetchPanelConfigQuery,
-    enabled: canQueryPanelApi(),
-  });
+  const configQuery = useQuery(panelConfigQueryOptions());
   const canRegister = configQuery.data?.registration_open ?? false;
   const passkeysEnabled = configQuery.data?.passkeys_enabled ?? false;
 

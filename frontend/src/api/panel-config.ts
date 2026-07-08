@@ -11,15 +11,39 @@ const EMPTY_CONFIG: PanelConfig = {
   version: "",
 };
 
+declare const process:
+  | {
+      env?: {
+        PANEL_SSR_API_BASE_URL?: string;
+      };
+    }
+  | undefined;
+
 let cached: PanelConfig | null = null;
 let inflight: Promise<PanelConfig> | null = null;
 
-export function fetchPanelConfig(): Promise<PanelConfig> {
-  if (cached) return Promise.resolve(cached);
-  if (inflight) return inflight;
+function isServerRuntime(): boolean {
+  return typeof window === "undefined";
+}
 
-  const url = `${BOOTSTRAP_BASE}/api/panel/config`;
-  inflight = fetch(url)
+export function resolveServerApiBaseUrl(): string {
+  if (!isServerRuntime()) return "";
+  const runtimeBase =
+    typeof process !== "undefined" ? process.env?.PANEL_SSR_API_BASE_URL : undefined;
+  return (runtimeBase || BOOTSTRAP_BASE).replace(/\/$/, "");
+}
+
+function resolveConfigFetchBase(): string {
+  return isServerRuntime() ? resolveServerApiBaseUrl() : BOOTSTRAP_BASE;
+}
+
+export function fetchPanelConfig(): Promise<PanelConfig> {
+  const server = isServerRuntime();
+  if (!server && cached) return Promise.resolve(cached);
+  if (!server && inflight) return inflight;
+
+  const url = `${resolveConfigFetchBase()}/api/panel/config`;
+  const request = fetch(url)
     .then(async (res) => {
       if (!res.ok) {
         throw new Error(`panel config failed (${res.status})`);
@@ -27,18 +51,18 @@ export function fetchPanelConfig(): Promise<PanelConfig> {
       return (await res.json()) as PanelConfig;
     })
     .then((data) => {
-      cached = data;
+      if (!server) cached = data;
       return data;
     })
     .catch(() => {
-      cached = EMPTY_CONFIG;
       return EMPTY_CONFIG;
     })
     .finally(() => {
-      inflight = null;
+      if (!server) inflight = null;
     });
 
-  return inflight;
+  if (!server) inflight = request;
+  return request;
 }
 
 export function resolveApiBaseUrl(config: PanelConfig): string {

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { createIsomorphicFn } from "@tanstack/react-start";
+import { setResponseHeader } from "@tanstack/react-start/server";
 import {
   getCoreRowModel,
   getSortedRowModel,
@@ -11,15 +13,13 @@ import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-ro
 import { Button } from "@heroui/react";
 import type { components } from "~/api/schema";
 import {
-  canQueryPanelApi,
-  fetchDashboardNodeTraffic,
-  fetchDashboardNodes,
-  fetchDashboardTraffic,
-  fetchUserStats,
+  dashboardNodeTrafficQueryOptions,
+  dashboardNodesQueryOptions,
+  dashboardTrafficQueryOptions,
   queryErrorMessage,
-  queryKeys,
-  REFRESH_MS,
   toTrafficRangeQuery,
+  userStatsQueryOptions,
+  type TrafficRangeQuery,
 } from "~/api/queries";
 import {
   Brand,
@@ -42,6 +42,7 @@ import {
   type TrafficRangeShortcut,
   trafficShortcutRange,
 } from "~/lib/traffic-range";
+import { useMounted } from "~/lib/use-mounted";
 import { useActiveTimeZone } from "~/lib/use-timezone";
 import { defaultUsersListSearch, type UsersListSearch } from "~/lib/users-list-search";
 import * as m from "~/paraglide/messages.js";
@@ -59,6 +60,37 @@ type NodeTableRow = {
   txSpeed: number;
 };
 
+type TrafficPeriod = "today" | "t-1" | "7d";
+
+const DASHBOARD_SSR_TIME_ZONE = "UTC";
+
+const TRAFFIC_PERIOD_LABELS: Record<TrafficPeriod, string> = {
+  today: "T",
+  "t-1": "T-1",
+  "7d": "7d",
+};
+
+// Map the dashboard's compact period toggle onto the range-based traffic API.
+const TRAFFIC_PERIOD_SHORTCUT: Record<TrafficPeriod, TrafficRangeShortcut> = {
+  today: "today",
+  "t-1": "yesterday",
+  "7d": "last-7d",
+};
+
+function dashboardTrafficRangeQuery(period: TrafficPeriod, tz: string): TrafficRangeQuery {
+  return toTrafficRangeQuery(trafficShortcutRange(TRAFFIC_PERIOD_SHORTCUT[period], tz), tz);
+}
+
+function dashboardNodeTrafficRangeQuery(tz: string): TrafficRangeQuery {
+  return toTrafficRangeQuery(defaultLocalTrafficRange(tz), tz);
+}
+
+const markDashboardResponsePrivate = createIsomorphicFn()
+  .server(() => {
+    setResponseHeader("cache-control", "private, no-store");
+  })
+  .client(() => {});
+
 export const Route = createFileRoute("/")({
   beforeLoad: ({ context }) => {
     if (!context.auth) {
@@ -71,6 +103,19 @@ export const Route = createFileRoute("/")({
       });
     }
   },
+  loader: async ({ context }) => {
+    markDashboardResponsePrivate();
+    await Promise.allSettled([
+      context.queryClient.ensureQueryData(dashboardNodesQueryOptions()),
+      context.queryClient.ensureQueryData(userStatsQueryOptions()),
+      context.queryClient.ensureQueryData(
+        dashboardTrafficQueryOptions(dashboardTrafficRangeQuery("today", DASHBOARD_SSR_TIME_ZONE))
+      ),
+      context.queryClient.ensureQueryData(
+        dashboardNodeTrafficQueryOptions(dashboardNodeTrafficRangeQuery(DASHBOARD_SSR_TIME_ZONE))
+      ),
+    ]);
+  },
   component: DashboardPage,
 });
 
@@ -78,41 +123,21 @@ function DashboardPage() {
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
-  const tz = useActiveTimeZone();
+  const activeTz = useActiveTimeZone();
+  const mounted = useMounted();
+  const tz = mounted ? activeTz : DASHBOARD_SSR_TIME_ZONE;
   const [trafficPeriod, setTrafficPeriod] = useState<TrafficPeriod>("today");
-  const [nodeTrafficRange, setNodeTrafficRange] = useState<LocalDateRange | null>(null);
+  const [nodeTrafficRange, setNodeTrafficRange] = useState<LocalDateRange>(() =>
+    defaultLocalTrafficRange(DASHBOARD_SSR_TIME_ZONE)
+  );
   const [now, setNow] = useState(() => Date.now());
 
-  const queryEnabled = canQueryPanelApi();
-  const nodeTrafficQuery = nodeTrafficRange ? toTrafficRangeQuery(nodeTrafficRange, tz) : null;
-  const trafficRangeQuery = toTrafficRangeQuery(
-    trafficShortcutRange(TRAFFIC_PERIOD_SHORTCUT[trafficPeriod], tz),
-    tz
-  );
-  const nodesQuery = useQuery({
-    queryKey: queryKeys.dashboardNodes(),
-    queryFn: fetchDashboardNodes,
-    enabled: queryEnabled,
-    refetchInterval: REFRESH_MS,
-  });
-  const userStatsQuery = useQuery({
-    queryKey: queryKeys.userStats(),
-    queryFn: fetchUserStats,
-    enabled: queryEnabled,
-    refetchInterval: REFRESH_MS,
-  });
-  const trafficQuery = useQuery({
-    queryKey: queryKeys.dashboardTraffic(trafficRangeQuery),
-    queryFn: () => fetchDashboardTraffic(trafficRangeQuery),
-    enabled: queryEnabled,
-    refetchInterval: REFRESH_MS,
-  });
-  const nodeTrafficSummaryQuery = useQuery({
-    queryKey: queryKeys.dashboardNodeTraffic(nodeTrafficQuery),
-    queryFn: () => fetchDashboardNodeTraffic(nodeTrafficQuery!),
-    enabled: queryEnabled && nodeTrafficQuery !== null,
-    refetchInterval: REFRESH_MS,
-  });
+  const nodeTrafficQuery = toTrafficRangeQuery(nodeTrafficRange, tz);
+  const trafficRangeQuery = dashboardTrafficRangeQuery(trafficPeriod, tz);
+  const nodesQuery = useQuery(dashboardNodesQueryOptions());
+  const userStatsQuery = useQuery(userStatsQueryOptions());
+  const trafficQuery = useQuery(dashboardTrafficQueryOptions(trafficRangeQuery));
+  const nodeTrafficSummaryQuery = useQuery(dashboardNodeTrafficQueryOptions(nodeTrafficQuery));
 
   // Tick the clock so relative timestamps stay current and today rolls over. Also
   // re-seeds when the timezone preference changes so "today" tracks the active tz.
@@ -141,7 +166,7 @@ function DashboardPage() {
   const nodesLoading = nodesQuery.isPending;
   const usersLoading = userStatsQuery.isPending;
   const trafficLoading = trafficQuery.isPending;
-  const nodeTrafficLoading = nodeTrafficRange === null || nodeTrafficSummaryQuery.isPending;
+  const nodeTrafficLoading = nodeTrafficSummaryQuery.isPending;
   const nodesError = nodesQuery.error ? queryErrorMessage(nodesQuery.error) : "";
   const usersError = userStatsQuery.error ? queryErrorMessage(userStatsQuery.error) : "";
   const trafficError = trafficQuery.error ? queryErrorMessage(trafficQuery.error) : "";
@@ -317,21 +342,6 @@ function DashboardPage() {
 }
 
 /* ── Layout primitives ─────────────────────────────────────────────────── */
-
-type TrafficPeriod = "today" | "t-1" | "7d";
-
-const TRAFFIC_PERIOD_LABELS: Record<TrafficPeriod, string> = {
-  today: "T",
-  "t-1": "T-1",
-  "7d": "7d",
-};
-
-// Map the dashboard's compact period toggle onto the range-based traffic API.
-const TRAFFIC_PERIOD_SHORTCUT: Record<TrafficPeriod, TrafficRangeShortcut> = {
-  today: "today",
-  "t-1": "yesterday",
-  "7d": "last-7d",
-};
 
 function TrafficPeriodToggle({
   value,

@@ -1,3 +1,6 @@
+import { createIsomorphicFn } from "@tanstack/react-start";
+import { getCookie } from "@tanstack/react-start/server";
+
 export const AUTH_COOKIE = "hp_auth";
 export const LEGACY_AUTH_COOKIE = "pb_auth";
 
@@ -140,7 +143,11 @@ export function readAuthCookieValueClient(): string | null {
 
 /** Server-side read: hp_auth first, then legacy pb_auth. */
 export function readAuthCookieValueServer(
-  getCookie: (name: string) => string | undefined
+  getCookieFn: (name: string) => string | undefined
 ): string | null {
-  return getCookie(AUTH_COOKIE) ?? getCookie(LEGACY_AUTH_COOKIE) ?? null;
+  return getCookieFn(AUTH_COOKIE) ?? getCookieFn(LEGACY_AUTH_COOKIE) ?? null;
 }
+
+export const readAuthCookieValue = createIsomorphicFn()
+  .server((): string | null => readAuthCookieValueServer((name) => getCookie(name)))
+  .client((): string | null => readAuthCookieValueClient());

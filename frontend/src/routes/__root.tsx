@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import { useEffect, useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { I18nProvider } from "@react-aria/i18n";
 import {
   Link,
@@ -25,7 +25,7 @@ import {
   registerPasskey,
   type Auth,
 } from "~/api/auth";
-import { PanelQueryProvider } from "~/api/query-provider";
+import { PanelQueryDevtools } from "~/api/query-provider";
 import {
   ensureSessionFresh,
   getSessionRecoveryFailed,
@@ -36,6 +36,7 @@ import "~/styles/globals.css";
 
 export interface RouterContext {
   auth: Auth | null;
+  queryClient: QueryClient;
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
@@ -93,11 +94,10 @@ function RootComponent() {
   return (
     <I18nProvider locale={locale}>
       <RootDocument>
-        <PanelQueryProvider>
-          <SessionKeeper />
-          <SessionRecoveryBanner />
-          <Outlet />
-        </PanelQueryProvider>
+        <SessionKeeper />
+        <SessionRecoveryBanner />
+        <Outlet />
+        <PanelQueryDevtools />
       </RootDocument>
     </I18nProvider>
   );

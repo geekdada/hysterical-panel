@@ -1,17 +1,18 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
-import { readAuthCookieValueClient } from "./cookie";
-import { fetchPanelConfig, resolveApiBaseUrl } from "./panel-config";
+import { readAuthCookieValue } from "./cookie";
+import { fetchPanelConfig, resolveApiBaseUrl, resolveServerApiBaseUrl } from "./panel-config";
 import { wrapFetchWithSession } from "./session";
 
 const BOOTSTRAP_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 async function resolveFetchOrigin(): Promise<string> {
+  if (typeof window === "undefined") return resolveServerApiBaseUrl();
+
   const config = await fetchPanelConfig();
   const base = resolveApiBaseUrl(config);
   if (base) return base;
-  if (typeof window !== "undefined") return window.location.origin;
-  return BOOTSTRAP_BASE;
+  return window.location.origin;
 }
 
 const panelFetchBase: typeof fetch = async (input, init) => {
@@ -48,9 +49,9 @@ export const apiClient = createClient<paths>({
 
 const authMiddleware = {
   onRequest({ request }: { request: Request }) {
-    // Read the token fresh from the cookie per request — no shared module
-    // state, so no cross-request leakage. API calls run client-side.
-    const raw = readAuthCookieValueClient();
+    // Read the token per request: document.cookie in the browser, request
+    // AsyncLocalStorage on the server, with no shared auth state.
+    const raw = readAuthCookieValue();
     if (raw) {
       try {
         const { token } = JSON.parse(raw) as { token?: string };

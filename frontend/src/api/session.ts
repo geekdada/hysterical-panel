@@ -196,6 +196,7 @@ function withRetryInit(init: RequestInit | undefined, token: string): RequestIni
 export function wrapFetchWithSession(baseFetch: typeof fetch): typeof fetch {
   return async (input, init) => {
     const response = await baseFetch(input, init);
+    if (typeof window === "undefined") return response;
     if (response.status !== 401) return response;
     if (isNoSessionRetryUrl(input) || isRetriedRequest(init)) return response;
 

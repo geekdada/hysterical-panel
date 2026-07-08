@@ -1,17 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createIsomorphicFn } from "@tanstack/react-start";
+import { setResponseHeader } from "@tanstack/react-start/server";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
-  canQueryPanelApi,
   createUser,
-  fetchUserStats,
-  fetchUsersList,
   queryErrorMessage,
   queryKeys,
-  REFRESH_MS,
+  userStatsQueryOptions,
+  usersListQueryOptions,
   updateUserStatus,
 } from "~/api/queries";
 import {
@@ -41,9 +41,23 @@ import * as m from "~/paraglide/messages.js";
 
 type PanelUser = components["schemas"]["PanelUser"];
 
+const markUsersResponsePrivate = createIsomorphicFn()
+  .server(() => {
+    setResponseHeader("cache-control", "private, no-store");
+  })
+  .client(() => {});
+
 export const Route = createFileRoute("/users/")({
   validateSearch: parseUsersListSearch,
   beforeLoad: ({ context }) => requireAdmin(context.auth),
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, deps }) => {
+    markUsersResponsePrivate();
+    await Promise.allSettled([
+      context.queryClient.ensureQueryData(usersListQueryOptions(deps)),
+      context.queryClient.ensureQueryData(userStatsQueryOptions()),
+    ]);
+  },
   component: UsersPage,
 });
 
@@ -61,21 +75,13 @@ function UsersPage() {
   }, []);
 
   const usersQuery = useQuery({
-    queryKey: queryKeys.usersList(listSearch),
-    queryFn: () => fetchUsersList(listSearch),
-    enabled: canQueryPanelApi(),
-    refetchInterval: REFRESH_MS,
+    ...usersListQueryOptions(listSearch),
     // Keep the prior page's rows mounted while a new search/sort/page loads, so
     // the table (and the focused search input inside it) is never swapped for
     // the loading skeleton mid-keystroke.
     placeholderData: keepPreviousData,
   });
-  const statsQuery = useQuery({
-    queryKey: queryKeys.userStats(),
-    queryFn: fetchUserStats,
-    enabled: canQueryPanelApi(),
-    refetchInterval: REFRESH_MS,
-  });
+  const statsQuery = useQuery(userStatsQueryOptions());
 
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);

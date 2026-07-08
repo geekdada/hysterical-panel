@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { register } from "~/api/auth";
-import { canQueryPanelApi, fetchPanelConfigQuery, queryKeys } from "~/api/queries";
+import { panelConfigQueryOptions } from "~/api/queries";
 import { AuthShell } from "~/components/ui";
 import { localizeApiError } from "~/lib/api-error";
 import * as m from "~/paraglide/messages.js";
@@ -17,16 +17,15 @@ export const Route = createFileRoute("/register")({
       throw redirect({ to: "/" });
     }
   },
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(panelConfigQueryOptions()).catch(() => undefined);
+  },
   component: RegisterPage,
 });
 
 function RegisterPage() {
   const { code: codeParam } = Route.useSearch();
-  const configQuery = useQuery({
-    queryKey: queryKeys.config(),
-    queryFn: fetchPanelConfigQuery,
-    enabled: canQueryPanelApi(),
-  });
+  const configQuery = useQuery(panelConfigQueryOptions());
   const config = configQuery.data;
 
   const [email, setEmail] = useState("");

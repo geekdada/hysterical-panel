@@ -1,9 +1,7 @@
-import { createIsomorphicFn } from "@tanstack/react-start";
-import { getCookie } from "@tanstack/react-start/server";
 import {
   clearAuthCookies,
+  readAuthCookieValue,
   readAuthCookieValueClient,
-  readAuthCookieValueServer,
   writeAuthCookie,
 } from "./cookie";
 import { wrapFetchWithSession } from "./session";
@@ -65,15 +63,9 @@ function parseAuth(raw: string | null | undefined): Auth | null {
   }
 }
 
-/**
- * Read the stored auth, working on both sides of SSR: the server reads the
- * request cookie, the client reads document.cookie. createIsomorphicFn keeps
- * the server-only import out of the client bundle. Both impls are defined so
- * neither side silently returns undefined.
- */
-export const readAuthCookie = createIsomorphicFn()
-  .server((): Auth | null => parseAuth(readAuthCookieValueServer((name) => getCookie(name))))
-  .client((): Auth | null => parseAuth(readAuthCookieValueClient()));
+export function readAuthCookie(): Auth | null {
+  return parseAuth(readAuthCookieValue());
+}
 
 async function resolveAuthBase(): Promise<string> {
   const config = await fetchPanelConfig();

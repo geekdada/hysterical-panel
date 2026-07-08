@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import { apiClient } from "./client";
 import { fetchPanelConfig } from "./panel-config";
 import {
@@ -167,6 +168,7 @@ export const queryKeys = {
 };
 
 export function canQueryPanelApi(): boolean {
+  // Loaders may prefill SSR data; component-only queries stay browser-only until converted.
   return typeof window !== "undefined";
 }
 
@@ -183,8 +185,27 @@ export async function fetchPanelConfigQuery(): Promise<PanelConfig> {
   return fetchPanelConfig();
 }
 
+export function panelConfigQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.config(),
+    queryFn: fetchPanelConfigQuery,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
 export function fetchDashboardNodes(): Promise<Node[]> {
   return apiRequest<Node[]>(apiClient.GET("/api/panel/nodes"));
+}
+
+export function dashboardNodesQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.dashboardNodes(),
+    queryFn: fetchDashboardNodes,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
 }
 
 export function fetchDashboardNodeTraffic(
@@ -195,6 +216,16 @@ export function fetchDashboardNodeTraffic(
       params: { query: { from: range.from, to: range.to } },
     })
   );
+}
+
+export function dashboardNodeTrafficQueryOptions(range: TrafficRangeQuery) {
+  return queryOptions({
+    queryKey: queryKeys.dashboardNodeTraffic(range),
+    queryFn: () => fetchDashboardNodeTraffic(range),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
 }
 
 export function fetchUserStats(): Promise<UserStatsResponse> {
@@ -214,6 +245,26 @@ export function fetchUsersList(query: UsersListQuery): Promise<UserListResponse>
       },
     })
   );
+}
+
+export function userStatsQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.userStats(),
+    queryFn: fetchUserStats,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
+export function usersListQueryOptions(query: UsersListQuery) {
+  return queryOptions({
+    queryKey: queryKeys.usersList(query),
+    queryFn: () => fetchUsersList(query),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
 }
 
 export function createUser(body: UserCreateRequest): Promise<PanelUser> {
@@ -251,6 +302,16 @@ export function fetchDashboardTraffic(range: TrafficRangeQuery): Promise<PanelTr
       params: { query: { from: range.from, to: range.to } },
     })
   );
+}
+
+export function dashboardTrafficQueryOptions(range: TrafficRangeQuery) {
+  return queryOptions({
+    queryKey: queryKeys.dashboardTraffic(range),
+    queryFn: () => fetchDashboardTraffic(range),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
 }
 
 export function fetchPanelTrafficSeries(range: TrafficRangeQuery): Promise<TrafficSeries | null> {
