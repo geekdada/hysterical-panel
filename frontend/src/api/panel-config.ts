@@ -1,3 +1,5 @@
+import { createIsomorphicFn } from "@tanstack/react-start";
+import { getRequestUrl } from "@tanstack/react-start/server";
 import type { components } from "./schema";
 
 export type PanelConfig = components["schemas"]["PanelConfigResponse"];
@@ -26,11 +28,25 @@ function isServerRuntime(): boolean {
   return typeof window === "undefined";
 }
 
+/** Origin of the in-flight SSR request (honors X-Forwarded-Proto), or "". */
+const incomingRequestOrigin = createIsomorphicFn()
+  .server((): string => {
+    try {
+      return getRequestUrl().origin;
+    } catch {
+      return "";
+    }
+  })
+  .client((): string => "");
+
 export function resolveServerApiBaseUrl(): string {
   if (!isServerRuntime()) return "";
   const runtimeBase =
     typeof process !== "undefined" ? process.env?.PANEL_SSR_API_BASE_URL : undefined;
-  return (runtimeBase || BOOTSTRAP_BASE).replace(/\/$/, "");
+  const base = (runtimeBase || BOOTSTRAP_BASE).replace(/\/$/, "");
+  // Same-origin deployments configure no explicit base; reuse the incoming
+  // request's origin so SSR resolves relative API paths like the browser does.
+  return base || incomingRequestOrigin();
 }
 
 function resolveConfigFetchBase(): string {

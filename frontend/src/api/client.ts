@@ -42,9 +42,25 @@ const panelFetchBase: typeof fetch = async (input, init) => {
 
 const panelFetch = wrapFetchWithSession(panelFetchBase);
 
+/**
+ * openapi-fetch constructs `new Request(baseUrl + path)` before the custom
+ * fetch runs. With a same-origin (empty) base that relative URL throws in
+ * Node during SSR, so resolve the server API base at construction time.
+ */
+class PanelRequest extends Request {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    if (typeof window === "undefined" && typeof input === "string" && input.startsWith("/")) {
+      super(`${resolveServerApiBaseUrl()}${input}`, init);
+      return;
+    }
+    super(input, init);
+  }
+}
+
 export const apiClient = createClient<paths>({
   baseUrl: BOOTSTRAP_BASE,
   fetch: panelFetch,
+  Request: PanelRequest,
 });
 
 const authMiddleware = {
