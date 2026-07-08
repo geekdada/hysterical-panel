@@ -386,13 +386,9 @@ function Stat({
   );
 
   return (
-    <div className="flex-1 px-4 py-3">
-      <div className="flex justify-between gap-2">
-        <div className="shrink-0 text-[11px] font-medium uppercase tracking-wider text-(--muted)">
-          {label}
-        </div>
-        {headerAction}
-      </div>
+    <div className="relative flex-1 px-4 py-3">
+      {headerAction ? <div className="absolute top-3 right-4 z-10">{headerAction}</div> : null}
+      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
       {loading ? (
         <StatSkeleton withDot={Boolean(dot)} wide={label === m.nav_traffic()} />
       ) : (
