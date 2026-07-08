@@ -11,6 +11,7 @@ export function getRouter() {
     context: {
       auth: null, // overwritten by the root beforeLoad on every load
       queryClient,
+      timeZone: null,
     },
   });
 

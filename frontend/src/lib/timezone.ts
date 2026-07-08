@@ -1,4 +1,5 @@
 import { getLocalTimeZone } from "@internationalized/date";
+import { readTimeZoneCookieValue, writeTimeZoneCookie } from "~/api/cookie";
 
 // User-overridable display/query timezone. Mirrors the theme-preference pattern
 // (localStorage, module-level state) since the codebase keeps cross-page prefs as
@@ -7,6 +8,7 @@ import { getLocalTimeZone } from "@internationalized/date";
 // React components can subscribe via useSyncExternalStore (see use-timezone.ts).
 
 export const TIMEZONE_STORAGE_KEY = "hp:tz";
+export const FALLBACK_TIME_ZONE = "UTC";
 
 // null = "follow system" (no override, current behavior); otherwise an IANA id —
 // a fixed-offset "Etc/GMT±N" zone or "UTC".
@@ -73,7 +75,21 @@ export function setTimezonePreference(next: TimezonePreference): void {
   } catch {
     // Storage unavailable (private mode / disabled) — still apply for this session.
   }
+  // Cookie always stores the resolved zone (never a "system" sentinel) so SSR
+  // loaders can compute the same traffic range the client will use after hydrate.
+  writeTimeZoneCookie(next ?? getLocalTimeZone());
   for (const listener of listeners) listener();
+}
+
+/** Validated timezone from the hp_tz cookie, or null when missing/invalid. */
+export function readSsrTimeZone(): string | null {
+  const value = readTimeZoneCookieValue();
+  return value && isValidTimeZone(value) ? value : null;
+}
+
+/** Write the currently resolved active timezone into the hp_tz cookie. */
+export function syncTimezoneCookie(): void {
+  writeTimeZoneCookie(getActiveTimeZone());
 }
 
 // --- external store plumbing (consumed by useSyncExternalStore) ---

@@ -3,8 +3,10 @@ import { getCookie } from "@tanstack/react-start/server";
 
 export const AUTH_COOKIE = "hp_auth";
 export const LEGACY_AUTH_COOKIE = "pb_auth";
+export const TIMEZONE_COOKIE = "hp_tz";
 
 export const MAX_AGE_CAP_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const TIMEZONE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // 1 year
 
 function secureAttr(): string {
   return typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : "";
@@ -151,3 +153,18 @@ export function readAuthCookieValueServer(
 export const readAuthCookieValue = createIsomorphicFn()
   .server((): string | null => readAuthCookieValueServer((name) => getCookie(name)))
   .client((): string | null => readAuthCookieValueClient());
+
+/** Persist the resolved IANA timezone to hp_tz (no validation — callers validate). */
+export function writeTimeZoneCookie(tz: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie =
+    `${TIMEZONE_COOKIE}=${encodeURIComponent(tz)}` +
+    `; Path=/` +
+    `; Max-Age=${TIMEZONE_COOKIE_MAX_AGE_SECONDS}` +
+    `; SameSite=Lax` +
+    secureAttr();
+}
+
+export const readTimeZoneCookieValue = createIsomorphicFn()
+  .server((): string | null => getCookie(TIMEZONE_COOKIE) ?? null)
+  .client((): string | null => readRawCookie(TIMEZONE_COOKIE));

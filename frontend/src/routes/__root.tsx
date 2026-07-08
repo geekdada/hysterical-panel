@@ -31,16 +31,18 @@ import {
   getSessionRecoveryFailed,
   subscribeSessionRecovery,
 } from "~/api/session";
+import { readSsrTimeZone, syncTimezoneCookie } from "~/lib/timezone";
 
 import "~/styles/globals.css";
 
 export interface RouterContext {
   auth: Auth | null;
   queryClient: QueryClient;
+  timeZone: string | null;
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-  beforeLoad: () => ({ auth: readAuthCookie() }),
+  beforeLoad: () => ({ auth: readAuthCookie(), timeZone: readSsrTimeZone() }),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -95,6 +97,7 @@ function RootComponent() {
     <I18nProvider locale={locale}>
       <RootDocument>
         <SessionKeeper />
+        <TimezoneCookieSync />
         <SessionRecoveryBanner />
         <Outlet />
         <PanelQueryDevtools />
@@ -137,6 +140,13 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       </body>
     </html>
   );
+}
+
+function TimezoneCookieSync() {
+  useEffect(() => {
+    syncTimezoneCookie();
+  }, []);
+  return null;
 }
 
 function SessionKeeper() {
