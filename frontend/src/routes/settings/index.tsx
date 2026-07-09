@@ -441,7 +441,13 @@ function PasskeyRow({
           {backup} · {lastUsed}
         </p>
       </div>
-      <Button size="sm" variant="secondary" isDisabled={deleting} onPress={onDelete}>
+      <Button
+        size="sm"
+        variant="secondary"
+        isDisabled={deleting}
+        onPress={onDelete}
+        className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
+      >
         {deleting ? m.common_deleting() : m.common_delete()}
       </Button>
     </li>
@@ -586,6 +592,7 @@ function ManagementApiSection({
 }) {
   const queryClient = useQueryClient();
   const [revealedToken, setRevealedToken] = useState<string | null>(null);
+  const [rotateOpen, setRotateOpen] = useState(false);
 
   const enabled = settings?.management_api_enabled ?? false;
   const tokenSet = settings?.management_api_token_set ?? false;
@@ -599,12 +606,18 @@ function ManagementApiSection({
     mutationFn: () => rotateManagementApiToken(),
     onSuccess: (data) => {
       if (data.management_api_token) setRevealedToken(data.management_api_token);
+      setRotateOpen(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings() });
     },
   });
 
   function toggleEnabled(v: boolean) {
     onSave({ management_api_enabled: v });
+  }
+
+  function handleRotateOpenChange(open: boolean) {
+    setRotateOpen(open);
+    if (!open) rotateMutation.reset();
   }
 
   return (
@@ -637,7 +650,8 @@ function ManagementApiSection({
                 variant="secondary"
                 size="sm"
                 isDisabled={pending || rotateMutation.isPending}
-                onPress={() => rotateMutation.mutate()}
+                onPress={() => setRotateOpen(true)}
+                className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
               >
                 {rotateMutation.isPending ? m.settings_rotating() : m.settings_rotate_token()}
               </Button>
@@ -645,6 +659,22 @@ function ManagementApiSection({
           </>
         )}
       </div>
+
+      <DestructiveConfirmModal
+        isOpen={rotateOpen}
+        title={m.settings_rotate_token_confirm_title()}
+        body={m.settings_rotate_token_confirm_body()}
+        confirmLabel={m.settings_rotate_token()}
+        pendingLabel={m.settings_rotating()}
+        pending={rotateMutation.isPending}
+        error={
+          rotateMutation.error
+            ? queryErrorMessage(rotateMutation.error, m.error_mgmt_token_rotate_network())
+            : ""
+        }
+        onOpenChange={handleRotateOpenChange}
+        onConfirm={() => rotateMutation.mutate()}
+      />
 
       {revealedToken && (
         <div className="mt-4 rounded-(--radius) border border-(--warning) bg-(--warning-soft) px-4 py-3">
@@ -675,15 +705,6 @@ function ManagementApiSection({
       </Link>
 
       <ErrorAlert message={error} className="mt-4" />
-
-      <ErrorAlert
-        className="mt-4"
-        message={
-          rotateMutation.error
-            ? queryErrorMessage(rotateMutation.error, m.error_mgmt_token_rotate_network())
-            : ""
-        }
-      />
     </>
   );
 }

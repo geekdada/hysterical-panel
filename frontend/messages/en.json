@@ -190,6 +190,8 @@
   "settings_configured": "Configured",
   "settings_rotating": "Rotating…",
   "settings_rotate_token": "Rotate token",
+  "settings_rotate_token_confirm_title": "Rotate management API token?",
+  "settings_rotate_token_confirm_body": "The current token will stop working immediately. Update every external integration with the new token.",
   "settings_copy_token_now": "Copy your token now. It won't be shown again.",
   "settings_api_reference": "API reference",
   "settings_api_reference_desc": "Endpoints with request and response examples.",

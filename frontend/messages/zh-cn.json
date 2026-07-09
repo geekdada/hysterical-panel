@@ -190,6 +190,8 @@
   "settings_configured": "已配置",
   "settings_rotating": "轮换中…",
   "settings_rotate_token": "轮换令牌",
+  "settings_rotate_token_confirm_title": "轮换管理 API 令牌？",
+  "settings_rotate_token_confirm_body": "当前令牌将立即失效。请使用新令牌更新所有外部集成。",
   "settings_copy_token_now": "请立即复制令牌，之后将不再显示。",
   "settings_api_reference": "API 参考",
   "settings_api_reference_desc": "包含请求与响应示例的端点说明。",
