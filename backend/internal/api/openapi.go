@@ -19,42 +19,47 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 
 	// ── schemas from DTO structs ──────────────────────────────────────────
 	schemaDefs := map[string]any{
-		"Node":                       Node{},
-		"NodeCreateRequest":          NodeCreateRequest{},
-		"NodeUpdateRequest":          NodeUpdateRequest{},
-		"NodeTestResponse":           NodeTestResponse{},
-		"NodeAPISecretResetResponse": NodeAPISecretResetResponse{},
-		"PanelUser":                  PanelUser{},
-		"RecentConnection":           RecentConnection{},
-		"UserListResponse":           UserListResponse{},
-		"UserStatsResponse":          UserStatsResponse{},
-		"UserCreateRequest":          UserCreateRequest{},
-		"UserUpdateRequest":          UserUpdateRequest{},
-		"Passkey":                    Passkey{},
-		"PasskeyOptionsResponse":     PasskeyOptionsResponse{},
-		"PasskeyFinishRequest":       PasskeyFinishRequest{},
-		"PanelAuthResponse":          PanelAuthResponse{},
-		"PanelTrafficResponse":       PanelTrafficResponse{},
-		"PanelNodeTrafficResponse":   PanelNodeTrafficResponse{},
-		"TrafficSummaryResponse":     TrafficSummaryResponse{},
-		"TrafficSeriesResponse":      TrafficSeriesResponse{},
-		"NodeTrafficSummaryResponse": NodeTrafficSummaryResponse{},
-		"DatabaseStatsResponse":      DatabaseStatsResponse{},
-		"DatabasePruneResponse":      DatabasePruneResponse{},
-		"LiveResponse":               LiveResponse{},
-		"NodeLiveResponse":           NodeLiveResponse{},
-		"DeleteResponse":             DeleteResponse{},
-		"ErrorResponse":              ErrorResponse{},
-		"PanelConfigResponse":        PanelConfigResponse{},
-		"RegisterRequest":            RegisterRequest{},
-		"RegisterResponse":           RegisterResponse{},
-		"Invitation":                      Invitation{},
-		"InvitationCreateRequest":         InvitationCreateRequest{},
-		"IgnoredConnectionIP":             IgnoredConnectionIP{},
-		"IgnoredConnectionIPCreateRequest": IgnoredConnectionIPCreateRequest{},
-		"SettingsResponse":                SettingsResponse{},
-		"SettingsUpdateRequest":      SettingsUpdateRequest{},
-		"ManagementAPITokenResponse": ManagementAPITokenResponse{},
+		"Node":                              Node{},
+		"NodeCreateRequest":                 NodeCreateRequest{},
+		"NodeUpdateRequest":                 NodeUpdateRequest{},
+		"NodeTestResponse":                  NodeTestResponse{},
+		"NodeAPISecretResetResponse":        NodeAPISecretResetResponse{},
+		"NotificationChannel":               NotificationChannel{},
+		"NotificationChannelCreateRequest":  NotificationChannelCreateRequest{},
+		"NotificationChannelUpdateRequest":  NotificationChannelUpdateRequest{},
+		"NotificationChannelTestResponse":   NotificationChannelTestResponse{},
+		"NotificationChannelRevealResponse": NotificationChannelRevealResponse{},
+		"PanelUser":                         PanelUser{},
+		"RecentConnection":                  RecentConnection{},
+		"UserListResponse":                  UserListResponse{},
+		"UserStatsResponse":                 UserStatsResponse{},
+		"UserCreateRequest":                 UserCreateRequest{},
+		"UserUpdateRequest":                 UserUpdateRequest{},
+		"Passkey":                           Passkey{},
+		"PasskeyOptionsResponse":            PasskeyOptionsResponse{},
+		"PasskeyFinishRequest":              PasskeyFinishRequest{},
+		"PanelAuthResponse":                 PanelAuthResponse{},
+		"PanelTrafficResponse":              PanelTrafficResponse{},
+		"PanelNodeTrafficResponse":          PanelNodeTrafficResponse{},
+		"TrafficSummaryResponse":            TrafficSummaryResponse{},
+		"TrafficSeriesResponse":             TrafficSeriesResponse{},
+		"NodeTrafficSummaryResponse":        NodeTrafficSummaryResponse{},
+		"DatabaseStatsResponse":             DatabaseStatsResponse{},
+		"DatabasePruneResponse":             DatabasePruneResponse{},
+		"LiveResponse":                      LiveResponse{},
+		"NodeLiveResponse":                  NodeLiveResponse{},
+		"DeleteResponse":                    DeleteResponse{},
+		"ErrorResponse":                     ErrorResponse{},
+		"PanelConfigResponse":               PanelConfigResponse{},
+		"RegisterRequest":                   RegisterRequest{},
+		"RegisterResponse":                  RegisterResponse{},
+		"Invitation":                        Invitation{},
+		"InvitationCreateRequest":           InvitationCreateRequest{},
+		"IgnoredConnectionIP":               IgnoredConnectionIP{},
+		"IgnoredConnectionIPCreateRequest":  IgnoredConnectionIPCreateRequest{},
+		"SettingsResponse":                  SettingsResponse{},
+		"SettingsUpdateRequest":             SettingsUpdateRequest{},
+		"ManagementAPITokenResponse":        ManagementAPITokenResponse{},
 	}
 
 	// Generate each schema with its own generator to avoid shared internal
@@ -93,6 +98,19 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	}
 	if s, ok := schemas["TrafficSeriesResponse"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "granularity", []any{"hourly", "daily"})
+	}
+	if s, ok := schemas["NotificationChannel"]; ok && s.Value != nil {
+		setEnum(s.Value.Properties, "service", []any{
+			"generic", "bark", "discord", "gotify", "googlechat", "ifttt", "join", "lark",
+			"mattermost", "matrix", "mqtt", "ntfy", "opsgenie", "pushbullet", "pushover",
+			"rocketchat", "signal", "slack", "teams", "telegram", "twilio", "wecom", "zulip",
+		})
+		setEnum(s.Value.Properties, "last_test_status", []any{"never", "succeeded", "failed"})
+		setEnum(s.Value.Properties, "last_test_error", []any{"timed_out", "delivery_failed"})
+	}
+	if s, ok := schemas["NotificationChannelTestResponse"]; ok && s.Value != nil {
+		setEnum(s.Value.Properties, "status", []any{"succeeded", "failed"})
+		setEnum(s.Value.Properties, "error", []any{"timed_out", "delivery_failed"})
 	}
 	// ── doc skeleton ──────────────────────────────────────────────────────
 	t := &openapi3.T{
@@ -1120,6 +1138,156 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 				})),
 			}
 			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /notification-channels ────────────────────────────────────────────
+	t.Paths.Set("/api/panel/notification-channels", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listNotificationChannels",
+				Summary:     "List notification channel metadata",
+				Tags:        []string{"notification channels"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Notification channels without URLs or credentials"),
+						Content:     content(arrayRef("NotificationChannel")),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "createNotificationChannel",
+				Summary:     "Create an encrypted notification channel",
+				Tags:        []string{"notification channels"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("NotificationChannelCreateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Created channel metadata without its URL"),
+						Content:     content(ref("NotificationChannel")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/notification-channels/{id}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Notification channel ID")},
+		Patch: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "updateNotificationChannel",
+				Summary:     "Update notification channel metadata or replace its URL",
+				Tags:        []string{"notification channels"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("NotificationChannelUpdateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Updated channel metadata without its URL"),
+						Content:     content(ref("NotificationChannel")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "deleteNotificationChannel",
+				Summary:     "Permanently delete a notification channel",
+				Tags:        []string{"notification channels"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Deleted channel confirmation"),
+						Content:     content(ref("DeleteResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/notification-channels/{id}/test", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Notification channel ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "testNotificationChannel",
+				Summary:     "Send a fixed notification-channel test message",
+				Tags:        []string{"notification channels"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Persisted test outcome; provider delivery failures are reported in the body"),
+						Content:     content(ref("NotificationChannelTestResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/notification-channels/{id}/reveal/options", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Notification channel ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "notificationChannelRevealOptions",
+				Summary:     "Start a passkey verification to reveal one notification channel URL",
+				Tags:        []string{"notification channels", "passkeys"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Scoped passkey challenge"),
+						Content:     content(ref("PasskeyOptionsResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/notification-channels/{id}/reveal/finish", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Notification channel ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "notificationChannelRevealFinish",
+				Summary:     "Finish a scoped passkey verification and reveal one URL",
+				Tags:        []string{"notification channels", "passkeys"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("PasskeyFinishRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("The selected channel URL after a fresh passkey assertion"),
+						Content:     content(ref("NotificationChannelRevealResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
 			withAuth(op)
 			return op
 		}(),

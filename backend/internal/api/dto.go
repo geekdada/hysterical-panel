@@ -50,6 +50,53 @@ type NodeAPISecretResetResponse struct {
 	Node      Node   `json:"node"`
 }
 
+// ── Notification channels ───────────────────────────────────────────────────
+
+// NotificationChannel is the public, non-secret representation of an outbound
+// destination. Its Shoutrrr URL and encrypted ciphertext are never returned by
+// ordinary channel endpoints.
+type NotificationChannel struct {
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	Service        string  `json:"service"`
+	Enabled        bool    `json:"enabled"`
+	LastTestStatus string  `json:"last_test_status"` // "never" | "succeeded" | "failed"
+	LastTestedAt   *string `json:"last_tested_at,omitempty"`
+	LastTestError  string  `json:"last_test_error,omitempty"` // "timed_out" | "delivery_failed"
+	Created        string  `json:"created"`
+	Updated        string  `json:"updated"`
+}
+
+// NotificationChannelCreateRequest creates one destination. The URL is
+// encrypted before persistence and is never returned in the response.
+type NotificationChannelCreateRequest struct {
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	Enabled *bool  `json:"enabled,omitempty"`
+}
+
+// NotificationChannelUpdateRequest updates Channel metadata or replaces its
+// URL. Omitted URL leaves it unchanged; an empty URL is invalid.
+type NotificationChannelUpdateRequest struct {
+	Name    *string `json:"name,omitempty"`
+	URL     *string `json:"url,omitempty"`
+	Enabled *bool   `json:"enabled,omitempty"`
+}
+
+// NotificationChannelTestResponse reports the persisted result of an explicit
+// test delivery. A failed provider delivery is still an HTTP 200 outcome.
+type NotificationChannelTestResponse struct {
+	Status   string `json:"status"`
+	TestedAt string `json:"tested_at"`
+	Error    string `json:"error,omitempty"`
+}
+
+// NotificationChannelRevealResponse returns the selected Channel URL only
+// after a fresh, one-time passkey assertion.
+type NotificationChannelRevealResponse struct {
+	URL string `json:"url"`
+}
+
 // ── User ──────────────────────────────────────────────────────────────────────
 
 // PanelUser is the public representation returned by user endpoints.

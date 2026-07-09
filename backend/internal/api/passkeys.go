@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	passkeySessionKindLogin        = "login"
-	passkeySessionKindRegistration = "registration"
-	passkeyChallengeTTL            = 5 * time.Minute
+	passkeySessionKindLogin                = "login"
+	passkeySessionKindRegistration         = "registration"
+	passkeySessionKindSensitiveFieldReveal = "sensitive_field_reveal"
+	passkeyChallengeTTL                    = 5 * time.Minute
 )
 
 // NewWebAuthn initializes the panel WebAuthn relying party.
@@ -157,7 +158,7 @@ func (h *Handlers) passkeyLoginOptions(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewBadRequestError("failed to start passkey login", err)
 	}
-	challengeID, err := h.createPasskeySession(passkeySessionKindLogin, "", session)
+	challengeID, err := h.createPasskeySession(passkeySessionKindLogin, "", "", session)
 	if err != nil {
 		return apis.NewBadRequestError("failed to store passkey challenge", err)
 	}
@@ -175,7 +176,7 @@ func (h *Handlers) passkeyLoginFinish(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	session, err := h.consumePasskeySession(in.ChallengeID, passkeySessionKindLogin)
+	session, err := h.consumePasskeySession(in.ChallengeID, passkeySessionKindLogin, "")
 	if err != nil {
 		return err
 	}
@@ -242,7 +243,7 @@ func (h *Handlers) passkeyRegistrationOptions(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewBadRequestError("failed to start passkey enrollment", err)
 	}
-	challengeID, err := h.createPasskeySession(passkeySessionKindRegistration, u.Id, session)
+	challengeID, err := h.createPasskeySession(passkeySessionKindRegistration, u.Id, "", session)
 	if err != nil {
 		return apis.NewBadRequestError("failed to store passkey challenge", err)
 	}
@@ -267,7 +268,7 @@ func (h *Handlers) passkeyRegistrationFinish(e *core.RequestEvent) error {
 	if u.GetString("status") != "active" {
 		return apis.NewForbiddenError("active account required", nil)
 	}
-	session, err := h.consumePasskeySession(in.ChallengeID, passkeySessionKindRegistration)
+	session, err := h.consumePasskeySession(in.ChallengeID, passkeySessionKindRegistration, "")
 	if err != nil {
 		return err
 	}
@@ -289,6 +290,105 @@ func (h *Handlers) passkeyRegistrationFinish(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("failed to store passkey", err)
 	}
 	return ok(e, publicPasskey(created))
+}
+
+// notificationChannelRevealOptions starts a fresh, user-verified assertion
+// bound to one Channel. Merely having a passkey registered is not enough to
+// reveal a persisted URL: every URL requires a new, one-time assertion.
+func (h *Handlers) notificationChannelRevealOptions(e *core.RequestEvent) error {
+	if err := h.requirePasskeys(); err != nil {
+		return err
+	}
+	channel, err := h.findNotificationChannel(e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	if e.Auth == nil {
+		return apis.NewForbiddenError("admin role required", nil)
+	}
+	user, err := h.app.FindRecordById("users", e.Auth.Id)
+	if err != nil {
+		return apis.NewForbiddenError("active account required", err)
+	}
+	waUser, err := h.webAuthnUserForRecord(user)
+	if err != nil {
+		return apis.NewBadRequestError("failed to read passkeys", err)
+	}
+	if len(waUser.credentials) == 0 {
+		return apis.NewBadRequestError("passkey enrollment required to reveal notification channel URLs", nil)
+	}
+	h.deleteExpiredPasskeySessions()
+	assertion, session, err := h.passkeys.BeginLogin(
+		waUser,
+		webauthn.WithUserVerification(protocol.VerificationRequired),
+	)
+	if err != nil {
+		return apis.NewBadRequestError("failed to start passkey verification", err)
+	}
+	challengeID, err := h.createPasskeySession(
+		passkeySessionKindSensitiveFieldReveal,
+		user.Id,
+		channel.Id,
+		session,
+	)
+	if err != nil {
+		return apis.NewBadRequestError("failed to store passkey challenge", err)
+	}
+	return ok(e, map[string]any{
+		"challenge_id": challengeID,
+		"options":      assertion.Response,
+	})
+}
+
+// notificationChannelRevealFinish consumes the Channel-scoped assertion and
+// returns the one requested URL. No normal channel endpoint can decrypt or
+// return this value.
+func (h *Handlers) notificationChannelRevealFinish(e *core.RequestEvent) error {
+	if err := h.requirePasskeys(); err != nil {
+		return err
+	}
+	channel, err := h.findNotificationChannel(e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	if e.Auth == nil {
+		return apis.NewForbiddenError("admin role required", nil)
+	}
+	in, err := bindPasskeyFinish(e)
+	if err != nil {
+		return err
+	}
+	session, err := h.consumePasskeySession(
+		in.ChallengeID,
+		passkeySessionKindSensitiveFieldReveal,
+		channel.Id,
+	)
+	if err != nil {
+		return err
+	}
+	if string(session.UserID) != e.Auth.Id {
+		return apis.NewBadRequestError("passkey challenge does not match current admin", nil)
+	}
+	user, err := h.app.FindRecordById("users", e.Auth.Id)
+	if err != nil {
+		return apis.NewForbiddenError("active account required", err)
+	}
+	waUser, err := h.webAuthnUserForRecord(user)
+	if err != nil {
+		return apis.NewBadRequestError("failed to read passkeys", err)
+	}
+	credential, err := h.passkeys.FinishLogin(waUser, *session, passkeyCredentialRequest(e.Request, in.Credential))
+	if err != nil {
+		return apis.NewBadRequestError("passkey verification failed", err)
+	}
+	if err := h.updatePasskeyCredential(user.Id, credential); err != nil {
+		return apis.NewBadRequestError("failed to update passkey", err)
+	}
+	rawURL, err := h.box.Decrypt(channel.GetString("url_encrypted"))
+	if err != nil {
+		return apis.NewBadRequestError("failed to decrypt notification channel URL", err)
+	}
+	return ok(e, NotificationChannelRevealResponse{URL: rawURL})
 }
 
 func (h *Handlers) listPasskeys(e *core.RequestEvent) error {
@@ -348,17 +448,17 @@ func passkeyCredentialRequest(base *http.Request, raw json.RawMessage) *http.Req
 	return req
 }
 
-func (h *Handlers) createPasskeySession(kind, userID string, session *webauthn.SessionData) (string, error) {
+func (h *Handlers) createPasskeySession(kind, userID, scope string, session *webauthn.SessionData) (string, error) {
 	coll, err := h.app.FindCollectionByNameOrId("passkey_sessions")
-	if err != nil {
-		return "", err
-	}
-	raw, err := json.Marshal(session)
 	if err != nil {
 		return "", err
 	}
 	if session.Expires.IsZero() {
 		session.Expires = time.Now().UTC().Add(passkeyChallengeTTL)
+	}
+	raw, err := json.Marshal(session)
+	if err != nil {
+		return "", err
 	}
 	challengeID := security.RandomString(32)
 	record := core.NewRecord(coll)
@@ -366,6 +466,9 @@ func (h *Handlers) createPasskeySession(kind, userID string, session *webauthn.S
 	record.Set("kind", kind)
 	if userID != "" {
 		record.Set("user", userID)
+	}
+	if scope != "" {
+		record.Set("scope", scope)
 	}
 	record.Set("session_data", string(raw))
 	record.Set("expires_at", session.Expires.UTC())
@@ -375,7 +478,7 @@ func (h *Handlers) createPasskeySession(kind, userID string, session *webauthn.S
 	return challengeID, nil
 }
 
-func (h *Handlers) consumePasskeySession(challengeID, kind string) (*webauthn.SessionData, error) {
+func (h *Handlers) consumePasskeySession(challengeID, kind, scope string) (*webauthn.SessionData, error) {
 	challengeID = strings.TrimSpace(challengeID)
 	record, err := h.app.FindFirstRecordByFilter(
 		"passkey_sessions",
@@ -389,6 +492,9 @@ func (h *Handlers) consumePasskeySession(challengeID, kind string) (*webauthn.Se
 		_ = h.app.Delete(record)
 	}()
 	if !record.GetDateTime("consumed_at").IsZero() {
+		return nil, apis.NewBadRequestError("invalid or expired passkey challenge", nil)
+	}
+	if record.GetString("scope") != scope {
 		return nil, apis.NewBadRequestError("invalid or expired passkey challenge", nil)
 	}
 	if expiresAt := record.GetDateTime("expires_at").Time(); !expiresAt.IsZero() && time.Now().UTC().After(expiresAt) {

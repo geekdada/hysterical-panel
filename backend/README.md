@@ -1,7 +1,7 @@
 # Hysterical Panel (backend)
 
 轻量级 Hysteria 2 管理面板后端，基于 PocketBase（作为 Go 框架二次开发）。
-只负责节点接口信息保存、自主轮询采集流量、用户管理与实时诊断。不部署节点、不做订阅计费。
+只负责节点接口信息保存、自主轮询采集流量、用户管理与实时诊断。不部署节点、不做订阅计费。管理员还可管理加密的通知 Channel，但不提供规则、自动发送、重试队列或审计日志。
 
 ## 模型
 
@@ -85,6 +85,10 @@ docker run --rm \
 | GET | `/users/{id}/live` | 实时诊断（admin；在线设备、活跃流、域名榜、设备维度） |
 | GET | `/settings` | 读取注册/邀请开关 |
 | PATCH | `/settings` | 改开关（层级校验：`invitations_enabled=true` 需 `open_registration=true`；`require_invite_for_open=true` 需 `invitations_enabled=true`，否则 400） |
+| GET/POST | `/notification-channels` | 管理员列出非秘密 Channel 元数据 / 新建单 URL Channel（默认 disabled） |
+| PATCH/DELETE | `/notification-channels/{id}` | 修改名称、启停或替换 URL / 永久删除 Channel |
+| POST | `/notification-channels/{id}/test` | 发送固定测试消息（禁用 Channel 也可；结果只返回安全状态） |
+| POST | `/notification-channels/{id}/reveal/options`、`/reveal/finish` | 经新鲜 passkey assertion reveal 一个已保存 URL |
 | GET | `/invitations` | 邀请码列表（含有效性、`link`） |
 | POST | `/invitations` | 新建邀请码（可选 `email`/`max_uses`/`expires_in_hours`/`note`/`send_email`；`invitations_enabled=false` 时 400） |
 | DELETE | `/invitations/{id}` | 删除邀请码 |
@@ -93,6 +97,14 @@ docker run --rm \
 | DELETE | `/ignored-connection-ips/{id}` | 取消忽略 |
 
 所有返回 node 的接口都已剥除 `api_secret`。
+
+### 通知 Channel
+
+通知 Channel 仅由 admin 管理；每条记录只保存一个完整 Shoutrrr URL，使用 `PANEL_MASTER_KEY` AES-GCM 加密后落库。普通列表、创建和更新响应均不返回 URL 或密文。新建默认 disabled，替换 URL 会清空上一次测试结果；disabled Channel 仍可发送显式的固定测试消息。没有通知规则、后台发送、重试、队列或历史日志。
+
+服务白名单与 [Beszel 通知指南](https://beszel.dev/zh/guide/notifications/) 对齐：Generic、Bark、Discord、Gotify、Google Chat、IFTTT、Join、Lark、Mattermost、Matrix、MQTT、ntfy、OpsGenie、Pushbullet、Pushover、Rocket.Chat、Signal、Slack、Teams、Telegram、Twilio、WeCom、Zulip。依赖固定为 `github.com/nicholas-fedor/shoutrrr v0.16.1`；自托管私网目标允许。测试超时或投递失败只记录 `timed_out` / `delivery_failed`，绝不回显 URL、凭据、headers、response body 或原始 provider error。
+
+已保存 URL 的 reveal 需要当前 admin 已注册 passkey，并针对该 Channel 完成一枚新鲜、5 分钟有效、用后即焚的 WebAuthn assertion。其 session 使用可复用的 `sensitive_field_reveal` kind，并以隐藏 `scope=<channel id>` 绑定目标；断言只可 reveal 该一条 URL。未配置 passkey 时 admin 仍可替换、测试、启停和删除 Channel。
 
 **时间**：数据库存储与 API 中的 datetime 一律 **UTC**（流量按 UTC 小时/日分桶）。前端自行换算为本地时区展示；查询 `traffic/series` 时 `from`/`to` 也传 UTC。
 
@@ -181,6 +193,7 @@ internal/config/            环境变量（caarlos0/env）
 internal/cryptobox/         AES-GCM 加解密（主密钥来自 config）
 internal/token/             URL-safe 随机 token（邀请码 / auth_string）
 internal/hysteria/          Traffic Stats API 客户端
+internal/notifications/     Beszel-compatible Shoutrrr URL 校验与单 Channel 测试投递
 internal/collector/         counter-to-delta 采集核心
-internal/api/               /api/panel 路由：nodes / users / traffic / live / settings / invitations / register
+internal/api/               /api/panel 路由：nodes / users / traffic / live / settings / invitations / notification-channels / register
 ```

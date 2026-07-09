@@ -13,6 +13,7 @@ import (
 
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/ipmeta"
+	"hysterical-panel/internal/notifications"
 	"hysterical-panel/internal/token"
 )
 
@@ -28,6 +29,7 @@ type Handlers struct {
 	passkeys      *webauthn.WebAuthn
 	passkeyLimit  *passkeyRateLimiter
 	registerLimit *passkeyRateLimiter
+	notifications notificationDelivery
 	publicConfig  PanelConfigResponse
 }
 
@@ -40,6 +42,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 		passkeys:      passkeys,
 		passkeyLimit:  newPasskeyRateLimiter(30, passkeyChallengeTTL),
 		registerLimit: newPasskeyRateLimiter(registerRateMax, registerRateWindow),
+		notifications: notifications.New(),
 		publicConfig:  public,
 	}
 
@@ -90,6 +93,15 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/ignored-connection-ips", h.listIgnoredConnectionIPs).Bind(adminOnly)
 	g.POST("/ignored-connection-ips", h.createIgnoredConnectionIP).Bind(adminOnly)
 	g.DELETE("/ignored-connection-ips/{id}", h.deleteIgnoredConnectionIP).Bind(adminOnly)
+
+	// notification channels (global outbound destinations; no rules or automatic delivery)
+	g.GET("/notification-channels", h.listNotificationChannels).Bind(adminOnly)
+	g.POST("/notification-channels", h.createNotificationChannel).Bind(adminOnly)
+	g.PATCH("/notification-channels/{id}", h.updateNotificationChannel).Bind(adminOnly)
+	g.DELETE("/notification-channels/{id}", h.deleteNotificationChannel).Bind(adminOnly)
+	g.POST("/notification-channels/{id}/test", h.testNotificationChannel).Bind(adminOnly)
+	g.POST("/notification-channels/{id}/reveal/options", h.notificationChannelRevealOptions).Bind(adminOnly)
+	g.POST("/notification-channels/{id}/reveal/finish", h.notificationChannelRevealFinish).Bind(adminOnly)
 
 	// users
 	g.GET("/users", h.listUsers).Bind(adminOnly)

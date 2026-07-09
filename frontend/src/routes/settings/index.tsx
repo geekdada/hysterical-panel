@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Label, ListBox, Select } from "@heroui/react";
-import { ChevronRight, Code, Database, Xmark } from "@gravity-ui/icons";
+import { Bell, ChevronRight, Code, Database, Xmark } from "@gravity-ui/icons";
 import {
   deletePasskey,
   isPasskeySoftError,
@@ -150,6 +150,36 @@ function SettingsPage() {
           )}
 
           <IgnoredConnectionIPsSection />
+
+          <div className="mt-8 mb-5">
+            <h1 className="text-base font-semibold tracking-tight">
+              {m.settings_notification_channels()}
+            </h1>
+            <p className="mt-0.5 text-[13px] text-(--muted)">
+              {m.settings_notification_channels_desc()}
+            </p>
+          </div>
+
+          <Link
+            to="/settings/notifications"
+            className="group flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+          >
+            <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
+              <Bell className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-(--foreground)">
+                {m.settings_notification_channels_manage()}
+              </span>
+              <span className="block text-xs text-(--muted)">
+                {m.settings_notification_channels_manage_desc()}
+              </span>
+            </span>
+            <ChevronRight
+              className="size-4 shrink-0 text-(--muted) transition-colors duration-150 group-hover:text-(--foreground)"
+              aria-hidden
+            />
+          </Link>
 
           <div className="mt-8 mb-5">
             <h1 className="text-base font-semibold tracking-tight">{m.settings_database()}</h1>

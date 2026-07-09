@@ -23,6 +23,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersIndexRouteImport } from './routes/users/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
+import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsManagementApiRouteImport } from './routes/settings/management-api'
 import { Route as SettingsDatabaseRouteImport } from './routes/settings/database'
 import { Route as NodesNewRouteImport } from './routes/nodes/new'
@@ -98,6 +99,11 @@ const UsersUserIdRoute = UsersUserIdRouteImport.update({
   path: '/$userId',
   getParentRoute: () => UsersRouteRoute,
 } as any)
+const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const SettingsManagementApiRoute = SettingsManagementApiRouteImport.update({
   id: '/management-api',
   path: '/management-api',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/nodes/new': typeof NodesNewRoute
   '/settings/database': typeof SettingsDatabaseRoute
   '/settings/management-api': typeof SettingsManagementApiRoute
+  '/settings/notifications': typeof SettingsNotificationsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/nodes/new': typeof NodesNewRoute
   '/settings/database': typeof SettingsDatabaseRoute
   '/settings/management-api': typeof SettingsManagementApiRoute
+  '/settings/notifications': typeof SettingsNotificationsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings': typeof SettingsIndexRoute
   '/users': typeof UsersIndexRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/nodes/new': typeof NodesNewRoute
   '/settings/database': typeof SettingsDatabaseRoute
   '/settings/management-api': typeof SettingsManagementApiRoute
+  '/settings/notifications': typeof SettingsNotificationsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/nodes/new'
     | '/settings/database'
     | '/settings/management-api'
+    | '/settings/notifications'
     | '/users/$userId'
     | '/settings/'
     | '/users/'
@@ -214,6 +224,7 @@ export interface FileRouteTypes {
     | '/nodes/new'
     | '/settings/database'
     | '/settings/management-api'
+    | '/settings/notifications'
     | '/users/$userId'
     | '/settings'
     | '/users'
@@ -234,6 +245,7 @@ export interface FileRouteTypes {
     | '/nodes/new'
     | '/settings/database'
     | '/settings/management-api'
+    | '/settings/notifications'
     | '/users/$userId'
     | '/settings/'
     | '/users/'
@@ -353,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UsersUserIdRouteImport
       parentRoute: typeof UsersRouteRoute
     }
+    '/settings/notifications': {
+      id: '/settings/notifications'
+      path: '/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof SettingsNotificationsRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/management-api': {
       id: '/settings/management-api'
       path: '/management-api'
@@ -401,12 +420,14 @@ const NodesRouteRouteWithChildren = NodesRouteRoute._addFileChildren(
 interface SettingsRouteRouteChildren {
   SettingsDatabaseRoute: typeof SettingsDatabaseRoute
   SettingsManagementApiRoute: typeof SettingsManagementApiRoute
+  SettingsNotificationsRoute: typeof SettingsNotificationsRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsDatabaseRoute: SettingsDatabaseRoute,
   SettingsManagementApiRoute: SettingsManagementApiRoute,
+  SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
 

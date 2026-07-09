@@ -14,6 +14,10 @@ import {
 } from "~/lib/traffic-range";
 import { localizeApiError } from "~/lib/api-error";
 import * as m from "~/paraglide/messages.js";
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+} from "@simplewebauthn/browser";
 
 type ApiResult<T> = {
   data?: T;
@@ -28,6 +32,12 @@ type NodeCreateRequest = components["schemas"]["NodeCreateRequest"];
 type NodeLive = components["schemas"]["NodeLiveResponse"];
 type NodeTest = components["schemas"]["NodeTestResponse"];
 type NodeAPISecretReset = components["schemas"]["NodeAPISecretResetResponse"];
+type NotificationChannel = components["schemas"]["NotificationChannel"];
+type NotificationChannelCreateRequest = components["schemas"]["NotificationChannelCreateRequest"];
+type NotificationChannelUpdateRequest = components["schemas"]["NotificationChannelUpdateRequest"];
+type NotificationChannelTestResponse = components["schemas"]["NotificationChannelTestResponse"];
+type NotificationChannelRevealResponse = components["schemas"]["NotificationChannelRevealResponse"];
+type PasskeyOptionsResponse = components["schemas"]["PasskeyOptionsResponse"];
 type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
 type PanelConfig = components["schemas"]["PanelConfigResponse"];
 type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
@@ -55,6 +65,11 @@ export type {
   AppSettings,
   SettingsUpdateRequest,
   ManagementAPIToken,
+  NotificationChannel,
+  NotificationChannelCreateRequest,
+  NotificationChannelUpdateRequest,
+  NotificationChannelTestResponse,
+  NotificationChannelRevealResponse,
 };
 
 export const REFRESH_MS = 20_000;
@@ -142,6 +157,7 @@ export const queryKeys = {
   databaseStats: () => [...queryKeys.all, "database", "stats"] as const,
   invitations: () => [...queryKeys.all, "invitations"] as const,
   ignoredConnectionIPs: () => [...queryKeys.all, "ignored-connection-ips"] as const,
+  notificationChannels: () => [...queryKeys.all, "notification-channels"] as const,
   settings: () => [...queryKeys.all, "settings"] as const,
   nodeLive: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "live"] as const,
   nodeOverview: (nodeId: string, range: TrafficRangeQuery | null) =>
@@ -607,6 +623,82 @@ export function deleteIgnoredConnectionIP(id: string): Promise<{ deleted: boolea
     }),
     m.error_ignored_ip_delete(),
     m.error_ignored_ip_delete_network()
+  );
+}
+
+export function fetchNotificationChannels(): Promise<NotificationChannel[]> {
+  return apiRequest<NotificationChannel[]>(
+    apiClient.GET("/api/panel/notification-channels"),
+    m.error_notification_channels_load()
+  );
+}
+
+export function createNotificationChannel(
+  body: NotificationChannelCreateRequest
+): Promise<NotificationChannel> {
+  return apiRequest<NotificationChannel>(
+    apiClient.POST("/api/panel/notification-channels", { body }),
+    m.error_notification_channel_save(),
+    m.error_notification_channel_save_network()
+  );
+}
+
+export function updateNotificationChannel(
+  id: string,
+  body: NotificationChannelUpdateRequest
+): Promise<NotificationChannel> {
+  return apiRequest<NotificationChannel>(
+    apiClient.PATCH("/api/panel/notification-channels/{id}", {
+      params: { path: { id } },
+      body,
+    }),
+    m.error_notification_channel_save(),
+    m.error_notification_channel_save_network()
+  );
+}
+
+export function deleteNotificationChannel(id: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/notification-channels/{id}", {
+      params: { path: { id } },
+    }),
+    m.error_notification_channel_delete(),
+    m.error_notification_channel_delete_network()
+  );
+}
+
+export function testNotificationChannel(id: string): Promise<NotificationChannelTestResponse> {
+  return apiRequest<NotificationChannelTestResponse>(
+    apiClient.POST("/api/panel/notification-channels/{id}/test", {
+      params: { path: { id } },
+    }),
+    m.error_notification_channel_test(),
+    m.error_notification_channel_test_network()
+  );
+}
+
+export async function revealNotificationChannelURL(
+  id: string
+): Promise<NotificationChannelRevealResponse> {
+  const challenge = await apiRequest<PasskeyOptionsResponse>(
+    apiClient.POST("/api/panel/notification-channels/{id}/reveal/options", {
+      params: { path: { id } },
+    }),
+    m.error_notification_channel_reveal()
+  );
+  const { startAuthentication } = await import("@simplewebauthn/browser");
+  const credential = await startAuthentication({
+    optionsJSON: challenge.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+  });
+  return apiRequest<NotificationChannelRevealResponse>(
+    apiClient.POST("/api/panel/notification-channels/{id}/reveal/finish", {
+      params: { path: { id } },
+      body: {
+        challenge_id: challenge.challenge_id,
+        credential: credential as unknown as AuthenticationResponseJSON & Record<string, unknown>,
+      },
+    }),
+    m.error_notification_channel_reveal()
   );
 }
 

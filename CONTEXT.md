@@ -88,3 +88,14 @@ _Avoid_: connection history, session log, IP log (as the domain noun)
 A globally configured client IP that must not be recorded as a Recent Connection. Admin-managed; does not by itself block Node Client Auth.
 _Avoid_: IP blocklist, banlist, deny list (as the name for this)
 
+**Notification Channel**:
+An admin-managed outbound destination for future panel messages. A Notification Channel has no triggering logic; it is distinct from a Notification Rule.
+_Avoid_: provider, notifier, alert rule, webhook (as the broad feature name)
+
+**Channel URL**:
+The complete Shoutrrr configuration string for one Notification Channel, including its destination and any credentials. It is secret on read.
+_Avoid_: endpoint, callback URL, token (as the complete configuration name)
+
+**Channel Test**:
+An explicit administrator-initiated verification delivery to one Notification Channel. It is neither a Notification Rule nor normal notification delivery.
+_Avoid_: alert, rule run, manual message (as the feature name)
