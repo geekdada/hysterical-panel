@@ -325,7 +325,7 @@
   "analytics_section_by_node": "按节点",
   "analytics_no_node_traffic": "此时间范围内无节点流量。",
   "mgmt_api_title": "管理 API",
-  "mgmt_api_intro": "供外部服务查询和创建用户的 HTTP 端点。在设置页启用 API；令牌生成后仅显示一次。",
+  "mgmt_api_intro": "供外部服务管理本平台资源。调用接口前请确认该功能已开启。",
   "mgmt_api_intro_settings_link": "设置",
   "mgmt_api_auth_heading": "认证",
   "mgmt_api_auth_bearer_intro": "每个请求以 Bearer 令牌发送已配置的令牌：",

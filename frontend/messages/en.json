@@ -325,7 +325,7 @@
   "analytics_section_by_node": "By node",
   "analytics_no_node_traffic": "No node traffic in this window.",
   "mgmt_api_title": "Management API",
-  "mgmt_api_intro": "HTTP endpoints for external services to look up and provision users. Enable the API on the Settings page; a token is generated and shown once.",
+  "mgmt_api_intro": "For external services to manage resources on this platform. Confirm the feature is enabled before calling the API.",
   "mgmt_api_intro_settings_link": "Settings",
   "mgmt_api_auth_heading": "Authentication",
   "mgmt_api_auth_bearer_intro": "Send the configured token as a bearer token on every request:",
