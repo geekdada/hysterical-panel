@@ -122,7 +122,7 @@ export function LabeledSwitch({
   onChange,
 }: {
   label: string;
-  description: string;
+  description?: string;
   isSelected: boolean;
   isDisabled?: boolean;
   onChange: (value: boolean) => void;
@@ -135,7 +135,7 @@ export function LabeledSwitch({
         </Switch.Control>
         {label}
       </Switch.Content>
-      <Description>{description}</Description>
+      {description && <Description>{description}</Description>}
     </Switch>
   );
 }

@@ -1,8 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type Key } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Button, Input, Label, Modal, Switch, TextField } from "@heroui/react";
-import { Eye, Link as LinkIcon, Pencil, Play, Plus, TrashBin } from "@gravity-ui/icons";
+import { Button, Dropdown, Input, Label, Modal, Separator, Switch, TextField } from "@heroui/react";
+import { Ellipsis, Eye, Link as LinkIcon, Pencil, Play, Plus, TrashBin } from "@gravity-ui/icons";
 import { isPasskeySoftError, listPasskeys } from "~/api/auth";
 import { requireAdmin } from "~/api/guards";
 import {
@@ -40,7 +40,7 @@ import * as m from "~/paraglide/messages.js";
 export const Route = createFileRoute("/settings/notifications")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
   staticData: breadcrumbStaticData({
-    label: () => m.notifications_title(),
+    label: () => m.settings_notification_channels_manage(),
   }),
   loader: ({ context }) => {
     markResponsePrivate();
@@ -60,6 +60,14 @@ function NotificationChannelsPage() {
   const [editing, setEditing] = useState<NotificationChannel | null>(null);
   const [deleting, setDeleting] = useState<NotificationChannel | null>(null);
   const [revealed, setRevealed] = useState<{ name: string; url: string } | null>(null);
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateNow = () => setNow(Date.now());
+    updateNow();
+    const id = window.setInterval(updateNow, 5_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const channelsQuery = useQuery({
     queryKey: queryKeys.notificationChannels(),
@@ -115,13 +123,27 @@ function NotificationChannelsPage() {
 
   const channels = channelsQuery.data ?? [];
   const passkeysConfigured = configQuery.data?.passkeys_enabled ?? false;
-  const canReveal = passkeysConfigured && (passkeysQuery.data?.length ?? 0) > 0;
-  const showEnrollmentHint =
-    passkeysConfigured && !passkeysQuery.isPending && (passkeysQuery.data?.length ?? 0) === 0;
+  const enrolledCount = passkeysQuery.data?.length ?? 0;
+  const canReveal = passkeysConfigured && enrolledCount > 0;
+  const showEnrollmentHint = passkeysConfigured && !passkeysQuery.isPending && enrolledCount === 0;
   const loadError = channelsQuery.error ? queryErrorMessage(channelsQuery.error) : "";
-  const actionError = [testMutation.error, revealMutation.error]
-    .filter((error) => error && !isPasskeySoftError(error))
-    .map((error) => queryErrorMessage(error, m.error_notification_channel_test_network()))[0];
+
+  // Test / reveal failures belong to the row that triggered them: both mutations
+  // are shared across rows, so match on the in-flight channel id rather than
+  // surfacing a single anonymous error above the whole list.
+  function actionErrorFor(channelID: string): string {
+    if (testMutation.isError && testMutation.variables === channelID) {
+      return queryErrorMessage(testMutation.error, m.error_notification_channel_test_network());
+    }
+    if (
+      revealMutation.isError &&
+      revealMutation.variables === channelID &&
+      !isPasskeySoftError(revealMutation.error)
+    ) {
+      return queryErrorMessage(revealMutation.error, m.error_notification_channel_reveal());
+    }
+    return "";
+  }
 
   function clearRevealed() {
     setRevealed(null);
@@ -155,8 +177,12 @@ function NotificationChannelsPage() {
     >
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-base font-semibold tracking-tight">{m.notifications_title()}</h1>
-          <p className="mt-0.5 max-w-2xl text-[13px] text-(--muted)">{m.notifications_intro()}</p>
+          <h1 className="text-base font-semibold tracking-tight">
+            {m.settings_notification_channels_manage()}
+          </h1>
+          <p className="mt-0.5 max-w-2xl text-[13px] text-(--muted)">
+            {m.settings_notification_channels_manage_desc()}
+          </p>
         </div>
         <a
           href="https://beszel.dev/guide/notifications/"
@@ -169,7 +195,7 @@ function NotificationChannelsPage() {
         </a>
       </div>
 
-      <ErrorAlert message={loadError || actionError} icon className="mb-4" />
+      <ErrorAlert message={loadError} icon className="mb-4" />
 
       {showEnrollmentHint && (
         <div className="mb-4 rounded-(--radius) border border-(--border) bg-(--surface-secondary) px-4 py-3 text-[13px] text-(--muted)">
@@ -230,7 +256,6 @@ function NotificationChannelsPage() {
       <Section
         className="mt-0"
         title={m.notifications_title()}
-        meta={channels.length > 0 ? m.common_total() + `: ${channels.length}` : undefined}
         action={
           <Button size="sm" variant="secondary" onPress={() => setCreateOpen(true)}>
             <Plus className="size-3.5" aria-hidden />
@@ -253,7 +278,10 @@ function NotificationChannelsPage() {
               <ChannelRow
                 key={channel.id}
                 channel={channel}
+                now={now}
                 canReveal={canReveal}
+                revealSupported={passkeysConfigured}
+                error={actionErrorFor(channel.id ?? "")}
                 testing={testMutation.isPending && testMutation.variables === channel.id}
                 revealing={revealMutation.isPending && revealMutation.variables === channel.id}
                 toggling={updateMutation.isPending && updateMutation.variables?.id === channel.id}
@@ -276,9 +304,18 @@ function NotificationChannelsPage() {
   );
 }
 
+const menuItemClass =
+  "h-7 rounded-md px-2 text-[13px] text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) data-[focus=true]:bg-(--surface-secondary) data-[hovered=true]:bg-(--surface-secondary)";
+const menuDangerItemClass =
+  "h-7 rounded-md px-2 text-[13px] text-(--danger) transition-colors duration-150 hover:bg-(--danger-soft) data-[focus=true]:bg-(--danger-soft) data-[hovered=true]:bg-(--danger-soft)";
+const menuIconClass = "size-3.5 shrink-0 text-(--muted)";
+
 function ChannelRow({
   channel,
+  now,
   canReveal,
+  revealSupported,
+  error,
   testing,
   revealing,
   toggling,
@@ -289,7 +326,10 @@ function ChannelRow({
   onDelete,
 }: {
   channel: NotificationChannel;
+  now: number | null;
   canReveal: boolean;
+  revealSupported: boolean;
+  error: string;
   testing: boolean;
   revealing: boolean;
   toggling: boolean;
@@ -300,65 +340,113 @@ function ChannelRow({
   onDelete: () => void;
 }) {
   const test = testLabel(channel);
+  const service = serviceLabel(channel.service ?? "");
+  const name = channel.name ?? "";
+  // The service is redundant when the channel is simply named after it (the
+  // common case), so only surface it as a secondary tag when it adds meaning.
+  const showService = service !== "" && service.toLowerCase() !== name.trim().toLowerCase();
+  const revealDisabled = !canReveal || revealing;
   return (
     <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <Dot tone={test.tone} />
-          <span className="truncate text-[13px] font-medium">{channel.name}</span>
-          <span className="rounded border border-(--border) bg-(--surface-secondary) px-1.5 py-0.5 text-[11px] text-(--muted)">
-            {serviceLabel(channel.service ?? "")}
-          </span>
+          <span className="truncate text-[13px] font-medium">{name}</span>
+          {showService && <span className="shrink-0 text-[11px] text-(--muted)">{service}</span>}
         </div>
         <p className="mt-1 text-xs text-(--muted)">
           {test.label}
-          {channel.last_tested_at && (
+          {channel.last_tested_at && now !== null && (
             <>
               <span> · </span>
-              <span className="font-mono tabular-nums">
-                {relTimeFromISO(channel.last_tested_at, Date.now())}
-              </span>
+              <span className="tabular-nums">{relTimeFromISO(channel.last_tested_at, now)}</span>
             </>
           )}
         </p>
+        {error && (
+          <p className="mt-1 text-xs text-(--danger)" role="alert">
+            {error}
+          </p>
+        )}
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Button size="sm" variant="ghost" isDisabled={testing} isPending={testing} onPress={onTest}>
-          {!testing && <Play className="size-3.5" aria-hidden />}
-          {testing ? m.notifications_testing() : m.notifications_test()}
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          isDisabled={!canReveal || revealing}
-          isPending={revealing}
-          onPress={onReveal}
-        >
-          {!revealing && <Eye className="size-3.5" aria-hidden />}
-          {revealing ? m.notifications_revealing() : m.notifications_reveal()}
-        </Button>
-        <Button size="sm" variant="ghost" onPress={onEdit}>
-          <Pencil className="size-3.5" aria-hidden />
-          {m.notifications_edit()}
-        </Button>
-        <Switch
-          aria-label={channel.enabled ? m.notifications_enabled() : m.notifications_disabled()}
-          isSelected={channel.enabled ?? false}
-          isDisabled={toggling}
-          onChange={onToggle}
-        >
-          <Switch.Content>
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-            <span className="text-xs text-(--muted)">
-              {channel.enabled ? m.notifications_enabled() : m.notifications_disabled()}
-            </span>
-          </Switch.Content>
-        </Switch>
-        <Button size="sm" variant="ghost" onPress={onDelete} aria-label={m.common_delete()}>
-          <TrashBin className="size-3.5 text-(--danger)" aria-hidden />
-        </Button>
+      <div className="flex items-center justify-between gap-1.5 sm:flex-shrink-0">
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            isDisabled={testing}
+            isPending={testing}
+            onPress={onTest}
+          >
+            {!testing && <Play className="size-3.5" aria-hidden />}
+            {testing ? m.notifications_testing() : m.notifications_test()}
+          </Button>
+          <Switch
+            aria-label={channel.enabled ? m.notifications_enabled() : m.notifications_disabled()}
+            isSelected={channel.enabled ?? false}
+            isDisabled={toggling}
+            onChange={onToggle}
+          >
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <span className="text-xs text-(--muted)">
+                {channel.enabled ? m.notifications_enabled() : m.notifications_disabled()}
+              </span>
+            </Switch.Content>
+          </Switch>
+        </div>
+        <Dropdown>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={m.notifications_more_actions()}
+            className="px-1.5"
+          >
+            <Ellipsis className="size-4 text-(--muted)" aria-hidden />
+          </Button>
+          <Dropdown.Popover
+            placement="bottom end"
+            className="min-w-40 rounded-(--radius) border border-(--border) bg-(--surface) p-1 shadow-none"
+          >
+            <Dropdown.Menu
+              onAction={(key: Key) => {
+                if (key === "edit") onEdit();
+                else if (key === "reveal") onReveal();
+                else if (key === "delete") onDelete();
+              }}
+              disabledKeys={revealDisabled ? ["reveal"] : []}
+            >
+              <Dropdown.Item id="edit" textValue={m.notifications_edit()} className={menuItemClass}>
+                <Pencil className={menuIconClass} aria-hidden />
+                <Label className="truncate">{m.notifications_edit()}</Label>
+              </Dropdown.Item>
+              {revealSupported && (
+                <Dropdown.Item
+                  id="reveal"
+                  textValue={m.notifications_reveal()}
+                  className={menuItemClass}
+                >
+                  <Eye className={menuIconClass} aria-hidden />
+                  <Label className="truncate">
+                    {revealing ? m.notifications_revealing() : m.notifications_reveal()}
+                  </Label>
+                </Dropdown.Item>
+              )}
+              <Separator className="my-1 bg-(--separator)" />
+              <Dropdown.Item
+                id="delete"
+                variant="danger"
+                textValue={m.common_delete()}
+                className={menuDangerItemClass}
+              >
+                <TrashBin className="size-3.5 shrink-0 text-current" aria-hidden />
+                <Label className="truncate">{m.common_delete()}</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
       </div>
     </div>
   );
@@ -440,7 +528,6 @@ function ChannelFormModal({
                 )}
                 <LabeledSwitch
                   label={m.notifications_enabled_label()}
-                  description={m.notifications_enabled_desc()}
                   isSelected={enabled}
                   onChange={setEnabled}
                 />
@@ -489,9 +576,6 @@ function RevealModal({
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Heading>{m.notifications_reveal_title()}</Modal.Heading>
-            <p className="mt-1.5 text-sm leading-5 text-(--muted)">
-              {m.notifications_reveal_description()}
-            </p>
           </Modal.Header>
           <Modal.Body>
             <p className="mb-2 text-[13px] font-medium">{revealed?.name}</p>
