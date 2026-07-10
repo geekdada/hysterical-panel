@@ -1,7 +1,17 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Button, Input, Label, Modal, TextField } from "@heroui/react";
+import { useForm } from "@tanstack/react-form";
+import {
+  Button,
+  FieldError,
+  Input,
+  Label,
+  Modal,
+  NumberField,
+  Separator,
+  TextField,
+} from "@heroui/react";
 import { Plus, Pencil, TrashBin } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import {
@@ -23,6 +33,7 @@ import {
 import { markResponsePrivate } from "~/api/ssr";
 import {
   BrandLink,
+  CheckboxListField,
   DestructiveConfirmModal,
   Dot,
   ErrorAlert,
@@ -30,6 +41,7 @@ import {
   PageShell,
   PanelMessage,
   Section,
+  SelectField,
   TableSkeleton,
   Td,
   Th,
@@ -392,125 +404,273 @@ function MonitorModal({
   onSubmit: (body: MonitorCreateRequest | MonitorUpdateRequest) => void;
 }) {
   const existing = value && value !== "new" ? value : null;
-  const [name, setName] = useState(existing?.name ?? "");
-  const [kind, setKind] = useState<string>(existing?.kind ?? "offline");
-  const [severity, setSeverity] = useState<string>(existing?.severity ?? "warning");
-  const [minutes, setMinutes] = useState(String((existing?.evaluation_window_seconds ?? 300) / 60));
-  const [threshold, setThreshold] = useState(
-    String(monitorThreshold(existing?.config) / 1_000_000)
-  );
-  const [scope, setScope] = useState<string>(existing?.node_scope ?? "all_enabled");
-  const [nodeIDs, setNodeIDs] = useState<string[]>(existing?.node_ids ?? []);
-  const [channelIDs, setChannelIDs] = useState<string[]>(existing?.channel_ids ?? []);
-  const [enabled, setEnabled] = useState(existing?.enabled ?? true);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    const windowSeconds = Math.round(Number(minutes) * 60);
-    if (
-      !name.trim() ||
-      windowSeconds < 60 ||
-      windowSeconds > 86400 ||
-      (kind === "high_traffic" && Number(threshold) <= 0) ||
-      (scope === "selected" && nodeIDs.length === 0)
-    )
-      return;
-    onSubmit({
-      name: name.trim(),
-      kind: kind as "offline" | "high_traffic",
-      severity: severity as "warning" | "critical",
-      enabled,
-      evaluation_window_seconds: windowSeconds,
-      node_scope: scope as "all_enabled" | "selected",
-      node_ids: scope === "all_enabled" ? [] : nodeIDs,
-      channel_ids: channelIDs,
-      config:
-        kind === "offline"
-          ? {}
-          : { threshold_bytes_per_second: Math.round(Number(threshold) * 1_000_000) },
-    });
-  }
+  // The parent keys this component by monitor id, so it remounts on every open —
+  // these defaults are re-read each time the form is opened for a new/other row.
+  const form = useForm({
+    defaultValues: {
+      name: existing?.name ?? "",
+      kind: (existing?.kind ?? "offline") as "offline" | "high_traffic",
+      severity: (existing?.severity ?? "warning") as "warning" | "critical",
+      minutes: (existing?.evaluation_window_seconds ?? 300) / 60,
+      // Threshold is edited in MB/s; stored in B/s.
+      threshold: monitorThreshold(existing?.config) / 1_000_000,
+      scope: (existing?.node_scope ?? "all_enabled") as "all_enabled" | "selected",
+      nodeIDs: existing?.node_ids ?? [],
+      channelIDs: existing?.channel_ids ?? [],
+      enabled: existing?.enabled ?? true,
+    },
+    onSubmit: ({ value: v }) => {
+      onSubmit({
+        name: v.name.trim(),
+        kind: v.kind,
+        severity: v.severity,
+        enabled: v.enabled,
+        evaluation_window_seconds: Math.round(v.minutes * 60),
+        node_scope: v.scope,
+        node_ids: v.scope === "all_enabled" ? [] : v.nodeIDs,
+        channel_ids: v.channelIDs,
+        config:
+          v.kind === "offline"
+            ? {}
+            : { threshold_bytes_per_second: Math.round(v.threshold * 1_000_000) },
+      });
+    },
+  });
 
   return (
     <Modal.Backdrop isOpen={value !== null} onOpenChange={onOpenChange}>
       <Modal.Container size="lg" placement="auto">
         <Modal.Dialog>
           <Modal.CloseTrigger />
-          <form onSubmit={submit}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void form.handleSubmit();
+            }}
+          >
             <Modal.Header>
               <Modal.Heading>
                 {value === "new" ? m.monitoring_new() : m.monitoring_edit()}
               </Modal.Heading>
-              <p className="mt-1 text-sm text-(--muted)">{m.monitoring_reconfigure_hint()}</p>
+              <p className="mt-1.5 text-sm leading-5 text-(--muted)">
+                {value === "new" ? m.monitoring_new_hint() : m.monitoring_reconfigure_hint()}
+              </p>
             </Modal.Header>
             <Modal.Body>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField value={name} onChange={setName} className="sm:col-span-2">
-                  <Label>{m.monitoring_name()}</Label>
-                  <Input autoFocus maxLength={128} />
-                </TextField>
-                <SelectField
-                  label={m.monitoring_kind()}
-                  value={kind}
-                  onChange={setKind}
-                  options={[
-                    { value: "offline", label: m.monitoring_kind_offline() },
-                    { value: "high_traffic", label: m.monitoring_kind_high_traffic() },
-                  ]}
-                />
-                <SelectField
-                  label={m.monitoring_severity()}
-                  value={severity}
-                  onChange={setSeverity}
-                  options={[
-                    { value: "warning", label: m.monitoring_warning() },
-                    { value: "critical", label: m.monitoring_critical() },
-                  ]}
-                />
-                <TextField value={minutes} onChange={setMinutes}>
-                  <Label>{m.monitoring_window_minutes()}</Label>
-                  <Input type="number" min={1} max={1440} />
-                </TextField>
-                {kind === "high_traffic" ? (
-                  <TextField value={threshold} onChange={setThreshold}>
-                    <Label>{m.monitoring_threshold()}</Label>
-                    <Input type="number" min={0.001} step={0.001} />
-                  </TextField>
-                ) : (
-                  <div />
-                )}
-                <SelectField
-                  label={m.monitoring_scope()}
-                  value={scope}
-                  onChange={setScope}
-                  options={[
-                    { value: "all_enabled", label: m.monitoring_scope_all() },
-                    { value: "selected", label: m.monitoring_scope_selected() },
-                  ]}
-                />
-                <MultiSelect
-                  label={m.monitoring_nodes()}
-                  disabled={scope !== "selected"}
-                  values={nodeIDs}
-                  onChange={setNodeIDs}
-                  options={nodes}
-                />
-                <MultiSelect
-                  label={m.monitoring_channels()}
-                  values={channelIDs}
-                  onChange={setChannelIDs}
-                  options={channels.map((channel) => ({
-                    id: channel.id,
-                    name: `${channel.name}${channel.enabled ? "" : " (disabled)"}`,
-                  }))}
-                />
-                <div className="flex items-end">
-                  <LabeledSwitch
-                    label={m.monitoring_enabled()}
-                    isSelected={enabled}
-                    onChange={setEnabled}
-                  />
+              <div className="flex flex-col gap-4">
+                {/* Inline errors stay hidden until a field is touched (typed, blurred,
+                    or a submit attempt), so a freshly opened form isn't pre-painted red. */}
+                <form.Field
+                  name="name"
+                  validators={{
+                    onChange: ({ value: v }) =>
+                      !v.trim() ? m.monitoring_name_required() : undefined,
+                  }}
+                >
+                  {(field) => {
+                    const invalid =
+                      field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                    return (
+                      <TextField
+                        value={field.state.value}
+                        onChange={field.handleChange}
+                        onBlur={field.handleBlur}
+                        isInvalid={invalid}
+                        isRequired
+                      >
+                        <Label>{m.monitoring_name()}</Label>
+                        <Input
+                          autoFocus
+                          maxLength={128}
+                          autoComplete="off"
+                          data-1p-ignore
+                          data-lpignore="true"
+                          data-form-type="other"
+                        />
+                        {invalid ? <FieldError>{m.monitoring_name_required()}</FieldError> : null}
+                      </TextField>
+                    );
+                  }}
+                </form.Field>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <form.Field name="kind">
+                    {(field) => (
+                      <SelectField
+                        label={m.monitoring_kind()}
+                        value={field.state.value}
+                        onChange={(v) => field.handleChange(v as "offline" | "high_traffic")}
+                        options={[
+                          { value: "offline", label: m.monitoring_kind_offline() },
+                          { value: "high_traffic", label: m.monitoring_kind_high_traffic() },
+                        ]}
+                      />
+                    )}
+                  </form.Field>
+                  <form.Field name="severity">
+                    {(field) => (
+                      <SelectField
+                        label={m.monitoring_severity()}
+                        value={field.state.value}
+                        onChange={(v) => field.handleChange(v as "warning" | "critical")}
+                        options={[
+                          { value: "warning", label: m.monitoring_warning() },
+                          { value: "critical", label: m.monitoring_critical() },
+                        ]}
+                      />
+                    )}
+                  </form.Field>
                 </div>
+
+                <div className="flex flex-col gap-4">
+                  <form.Field
+                    name="minutes"
+                    validators={{
+                      onChange: ({ value: v }) => {
+                        const seconds = Math.round(v * 60);
+                        return !Number.isFinite(v) || seconds < 60 || seconds > 86400
+                          ? m.monitoring_window_range()
+                          : undefined;
+                      },
+                    }}
+                  >
+                    {(field) => {
+                      const invalid =
+                        field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                      return (
+                        <NumberField
+                          className="w-full sm:w-44"
+                          value={field.state.value}
+                          onChange={field.handleChange}
+                          onBlur={field.handleBlur}
+                          minValue={1}
+                          maxValue={1440}
+                          step={1}
+                          isInvalid={invalid}
+                          isRequired
+                        >
+                          <Label>{m.monitoring_window_minutes()}</Label>
+                          <NumberField.Group>
+                            <NumberField.DecrementButton />
+                            <NumberField.Input />
+                            <NumberField.IncrementButton />
+                          </NumberField.Group>
+                          {invalid ? <FieldError>{m.monitoring_window_range()}</FieldError> : null}
+                        </NumberField>
+                      );
+                    }}
+                  </form.Field>
+                  {/* Threshold only applies to high-traffic monitors; unmounting it when
+                      the kind switches away clears its validation so canSubmit stays right. */}
+                  <form.Subscribe selector={(s) => s.values.kind}>
+                    {(kind) =>
+                      kind === "high_traffic" ? (
+                        <form.Field
+                          name="threshold"
+                          validators={{
+                            onChange: ({ value: v }) =>
+                              !(v > 0) ? m.monitoring_threshold_positive() : undefined,
+                          }}
+                        >
+                          {(field) => {
+                            const invalid =
+                              field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                            return (
+                              <NumberField
+                                className="w-full sm:w-60"
+                                value={field.state.value}
+                                onChange={field.handleChange}
+                                onBlur={field.handleBlur}
+                                minValue={0.001}
+                                step={0.1}
+                                isInvalid={invalid}
+                                isRequired
+                              >
+                                <Label>{m.monitoring_threshold()}</Label>
+                                <NumberField.Group>
+                                  <NumberField.DecrementButton />
+                                  <NumberField.Input />
+                                  <NumberField.IncrementButton />
+                                </NumberField.Group>
+                                {invalid ? (
+                                  <FieldError>{m.monitoring_threshold_positive()}</FieldError>
+                                ) : null}
+                              </NumberField>
+                            );
+                          }}
+                        </form.Field>
+                      ) : null
+                    }
+                  </form.Subscribe>
+                </div>
+
+                <form.Field name="scope">
+                  {(field) => (
+                    <SelectField
+                      label={m.monitoring_scope()}
+                      value={field.state.value}
+                      onChange={(v) => field.handleChange(v as "all_enabled" | "selected")}
+                      options={[
+                        { value: "all_enabled", label: m.monitoring_scope_all() },
+                        { value: "selected", label: m.monitoring_scope_selected() },
+                      ]}
+                    />
+                  )}
+                </form.Field>
+                <form.Subscribe selector={(s) => s.values.scope}>
+                  {(scope) =>
+                    scope === "selected" ? (
+                      <form.Field
+                        name="nodeIDs"
+                        validators={{
+                          onChange: ({ value: v }) =>
+                            v.length === 0 ? m.monitoring_nodes_required() : undefined,
+                        }}
+                      >
+                        {(field) => (
+                          <CheckboxListField
+                            label={m.monitoring_nodes()}
+                            values={field.state.value}
+                            onChange={field.handleChange}
+                            options={nodes}
+                            emptyLabel={m.monitoring_nodes_empty()}
+                            isInvalid={field.state.value.length === 0}
+                            errorMessage={m.monitoring_nodes_required()}
+                          />
+                        )}
+                      </form.Field>
+                    ) : null
+                  }
+                </form.Subscribe>
+
+                <form.Field name="channelIDs">
+                  {(field) => (
+                    <CheckboxListField
+                      label={m.monitoring_channels()}
+                      values={field.state.value}
+                      onChange={field.handleChange}
+                      options={channels.map((channel) => ({
+                        id: channel.id,
+                        name: channel.name,
+                        note: channel.enabled ? undefined : m.monitoring_channel_disabled(),
+                      }))}
+                      emptyLabel={m.monitoring_channels_empty()}
+                    />
+                  )}
+                </form.Field>
+
+                <Separator />
+
+                <form.Field name="enabled">
+                  {(field) => (
+                    <LabeledSwitch
+                      label={m.monitoring_enabled()}
+                      isSelected={field.state.value}
+                      onChange={field.handleChange}
+                    />
+                  )}
+                </form.Field>
               </div>
               {error ? (
                 <p className="mt-4 text-[13px] text-(--danger)" role="alert">
@@ -522,78 +682,23 @@ function MonitorModal({
               <Button slot="close" variant="secondary">
                 {m.common_cancel()}
               </Button>
-              <Button type="submit" variant="primary" isPending={pending}>
-                {value === "new" ? m.monitoring_create() : m.monitoring_save()}
-              </Button>
+              <form.Subscribe selector={(s) => s.canSubmit}>
+                {(canSubmit) => (
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    isPending={pending}
+                    isDisabled={pending || !canSubmit}
+                  >
+                    {value === "new" ? m.monitoring_create() : m.monitoring_save()}
+                  </Button>
+                )}
+              </form.Subscribe>
             </Modal.Footer>
           </form>
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-[13px]">
-      <span>{label}</span>
-      <select
-        className="h-9 rounded-(--radius) border border-(--border) bg-(--surface) px-2"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function MultiSelect({
-  label,
-  values,
-  onChange,
-  options,
-  disabled = false,
-}: {
-  label: string;
-  values: string[];
-  onChange: (values: string[]) => void;
-  options: Array<{ id: string; name: string }>;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-[13px]">
-      <span>{label}</span>
-      <select
-        multiple
-        disabled={disabled}
-        className="min-h-24 rounded-(--radius) border border-(--border) bg-(--surface) p-2 disabled:opacity-50"
-        value={values}
-        onChange={(event) =>
-          onChange(Array.from(event.target.selectedOptions, (option) => option.value))
-        }
-      >
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.name}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

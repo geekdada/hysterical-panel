@@ -2,7 +2,19 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
 import { Check, Copy } from "@gravity-ui/icons";
-import { Card, Description, Switch, Button, Modal } from "@heroui/react";
+import {
+  Button,
+  Card,
+  Checkbox,
+  CheckboxGroup,
+  Description,
+  FieldError,
+  Label,
+  ListBox,
+  Modal,
+  Select,
+  Switch,
+} from "@heroui/react";
 import { BreadcrumbTitleProvider, BreadcrumbBar } from "~/components/breadcrumbs";
 import { cn } from "~/lib/cn";
 import * as m from "~/paraglide/messages.js";
@@ -137,6 +149,99 @@ export function LabeledSwitch({
       </Switch.Content>
       {description && <Description>{description}</Description>}
     </Switch>
+  );
+}
+
+// A single-select field built on HeroUI Select so forms share one trigger,
+// popover, focus ring, and disabled treatment instead of a hand-styled native
+// <select>. value/onChange are plain option ids.
+export function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  description,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  description?: string;
+}) {
+  return (
+    <Select value={value} onChange={(key) => onChange(String(Array.isArray(key) ? key[0] : key))}>
+      <Label>{label}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox>
+          {options.map((option) => (
+            <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+              {option.label}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+      {description ? <Description>{description}</Description> : null}
+    </Select>
+  );
+}
+
+// A multi-select relation picker built on HeroUI CheckboxGroup — the shared
+// replacement for a native <select multiple>. Selection is visible at a glance
+// and keyboard/screen-reader friendly. Options may carry a muted note (e.g. a
+// disabled channel) and the list scrolls once it grows past a few rows.
+export function CheckboxListField({
+  label,
+  values,
+  onChange,
+  options,
+  description,
+  emptyLabel,
+  isInvalid = false,
+  errorMessage,
+}: {
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: Array<{ id: string; name: string; disabled?: boolean; note?: string }>;
+  description?: string;
+  emptyLabel?: string;
+  isInvalid?: boolean;
+  errorMessage?: string;
+}) {
+  return (
+    <CheckboxGroup value={values} onChange={onChange} isInvalid={isInvalid}>
+      <Label>{label}</Label>
+      {description ? <Description>{description}</Description> : null}
+
+      {options.length === 0 ? (
+        <p className="">{emptyLabel}</p>
+      ) : (
+        <div className="mt-1 flex flex-col gap-4 border rounded-(--radius) px-4 py-3 max-h-40 overflow-y-auto">
+          {options.map((option) => (
+            <Checkbox
+              key={option.id}
+              value={option.id}
+              isDisabled={option.disabled}
+              className="mt-0"
+            >
+              <Checkbox.Content className="">
+                <Checkbox.Control className="">
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                {option.name}
+              </Checkbox.Content>
+              {option.note ? <Description>{option.note}</Description> : null}
+            </Checkbox>
+          ))}
+        </div>
+      )}
+      {isInvalid && errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
+    </CheckboxGroup>
   );
 }
 
