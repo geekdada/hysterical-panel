@@ -97,6 +97,93 @@ type NotificationChannelRevealResponse struct {
 	URL string `json:"url"`
 }
 
+// ── Monitoring ──────────────────────────────────────────────────────────────
+
+type Monitor struct {
+	ID                      string         `json:"id"`
+	Name                    string         `json:"name"`
+	Kind                    string         `json:"kind"`
+	Enabled                 bool           `json:"enabled"`
+	Severity                string         `json:"severity"`
+	EvaluationWindowSeconds int            `json:"evaluation_window_seconds"`
+	NodeScope               string         `json:"node_scope"`
+	NodeIDs                 []string       `json:"node_ids"`
+	ChannelIDs              []string       `json:"channel_ids"`
+	Config                  map[string]any `json:"config"`
+	Created                 string         `json:"created"`
+	Updated                 string         `json:"updated"`
+}
+
+type OfflineMonitorConfig struct{}
+
+type HighTrafficMonitorConfig struct {
+	ThresholdBytesPerSecond int64 `json:"threshold_bytes_per_second"`
+}
+
+type MonitorCreateRequest struct {
+	Name                    string         `json:"name"`
+	Kind                    string         `json:"kind"`
+	Enabled                 *bool          `json:"enabled,omitempty"`
+	Severity                string         `json:"severity"`
+	EvaluationWindowSeconds int            `json:"evaluation_window_seconds"`
+	NodeScope               string         `json:"node_scope"`
+	NodeIDs                 []string       `json:"node_ids"`
+	ChannelIDs              []string       `json:"channel_ids"`
+	Config                  map[string]any `json:"config"`
+}
+
+type MonitorUpdateRequest struct {
+	Name                    *string         `json:"name,omitempty"`
+	Kind                    *string         `json:"kind,omitempty"`
+	Enabled                 *bool           `json:"enabled,omitempty"`
+	Severity                *string         `json:"severity,omitempty"`
+	EvaluationWindowSeconds *int            `json:"evaluation_window_seconds,omitempty"`
+	NodeScope               *string         `json:"node_scope,omitempty"`
+	NodeIDs                 *[]string       `json:"node_ids,omitempty"`
+	ChannelIDs              *[]string       `json:"channel_ids,omitempty"`
+	Config                  *map[string]any `json:"config,omitempty"`
+}
+
+type AlertDeliverySummary struct {
+	Succeeded int `json:"succeeded"`
+	Failed    int `json:"failed"`
+	Skipped   int `json:"skipped"`
+}
+
+type Alert struct {
+	ID                      string               `json:"id"`
+	MonitorID               string               `json:"monitor_id"`
+	Node                    NodeRef              `json:"node"`
+	Status                  string               `json:"status"`
+	Severity                string               `json:"severity"`
+	MonitorName             string               `json:"monitor_name"`
+	MonitorKind             string               `json:"monitor_kind"`
+	MonitorConfig           map[string]any       `json:"monitor_config"`
+	EvaluationWindowSeconds int                  `json:"evaluation_window_seconds"`
+	FiringValue             map[string]any       `json:"firing_value,omitempty"`
+	RecoveryValue           map[string]any       `json:"recovery_value,omitempty"`
+	StartedAt               string               `json:"started_at"`
+	EndedAt                 string               `json:"ended_at,omitempty"`
+	LastEvaluatedAt         string               `json:"last_evaluated_at"`
+	ResolutionReason        string               `json:"resolution_reason,omitempty"`
+	DurationSeconds         int64                `json:"duration_seconds"`
+	Deliveries              AlertDeliverySummary `json:"deliveries"`
+}
+
+type AlertListResponse struct {
+	Items   []Alert `json:"items"`
+	Total   int64   `json:"total"`
+	Page    int     `json:"page"`
+	PerPage int     `json:"per_page"`
+}
+
+type AlertSummaryResponse struct {
+	Total    int64   `json:"total"`
+	Warning  int64   `json:"warning"`
+	Critical int64   `json:"critical"`
+	Items    []Alert `json:"items"`
+}
+
 // ── User ──────────────────────────────────────────────────────────────────────
 
 // PanelUser is the public representation returned by user endpoints.

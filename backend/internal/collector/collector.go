@@ -143,10 +143,32 @@ func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
 	node.Set("last_error", "")
 	node.Set("current_tx_speed", speedPerSecond(nodeDtx, previousPoll, now))
 	node.Set("current_rx_speed", speedPerSecond(nodeDrx, previousPoll, now))
-	if err := c.app.Save(node); err != nil {
+	elapsed := int64(0)
+	if !previousPoll.IsZero() {
+		elapsed = int64(now.Sub(previousPoll).Seconds())
+	}
+	return c.app.RunInTransaction(func(txApp core.App) error {
+		if elapsed > 0 {
+			if err := recordObservation(txApp, node, now, elapsed, nodeDtx, nodeDrx); err != nil {
+				return err
+			}
+		}
+		return txApp.Save(node)
+	})
+}
+
+func recordObservation(app core.App, node *core.Record, observedAt time.Time, elapsed, tx, rx int64) error {
+	collection, err := app.FindCollectionByNameOrId("monitor_observations")
+	if err != nil {
 		return err
 	}
-	return nil
+	record := core.NewRecord(collection)
+	record.Set("node", node.Id)
+	record.Set("observed_at", observedAt.UTC())
+	record.Set("elapsed_seconds", elapsed)
+	record.Set("tx_bytes", tx)
+	record.Set("rx_bytes", rx)
+	return app.Save(record)
 }
 
 // applyDelta reads the cursor for (user,node), computes the delta with reset

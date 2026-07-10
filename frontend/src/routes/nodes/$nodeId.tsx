@@ -9,6 +9,7 @@ import {
   fetchNodeLive,
   isNotFoundError,
   nodeOverviewQueryOptions,
+  nodeAlertsQueryOptions,
   queryErrorMessage,
   queryKeys,
   resetNodeAPISecret,
@@ -55,6 +56,8 @@ type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
 type NodeLive = components["schemas"]["NodeLiveResponse"];
 type NodeAPISecretReset = components["schemas"]["NodeAPISecretResetResponse"];
+type Alert = components["schemas"]["Alert"];
+type AlertItem = NonNullable<components["schemas"]["AlertListResponse"]["items"]>[number];
 
 export const Route = createFileRoute("/nodes/$nodeId")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -68,6 +71,7 @@ export const Route = createFileRoute("/nodes/$nodeId")({
     const range = toTrafficRangeQuery(defaultLocalTrafficRange(tz), tz);
     await Promise.allSettled([
       context.queryClient.ensureQueryData(nodeOverviewQueryOptions(params.nodeId, range)),
+      context.queryClient.ensureQueryData(nodeAlertsQueryOptions(params.nodeId)),
     ]);
   },
   component: NodeDetailPage,
@@ -100,6 +104,7 @@ function NodeDetailPage() {
 
   const trafficQuery = toTrafficRangeQuery(trafficRange, tz);
   const overviewQuery = useQuery(nodeOverviewQueryOptions(nodeId, trafficQuery));
+  const alertsQuery = useQuery(nodeAlertsQueryOptions(nodeId));
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 5_000);
@@ -217,6 +222,11 @@ function NodeDetailPage() {
         <>
           <DetailRail node={node} loading={loading && !node} now={now} />
 
+          <NodeAlertsSection
+            alerts={(alertsQuery.data?.items ?? []).filter((alert) => alert.status === "firing")}
+            now={now}
+          />
+
           <TrafficSection
             loading={loading && !series}
             trafficRange={trafficRange}
@@ -258,6 +268,31 @@ function NodeDetailPage() {
         </>
       )}
     </PageShell>
+  );
+}
+
+function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number }) {
+  if (alerts.length === 0) return null;
+  return (
+    <Section title={m.monitoring_node_alerts()} meta={String(alerts.length)}>
+      <div className="divide-y divide-(--separator)">
+        {alerts.map((alert) => (
+          <Link
+            key={alert.id}
+            to="/settings/monitoring"
+            className="flex items-center gap-3 px-3 py-2.5 text-(--foreground) no-underline hover:bg-(--surface-secondary)"
+          >
+            <Dot tone={alert.severity === "critical" ? "error" : "warn"} />
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
+              {alert.monitor_name ?? m.monitoring_monitor()}
+            </span>
+            <span className="text-xs text-(--muted)">
+              {alert.started_at ? relTimeFromISO(alert.started_at, now) : m.common_em_dash()}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </Section>
   );
 }
 

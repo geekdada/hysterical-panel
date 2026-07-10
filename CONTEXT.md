@@ -89,7 +89,7 @@ A globally configured client IP that must not be recorded as a Recent Connection
 _Avoid_: IP blocklist, banlist, deny list (as the name for this)
 
 **Notification Channel**:
-An admin-managed outbound destination for future panel messages. A Notification Channel has no triggering logic; it is distinct from a Notification Rule.
+An admin-managed outbound destination for panel messages. A Notification Channel has no triggering logic; Monitors may reference zero or more Channels.
 _Avoid_: provider, notifier, alert rule, webhook (as the broad feature name)
 
 **Channel URL**:
@@ -99,3 +99,19 @@ _Avoid_: endpoint, callback URL, token (as the complete configuration name)
 **Channel Test**:
 An explicit administrator-initiated verification delivery to one Notification Channel. It is neither a Notification Rule nor normal notification delivery.
 _Avoid_: alert, rule run, manual message (as the feature name)
+
+**Observation**:
+A timestamped interval of Node monitoring data, expressed as observed bytes and elapsed time. Missing Observations mean unknown data rather than zero Traffic.
+_Avoid_: sample (as the domain noun), metric row, Traffic bucket
+
+**Monitor**:
+An admin-configured condition evaluated over an Observation window for all Enabled Nodes or selected Nodes, with a severity and optional Notification Channels.
+_Avoid_: Notification Rule, Alert Rule, health check
+
+**Alert**:
+One Monitor's lifecycle for one Node, from `firing` until it is `resolved` by healthy data or `cancelled` by Monitor, Node lifecycle, or scope changes.
+_Avoid_: Monitor, Notification, incident (as the domain noun)
+
+**Notification**:
+A single best-effort delivery of an Alert firing or recovery transition to one Notification Channel.
+_Avoid_: Alert, message queue, reminder

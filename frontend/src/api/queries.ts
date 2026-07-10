@@ -56,6 +56,12 @@ type IgnoredConnectionIPCreateRequest = components["schemas"]["IgnoredConnection
 type AppSettings = components["schemas"]["SettingsResponse"];
 type SettingsUpdateRequest = components["schemas"]["SettingsUpdateRequest"];
 type ManagementAPIToken = components["schemas"]["ManagementAPITokenResponse"];
+type Monitor = components["schemas"]["Monitor"];
+type MonitorCreateRequest = components["schemas"]["MonitorCreateRequest"];
+type MonitorUpdateRequest = components["schemas"]["MonitorUpdateRequest"];
+type Alert = components["schemas"]["Alert"];
+type AlertListResponse = components["schemas"]["AlertListResponse"];
+type AlertSummaryResponse = components["schemas"]["AlertSummaryResponse"];
 
 export type {
   Invitation,
@@ -70,6 +76,12 @@ export type {
   NotificationChannelUpdateRequest,
   NotificationChannelTestResponse,
   NotificationChannelRevealResponse,
+  Monitor,
+  MonitorCreateRequest,
+  MonitorUpdateRequest,
+  Alert,
+  AlertListResponse,
+  AlertSummaryResponse,
 };
 
 export const REFRESH_MS = 20_000;
@@ -158,6 +170,19 @@ export const queryKeys = {
   invitations: () => [...queryKeys.all, "invitations"] as const,
   ignoredConnectionIPs: () => [...queryKeys.all, "ignored-connection-ips"] as const,
   notificationChannels: () => [...queryKeys.all, "notification-channels"] as const,
+  monitors: () => [...queryKeys.all, "monitors"] as const,
+  alertsBase: () => [...queryKeys.all, "alerts"] as const,
+  alerts: (query?: AlertsQuery) =>
+    [
+      ...queryKeys.alertsBase(),
+      "list",
+      query?.page ?? 1,
+      query?.per_page ?? 25,
+      query?.status ?? "",
+      query?.severity ?? "",
+    ] as const,
+  alertSummary: () => [...queryKeys.alertsBase(), "summary"] as const,
+  nodeAlerts: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "alerts"] as const,
   settings: () => [...queryKeys.all, "settings"] as const,
   nodeLive: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "live"] as const,
   nodeOverview: (nodeId: string, range: TrafficRangeQuery | null) =>
@@ -700,6 +725,89 @@ export async function revealNotificationChannelURL(
     }),
     m.error_notification_channel_reveal()
   );
+}
+
+export function fetchMonitors(): Promise<Monitor[]> {
+  return apiRequest<Monitor[]>(apiClient.GET("/api/panel/monitors"));
+}
+
+export function monitorsQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.monitors(),
+    queryFn: fetchMonitors,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
+export function createMonitor(body: MonitorCreateRequest): Promise<Monitor> {
+  return apiRequest<Monitor>(apiClient.POST("/api/panel/monitors", { body }));
+}
+
+export function updateMonitor(id: string, body: MonitorUpdateRequest): Promise<Monitor> {
+  return apiRequest<Monitor>(
+    apiClient.PATCH("/api/panel/monitors/{id}", { params: { path: { id } }, body })
+  );
+}
+
+export function deleteMonitor(id: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/monitors/{id}", { params: { path: { id } } })
+  );
+}
+
+export type AlertsQuery = {
+  page?: number;
+  per_page?: 25 | 50 | 100;
+  status?: "firing" | "resolved" | "cancelled" | "history";
+  severity?: "warning" | "critical";
+};
+
+export function fetchAlerts(query: AlertsQuery = {}): Promise<AlertListResponse> {
+  return apiRequest<AlertListResponse>(apiClient.GET("/api/panel/alerts", { params: { query } }));
+}
+
+export function alertsQueryOptions(query: AlertsQuery = {}) {
+  return queryOptions({
+    queryKey: queryKeys.alerts(query),
+    queryFn: () => fetchAlerts(query),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
+export function fetchAlertSummary(): Promise<AlertSummaryResponse> {
+  return apiRequest<AlertSummaryResponse>(apiClient.GET("/api/panel/alerts/summary"));
+}
+
+export function alertSummaryQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.alertSummary(),
+    queryFn: fetchAlertSummary,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
+export function fetchNodeAlerts(nodeId: string): Promise<AlertListResponse> {
+  return apiRequest<AlertListResponse>(
+    apiClient.GET("/api/panel/nodes/{id}/alerts", {
+      params: { path: { id: nodeId }, query: { status: "firing", per_page: 100 } },
+    })
+  );
+}
+
+export function nodeAlertsQueryOptions(nodeId: string) {
+  return queryOptions({
+    queryKey: queryKeys.nodeAlerts(nodeId),
+    queryFn: () => fetchNodeAlerts(nodeId),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
 }
 
 export function isNotFoundError(error: unknown): boolean {

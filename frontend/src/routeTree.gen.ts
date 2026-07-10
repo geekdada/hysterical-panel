@@ -24,6 +24,7 @@ import { Route as UsersIndexRouteImport } from './routes/users/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
+import { Route as SettingsMonitoringRouteImport } from './routes/settings/monitoring'
 import { Route as SettingsManagementApiRouteImport } from './routes/settings/management-api'
 import { Route as SettingsDatabaseRouteImport } from './routes/settings/database'
 import { Route as NodesNewRouteImport } from './routes/nodes/new'
@@ -104,6 +105,11 @@ const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsMonitoringRoute = SettingsMonitoringRouteImport.update({
+  id: '/monitoring',
+  path: '/monitoring',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const SettingsManagementApiRoute = SettingsManagementApiRouteImport.update({
   id: '/management-api',
   path: '/management-api',
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/nodes/new': typeof NodesNewRoute
   '/settings/database': typeof SettingsDatabaseRoute
   '/settings/management-api': typeof SettingsManagementApiRoute
+  '/settings/monitoring': typeof SettingsMonitoringRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
@@ -160,6 +167,7 @@ export interface FileRoutesByTo {
   '/nodes/new': typeof NodesNewRoute
   '/settings/database': typeof SettingsDatabaseRoute
   '/settings/management-api': typeof SettingsManagementApiRoute
+  '/settings/monitoring': typeof SettingsMonitoringRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings': typeof SettingsIndexRoute
@@ -182,6 +190,7 @@ export interface FileRoutesById {
   '/nodes/new': typeof NodesNewRoute
   '/settings/database': typeof SettingsDatabaseRoute
   '/settings/management-api': typeof SettingsManagementApiRoute
+  '/settings/monitoring': typeof SettingsMonitoringRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
@@ -205,6 +214,7 @@ export interface FileRouteTypes {
     | '/nodes/new'
     | '/settings/database'
     | '/settings/management-api'
+    | '/settings/monitoring'
     | '/settings/notifications'
     | '/users/$userId'
     | '/settings/'
@@ -224,6 +234,7 @@ export interface FileRouteTypes {
     | '/nodes/new'
     | '/settings/database'
     | '/settings/management-api'
+    | '/settings/monitoring'
     | '/settings/notifications'
     | '/users/$userId'
     | '/settings'
@@ -245,6 +256,7 @@ export interface FileRouteTypes {
     | '/nodes/new'
     | '/settings/database'
     | '/settings/management-api'
+    | '/settings/monitoring'
     | '/settings/notifications'
     | '/users/$userId'
     | '/settings/'
@@ -372,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsNotificationsRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/monitoring': {
+      id: '/settings/monitoring'
+      path: '/monitoring'
+      fullPath: '/settings/monitoring'
+      preLoaderRoute: typeof SettingsMonitoringRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/management-api': {
       id: '/settings/management-api'
       path: '/management-api'
@@ -420,6 +439,7 @@ const NodesRouteRouteWithChildren = NodesRouteRoute._addFileChildren(
 interface SettingsRouteRouteChildren {
   SettingsDatabaseRoute: typeof SettingsDatabaseRoute
   SettingsManagementApiRoute: typeof SettingsManagementApiRoute
+  SettingsMonitoringRoute: typeof SettingsMonitoringRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -427,6 +447,7 @@ interface SettingsRouteRouteChildren {
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsDatabaseRoute: SettingsDatabaseRoute,
   SettingsManagementApiRoute: SettingsManagementApiRoute,
+  SettingsMonitoringRoute: SettingsMonitoringRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }

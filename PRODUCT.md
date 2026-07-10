@@ -10,7 +10,7 @@ Administrators operating a Hysteria 2 proxy panel. They sit at a desk, monitor n
 
 ## Product Purpose
 
-A lightweight admin panel for Hysteria 2 nodes. Centralizes node monitoring, user management, traffic aggregation, and real-time diagnostics. Success is when an admin can assess fleet health and troubleshoot a user issue in under 60 seconds.
+A lightweight admin panel for Hysteria 2 nodes. Centralizes node monitoring, configurable offline and high-traffic Alerts, user management, traffic aggregation, and real-time diagnostics. Success is when an admin can assess fleet health and troubleshoot a user issue in under 60 seconds.
 
 ## Brand Personality
 

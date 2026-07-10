@@ -29,6 +29,14 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"NotificationChannelUpdateRequest":  NotificationChannelUpdateRequest{},
 		"NotificationChannelTestResponse":   NotificationChannelTestResponse{},
 		"NotificationChannelRevealResponse": NotificationChannelRevealResponse{},
+		"Monitor":                           Monitor{},
+		"OfflineMonitorConfig":              OfflineMonitorConfig{},
+		"HighTrafficMonitorConfig":          HighTrafficMonitorConfig{},
+		"MonitorCreateRequest":              MonitorCreateRequest{},
+		"MonitorUpdateRequest":              MonitorUpdateRequest{},
+		"Alert":                             Alert{},
+		"AlertListResponse":                 AlertListResponse{},
+		"AlertSummaryResponse":              AlertSummaryResponse{},
 		"PanelUser":                         PanelUser{},
 		"RecentConnection":                  RecentConnection{},
 		"UserListResponse":                  UserListResponse{},
@@ -111,6 +119,25 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	if s, ok := schemas["NotificationChannelTestResponse"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "status", []any{"succeeded", "failed"})
 		setEnum(s.Value.Properties, "error", []any{"timed_out", "delivery_failed"})
+	}
+	for _, name := range []string{"Monitor", "MonitorCreateRequest", "MonitorUpdateRequest"} {
+		if s, ok := schemas[name]; ok && s.Value != nil {
+			setEnum(s.Value.Properties, "kind", []any{"offline", "high_traffic"})
+			setEnum(s.Value.Properties, "severity", []any{"warning", "critical"})
+			setEnum(s.Value.Properties, "node_scope", []any{"all_enabled", "selected"})
+		}
+	}
+	configUnion := &openapi3.SchemaRef{Value: &openapi3.Schema{OneOf: openapi3.SchemaRefs{schemas["OfflineMonitorConfig"], schemas["HighTrafficMonitorConfig"]}}}
+	for _, name := range []string{"Monitor", "MonitorCreateRequest", "MonitorUpdateRequest"} {
+		if s, ok := schemas[name]; ok && s.Value != nil {
+			s.Value.Properties["config"] = configUnion
+		}
+	}
+	if s, ok := schemas["Alert"]; ok && s.Value != nil {
+		setEnum(s.Value.Properties, "status", []any{"firing", "resolved", "cancelled"})
+		setEnum(s.Value.Properties, "severity", []any{"warning", "critical"})
+		setEnum(s.Value.Properties, "monitor_kind", []any{"offline", "high_traffic"})
+		setEnum(s.Value.Properties, "resolution_reason", []any{"condition_cleared", "monitor_disabled", "monitor_deleted", "node_disabled", "node_removed_from_scope", "monitor_reconfigured"})
 	}
 	// ── doc skeleton ──────────────────────────────────────────────────────
 	t := &openapi3.T{
@@ -198,6 +225,16 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 				Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithFormat("date-time")},
 			},
 		}
+	}
+	stringQueryParam := func(name, desc string, enums ...any) *openapi3.ParameterRef {
+		schema := openapi3.NewStringSchema()
+		if len(enums) > 0 {
+			schema.Enum = enums
+		}
+		return &openapi3.ParameterRef{Value: &openapi3.Parameter{Name: name, In: "query", Description: desc, Schema: &openapi3.SchemaRef{Value: schema}}}
+	}
+	intQueryParam := func(name, desc string) *openapi3.ParameterRef {
+		return &openapi3.ParameterRef{Value: &openapi3.Parameter{Name: name, In: "query", Description: desc, Schema: &openapi3.SchemaRef{Value: openapi3.NewIntegerSchema()}}}
 	}
 
 	withAuth := func(op *openapi3.Operation) {
@@ -1292,6 +1329,59 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			return op
 		}(),
 	})
+
+	// ── monitoring ────────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/monitors", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{OperationID: "listMonitors", Summary: "List active monitor configurations", Tags: []string{"monitoring"}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Monitor list"), Content: content(arrayRef("Monitor"))}}))}
+			withAuth(op)
+			return op
+		}(),
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{OperationID: "createMonitor", Summary: "Create a monitor", Tags: []string{"monitoring"}, RequestBody: &openapi3.RequestBodyRef{Value: openapi3.NewRequestBody().WithRequired(true).WithJSONSchemaRef(ref("MonitorCreateRequest"))}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Created monitor"), Content: content(ref("Monitor"))}}))}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+	t.Paths.Set("/api/panel/monitors/{id}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Monitor ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{OperationID: "getMonitor", Summary: "Get monitor detail", Tags: []string{"monitoring"}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Monitor detail"), Content: content(ref("Monitor"))}}))}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+		Patch: func() *openapi3.Operation {
+			op := &openapi3.Operation{OperationID: "updateMonitor", Summary: "Update a monitor", Tags: []string{"monitoring"}, RequestBody: &openapi3.RequestBodyRef{Value: openapi3.NewRequestBody().WithRequired(true).WithJSONSchemaRef(ref("MonitorUpdateRequest"))}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Updated monitor"), Content: content(ref("Monitor"))}}))}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{OperationID: "deleteMonitor", Summary: "Soft-delete a monitor", Tags: []string{"monitoring"}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Deletion confirmed"), Content: content(ref("DeleteResponse"))}}))}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+	t.Paths.Set("/api/panel/alerts", &openapi3.PathItem{Get: func() *openapi3.Operation {
+		op := &openapi3.Operation{OperationID: "listAlerts", Summary: "List current and historical alerts", Tags: []string{"monitoring"}, Parameters: openapi3.Parameters{stringQueryParam("status", "Alert status", "firing", "resolved", "cancelled", "history"), stringQueryParam("node_id", "Node ID"), stringQueryParam("monitor_id", "Monitor ID"), stringQueryParam("severity", "Severity", "warning", "critical"), intQueryParam("page", "Page number"), intQueryParam("per_page", "Page size: 25, 50, or 100")}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Paginated alerts"), Content: content(ref("AlertListResponse"))}}))}
+		withAuth(op)
+		return op
+	}()})
+	t.Paths.Set("/api/panel/alerts/summary", &openapi3.PathItem{Get: func() *openapi3.Operation {
+		op := &openapi3.Operation{OperationID: "alertSummary", Summary: "Summarize firing alerts", Tags: []string{"monitoring"}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Active alert summary"), Content: content(ref("AlertSummaryResponse"))}}))}
+		withAuth(op)
+		return op
+	}()})
+	t.Paths.Set("/api/panel/nodes/{id}/alerts", &openapi3.PathItem{Parameters: openapi3.Parameters{idParam("Node ID")}, Get: func() *openapi3.Operation {
+		op := &openapi3.Operation{OperationID: "nodeAlerts", Summary: "List alerts for one node", Tags: []string{"monitoring", "nodes"}, Parameters: openapi3.Parameters{stringQueryParam("status", "Alert status", "firing", "resolved", "cancelled"), stringQueryParam("monitor_id", "Monitor ID"), stringQueryParam("severity", "Severity", "warning", "critical"), intQueryParam("page", "Page number"), intQueryParam("per_page", "Page size: 25, 50, or 100")}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Node alerts"), Content: content(ref("AlertListResponse"))}}))}
+		op.Responses.Set("404", notFound)
+		withAuth(op)
+		return op
+	}()})
 
 	// ── /invitations ───────────────────────────────────────────────────────
 	t.Paths.Set("/api/panel/invitations", &openapi3.PathItem{

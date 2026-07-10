@@ -20,6 +20,8 @@ import (
 	"hysterical-panel/internal/config"
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/ipmeta"
+	"hysterical-panel/internal/monitoring"
+	"hysterical-panel/internal/notifications"
 	"hysterical-panel/internal/panelserve"
 	"hysterical-panel/internal/version"
 )
@@ -106,8 +108,10 @@ func main() {
 			}
 		}
 
+		monitorService := monitoring.New(app, box, notifications.New(), frontendURL)
+
 		// register custom panel routes
-		api.Register(se, app, box, ipLookup, passkeys, api.PanelConfigResponse{
+		api.Register(se, app, box, ipLookup, passkeys, monitorService, api.PanelConfigResponse{
 			APIURL:          backendURL,
 			FrontendURL:     frontendURL,
 			PasskeysEnabled: passkeyConfig.Enabled,
@@ -118,6 +122,7 @@ func main() {
 		ctx, cancel := context.WithCancel(context.Background())
 		c := collector.New(app, box)
 		c.Start(ctx)
+		monitorService.Start(ctx)
 
 		// stop the collector when the app terminates
 		app.OnTerminate().BindFunc(func(te *core.TerminateEvent) error {

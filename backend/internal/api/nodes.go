@@ -99,6 +99,9 @@ func (h *Handlers) createNode(e *core.RequestEvent) error {
 	} else {
 		n.Set("enabled", true)
 	}
+	if n.GetBool("enabled") {
+		n.Set("enabled_at", time.Now().UTC())
+	}
 	if err := h.app.Save(n); err != nil {
 		return apis.NewBadRequestError("failed to save node", err)
 	}
@@ -136,7 +139,11 @@ func (h *Handlers) updateNode(e *core.RequestEvent) error {
 		n.Set("poll_interval", *in.PollInterval)
 	}
 	if in.Enabled != nil {
+		wasEnabled := n.GetBool("enabled")
 		n.Set("enabled", *in.Enabled)
+		if !wasEnabled && *in.Enabled {
+			n.Set("enabled_at", time.Now().UTC())
+		}
 		if !*in.Enabled {
 			n.Set("current_tx_speed", 0)
 			n.Set("current_rx_speed", 0)
@@ -144,6 +151,11 @@ func (h *Handlers) updateNode(e *core.RequestEvent) error {
 	}
 	if err := h.app.Save(n); err != nil {
 		return apis.NewBadRequestError("failed to save node", err)
+	}
+	if in.Enabled != nil && !*in.Enabled && h.monitoring != nil {
+		if err := h.monitoring.CancelNodeAlerts(n.Id, "node_disabled"); err != nil {
+			return apis.NewBadRequestError("failed to cancel node alerts", err)
+		}
 	}
 	return ok(e, publicNode(n))
 }
@@ -160,6 +172,11 @@ func (h *Handlers) deleteNode(e *core.RequestEvent) error {
 	n.Set("current_rx_speed", 0)
 	if err := h.app.Save(n); err != nil {
 		return apis.NewBadRequestError("failed to delete node", err)
+	}
+	if h.monitoring != nil {
+		if err := h.monitoring.CancelNodeAlerts(n.Id, "node_disabled"); err != nil {
+			return apis.NewBadRequestError("failed to cancel node alerts", err)
+		}
 	}
 	return ok(e, map[string]any{"deleted": true})
 }

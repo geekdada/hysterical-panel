@@ -14,6 +14,8 @@ import {
   dashboardNodeTrafficQueryOptions,
   dashboardNodesQueryOptions,
   dashboardTrafficQueryOptions,
+  alertSummaryQueryOptions,
+  alertsQueryOptions,
   queryErrorMessage,
   toTrafficRangeQuery,
   userStatsQueryOptions,
@@ -106,6 +108,8 @@ export const Route = createFileRoute("/")({
       context.queryClient.ensureQueryData(
         dashboardNodeTrafficQueryOptions(dashboardNodeTrafficRangeQuery(tz))
       ),
+      context.queryClient.ensureQueryData(alertSummaryQueryOptions()),
+      context.queryClient.ensureQueryData(alertsQueryOptions({ status: "firing", per_page: 100 })),
     ]);
   },
   component: DashboardPage,
@@ -128,6 +132,8 @@ function DashboardPage() {
   const userStatsQuery = useQuery(userStatsQueryOptions());
   const trafficQuery = useQuery(dashboardTrafficQueryOptions(trafficRangeQuery));
   const nodeTrafficSummaryQuery = useQuery(dashboardNodeTrafficQueryOptions(nodeTrafficQuery));
+  const alertSummaryQuery = useQuery(alertSummaryQueryOptions());
+  const activeAlertsQuery = useQuery(alertsQueryOptions({ status: "firing", per_page: 100 }));
 
   // Tick the clock so relative timestamps stay current and today rolls over. Also
   // re-seeds when the timezone preference changes so "today" tracks the active tz.
@@ -186,7 +192,8 @@ function DashboardPage() {
       nodesQuery.dataUpdatedAt,
       userStatsQuery.dataUpdatedAt,
       trafficQuery.dataUpdatedAt,
-      nodeTrafficSummaryQuery.dataUpdatedAt
+      nodeTrafficSummaryQuery.dataUpdatedAt,
+      alertSummaryQuery.dataUpdatedAt
     ) || null;
   const nodeTrafficById = useMemo(() => {
     const byId = new Map<string, NodeTodayTraffic>();
@@ -196,6 +203,14 @@ function DashboardPage() {
     }
     return byId;
   }, [nodeTrafficSummary]);
+  const alertCountByNode = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const alert of activeAlertsQuery.data?.items ?? []) {
+      const nodeID = alert.node?.id;
+      if (nodeID) counts.set(nodeID, (counts.get(nodeID) ?? 0) + 1);
+    }
+    return counts;
+  }, [activeAlertsQuery.data]);
   const enabledNodes = nodes.filter((n) => n.enabled);
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
   const errorNodes = enabledNodes.filter((n) => n.health === "error");
@@ -226,6 +241,19 @@ function DashboardPage() {
       {queryErrors.map((error) => (
         <ErrorAlert key={error.key} message={error.message} icon className="mb-4" />
       ))}
+
+      {(alertSummaryQuery.data?.total ?? 0) > 0 ? (
+        <Link
+          to="/settings/monitoring"
+          className="mb-4 flex items-center justify-between rounded-(--radius) border border-(--danger)/40 bg-(--danger-soft) px-3 py-2.5 text-(--danger-soft-foreground) no-underline"
+        >
+          <span className="flex items-center gap-2 text-[13px] font-medium">
+            <Dot tone={(alertSummaryQuery.data?.critical ?? 0) > 0 ? "error" : "warn"} />
+            {m.monitoring_active_summary({ count: String(alertSummaryQuery.data?.total ?? 0) })}
+          </span>
+          <span className="text-xs text-(--muted)">{m.nav_monitoring()} →</span>
+        </Link>
+      ) : null}
 
       {/* Summary rail: one connected strip, not free-floating metric cards. */}
       <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
@@ -306,6 +334,7 @@ function DashboardPage() {
         ) : nodes.length > 0 ? (
           <NodesTable
             nodes={nodes}
+            alertCountByNode={alertCountByNode}
             now={now}
             todayTrafficByNode={nodeTrafficById}
             todayTrafficLoading={nodeTrafficLoading}
@@ -440,12 +469,14 @@ function StatSkeleton({ withDot, wide }: { withDot: boolean; wide: boolean }) {
 
 function NodesTable({
   nodes,
+  alertCountByNode,
   now,
   todayTrafficByNode,
   todayTrafficLoading,
   todayTrafficUnavailable,
 }: {
   nodes: Node[];
+  alertCountByNode: Map<string, number>;
   now: number;
   todayTrafficByNode: Map<string, NodeTodayTraffic>;
   todayTrafficLoading: boolean;
@@ -556,6 +587,14 @@ function NodesTable({
                     >
                       {node.name || m.common_em_dash()}
                     </Link>
+                    {(alertCountByNode.get(node.id ?? "") ?? 0) > 0 ? (
+                      <Link
+                        to="/settings/monitoring"
+                        className="rounded-full bg-(--danger-soft) px-1.5 py-0.5 text-[10px] font-medium text-(--danger-soft-foreground) no-underline"
+                      >
+                        {alertCountByNode.get(node.id ?? "")}
+                      </Link>
+                    ) : null}
                   </div>
                 </Td>
                 <Td className="whitespace-nowrap text-right">

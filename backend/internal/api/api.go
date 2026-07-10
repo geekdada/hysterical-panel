@@ -30,11 +30,12 @@ type Handlers struct {
 	passkeyLimit  *passkeyRateLimiter
 	registerLimit *passkeyRateLimiter
 	notifications notificationDelivery
+	monitoring    monitorLifecycle
 	publicConfig  PanelConfigResponse
 }
 
 // Register wires every /api/panel/* route onto the serve event router.
-func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, passkeys *webauthn.WebAuthn, public PanelConfigResponse) {
+func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, passkeys *webauthn.WebAuthn, monitoring monitorLifecycle, public PanelConfigResponse) {
 	h := &Handlers{
 		app:           app,
 		box:           box,
@@ -43,6 +44,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 		passkeyLimit:  newPasskeyRateLimiter(30, passkeyChallengeTTL),
 		registerLimit: newPasskeyRateLimiter(registerRateMax, registerRateWindow),
 		notifications: notifications.New(),
+		monitoring:    monitoring,
 		publicConfig:  public,
 	}
 
@@ -102,6 +104,16 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.POST("/notification-channels/{id}/test", h.testNotificationChannel).Bind(adminOnly)
 	g.POST("/notification-channels/{id}/reveal/options", h.notificationChannelRevealOptions).Bind(adminOnly)
 	g.POST("/notification-channels/{id}/reveal/finish", h.notificationChannelRevealFinish).Bind(adminOnly)
+
+	// monitoring
+	g.GET("/monitors", h.listMonitors).Bind(adminOnly)
+	g.POST("/monitors", h.createMonitor).Bind(adminOnly)
+	g.GET("/monitors/{id}", h.getMonitor).Bind(adminOnly)
+	g.PATCH("/monitors/{id}", h.updateMonitor).Bind(adminOnly)
+	g.DELETE("/monitors/{id}", h.deleteMonitor).Bind(adminOnly)
+	g.GET("/alerts", h.listAlerts).Bind(adminOnly)
+	g.GET("/alerts/summary", h.alertSummary).Bind(adminOnly)
+	g.GET("/nodes/{id}/alerts", h.nodeAlerts).Bind(adminOnly)
 
 	// users
 	g.GET("/users", h.listUsers).Bind(adminOnly)
