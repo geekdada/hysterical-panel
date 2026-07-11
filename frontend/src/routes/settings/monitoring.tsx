@@ -48,7 +48,14 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
-import { formatBytesPerSecond, formatDuration, relTimeFromISO } from "~/lib/format";
+import {
+  formatBytesPerSecond,
+  formatDuration,
+  formatLocaleDateTime,
+  relTimeFromISO,
+} from "~/lib/format";
+import { useActiveTimeZone } from "~/lib/use-timezone";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/settings/monitoring")({
@@ -78,7 +85,8 @@ function MonitoringPage() {
     "history"
   );
   const [historySeverity, setHistorySeverity] = useState<"" | "warning" | "critical">("");
-  const now = Date.now();
+  const now = useHydratedNow();
+  const timeZone = useActiveTimeZone();
   const monitorsQuery = useQuery(monitorsQueryOptions());
   const activeQuery = useQuery(alertsQueryOptions({ status: "firing", per_page: 100 }));
   const historyQuery = useQuery(
@@ -162,7 +170,7 @@ function MonitoringPage() {
             <p className="mt-1 text-xs text-muted">{m.monitoring_no_active_hint()}</p>
           </div>
         ) : (
-          <AlertTable alerts={active} now={now} />
+          <AlertTable alerts={active} now={now} timeZone={timeZone} />
         )}
       </Section>
 
@@ -182,10 +190,16 @@ function MonitoringPage() {
                       ? m.monitoring_critical()
                       : m.monitoring_warning()
                   }
-                  className={monitor.enabled ? "" : "opacity-60"}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium">{monitor.name}</p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate text-[13px] font-medium">{monitor.name}</p>
+                    {!monitor.enabled ? (
+                      <span className="inline-flex h-5 shrink-0 items-center rounded-[4px] border border-border bg-surface-secondary px-1.5 text-[10px] font-semibold leading-none text-muted">
+                        {m.common_disabled()}
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-muted">
                     {kindLabel(monitor.kind ?? "offline")} ·{" "}
                     {formatDuration(monitor.evaluation_window_seconds ?? 0)} ·{" "}
@@ -253,7 +267,7 @@ function MonitoringPage() {
           <PanelMessage>{m.monitoring_no_history()}</PanelMessage>
         ) : (
           <>
-            <AlertTable alerts={history} now={now} />
+            <AlertTable alerts={history} now={now} timeZone={timeZone} />
             <div className="flex items-center justify-end gap-2 border-t border-separator px-3 py-2">
               <Button
                 size="sm"
@@ -321,13 +335,21 @@ function MonitoringPage() {
   );
 }
 
-function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
+function AlertTable({
+  alerts,
+  now,
+  timeZone,
+}: {
+  alerts: AlertItem[];
+  now: number | null;
+  timeZone: string;
+}) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left">
+      <table className="w-full border-collapse text-left text-[13px]">
         <thead>
-          <tr>
-            <Th>{m.monitoring_monitor()}</Th>
+          <tr className="border-b border-border bg-surface-secondary">
+            <Th className="min-w-[240px]">{m.monitoring_monitor()}</Th>
             <Th>{m.monitoring_node()}</Th>
             <Th>{m.monitoring_started()}</Th>
             <Th>{m.monitoring_duration()}</Th>
@@ -336,9 +358,12 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
         </thead>
         <tbody className="divide-y divide-separator">
           {alerts.map((alert) => (
-            <tr key={alert.id}>
-              <Td>
-                <div className="flex items-center gap-2">
+            <tr
+              key={alert.id}
+              className="transition-colors duration-150 hover:bg-surface-secondary"
+            >
+              <Td className="min-w-[240px]">
+                <div className="flex items-center gap-3">
                   <SeverityBadge
                     severity={alert.severity === "critical" ? "critical" : "warning"}
                     label={
@@ -346,15 +371,16 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
                         ? m.monitoring_critical()
                         : m.monitoring_warning()
                     }
-                    className={alert.status === "firing" ? "" : "opacity-60"}
                   />
                   <div>
                     <p className="text-[13px] font-medium">
                       {alert.monitor_name ?? m.monitoring_monitor()}
                     </p>
-                    <p className="text-xs text-muted">
+                    <p className="whitespace-nowrap text-xs text-muted">
                       {statusLabel(alert.status ?? "cancelled")} · {alertValue(alert)}
-                      {alert.resolution_reason ? ` · ${alert.resolution_reason}` : ""}
+                      {alert.resolution_reason
+                        ? ` · ${resolutionReasonLabel(alert.resolution_reason)}`
+                        : ""}
                     </p>
                   </div>
                 </div>
@@ -364,7 +390,7 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
                   <Link
                     to="/nodes/$nodeId"
                     params={{ nodeId: alert.node.id }}
-                    className="text-[13px] text-accent no-underline hover:underline"
+                    className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                   >
                     {alert.node.name ?? alert.node.id}
                   </Link>
@@ -372,8 +398,15 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
                   m.common_em_dash()
                 )}
               </Td>
-              <Td className="text-xs text-muted">
-                {alert.started_at ? relTimeFromISO(alert.started_at, now) : m.common_em_dash()}
+              <Td className="whitespace-nowrap text-xs tabular-nums">
+                {alert.started_at ? (
+                  <>
+                    <p>{formatAlertTimestamp(alert.started_at, timeZone)}</p>
+                    <p className="text-muted">{relTimeFromISO(alert.started_at, now)}</p>
+                  </>
+                ) : (
+                  m.common_em_dash()
+                )}
               </Td>
               <Td className="text-xs tabular-nums">
                 {formatDuration(alert.duration_seconds ?? 0)}
@@ -387,6 +420,13 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
       </table>
     </div>
   );
+}
+
+function formatAlertTimestamp(iso: string, timeZone: string): string {
+  const timestamp = Date.parse(iso);
+  return Number.isNaN(timestamp)
+    ? m.common_em_dash()
+    : formatLocaleDateTime(timestamp, undefined, timeZone);
 }
 
 function DeliverySummary({ alert }: { alert: AlertItem }) {
@@ -407,6 +447,25 @@ function DeliverySummary({ alert }: { alert: AlertItem }) {
     failed: String(failed),
     skipped: String(skipped),
   });
+}
+
+function resolutionReasonLabel(reason: string): string {
+  switch (reason) {
+    case "condition_cleared":
+      return m.monitoring_resolution_condition_cleared();
+    case "monitor_disabled":
+      return m.monitoring_resolution_monitor_disabled();
+    case "monitor_deleted":
+      return m.monitoring_resolution_monitor_deleted();
+    case "node_disabled":
+      return m.monitoring_resolution_node_disabled();
+    case "node_removed_from_scope":
+      return m.monitoring_resolution_node_removed_from_scope();
+    case "monitor_reconfigured":
+      return m.monitoring_resolution_monitor_reconfigured();
+    default:
+      return reason;
+  }
 }
 
 function MonitorModal({
