@@ -45,6 +45,30 @@ func TestKickSuccess(t *testing.T) {
 	}
 }
 
+func TestTrafficTreatsMissingDirectionAsZero(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/traffic" || r.Method != http.MethodGet {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"receive-only":{"rx":1024},"transmit-only":{"tx":2048},"idle":{}}`)
+	}))
+	defer srv.Close()
+
+	traffic, err := New(srv.URL, "secret", time.Second).Traffic(context.Background())
+	if err != nil {
+		t.Fatalf("Traffic returned error: %v", err)
+	}
+	if got := traffic["receive-only"]; got.Tx != 0 || got.Rx != 1024 {
+		t.Fatalf("receive-only = %+v, want tx=0 rx=1024", got)
+	}
+	if got := traffic["transmit-only"]; got.Tx != 2048 || got.Rx != 0 {
+		t.Fatalf("transmit-only = %+v, want tx=2048 rx=0", got)
+	}
+	if got := traffic["idle"]; got.Tx != 0 || got.Rx != 0 {
+		t.Fatalf("idle = %+v, want tx=0 rx=0", got)
+	}
+}
+
 func TestKickNon2xxIsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
