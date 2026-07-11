@@ -156,12 +156,14 @@ export function LabeledSwitch({
 // popover, focus ring, and disabled treatment instead of a hand-styled native
 // <select>. value/onChange are plain option ids.
 export function SelectField({
+  variant,
   label,
   value,
   onChange,
   options,
   description,
 }: {
+  variant?: "secondary" | "primary";
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -169,7 +171,11 @@ export function SelectField({
   description?: string;
 }) {
   return (
-    <Select value={value} onChange={(key) => onChange(String(Array.isArray(key) ? key[0] : key))}>
+    <Select
+      variant={variant}
+      value={value}
+      onChange={(key) => onChange(String(Array.isArray(key) ? key[0] : key))}
+    >
       <Label>{label}</Label>
       <Select.Trigger>
         <Select.Value />
@@ -195,6 +201,7 @@ export function SelectField({
 // and keyboard/screen-reader friendly. Options may carry a muted note (e.g. a
 // disabled channel) and the list scrolls once it grows past a few rows.
 export function CheckboxListField({
+  variant,
   label,
   values,
   onChange,
@@ -204,6 +211,7 @@ export function CheckboxListField({
   isInvalid = false,
   errorMessage,
 }: {
+  variant?: "secondary" | "primary";
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
@@ -214,7 +222,7 @@ export function CheckboxListField({
   errorMessage?: string;
 }) {
   return (
-    <CheckboxGroup value={values} onChange={onChange} isInvalid={isInvalid}>
+    <CheckboxGroup variant={variant} value={values} onChange={onChange} isInvalid={isInvalid}>
       <Label>{label}</Label>
       {description ? <Description>{description}</Description> : null}
 
