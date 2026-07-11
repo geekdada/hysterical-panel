@@ -57,6 +57,7 @@ import {
 import { useActiveTimeZone } from "~/lib/use-timezone";
 import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
+import { getLocale } from "~/paraglide/runtime";
 
 export const Route = createFileRoute("/settings/monitoring")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -499,6 +500,7 @@ function MonitorModal({
       scope: (existing?.node_scope ?? "all_enabled") as "all_enabled" | "selected",
       nodeIDs: existing?.node_ids ?? [],
       channelIDs: existing?.channel_ids ?? [],
+      notificationLanguage: (existing?.notification_language ?? getLocale()) as "en" | "zh-cn",
       enabled: existing?.enabled ?? true,
     },
     onSubmit: ({ value: v }) => {
@@ -511,6 +513,7 @@ function MonitorModal({
         node_scope: v.scope,
         node_ids: v.scope === "all_enabled" ? [] : v.nodeIDs,
         channel_ids: v.channelIDs,
+        notification_language: v.notificationLanguage,
         config:
           v.kind === "offline"
             ? {}
@@ -737,6 +740,20 @@ function MonitorModal({
                         note: channel.enabled ? undefined : m.monitoring_channel_disabled(),
                       }))}
                       emptyLabel={m.monitoring_channels_empty()}
+                    />
+                  )}
+                </form.Field>
+
+                <form.Field name="notificationLanguage">
+                  {(field) => (
+                    <SelectField
+                      label={m.monitoring_notification_language()}
+                      value={field.state.value}
+                      onChange={(v) => field.handleChange(v as "en" | "zh-cn")}
+                      options={[
+                        { value: "en", label: m.locale_en() },
+                        { value: "zh-cn", label: m.locale_zh_cn() },
+                      ]}
                     />
                   )}
                 </form.Field>

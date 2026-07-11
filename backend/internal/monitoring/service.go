@@ -238,6 +238,7 @@ func (s *Service) openAlert(monitor, node *core.Record, value map[string]any, no
 	alert.Set("node", node.Id)
 	alert.Set("status", "firing")
 	alert.Set("severity_snapshot", monitor.GetString("severity"))
+	alert.Set("notification_language_snapshot", monitor.GetString("notification_language"))
 	alert.Set("monitor_name_snapshot", monitor.GetString("name"))
 	alert.Set("monitor_kind_snapshot", monitor.GetString("kind"))
 	alert.Set("monitor_config_snapshot", monitor.Get("config"))
@@ -361,17 +362,6 @@ func (s *Service) deliver(alert, node *core.Record, channelID, transition string
 	if err := s.app.Save(record); err != nil {
 		log.Printf("[monitoring] save delivery: %v", err)
 	}
-}
-
-func (s *Service) message(alert, node *core.Record, transition string, now time.Time) string {
-	state := strings.ToUpper(transition)
-	link := s.frontendURL + "/nodes/" + node.Id
-	valueField := "firing_value"
-	if transition == "resolved" {
-		valueField = "recovery_value"
-	}
-	value, _ := json.Marshal(alert.Get(valueField))
-	return fmt.Sprintf("[%s] %s alert\nSeverity: %s\nMonitor: %s\nNode: %s\nKind: %s\nValue: %s\nWindow: %ds\nStarted: %s\nDuration: %s\n%s", state, alert.GetString("monitor_kind_snapshot"), alert.GetString("severity_snapshot"), alert.GetString("monitor_name_snapshot"), node.GetString("name"), alert.GetString("monitor_kind_snapshot"), value, alert.GetInt("evaluation_window_seconds_snapshot"), alert.GetString("started_at"), now.Sub(alert.GetDateTime("started_at").Time()).Round(time.Second), link)
 }
 
 func (s *Service) cleanup(now time.Time) error {

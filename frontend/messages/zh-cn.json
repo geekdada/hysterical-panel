@@ -620,6 +620,7 @@
   "monitoring_scope_selected": "指定节点",
   "monitoring_nodes": "节点",
   "monitoring_channels": "通知渠道",
+  "monitoring_notification_language": "通知语言",
   "monitoring_enabled": "启用",
   "monitoring_save": "保存监控项",
   "monitoring_create": "创建监控项",

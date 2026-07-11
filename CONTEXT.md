@@ -115,3 +115,7 @@ _Avoid_: Monitor, Notification, incident (as the domain noun)
 **Notification**:
 A single best-effort delivery of an Alert firing or recovery transition to one Notification Channel.
 _Avoid_: Alert, message queue, reminder
+
+**Notification Language**:
+The language a Monitor selects for its automatic Notifications. An Alert snapshots it so firing and recovery Notifications use the same language.
+_Avoid_: interface language, Channel language, locale (as the domain noun)

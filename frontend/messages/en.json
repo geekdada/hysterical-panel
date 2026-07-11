@@ -620,6 +620,7 @@
   "monitoring_scope_selected": "Selected nodes",
   "monitoring_nodes": "Nodes",
   "monitoring_channels": "Notification channels",
+  "monitoring_notification_language": "Notification language",
   "monitoring_enabled": "Enabled",
   "monitoring_save": "Save monitor",
   "monitoring_create": "Create monitor",

@@ -124,7 +124,13 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		if s, ok := schemas[name]; ok && s.Value != nil {
 			setEnum(s.Value.Properties, "kind", []any{"offline", "high_traffic"})
 			setEnum(s.Value.Properties, "severity", []any{"warning", "critical"})
+			setEnum(s.Value.Properties, "notification_language", []any{"en", "zh-cn"})
 			setEnum(s.Value.Properties, "node_scope", []any{"all_enabled", "selected"})
+		}
+	}
+	for _, name := range []string{"Monitor", "MonitorCreateRequest"} {
+		if s, ok := schemas[name]; ok && s.Value != nil {
+			s.Value.Required = append(s.Value.Required, "notification_language")
 		}
 	}
 	configUnion := &openapi3.SchemaRef{Value: &openapi3.Schema{OneOf: openapi3.SchemaRefs{schemas["OfflineMonitorConfig"], schemas["HighTrafficMonitorConfig"]}}}

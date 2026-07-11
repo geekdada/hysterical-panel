@@ -105,6 +105,7 @@ type Monitor struct {
 	Kind                    string         `json:"kind"`
 	Enabled                 bool           `json:"enabled"`
 	Severity                string         `json:"severity"`
+	NotificationLanguage    string         `json:"notification_language"`
 	EvaluationWindowSeconds int            `json:"evaluation_window_seconds"`
 	NodeScope               string         `json:"node_scope"`
 	NodeIDs                 []string       `json:"node_ids"`
@@ -125,6 +126,7 @@ type MonitorCreateRequest struct {
 	Kind                    string         `json:"kind"`
 	Enabled                 *bool          `json:"enabled,omitempty"`
 	Severity                string         `json:"severity"`
+	NotificationLanguage    string         `json:"notification_language"`
 	EvaluationWindowSeconds int            `json:"evaluation_window_seconds"`
 	NodeScope               string         `json:"node_scope"`
 	NodeIDs                 []string       `json:"node_ids"`
@@ -137,6 +139,7 @@ type MonitorUpdateRequest struct {
 	Kind                    *string         `json:"kind,omitempty"`
 	Enabled                 *bool           `json:"enabled,omitempty"`
 	Severity                *string         `json:"severity,omitempty"`
+	NotificationLanguage    *string         `json:"notification_language,omitempty"`
 	EvaluationWindowSeconds *int            `json:"evaluation_window_seconds,omitempty"`
 	NodeScope               *string         `json:"node_scope,omitempty"`
 	NodeIDs                 *[]string       `json:"node_ids,omitempty"`

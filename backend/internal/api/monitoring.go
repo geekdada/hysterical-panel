@@ -24,6 +24,7 @@ type monitorInput struct {
 	Kind                    *string         `json:"kind"`
 	Enabled                 *bool           `json:"enabled"`
 	Severity                *string         `json:"severity"`
+	NotificationLanguage    *string         `json:"notification_language"`
 	EvaluationWindowSeconds *int            `json:"evaluation_window_seconds"`
 	NodeScope               *string         `json:"node_scope"`
 	NodeIDs                 *[]string       `json:"node_ids"`
@@ -56,10 +57,8 @@ func (h *Handlers) createMonitor(e *core.RequestEvent) error {
 	if err := e.BindBody(&input); err != nil {
 		return apis.NewBadRequestError("invalid body", err)
 	}
-	if input.Name == nil || input.Kind == nil || input.Severity == nil || input.EvaluationWindowSeconds == nil || input.NodeScope == nil || input.Config == nil {
-		if input.Name == nil || input.Kind == nil || input.EvaluationWindowSeconds == nil || input.NodeScope == nil || input.Config == nil {
-			return apis.NewBadRequestError("name, kind, evaluation_window_seconds, node_scope and config are required", nil)
-		}
+	if input.Name == nil || input.Kind == nil || input.NotificationLanguage == nil || input.EvaluationWindowSeconds == nil || input.NodeScope == nil || input.Config == nil {
+		return apis.NewBadRequestError("name, kind, notification_language, evaluation_window_seconds, node_scope and config are required", nil)
 	}
 	if input.Severity == nil {
 		severity := "warning"
@@ -170,6 +169,9 @@ func (h *Handlers) validateMonitorInput(input monitorInput, exceptID string) err
 	if *input.Severity != "warning" && *input.Severity != "critical" {
 		return apis.NewBadRequestError("invalid monitor severity", nil)
 	}
+	if *input.NotificationLanguage != "en" && *input.NotificationLanguage != "zh-cn" {
+		return apis.NewBadRequestError("invalid monitor notification language", nil)
+	}
 	if *input.EvaluationWindowSeconds < 60 || *input.EvaluationWindowSeconds > 86400 {
 		return apis.NewBadRequestError("evaluation_window_seconds must be between 60 and 86400", nil)
 	}
@@ -215,6 +217,7 @@ func applyMonitorInput(record *core.Record, input monitorInput) {
 	record.Set("kind", *input.Kind)
 	record.Set("enabled", *input.Enabled)
 	record.Set("severity", *input.Severity)
+	record.Set("notification_language", *input.NotificationLanguage)
 	record.Set("evaluation_window_seconds", *input.EvaluationWindowSeconds)
 	record.Set("node_scope", *input.NodeScope)
 	record.Set("nodes", *input.NodeIDs)
@@ -224,9 +227,9 @@ func applyMonitorInput(record *core.Record, input monitorInput) {
 
 func monitorInputFromRecord(record *core.Record) monitorInput {
 	name, kind, enabled := record.GetString("name"), record.GetString("kind"), record.GetBool("enabled")
-	severity, window, scope := record.GetString("severity"), record.GetInt("evaluation_window_seconds"), record.GetString("node_scope")
+	severity, language, window, scope := record.GetString("severity"), record.GetString("notification_language"), record.GetInt("evaluation_window_seconds"), record.GetString("node_scope")
 	nodes, channels, config := record.GetStringSlice("nodes"), record.GetStringSlice("channels"), jsonMap(record.Get("config"))
-	return monitorInput{Name: &name, Kind: &kind, Enabled: &enabled, Severity: &severity, EvaluationWindowSeconds: &window, NodeScope: &scope, NodeIDs: &nodes, ChannelIDs: &channels, Config: &config}
+	return monitorInput{Name: &name, Kind: &kind, Enabled: &enabled, Severity: &severity, NotificationLanguage: &language, EvaluationWindowSeconds: &window, NodeScope: &scope, NodeIDs: &nodes, ChannelIDs: &channels, Config: &config}
 }
 
 func mergeMonitorInput(target *monitorInput, patch monitorInput) {
@@ -241,6 +244,9 @@ func mergeMonitorInput(target *monitorInput, patch monitorInput) {
 	}
 	if patch.Severity != nil {
 		target.Severity = patch.Severity
+	}
+	if patch.NotificationLanguage != nil {
+		target.NotificationLanguage = patch.NotificationLanguage
 	}
 	if patch.EvaluationWindowSeconds != nil {
 		target.EvaluationWindowSeconds = patch.EvaluationWindowSeconds
@@ -264,7 +270,7 @@ func monitorEvaluationChanged(record *core.Record, input monitorInput) bool {
 }
 
 func publicMonitor(record *core.Record) Monitor {
-	return Monitor{ID: record.Id, Name: record.GetString("name"), Kind: record.GetString("kind"), Enabled: record.GetBool("enabled"), Severity: record.GetString("severity"), EvaluationWindowSeconds: record.GetInt("evaluation_window_seconds"), NodeScope: record.GetString("node_scope"), NodeIDs: record.GetStringSlice("nodes"), ChannelIDs: record.GetStringSlice("channels"), Config: jsonMap(record.Get("config")), Created: record.GetString("created"), Updated: record.GetString("updated")}
+	return Monitor{ID: record.Id, Name: record.GetString("name"), Kind: record.GetString("kind"), Enabled: record.GetBool("enabled"), Severity: record.GetString("severity"), NotificationLanguage: record.GetString("notification_language"), EvaluationWindowSeconds: record.GetInt("evaluation_window_seconds"), NodeScope: record.GetString("node_scope"), NodeIDs: record.GetStringSlice("nodes"), ChannelIDs: record.GetStringSlice("channels"), Config: jsonMap(record.Get("config")), Created: record.GetString("created"), Updated: record.GetString("updated")}
 }
 
 func (h *Handlers) listAlerts(e *core.RequestEvent) error {
