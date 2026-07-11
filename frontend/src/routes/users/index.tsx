@@ -272,15 +272,6 @@ function UsersTable({
                 {m.common_th_rx()}
               </ServerSortableTh>
               <ServerSortableTh
-                columnId="status"
-                sort={listSearch.sort}
-                onSort={onSort}
-                align="right"
-                className="text-right"
-              >
-                {m.common_status()}
-              </ServerSortableTh>
-              <ServerSortableTh
                 columnId="last_connected_at"
                 sort={listSearch.sort}
                 onSort={onSort}
@@ -334,11 +325,6 @@ function UsersTable({
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
                       <span className="text-muted">↓</span> {formatBytes(user.used_rx ?? 0)}
-                    </Td>
-                    <Td className="text-right">
-                      <span className="text-xs text-muted">
-                        {active ? m.common_active() : m.common_disabled()}
-                      </span>
                     </Td>
                     <Td className="whitespace-nowrap text-right text-xs text-muted">
                       <span
