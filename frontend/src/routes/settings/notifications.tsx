@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent, type Key } from "react";
+import { useState, type Key } from "react";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button, Dropdown, Input, Label, Modal, Separator, Switch, TextField } from "@heroui/react";
@@ -201,6 +202,7 @@ function NotificationChannelsPage() {
       )}
 
       <ChannelFormModal
+        key={createOpen ? "new" : "closed"}
         isOpen={createOpen}
         onOpenChange={openCreate}
         pending={createMutation.isPending}
@@ -212,6 +214,7 @@ function NotificationChannelsPage() {
         onSubmit={(body) => createMutation.mutate(body as NotificationChannelCreateRequest)}
       />
       <ChannelFormModal
+        key={editing?.id ?? "closed"}
         channel={editing}
         isOpen={editing !== null}
         onOpenChange={closeEdit}
@@ -462,39 +465,40 @@ function ChannelFormModal({
   onSubmit: (body: NotificationChannelCreateRequest | NotificationChannelUpdateRequest) => void;
 }) {
   const isNew = !channel;
-  const [name, setName] = useState("");
-  const [url, setURL] = useState("");
-  const [enabled, setEnabled] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setName("");
-      setURL("");
-      setEnabled(false);
-      return;
-    }
-    setName(channel?.name ?? "");
-    setURL("");
-    setEnabled(channel?.enabled ?? false);
-  }, [channel, isOpen]);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    const trimmedName = name.trim();
-    if (!trimmedName || (isNew && !url.trim())) return;
-    if (isNew) {
-      onSubmit({ name: trimmedName, url: url.trim(), enabled });
-      return;
-    }
-    onSubmit({ name: trimmedName, ...(url.trim() ? { url: url.trim() } : {}), enabled });
-  }
+  const form = useForm({
+    defaultValues: {
+      name: channel?.name ?? "",
+      url: "",
+      enabled: channel?.enabled ?? false,
+    },
+    onSubmit: ({ value }) => {
+      const trimmedName = value.name.trim();
+      const trimmedURL = value.url.trim();
+      if (!trimmedName || (isNew && !trimmedURL)) return;
+      if (isNew) {
+        onSubmit({ name: trimmedName, url: trimmedURL, enabled: value.enabled });
+        return;
+      }
+      onSubmit({
+        name: trimmedName,
+        ...(trimmedURL ? { url: trimmedURL } : {}),
+        enabled: value.enabled,
+      });
+    },
+  });
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="sm" placement="auto">
         <Modal.Dialog>
           <Modal.CloseTrigger />
-          <form onSubmit={submit}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void form.handleSubmit();
+            }}
+          >
             <Modal.Header>
               <Modal.Heading>
                 {isNew ? m.notifications_create_title() : m.notifications_edit_title()}
@@ -505,24 +509,45 @@ function ChannelFormModal({
             </Modal.Header>
             <Modal.Body>
               <div className="flex flex-col gap-4">
-                <TextField value={name} onChange={setName} autoFocus>
-                  <Label>{m.notifications_name_label()}</Label>
-                  <Input autoComplete="off" maxLength={128} />
-                </TextField>
-                <TextField value={url} onChange={setURL}>
-                  <Label>
-                    {isNew ? m.notifications_url_label() : m.notifications_url_replace_label()}
-                  </Label>
-                  <Input autoComplete="off" spellCheck={false} inputMode="url" />
-                </TextField>
+                <form.Field name="name">
+                  {(field) => (
+                    <TextField
+                      value={field.state.value}
+                      onChange={field.handleChange}
+                      onBlur={field.handleBlur}
+                      autoFocus
+                    >
+                      <Label>{m.notifications_name_label()}</Label>
+                      <Input autoComplete="off" maxLength={128} />
+                    </TextField>
+                  )}
+                </form.Field>
+                <form.Field name="url">
+                  {(field) => (
+                    <TextField
+                      value={field.state.value}
+                      onChange={field.handleChange}
+                      onBlur={field.handleBlur}
+                    >
+                      <Label>
+                        {isNew ? m.notifications_url_label() : m.notifications_url_replace_label()}
+                      </Label>
+                      <Input autoComplete="off" spellCheck={false} inputMode="url" />
+                    </TextField>
+                  )}
+                </form.Field>
                 {!isNew && (
                   <p className="-mt-2 text-xs text-muted">{m.notifications_url_replace_hint()}</p>
                 )}
-                <LabeledSwitch
-                  label={m.notifications_enabled_label()}
-                  isSelected={enabled}
-                  onChange={setEnabled}
-                />
+                <form.Field name="enabled">
+                  {(field) => (
+                    <LabeledSwitch
+                      label={m.notifications_enabled_label()}
+                      isSelected={field.state.value}
+                      onChange={field.handleChange}
+                    />
+                  )}
+                </form.Field>
               </div>
               {error && (
                 <p className="mt-4 text-[13px] text-danger" role="alert">
@@ -534,18 +559,27 @@ function ChannelFormModal({
               <Button slot="close" variant="secondary">
                 {m.common_cancel()}
               </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                isPending={pending}
-                isDisabled={pending || !name.trim() || (isNew && !url.trim())}
+              <form.Subscribe
+                selector={(state) => ({
+                  name: state.values.name,
+                  url: state.values.url,
+                })}
               >
-                {pending
-                  ? m.notifications_saving()
-                  : isNew
-                    ? m.notifications_create_submit()
-                    : m.notifications_save()}
-              </Button>
+                {({ name, url }) => (
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    isPending={pending}
+                    isDisabled={pending || !name.trim() || (isNew && !url.trim())}
+                  >
+                    {pending
+                      ? m.notifications_saving()
+                      : isNew
+                        ? m.notifications_create_submit()
+                        : m.notifications_save()}
+                  </Button>
+                )}
+              </form.Subscribe>
             </Modal.Footer>
           </form>
         </Modal.Dialog>

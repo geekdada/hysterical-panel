@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Description, Input, Label, NumberField, TextField } from "@heroui/react";
@@ -258,79 +259,128 @@ function CreateInvitationForm({
     send_email?: boolean;
   }) => void;
 }) {
-  const [email, setEmail] = useState("");
-  const [maxUses, setMaxUses] = useState(1);
-  const [expiresInHours, setExpiresInHours] = useState(168);
-  const [note, setNote] = useState("");
-  const [sendEmail, setSendEmail] = useState(false);
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    onSubmit({
-      email: email.trim() || undefined,
-      max_uses: maxUses,
-      expires_in_hours: expiresInHours,
-      note: note.trim() || undefined,
-      send_email: sendEmail && email.trim().length > 0,
-    });
-  }
+  const form = useForm({
+    defaultValues: {
+      email: "",
+      maxUses: 1,
+      expiresInHours: 168,
+      note: "",
+      sendEmail: false,
+    },
+    onSubmit: ({ value }) => {
+      onSubmit({
+        email: value.email.trim() || undefined,
+        max_uses: value.maxUses,
+        expires_in_hours: value.expiresInHours,
+        note: value.note.trim() || undefined,
+        send_email: value.sendEmail && value.email.trim().length > 0,
+      });
+    },
+  });
 
   return (
     <div className="rounded-lg border bg-surface p-5">
       <h2 className="text-[13px] font-semibold tracking-tight">{m.invitations_create_title()}</h2>
       <p className="mt-0.5 text-[13px] text-muted">{m.invitations_create_description()}</p>
 
-      <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void form.handleSubmit();
+        }}
+        className="mt-4 flex flex-col gap-4"
+      >
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextField className="sm:col-span-2">
-            <Label>{m.invitations_label_email_optional()}</Label>
-            <Input
-              type="email"
-              autoComplete="off"
-              placeholder={m.invitations_placeholder_email()}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Description>{m.invitations_email_description()}</Description>
-          </TextField>
+          <form.Field name="email">
+            {(field) => (
+              <TextField
+                className="sm:col-span-2"
+                value={field.state.value}
+                onChange={field.handleChange}
+                onBlur={field.handleBlur}
+              >
+                <Label>{m.invitations_label_email_optional()}</Label>
+                <Input
+                  type="email"
+                  autoComplete="off"
+                  placeholder={m.invitations_placeholder_email()}
+                />
+                <Description>{m.invitations_email_description()}</Description>
+              </TextField>
+            )}
+          </form.Field>
 
-          <NumberField value={maxUses} onChange={setMaxUses} minValue={0} step={1}>
-            <Label>{m.invitations_label_max_uses()}</Label>
-            <NumberField.Group>
-              <NumberField.DecrementButton />
-              <NumberField.Input />
-              <NumberField.IncrementButton />
-            </NumberField.Group>
-            <Description>{m.invitations_max_uses_description()}</Description>
-          </NumberField>
+          <form.Field name="maxUses">
+            {(field) => (
+              <NumberField
+                value={field.state.value}
+                onChange={field.handleChange}
+                onBlur={field.handleBlur}
+                minValue={0}
+                step={1}
+              >
+                <Label>{m.invitations_label_max_uses()}</Label>
+                <NumberField.Group>
+                  <NumberField.DecrementButton />
+                  <NumberField.Input />
+                  <NumberField.IncrementButton />
+                </NumberField.Group>
+                <Description>{m.invitations_max_uses_description()}</Description>
+              </NumberField>
+            )}
+          </form.Field>
 
-          <NumberField value={expiresInHours} onChange={setExpiresInHours} minValue={0} step={1}>
-            <Label>{m.invitations_label_expires_hours()}</Label>
-            <NumberField.Group>
-              <NumberField.DecrementButton />
-              <NumberField.Input />
-              <NumberField.IncrementButton />
-            </NumberField.Group>
-            <Description>{m.invitations_expires_description()}</Description>
-          </NumberField>
+          <form.Field name="expiresInHours">
+            {(field) => (
+              <NumberField
+                value={field.state.value}
+                onChange={field.handleChange}
+                onBlur={field.handleBlur}
+                minValue={0}
+                step={1}
+              >
+                <Label>{m.invitations_label_expires_hours()}</Label>
+                <NumberField.Group>
+                  <NumberField.DecrementButton />
+                  <NumberField.Input />
+                  <NumberField.IncrementButton />
+                </NumberField.Group>
+                <Description>{m.invitations_expires_description()}</Description>
+              </NumberField>
+            )}
+          </form.Field>
 
-          <TextField className="sm:col-span-2">
-            <Label>{m.invitations_label_note_optional()}</Label>
-            <Input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder={m.invitations_placeholder_note()}
-            />
-          </TextField>
+          <form.Field name="note">
+            {(field) => (
+              <TextField
+                className="sm:col-span-2"
+                value={field.state.value}
+                onChange={field.handleChange}
+                onBlur={field.handleBlur}
+              >
+                <Label>{m.invitations_label_note_optional()}</Label>
+                <Input placeholder={m.invitations_placeholder_note()} />
+              </TextField>
+            )}
+          </form.Field>
         </div>
 
-        <LabeledSwitch
-          label={m.invitations_label_email_invite()}
-          description={m.invitations_email_invite_description()}
-          isSelected={sendEmail}
-          isDisabled={email.trim().length === 0}
-          onChange={setSendEmail}
-        />
+        <form.Subscribe selector={(state) => state.values.email}>
+          {(email) => (
+            <form.Field name="sendEmail">
+              {(field) => (
+                <LabeledSwitch
+                  label={m.invitations_label_email_invite()}
+                  description={m.invitations_email_invite_description()}
+                  isSelected={field.state.value}
+                  isDisabled={email.trim().length === 0}
+                  onChange={field.handleChange}
+                />
+              )}
+            </form.Field>
+          )}
+        </form.Subscribe>
 
         {error && (
           <p className="text-[13px] text-danger" role="alert">
