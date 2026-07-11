@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Description, Input, Label, NumberField, TextField } from "@heroui/react";
@@ -30,6 +30,7 @@ import {
 import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { formatLocaleCount, relTimeFromISO } from "~/lib/format";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/invitations")({
@@ -51,16 +52,11 @@ export const Route = createFileRoute("/invitations")({
 function InvitationsPage() {
   const { auth } = Route.useRouteContext();
   const queryClient = useQueryClient();
-  const [now, setNow] = useState(() => Date.now());
+  const now = useHydratedNow(30_000);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingInvitation, setPendingInvitation] = useState<{ id: string; code: string } | null>(
     null
   );
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
 
   const settingsQuery = useQuery(settingsQueryOptions());
   const invitationsQuery = useQuery(invitationsQueryOptions());
@@ -194,7 +190,7 @@ function InvitationRow({
   onDelete,
 }: {
   inv: Invitation;
-  now: number;
+  now: number | null;
   onDelete: () => void;
 }) {
   const used = inv.used_count ?? 0;

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
@@ -26,6 +26,7 @@ import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { formatBytes, formatLocaleCount, formatLocaleDateTime, relTime } from "~/lib/format";
 import { useActiveTimeZone } from "~/lib/use-timezone";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 type DatabaseStats = components["schemas"]["DatabaseStatsResponse"];
@@ -49,7 +50,7 @@ function DatabasePage() {
   const { auth } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const tz = useActiveTimeZone();
-  const [now, setNow] = useState(() => Date.now());
+  const now = useHydratedNow();
   const [pruneOpen, setPruneOpen] = useState(false);
 
   const statsQuery = useQuery(databaseStatsQueryOptions());
@@ -66,11 +67,6 @@ function DatabasePage() {
       });
     },
   });
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000);
-    return () => clearInterval(id);
-  }, []);
 
   const stats = statsQuery.data ?? null;
   const storage = stats?.storage ?? null;

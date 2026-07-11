@@ -39,6 +39,7 @@ import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { cn } from "~/lib/cn";
 import { formatBytes, formatLocaleDateTime, relTime } from "~/lib/format";
 import { useActiveTimeZone } from "~/lib/use-timezone";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
@@ -70,7 +71,7 @@ function AnalyticsPage() {
   const [trafficRange, setTrafficRange] = useState<LocalDateRange>(() =>
     defaultLocalTrafficRange(tz)
   );
-  const [now, setNow] = useState(() => Date.now());
+  const now = useHydratedNow();
 
   useEffect(() => {
     setTrafficRange((current) => {
@@ -80,13 +81,6 @@ function AnalyticsPage() {
         : next;
     });
   }, [tz]);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setNow(Date.now());
-    }, 5_000);
-    return () => clearInterval(id);
-  }, []);
 
   const trafficQuery = toTrafficRangeQuery(trafficRange, tz);
   const overviewQuery = useQuery(analyticsOverviewQueryOptions(trafficQuery));

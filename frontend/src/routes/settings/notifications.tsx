@@ -35,6 +35,7 @@ import {
 import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { relTimeFromISO } from "~/lib/format";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/settings/notifications")({
@@ -60,14 +61,7 @@ function NotificationChannelsPage() {
   const [editing, setEditing] = useState<NotificationChannel | null>(null);
   const [deleting, setDeleting] = useState<NotificationChannel | null>(null);
   const [revealed, setRevealed] = useState<{ name: string; url: string } | null>(null);
-  const [now, setNow] = useState<number | null>(null);
-
-  useEffect(() => {
-    const updateNow = () => setNow(Date.now());
-    updateNow();
-    const id = window.setInterval(updateNow, 5_000);
-    return () => window.clearInterval(id);
-  }, []);
+  const now = useHydratedNow();
 
   const channelsQuery = useQuery({
     queryKey: queryKeys.notificationChannels(),

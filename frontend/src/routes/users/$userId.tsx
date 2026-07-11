@@ -54,6 +54,7 @@ import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { formatBytes, formatDuration, relTime, relTimeFromISO } from "~/lib/format";
 import { cn } from "~/lib/cn";
 import { useActiveTimeZone } from "~/lib/use-timezone";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 type PanelUser = components["schemas"]["PanelUser"];
@@ -89,7 +90,7 @@ function AccountDetailPage() {
   const [trafficRange, setTrafficRange] = useState<LocalDateRange>(() =>
     defaultLocalTrafficRange(tz)
   );
-  const [now, setNow] = useState(() => Date.now());
+  const now = useHydratedNow();
 
   useEffect(() => {
     setTrafficRange((current) => {
@@ -102,11 +103,6 @@ function AccountDetailPage() {
 
   const trafficQuery = toTrafficRangeQuery(trafficRange, tz);
   const overviewQuery = useQuery(userOverviewQueryOptions(userId, trafficQuery));
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000);
-    return () => clearInterval(id);
-  }, []);
 
   const user = overviewQuery.data?.user ?? null;
   const summary = overviewQuery.data?.summary ?? null;
@@ -204,7 +200,7 @@ function AccountRail({
 }: {
   user: PanelUser | null;
   loading: boolean;
-  now: number;
+  now: number | null;
 }) {
   const tz = useActiveTimeZone();
   if (loading) {
@@ -344,7 +340,7 @@ function RecentConnectionsSection({
   userId,
 }: {
   rows: NonNullable<PanelUser["recent_connections"]>;
-  now: number;
+  now: number | null;
   isAdmin: boolean;
   userId: string;
 }) {
@@ -776,6 +772,7 @@ function PasskeysTable({
   deletingId?: string;
   onDelete: (passkey: Passkey) => void;
 }) {
+  const now = useHydratedNow();
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
@@ -815,7 +812,7 @@ function PasskeysTable({
               </Td>
               <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                 {passkey.last_used_at
-                  ? relTimeFromISO(passkey.last_used_at, Date.now())
+                  ? relTimeFromISO(passkey.last_used_at, now)
                   : m.common_never()}
               </Td>
               <Td className="text-right">
@@ -936,17 +933,12 @@ function TrafficSection({
 
 function LiveSection({ userId }: { userId: string }) {
   const tz = useActiveTimeZone();
-  const [now, setNow] = useState(() => Date.now());
+  const now = useHydratedNow();
   const liveQuery = useQuery({
     queryKey: queryKeys.userLive(userId),
     queryFn: () => fetchUserLive(userId),
     enabled: false,
   });
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000);
-    return () => clearInterval(id);
-  }, []);
 
   const live = liveQuery.data ?? null;
   const loading = liveQuery.isFetching;
@@ -1008,7 +1000,7 @@ function LiveSection({ userId }: { userId: string }) {
       ) : (
         <div className="flex flex-col">
           {visibleByNode.map((n, i) => (
-            <NodeStreams key={n.node?.id || i} group={n} now={now} />
+            <NodeStreams key={n.node?.id || i} group={n} />
           ))}
 
           {topDomains.length > 0 && <TopDomainsTable rows={topDomains} />}
@@ -1019,13 +1011,7 @@ function LiveSection({ userId }: { userId: string }) {
   );
 }
 
-function NodeStreams({
-  group,
-  now,
-}: {
-  group: NonNullable<UserLive["by_node"]>[number];
-  now: number;
-}) {
+function NodeStreams({ group }: { group: NonNullable<UserLive["by_node"]>[number] }) {
   const streams = group.streams ?? [];
   const hasError = Boolean(group.error);
   return (

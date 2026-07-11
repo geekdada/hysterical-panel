@@ -21,7 +21,8 @@ export function formatBytesPerSecond(bytesPerSecond: number, locale = intlLocale
   return `${formatBytes(Math.max(0, bytesPerSecond), locale)}/s`;
 }
 
-export function relTime(fromMs: number, nowMs: number): string {
+export function relTime(fromMs: number, nowMs: number | null): string {
+  if (nowMs === null) return m.common_em_dash();
   const s = Math.max(0, Math.round((nowMs - fromMs) / 1000));
   if (s < 5) return m.format_just_now();
   if (s < 60) return m.format_seconds_ago({ s: String(s) });
@@ -32,7 +33,7 @@ export function relTime(fromMs: number, nowMs: number): string {
   return m.format_days_ago({ d: String(Math.floor(hours / 24)) });
 }
 
-export function relTimeFromISO(iso: string, nowMs: number): string {
+export function relTimeFromISO(iso: string, nowMs: number | null): string {
   const t = Date.parse(iso);
   return Number.isNaN(t) ? m.common_em_dash() : relTime(t, nowMs);
 }

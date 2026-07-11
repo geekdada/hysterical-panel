@@ -50,6 +50,7 @@ import {
   relTimeFromISO,
 } from "~/lib/format";
 import { useActiveTimeZone } from "~/lib/use-timezone";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 type Node = components["schemas"]["Node"];
@@ -88,7 +89,7 @@ function NodeDetailPage() {
   const [trafficRange, setTrafficRange] = useState<LocalDateRange>(() =>
     defaultLocalTrafficRange(tz)
   );
-  const [now, setNow] = useState(() => Date.now());
+  const now = useHydratedNow();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
   const [resetOpen, setResetOpen] = useState(false);
@@ -106,11 +107,6 @@ function NodeDetailPage() {
   const trafficQuery = toTrafficRangeQuery(trafficRange, tz);
   const overviewQuery = useQuery(nodeOverviewQueryOptions(nodeId, trafficQuery));
   const alertsQuery = useQuery(nodeAlertsQueryOptions(nodeId));
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000);
-    return () => clearInterval(id);
-  }, []);
 
   const node = overviewQuery.data?.node ?? null;
   const summary = overviewQuery.data?.summary ?? null;
@@ -272,7 +268,7 @@ function NodeDetailPage() {
   );
 }
 
-function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number }) {
+function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number | null }) {
   if (alerts.length === 0) return null;
   return (
     <Section title={m.monitoring_node_alerts()} meta={String(alerts.length)}>
@@ -307,7 +303,15 @@ function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number }
 const railValue = "min-w-0 truncate text-[13px] leading-5 text-foreground";
 const railMono = cn(railValue, "font-mono tabular-nums");
 
-function DetailRail({ node, loading, now }: { node: Node | null; loading: boolean; now: number }) {
+function DetailRail({
+  node,
+  loading,
+  now,
+}: {
+  node: Node | null;
+  loading: boolean;
+  now: number | null;
+}) {
   if (loading) {
     return (
       <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
@@ -691,17 +695,12 @@ function DeleteNodeModal({
 
 function StreamsSection({ nodeId }: { nodeId: string }) {
   const tz = useActiveTimeZone();
-  const [now, setNow] = useState(() => Date.now());
+  const now = useHydratedNow();
   const liveQuery = useQuery({
     queryKey: queryKeys.nodeLive(nodeId),
     queryFn: () => fetchNodeLive(nodeId),
     enabled: false,
   });
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000);
-    return () => clearInterval(id);
-  }, []);
 
   const live = liveQuery.data ?? null;
   const loading = liveQuery.isFetching;
@@ -764,7 +763,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
       ) : (
         <div className="flex flex-col">
           {byUser.map((u, i) => (
-            <UserStreams key={u.user?.id || `unknown-${i}`} group={u} now={now} />
+            <UserStreams key={u.user?.id || `unknown-${i}`} group={u} />
           ))}
 
           {topDomains.length > 0 && <TopDomainsTable rows={topDomains} />}
@@ -775,13 +774,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
   );
 }
 
-function UserStreams({
-  group,
-  now,
-}: {
-  group: NonNullable<NodeLive["by_user"]>[number];
-  now: number;
-}) {
+function UserStreams({ group }: { group: NonNullable<NodeLive["by_user"]>[number] }) {
   const streams = group.streams ?? [];
   return (
     <div className="border-t border-border first:border-t-0">

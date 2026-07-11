@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Label, ListBox, Select } from "@heroui/react";
-import { Bell, ChevronRight, Code, Database, Xmark } from "@gravity-ui/icons";
+import { Bell, ChevronRight, Code, Database, Pulse, Xmark } from "@gravity-ui/icons";
 import {
   deletePasskey,
   isPasskeySoftError,
@@ -36,6 +36,7 @@ import { relTimeFromISO } from "~/lib/format";
 import { offsetLabel, SYSTEM_TIMEZONE_ID, TIMEZONE_OPTIONS } from "~/lib/timezone";
 import { cn } from "~/lib/cn";
 import { useTimezonePreference } from "~/lib/use-timezone";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/settings/")({
@@ -186,7 +187,7 @@ function SettingsPage() {
             className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <Bell className="size-4" aria-hidden />
+              <Pulse className="size-4" aria-hidden />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[13px] font-medium text-foreground">
@@ -246,6 +247,7 @@ function SettingsPage() {
 // when passkeys are disabled platform-wide.
 function PasskeysSection({ userId }: { userId: string }) {
   const queryClient = useQueryClient();
+  const now = useHydratedNow();
   const passkeysKey = ["panel", "users", userId, "passkeys"] as const;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingPasskey, setPendingPasskey] = useState<Passkey | null>(null);
@@ -362,6 +364,7 @@ function PasskeysSection({ userId }: { userId: string }) {
               <PasskeyRow
                 key={passkey.id}
                 passkey={passkey}
+                now={now}
                 deleting={deletingId === passkey.id}
                 onDelete={() => handleDeleteRequest(passkey)}
               />
@@ -431,10 +434,12 @@ function PasskeysListSkeleton() {
 
 function PasskeyRow({
   passkey,
+  now,
   deleting,
   onDelete,
 }: {
   passkey: Passkey;
+  now: number | null;
   deleting: boolean;
   onDelete: () => void;
 }) {
@@ -444,7 +449,7 @@ function PasskeyRow({
       ? m.user_passkeys_backup_eligible()
       : m.user_passkeys_backup_device_bound();
   const lastUsed = passkey.last_used_at
-    ? relTimeFromISO(passkey.last_used_at, Date.now())
+    ? relTimeFromISO(passkey.last_used_at, now)
     : m.common_never();
 
   return (

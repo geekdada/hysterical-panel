@@ -30,6 +30,7 @@ import {
 import { UserMenu } from "~/components/user-menu";
 import { formatBytes, relTimeFromISO } from "~/lib/format";
 import { useActiveTimeZone } from "~/lib/use-timezone";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import {
   USER_LIST_PAGE_SIZE_OPTIONS,
   parseUsersListSearch,
@@ -60,12 +61,7 @@ function UsersPage() {
   const routerNavigate = useNavigate({ from: Route.fullPath });
   const updateSearch: typeof routerNavigate = (options) =>
     routerNavigate({ ...options, replace: true });
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
+  const now = useHydratedNow(30_000);
 
   const usersQuery = useQuery({
     ...usersListQueryOptions(listSearch),
@@ -200,7 +196,7 @@ function UsersTable({
   onSort,
 }: {
   listSearch: UsersListSearch;
-  now: number;
+  now: number | null;
   pageCount: number;
   total: number;
   users: PanelUser[];
