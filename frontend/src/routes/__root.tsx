@@ -11,7 +11,7 @@ import {
   Scripts,
   useRouter,
 } from "@tanstack/react-router";
-import { Button } from "@heroui/react";
+import { Button, Toast } from "@heroui/react";
 import { getLocale } from "~/paraglide/runtime";
 import * as m from "~/paraglide/messages.js";
 import { localizeApiError } from "~/lib/api-error";
@@ -96,6 +96,7 @@ function RootComponent() {
   return (
     <I18nProvider locale={locale}>
       <RootDocument>
+        <Toast.Provider placement="bottom" />
         <SessionKeeper />
         <TimezoneCookieSync />
         <SessionRecoveryBanner />

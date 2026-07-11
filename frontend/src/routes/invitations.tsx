@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Button, Description, Input, Label, NumberField, TextField } from "@heroui/react";
-import { TrashBin } from "@gravity-ui/icons";
+import { Button, Description, Input, Label, NumberField, TextField, toast } from "@heroui/react";
+import { Copy, TrashBin } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import {
   createInvitation,
@@ -19,7 +19,6 @@ import {
   BrandLink,
   CopyButton,
   DestructiveConfirmModal,
-  Dot,
   LabeledSwitch,
   PageShell,
   PanelMessage,
@@ -30,7 +29,7 @@ import {
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
-import { formatLocaleCount, relTimeFromISO } from "~/lib/format";
+import { formatLocaleCount, formatLocaleDateTime, relTimeFromISO } from "~/lib/format";
 import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
@@ -65,7 +64,27 @@ function InvitationsPage() {
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: queryKeys.invitations() });
 
-  const createMutation = useMutation({ mutationFn: createInvitation, onSuccess: invalidate });
+  const createMutation = useMutation({
+    mutationFn: createInvitation,
+    onSuccess: (invitation) => {
+      invalidate();
+      toast.success(m.invitations_created(), {
+        description:
+          invitation.email_sent === true
+            ? m.invitations_emailed_to({ email: invitation.email ?? "" })
+            : invitation.email_sent === false
+              ? m.invitations_email_not_sent()
+              : invitationValidityDescription(invitation),
+        actionProps: invitation.link
+          ? {
+              children: m.common_copy_copy({ label: m.invitations_copy_invite_link() }),
+              onPress: () => void copyToClipboard(invitation.link ?? ""),
+            }
+          : undefined,
+        timeout: 8_000,
+      });
+    },
+  });
   const deleteMutation = useMutation({
     mutationFn: deleteInvitation,
     onSuccess: () => {
@@ -122,7 +141,6 @@ function InvitationsPage() {
             ? queryErrorMessage(createMutation.error, m.error_invitation_create_network())
             : ""
         }
-        created={createMutation.data ?? null}
         onSubmit={(body) => createMutation.mutate(body)}
       />
 
@@ -142,14 +160,13 @@ function InvitationsPage() {
           <PanelMessage>{m.invitations_no_invitations()}</PanelMessage>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
+            <table className="w-full border-collapse text-[13px]">
               <thead>
-                <tr className="border-b border-separator text-left">
+                <tr className="border-b border-border bg-surface-secondary text-left">
                   <Th>{m.invitations_th_code()}</Th>
                   <Th>{m.common_email()}</Th>
                   <Th>{m.invitations_th_uses()}</Th>
                   <Th>{m.invitations_th_expires()}</Th>
-                  <Th>{m.common_status()}</Th>
                   <Th className="text-right">{m.common_actions()}</Th>
                 </tr>
               </thead>
@@ -199,9 +216,6 @@ function InvitationRow({
     inv.max_uses && inv.max_uses > 0
       ? m.invitations_uses_limited({ used: String(used), max: String(inv.max_uses) })
       : m.invitations_uses_unlimited({ used: String(used) });
-  const status = inv.valid
-    ? { tone: "ok" as const, label: m.common_active() }
-    : { tone: "idle" as const, label: inv.invalid_reason || m.invitations_status_inactive() };
 
   return (
     <tr className="hover:bg-surface-secondary">
@@ -217,23 +231,27 @@ function InvitationRow({
         {inv.expires_at ? relTimeFromISO(inv.expires_at, now) : m.common_never()}
       </Td>
       <Td>
-        <span className="inline-flex items-center gap-1.5">
-          <Dot tone={status.tone} />
-          <span className={inv.valid ? "" : "text-muted capitalize"}>{status.label}</span>
-        </span>
-      </Td>
-      <Td>
         <div className="flex items-center justify-end gap-1">
-          <CopyButton value={inv.link ?? ""} label={m.invitations_copy_invite_link()} />
-          <button
-            type="button"
-            onClick={onDelete}
-            title={m.invitations_delete_title()}
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            onPress={() => void copyToClipboard(inv.link ?? "")}
+            aria-label={m.common_copy_copy({ label: m.invitations_copy_invite_link() })}
+            className="text-muted hover:text-foreground"
+          >
+            <Copy className="size-3.5" aria-hidden />
+          </Button>
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            onPress={onDelete}
             aria-label={m.invitations_delete_title()}
-            className="inline-grid size-6 place-items-center rounded text-muted transition-colors duration-150 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="text-muted hover:text-danger"
           >
             <TrashBin className="size-3.5" aria-hidden />
-          </button>
+          </Button>
         </div>
       </Td>
     </tr>
@@ -244,13 +262,11 @@ function CreateInvitationForm({
   disabled,
   pending,
   error,
-  created,
   onSubmit,
 }: {
   disabled: boolean;
   pending: boolean;
   error: string;
-  created: Invitation | null;
   onSubmit: (body: {
     email?: string;
     max_uses?: number;
@@ -394,29 +410,19 @@ function CreateInvitationForm({
           </Button>
         </div>
       </form>
-
-      {created && (
-        <div className="mt-4 rounded-lg border bg-surface-secondary p-3">
-          <div className="flex items-center gap-2 text-[13px]">
-            <Dot tone="ok" />
-            <span className="font-medium">{m.invitations_created()}</span>
-            {created.email_sent === true && (
-              <span className="text-xs text-muted">
-                {m.invitations_emailed_to({ email: created.email ?? "" })}
-              </span>
-            )}
-            {created.email_sent === false && (
-              <span className="text-xs text-warning">{m.invitations_email_not_sent()}</span>
-            )}
-          </div>
-          <div className="group/key mt-2 flex items-center gap-1.5">
-            <span className="min-w-0 truncate font-mono text-[12px] text-muted">
-              {created.link}
-            </span>
-            <CopyButton value={created.link ?? ""} label={m.invitations_copy_invite_link()} />
-          </div>
-        </div>
-      )}
     </div>
   );
+}
+
+async function copyToClipboard(value: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {}
+}
+
+function invitationValidityDescription(invitation: Invitation) {
+  if (!invitation.expires_at) return m.invitations_never_expires();
+  const expiresAt = Date.parse(invitation.expires_at);
+  if (Number.isNaN(expiresAt)) return m.common_em_dash();
+  return m.invitations_valid_until({ date: formatLocaleDateTime(expiresAt) });
 }
