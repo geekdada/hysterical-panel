@@ -289,6 +289,7 @@ func (h *Handlers) alertsResponse(e *core.RequestEvent, forcedNodeID string) err
 	}
 	filters := []string{"1=1"}
 	params := map[string]any{}
+	historyOnly := false
 	for key, field := range map[string]string{"monitor_id": "monitor", "severity": "severity_snapshot"} {
 		if value := e.Request.URL.Query().Get(key); value != "" {
 			filters = append(filters, field+" = {:"+key+"}")
@@ -298,9 +299,11 @@ func (h *Handlers) alertsResponse(e *core.RequestEvent, forcedNodeID string) err
 	if status := e.Request.URL.Query().Get("status"); status != "" {
 		if status == "history" {
 			filters = append(filters, "status != 'firing'")
+			historyOnly = true
 		} else {
 			filters = append(filters, "status = {:status}")
 			params["status"] = status
+			historyOnly = status != "firing"
 		}
 	}
 	nodeID := forcedNodeID
@@ -315,7 +318,7 @@ func (h *Handlers) alertsResponse(e *core.RequestEvent, forcedNodeID string) err
 	if err != nil {
 		return apis.NewBadRequestError("failed to list alerts", err)
 	}
-	sortAlerts(all)
+	sortAlerts(all, historyOnly)
 	total := len(all)
 	start := (page - 1) * perPage
 	if start > total {
@@ -337,7 +340,7 @@ func (h *Handlers) alertSummary(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewBadRequestError("failed to summarize alerts", err)
 	}
-	sortAlerts(records)
+	sortAlerts(records, false)
 	result := AlertSummaryResponse{Total: int64(len(records))}
 	limit := len(records)
 	if limit > 5 {
@@ -357,14 +360,16 @@ func (h *Handlers) alertSummary(e *core.RequestEvent) error {
 	return ok(e, result)
 }
 
-func sortAlerts(records []*core.Record) {
+func sortAlerts(records []*core.Record, historyOnly bool) {
 	sort.SliceStable(records, func(i, j int) bool {
 		a, b := records[i], records[j]
-		if (a.GetString("status") == "firing") != (b.GetString("status") == "firing") {
-			return a.GetString("status") == "firing"
-		}
-		if (a.GetString("severity_snapshot") == "critical") != (b.GetString("severity_snapshot") == "critical") {
-			return a.GetString("severity_snapshot") == "critical"
+		if !historyOnly {
+			if (a.GetString("status") == "firing") != (b.GetString("status") == "firing") {
+				return a.GetString("status") == "firing"
+			}
+			if (a.GetString("severity_snapshot") == "critical") != (b.GetString("severity_snapshot") == "critical") {
+				return a.GetString("severity_snapshot") == "critical"
+			}
 		}
 		return a.GetDateTime("started_at").Time().After(b.GetDateTime("started_at").Time())
 	})
