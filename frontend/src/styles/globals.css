@@ -31,7 +31,7 @@
   --default: oklch(94% 0 275.2);
   --default-foreground: oklch(21.03% 0.0059 275.2);
   --field-background: oklch(100% 0 275.2);
-  --field-border: transparent;
+  --field-border: oklch(94% 0 275.2);
   --field-foreground: oklch(21.03% 0 275.2);
   --field-placeholder: oklch(55.17% 0 275.2);
   --focus: oklch(56.74% 0.1585 275.2);
