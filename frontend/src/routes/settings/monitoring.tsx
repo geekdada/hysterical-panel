@@ -35,13 +35,13 @@ import {
   BrandLink,
   CheckboxListField,
   DestructiveConfirmModal,
-  Dot,
   ErrorAlert,
   LabeledSwitch,
   PageShell,
   PanelMessage,
   Section,
   SelectField,
+  SeverityBadge,
   TableSkeleton,
   Td,
   Th,
@@ -166,6 +166,56 @@ function MonitoringPage() {
         )}
       </Section>
 
+      <Section title={m.monitoring_monitors()}>
+        {monitorsQuery.isPending ? (
+          <TableSkeleton />
+        ) : (monitorsQuery.data ?? []).length === 0 ? (
+          <PanelMessage>{m.monitoring_no_monitors()}</PanelMessage>
+        ) : (
+          <div className="divide-y divide-(--separator)">
+            {(monitorsQuery.data ?? []).map((monitor) => (
+              <div key={monitor.id} className="flex items-center gap-3 px-3 py-2.5">
+                <SeverityBadge
+                  severity={monitor.severity === "critical" ? "critical" : "warning"}
+                  label={
+                    monitor.severity === "critical"
+                      ? m.monitoring_critical()
+                      : m.monitoring_warning()
+                  }
+                  className={monitor.enabled ? "" : "opacity-60"}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium">{monitor.name}</p>
+                  <p className="text-xs text-(--muted)">
+                    {kindLabel(monitor.kind ?? "offline")} ·{" "}
+                    {formatDuration(monitor.evaluation_window_seconds ?? 0)} ·{" "}
+                    {monitor.node_scope === "all_enabled"
+                      ? m.monitoring_scope_all()
+                      : m.monitoring_scope_selected()}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={m.monitoring_edit()}
+                  onPress={() => setEditing(monitor)}
+                >
+                  <Pencil className="size-3.5" aria-hidden />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={m.monitoring_delete()}
+                  onPress={() => setDeleting(monitor)}
+                >
+                  <TrashBin className="size-3.5 text-(--danger)" aria-hidden />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
       <Section
         title={m.monitoring_history()}
         action={
@@ -224,52 +274,6 @@ function MonitoringPage() {
               </Button>
             </div>
           </>
-        )}
-      </Section>
-
-      <Section title={m.monitoring_monitors()}>
-        {monitorsQuery.isPending ? (
-          <TableSkeleton />
-        ) : (monitorsQuery.data ?? []).length === 0 ? (
-          <PanelMessage>{m.monitoring_no_monitors()}</PanelMessage>
-        ) : (
-          <div className="divide-y divide-(--separator)">
-            {(monitorsQuery.data ?? []).map((monitor) => (
-              <div key={monitor.id} className="flex items-center gap-3 px-3 py-2.5">
-                <Dot
-                  tone={
-                    !monitor.enabled ? "idle" : monitor.severity === "critical" ? "error" : "warn"
-                  }
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium">{monitor.name}</p>
-                  <p className="text-xs text-(--muted)">
-                    {kindLabel(monitor.kind ?? "offline")} ·{" "}
-                    {formatDuration(monitor.evaluation_window_seconds ?? 0)} ·{" "}
-                    {monitor.node_scope === "all_enabled"
-                      ? m.monitoring_scope_all()
-                      : m.monitoring_scope_selected()}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={m.monitoring_edit()}
-                  onPress={() => setEditing(monitor)}
-                >
-                  <Pencil className="size-3.5" aria-hidden />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={m.monitoring_delete()}
-                  onPress={() => setDeleting(monitor)}
-                >
-                  <TrashBin className="size-3.5 text-(--danger)" aria-hidden />
-                </Button>
-              </div>
-            ))}
-          </div>
         )}
       </Section>
 
@@ -335,14 +339,14 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
             <tr key={alert.id}>
               <Td>
                 <div className="flex items-center gap-2">
-                  <Dot
-                    tone={
-                      alert.status === "firing" && alert.severity === "critical"
-                        ? "error"
-                        : alert.status === "firing"
-                          ? "warn"
-                          : "idle"
+                  <SeverityBadge
+                    severity={alert.severity === "critical" ? "critical" : "warning"}
+                    label={
+                      alert.severity === "critical"
+                        ? m.monitoring_critical()
+                        : m.monitoring_warning()
                     }
+                    className={alert.status === "firing" ? "" : "opacity-60"}
                   />
                   <div>
                     <p className="text-[13px] font-medium">
@@ -374,9 +378,8 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
               <Td className="text-xs tabular-nums">
                 {formatDuration(alert.duration_seconds ?? 0)}
               </Td>
-              <Td className="text-xs tabular-nums">
-                {alert.deliveries?.succeeded ?? 0}/{alert.deliveries?.failed ?? 0}/
-                {alert.deliveries?.skipped ?? 0}
+              <Td className="whitespace-nowrap text-xs tabular-nums">
+                <DeliverySummary alert={alert} />
               </Td>
             </tr>
           ))}
@@ -384,6 +387,26 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
       </table>
     </div>
   );
+}
+
+function DeliverySummary({ alert }: { alert: AlertItem }) {
+  const succeeded = alert.deliveries?.succeeded ?? 0;
+  const failed = alert.deliveries?.failed ?? 0;
+  const skipped = alert.deliveries?.skipped ?? 0;
+
+  if ((alert.delivery_channel_count ?? 0) === 0) {
+    return <span className="text-(--muted)">{m.monitoring_delivery_no_channels()}</span>;
+  }
+
+  if (succeeded + failed + skipped === 0) {
+    return <span className="text-(--muted)">{m.monitoring_delivery_no_records()}</span>;
+  }
+
+  return m.monitoring_delivery_summary({
+    succeeded: String(succeeded),
+    failed: String(failed),
+    skipped: String(skipped),
+  });
 }
 
 function MonitorModal({
@@ -540,7 +563,7 @@ function MonitorModal({
                         field.state.meta.isTouched && field.state.meta.errors.length > 0;
                       return (
                         <NumberField
-                          className="w-full sm:w-44"
+                          className="w-full sm:w-44 [--border-width-field:0px]"
                           value={field.state.value}
                           onChange={field.handleChange}
                           onBlur={field.handleBlur}
@@ -578,7 +601,7 @@ function MonitorModal({
                               field.state.meta.isTouched && field.state.meta.errors.length > 0;
                             return (
                               <NumberField
-                                className="w-full sm:w-60"
+                                className="w-full sm:w-60 [--border-width-field:0px]"
                                 value={field.state.value}
                                 onChange={field.handleChange}
                                 onBlur={field.handleBlur}

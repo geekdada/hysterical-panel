@@ -374,6 +374,30 @@ export function Dot({ tone, title }: { tone: "ok" | "error" | "warn" | "idle"; t
   );
 }
 
+export function SeverityBadge({
+  severity,
+  label,
+  className = "",
+}: {
+  severity: "warning" | "critical";
+  label: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center rounded-[4px] border px-1.5 text-[10px] font-semibold leading-none",
+        severity === "critical"
+          ? "border-(--danger)/30 bg-(--danger-soft) text-(--danger-soft-foreground)"
+          : "border-(--warning)/30 bg-(--warning-soft) text-(--warning-soft-foreground)",
+        className
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -29,6 +29,7 @@ import {
   PageShell,
   PanelMessage,
   Section,
+  SeverityBadge,
   SortableTh,
   TableSkeleton,
   Td,
@@ -204,10 +205,18 @@ function DashboardPage() {
     return byId;
   }, [nodeTrafficSummary]);
   const alertCountByNode = useMemo(() => {
-    const counts = new Map<string, number>();
+    const counts = new Map<string, { count: number; severity: "warning" | "critical" }>();
     for (const alert of activeAlertsQuery.data?.items ?? []) {
       const nodeID = alert.node?.id;
-      if (nodeID) counts.set(nodeID, (counts.get(nodeID) ?? 0) + 1);
+      if (!nodeID) continue;
+      const current = counts.get(nodeID);
+      counts.set(nodeID, {
+        count: (current?.count ?? 0) + 1,
+        severity:
+          current?.severity === "critical" || alert.severity === "critical"
+            ? "critical"
+            : "warning",
+      });
     }
     return counts;
   }, [activeAlertsQuery.data]);
@@ -217,6 +226,7 @@ function DashboardPage() {
   const activeUsers = userStats?.active ?? 0;
   const healthyTone =
     nodesError || errorNodes.length > 0 ? "error" : healthyNodes.length > 0 ? "ok" : "idle";
+  const hasCriticalAlerts = (alertSummaryQuery.data?.critical ?? 0) > 0;
   const totalTx = panelTraffic?.total?.tx ?? 0;
   const totalRx = panelTraffic?.total?.rx ?? 0;
 
@@ -245,10 +255,17 @@ function DashboardPage() {
       {(alertSummaryQuery.data?.total ?? 0) > 0 ? (
         <Link
           to="/settings/monitoring"
-          className="mb-4 flex items-center justify-between rounded-(--radius) border border-(--danger)/40 bg-(--danger-soft) px-3 py-2.5 text-(--danger-soft-foreground) no-underline"
+          className={`mb-4 flex items-center justify-between rounded-(--radius) border px-3 py-2.5 no-underline ${
+            hasCriticalAlerts
+              ? "border-(--danger)/40 bg-(--danger-soft) text-(--danger-soft-foreground)"
+              : "border-(--warning)/40 bg-(--warning-soft) text-(--warning-soft-foreground)"
+          }`}
         >
           <span className="flex items-center gap-2 text-[13px] font-medium">
-            <Dot tone={(alertSummaryQuery.data?.critical ?? 0) > 0 ? "error" : "warn"} />
+            <SeverityBadge
+              severity={hasCriticalAlerts ? "critical" : "warning"}
+              label={hasCriticalAlerts ? m.monitoring_critical() : m.monitoring_warning()}
+            />
             {m.monitoring_active_summary({ count: String(alertSummaryQuery.data?.total ?? 0) })}
           </span>
           <span className="text-xs text-(--muted)">{m.nav_monitoring()} →</span>
@@ -476,7 +493,7 @@ function NodesTable({
   todayTrafficUnavailable,
 }: {
   nodes: Node[];
-  alertCountByNode: Map<string, number>;
+  alertCountByNode: Map<string, { count: number; severity: "warning" | "critical" }>;
   now: number;
   todayTrafficByNode: Map<string, NodeTodayTraffic>;
   todayTrafficLoading: boolean;
@@ -565,6 +582,7 @@ function NodesTable({
             const { node, rxSpeed, todayTraffic, txSpeed } = row.original;
             const enabled = node.enabled ?? false;
             const health = node.health ?? "never";
+            const alertSummary = alertCountByNode.get(node.id ?? "");
             const tone = !enabled
               ? "idle"
               : health === "ok"
@@ -587,12 +605,20 @@ function NodesTable({
                     >
                       {node.name || m.common_em_dash()}
                     </Link>
-                    {(alertCountByNode.get(node.id ?? "") ?? 0) > 0 ? (
+                    {alertSummary ? (
                       <Link
                         to="/settings/monitoring"
-                        className="rounded-full bg-(--danger-soft) px-1.5 py-0.5 text-[10px] font-medium text-(--danger-soft-foreground) no-underline"
+                        className="no-underline"
+                        title={`${alertSummary.count} ${
+                          alertSummary.severity === "critical"
+                            ? m.monitoring_critical()
+                            : m.monitoring_warning()
+                        }`}
                       >
-                        {alertCountByNode.get(node.id ?? "")}
+                        <SeverityBadge
+                          severity={alertSummary.severity}
+                          label={String(alertSummary.count)}
+                        />
                       </Link>
                     ) : null}
                   </div>

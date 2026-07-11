@@ -32,6 +32,7 @@ import {
   PageShell,
   PanelMessage,
   Section,
+  SeverityBadge,
   TableSkeleton,
   Td,
   Teaching,
@@ -282,7 +283,12 @@ function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number }
             to="/settings/monitoring"
             className="flex items-center gap-3 px-3 py-2.5 text-(--foreground) no-underline hover:bg-(--surface-secondary)"
           >
-            <Dot tone={alert.severity === "critical" ? "error" : "warn"} />
+            <SeverityBadge
+              severity={alert.severity === "critical" ? "critical" : "warning"}
+              label={
+                alert.severity === "critical" ? m.monitoring_critical() : m.monitoring_warning()
+              }
+            />
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
               {alert.monitor_name ?? m.monitoring_monitor()}
             </span>
