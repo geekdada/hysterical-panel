@@ -167,6 +167,7 @@ type Alert struct {
 	LastEvaluatedAt         string               `json:"last_evaluated_at"`
 	ResolutionReason        string               `json:"resolution_reason,omitempty"`
 	DurationSeconds         int64                `json:"duration_seconds"`
+	DeliveryChannelCount    int                  `json:"delivery_channel_count"`
 	Deliveries              AlertDeliverySummary `json:"deliveries"`
 }
 

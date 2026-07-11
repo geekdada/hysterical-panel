@@ -377,6 +377,7 @@ func (h *Handlers) publicAlert(record *core.Record) Alert {
 		end = time.Now().UTC()
 	}
 	result := Alert{ID: record.Id, MonitorID: record.GetString("monitor"), Status: record.GetString("status"), Severity: record.GetString("severity_snapshot"), MonitorName: record.GetString("monitor_name_snapshot"), MonitorKind: record.GetString("monitor_kind_snapshot"), MonitorConfig: jsonMap(record.Get("monitor_config_snapshot")), EvaluationWindowSeconds: record.GetInt("evaluation_window_seconds_snapshot"), FiringValue: jsonMap(record.Get("firing_value")), RecoveryValue: jsonMap(record.Get("recovery_value")), StartedAt: record.GetString("started_at"), EndedAt: record.GetString("ended_at"), LastEvaluatedAt: record.GetString("last_evaluated_at"), ResolutionReason: record.GetString("resolution_reason"), DurationSeconds: int64(end.Sub(start).Seconds())}
+	result.DeliveryChannelCount = len(record.GetStringSlice("channel_ids_snapshot"))
 	node := h.nodeRefByID(record.GetString("node"))
 	result.Node = NodeRef{ID: fmt.Sprint(node["id"]), Name: fmt.Sprint(node["name"]), Deleted: node["deleted"] == true}
 	deliveries, _ := h.app.FindRecordsByFilter("alert_deliveries", "alert = {:a}", "", 0, 0, map[string]any{"a": record.Id})
