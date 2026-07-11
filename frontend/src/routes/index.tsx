@@ -15,7 +15,6 @@ import {
   dashboardNodesQueryOptions,
   dashboardTrafficQueryOptions,
   alertSummaryQueryOptions,
-  alertsQueryOptions,
   queryErrorMessage,
   toTrafficRangeQuery,
   userStatsQueryOptions,
@@ -46,6 +45,7 @@ import {
 } from "~/lib/traffic-range";
 import { FALLBACK_TIME_ZONE } from "~/lib/timezone";
 import { useActiveTimeZone } from "~/lib/use-timezone";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
 import { defaultUsersListSearch, type UsersListSearch } from "~/lib/users-list-search";
 import * as m from "~/paraglide/messages.js";
 
@@ -110,7 +110,6 @@ export const Route = createFileRoute("/")({
         dashboardNodeTrafficQueryOptions(dashboardNodeTrafficRangeQuery(tz))
       ),
       context.queryClient.ensureQueryData(alertSummaryQueryOptions()),
-      context.queryClient.ensureQueryData(alertsQueryOptions({ status: "firing", per_page: 100 })),
     ]);
   },
   component: DashboardPage,
@@ -125,7 +124,7 @@ function DashboardPage() {
   const [nodeTrafficRange, setNodeTrafficRange] = useState<LocalDateRange>(() =>
     defaultLocalTrafficRange(tz)
   );
-  const [now, setNow] = useState(() => Date.now());
+  const now = useHydratedNow();
 
   const nodeTrafficQuery = toTrafficRangeQuery(nodeTrafficRange, tz);
   const trafficRangeQuery = dashboardTrafficRangeQuery(trafficPeriod, tz);
@@ -134,10 +133,9 @@ function DashboardPage() {
   const trafficQuery = useQuery(dashboardTrafficQueryOptions(trafficRangeQuery));
   const nodeTrafficSummaryQuery = useQuery(dashboardNodeTrafficQueryOptions(nodeTrafficQuery));
   const alertSummaryQuery = useQuery(alertSummaryQueryOptions());
-  const activeAlertsQuery = useQuery(alertsQueryOptions({ status: "firing", per_page: 100 }));
 
-  // Tick the clock so relative timestamps stay current and today rolls over. Also
-  // re-seeds when the timezone preference changes so "today" tracks the active tz.
+  // Keep the local "today" range current and re-seed it when the timezone
+  // preference changes. The hydration-safe relative-time clock updates separately.
   useEffect(() => {
     const updateToday = () => {
       const today = defaultLocalTrafficRange(tz);
@@ -150,7 +148,6 @@ function DashboardPage() {
 
     updateToday();
     const id = setInterval(() => {
-      setNow(Date.now());
       updateToday();
     }, 5_000);
     return () => clearInterval(id);
@@ -204,22 +201,6 @@ function DashboardPage() {
     }
     return byId;
   }, [nodeTrafficSummary]);
-  const alertCountByNode = useMemo(() => {
-    const counts = new Map<string, { count: number; severity: "warning" | "critical" }>();
-    for (const alert of activeAlertsQuery.data?.items ?? []) {
-      const nodeID = alert.node?.id;
-      if (!nodeID) continue;
-      const current = counts.get(nodeID);
-      counts.set(nodeID, {
-        count: (current?.count ?? 0) + 1,
-        severity:
-          current?.severity === "critical" || alert.severity === "critical"
-            ? "critical"
-            : "warning",
-      });
-    }
-    return counts;
-  }, [activeAlertsQuery.data]);
   const enabledNodes = nodes.filter((n) => n.enabled);
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
   const errorNodes = enabledNodes.filter((n) => n.health === "error");
@@ -351,7 +332,6 @@ function DashboardPage() {
         ) : nodes.length > 0 ? (
           <NodesTable
             nodes={nodes}
-            alertCountByNode={alertCountByNode}
             now={now}
             todayTrafficByNode={nodeTrafficById}
             todayTrafficLoading={nodeTrafficLoading}
@@ -484,15 +464,13 @@ function StatSkeleton({ withDot, wide }: { withDot: boolean; wide: boolean }) {
 
 function NodesTable({
   nodes,
-  alertCountByNode,
   now,
   todayTrafficByNode,
   todayTrafficLoading,
   todayTrafficUnavailable,
 }: {
   nodes: Node[];
-  alertCountByNode: Map<string, { count: number; severity: "warning" | "critical" }>;
-  now: number;
+  now: number | null;
   todayTrafficByNode: Map<string, NodeTodayTraffic>;
   todayTrafficLoading: boolean;
   todayTrafficUnavailable: boolean;
@@ -580,7 +558,6 @@ function NodesTable({
             const { node, rxSpeed, todayTraffic, txSpeed } = row.original;
             const enabled = node.enabled ?? false;
             const health = node.health ?? "never";
-            const alertSummary = alertCountByNode.get(node.id ?? "");
             const tone = !enabled
               ? "idle"
               : health === "ok"
@@ -603,22 +580,6 @@ function NodesTable({
                     >
                       {node.name || m.common_em_dash()}
                     </Link>
-                    {alertSummary ? (
-                      <Link
-                        to="/settings/monitoring"
-                        className="no-underline"
-                        title={`${alertSummary.count} ${
-                          alertSummary.severity === "critical"
-                            ? m.monitoring_critical()
-                            : m.monitoring_warning()
-                        }`}
-                      >
-                        <SeverityBadge
-                          severity={alertSummary.severity}
-                          label={String(alertSummary.count)}
-                        />
-                      </Link>
-                    ) : null}
                   </div>
                 </Td>
                 <Td className="whitespace-nowrap text-right">
