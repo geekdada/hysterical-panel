@@ -59,13 +59,13 @@ function ManagementApiDocsPage() {
     >
       <div className="mb-6">
         <h1 className="text-base font-semibold tracking-tight">{m.mgmt_api_title()}</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">{m.mgmt_api_intro()}</p>
+        <p className="mt-0.5 text-[13px] text-muted">{m.mgmt_api_intro()}</p>
       </div>
 
       <DocSection heading={m.mgmt_api_auth_heading()}>
-        <p className="text-[13px] text-(--muted)">{m.mgmt_api_auth_bearer_intro()}</p>
+        <p className="text-[13px] text-muted">{m.mgmt_api_auth_bearer_intro()}</p>
         <Code>{m.mgmt_api_auth_header_example()}</Code>
-        <p className="text-[13px] text-(--muted)">{m.mgmt_api_auth_disabled()}</p>
+        <p className="text-[13px] text-muted">{m.mgmt_api_auth_disabled()}</p>
       </DocSection>
 
       <Endpoint
@@ -105,7 +105,7 @@ function ManagementApiDocsPage() {
       </Endpoint>
 
       <DocSection heading={m.mgmt_api_errors_heading()}>
-        <p className="text-[13px] text-(--muted)">{m.mgmt_api_errors_shape()}</p>
+        <p className="text-[13px] text-muted">{m.mgmt_api_errors_shape()}</p>
         <CodeBlock
           label={m.mgmt_api_label_response_4xx()}
           code={ERROR_RESPONSE}
@@ -118,8 +118,8 @@ function ManagementApiDocsPage() {
 
 function DocSection({ heading, children }: { heading: string; children: ReactNode }) {
   return (
-    <section className="mt-8 border-t border-(--border) pt-6 first:mt-0 first:border-t-0 first:pt-0">
-      <h2 className="text-[13px] font-semibold text-(--foreground)">{heading}</h2>
+    <section className="mt-8 border-t border-border pt-6 first:mt-0 first:border-t-0 first:pt-0">
+      <h2 className="text-[13px] font-semibold text-foreground">{heading}</h2>
       <div className="mt-3 flex flex-col gap-3">{children}</div>
     </section>
   );
@@ -139,16 +139,16 @@ function Endpoint({
   children: ReactNode;
 }) {
   return (
-    <section className="mt-8 border-t border-(--border) pt-6">
+    <section className="mt-8 border-t border-border pt-6">
       <div className="flex items-center gap-2">
-        <span className="rounded border border-(--border) bg-(--surface-secondary) px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-(--foreground)">
+        <span className="rounded border bg-surface-secondary px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-foreground">
           {method}
         </span>
-        <span className="font-mono text-[13px] text-(--foreground)">{path}</span>
+        <span className="font-mono text-[13px] text-foreground">{path}</span>
       </div>
-      <p className="mt-2 text-[13px] text-(--muted)">{summary}</p>
+      <p className="mt-2 text-[13px] text-muted">{summary}</p>
       <div className="mt-4 flex flex-col gap-4">{children}</div>
-      <p className="mt-3 text-xs text-(--muted)">
+      <p className="mt-3 text-xs text-muted">
         {m.mgmt_api_errors_prefix()} {errors}
       </p>
     </section>
@@ -158,9 +158,7 @@ function Endpoint({
 function CodeBlock({ label, code, copyLabel }: { label: string; code: string; copyLabel: string }) {
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-(--muted)">
-        {label}
-      </p>
+      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted">{label}</p>
       <CopyableCode value={code} label={copyLabel} />
     </div>
   );

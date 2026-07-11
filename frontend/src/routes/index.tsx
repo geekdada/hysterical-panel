@@ -234,7 +234,7 @@ function DashboardPage() {
     <PageShell
       headerLeft={<Brand />}
       headerRight={
-        <div className="flex items-center gap-3 text-xs text-(--muted)">
+        <div className="flex items-center gap-3 text-xs text-muted">
           {updatedAt !== null && (
             <span
               className="hidden tabular-nums sm:inline"
@@ -243,7 +243,7 @@ function DashboardPage() {
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
-          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          <span className="hidden h-3.5 w-px bg-border sm:block" />
           {auth && <UserMenu auth={auth} />}
         </div>
       }
@@ -255,10 +255,10 @@ function DashboardPage() {
       {(alertSummaryQuery.data?.total ?? 0) > 0 ? (
         <Link
           to="/settings/monitoring"
-          className={`mb-4 flex items-center justify-between rounded-(--radius) border px-3 py-2.5 no-underline ${
+          className={`mb-4 flex items-center justify-between rounded-lg border px-3 py-2.5 no-underline ${
             hasCriticalAlerts
-              ? "border-(--danger)/40 bg-(--danger-soft) text-(--danger-soft-foreground)"
-              : "border-(--warning)/40 bg-(--warning-soft) text-(--warning-soft-foreground)"
+              ? "border-danger/40 bg-danger-soft text-danger-soft-foreground"
+              : "border-warning/40 bg-warning-soft text-warning-soft-foreground"
           }`}
         >
           <span className="flex items-center gap-2 text-[13px] font-medium">
@@ -268,15 +268,15 @@ function DashboardPage() {
             />
             {m.monitoring_active_summary({ count: String(alertSummaryQuery.data?.total ?? 0) })}
           </span>
-          <span className="text-xs text-(--muted)">{m.nav_monitoring()} →</span>
+          <span className="text-xs text-muted">{m.nav_monitoring()} →</span>
         </Link>
       ) : null}
 
       {/* Summary rail: one connected strip, not free-floating metric cards. */}
-      <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
+      <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
         <Stat label={m.nav_nodes()} loading={nodesLoading} value={nodesError ? "—" : nodes.length}>
           {nodesError ? (
-            <span className="text-(--danger)">{m.common_unavailable()}</span>
+            <span className="text-danger">{m.common_unavailable()}</span>
           ) : (
             m.common_enabled_count({ count: String(enabledNodes.length) })
           )}
@@ -288,9 +288,9 @@ function DashboardPage() {
           dot={<Dot tone={healthyTone} />}
         >
           {nodesError ? (
-            <span className="text-(--danger)">{m.common_unavailable()}</span>
+            <span className="text-danger">{m.common_unavailable()}</span>
           ) : errorNodes.length > 0 ? (
-            <span className="text-(--danger)">
+            <span className="text-danger">
               {m.common_down_count({ count: String(errorNodes.length) })}
             </span>
           ) : enabledNodes.length > 0 ? (
@@ -305,7 +305,7 @@ function DashboardPage() {
           linkSearch={defaultUsersListSearch()}
         >
           {usersError ? (
-            <span className="text-(--danger)">{m.common_unavailable()}</span>
+            <span className="text-danger">{m.common_unavailable()}</span>
           ) : (
             m.common_active_count({ count: String(activeUsers) })
           )}
@@ -317,12 +317,12 @@ function DashboardPage() {
           headerAction={<TrafficPeriodToggle value={trafficPeriod} onChange={setTrafficPeriod} />}
         >
           {trafficError ? (
-            <span className="text-(--danger)">{m.common_unavailable()}</span>
+            <span className="text-danger">{m.common_unavailable()}</span>
           ) : (
             <span className="font-mono">
-              <span className="text-(--muted)">↑</span> {formatBytes(totalTx)}
+              <span className="text-muted">↑</span> {formatBytes(totalTx)}
               <span className="mx-1.5 opacity-40">·</span>
-              <span className="text-(--muted)">↓</span> {formatBytes(totalRx)}
+              <span className="text-muted">↓</span> {formatBytes(totalRx)}
             </span>
           )}
         </Stat>
@@ -388,16 +388,16 @@ function TrafficPeriodToggle({
 }) {
   const opts: TrafficPeriod[] = ["today", "t-1", "7d"];
   return (
-    <div className="inline-flex shrink-0 rounded-(--radius) border border-(--border) p-0.5">
+    <div className="inline-flex shrink-0 rounded-lg border p-0.5">
       {opts.map((o) => (
         <button
           key={o}
           type="button"
           onClick={() => onChange(o)}
-          className={`rounded-[calc(var(--radius)-2px)] px-1.5 py-0.5 text-[10px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+          className={`rounded-[calc(var(--radius)-2px)] px-1.5 py-0.5 text-[10px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
             value === o
-              ? "bg-(--surface-secondary) text-(--foreground)"
-              : "text-(--muted) hover:text-(--foreground)"
+              ? "bg-surface-secondary text-foreground"
+              : "text-muted hover:text-foreground"
           }`}
           aria-pressed={value === o}
         >
@@ -434,7 +434,7 @@ function Stat({
   return (
     <div className="relative flex-1 px-4 py-3">
       {headerAction ? <div className="absolute top-3 right-4 z-10">{headerAction}</div> : null}
-      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</div>
       {loading ? (
         <StatSkeleton withDot={Boolean(dot)} wide={label === m.nav_traffic()} />
       ) : (
@@ -444,7 +444,7 @@ function Stat({
               <Link
                 to={href}
                 search={linkSearch}
-                className="rounded-sm transition-colors duration-150 hover:text-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                className="rounded-sm transition-colors duration-150 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 {valueContent}
               </Link>
@@ -454,9 +454,7 @@ function Stat({
             {dot}
           </div>
           {children && (
-            <div className="mt-1 whitespace-nowrap text-xs tabular-nums text-(--muted)">
-              {children}
-            </div>
+            <div className="mt-1 whitespace-nowrap text-xs tabular-nums text-muted">{children}</div>
           )}
         </>
       )}
@@ -469,12 +467,12 @@ function StatSkeleton({ withDot, wide }: { withDot: boolean; wide: boolean }) {
     <div className="mt-1" aria-hidden>
       <div className="flex h-6 items-center gap-2">
         <div
-          className={`h-5 animate-pulse rounded bg-(--surface-secondary) ${wide ? "w-20" : "w-9"}`}
+          className={`h-5 animate-pulse rounded bg-surface-secondary ${wide ? "w-20" : "w-9"}`}
         />
-        {withDot && <div className="size-2 animate-pulse rounded-full bg-(--surface-secondary)" />}
+        {withDot && <div className="size-2 animate-pulse rounded-full bg-surface-secondary" />}
       </div>
       <div
-        className={`mt-1.5 h-3 animate-pulse rounded bg-(--surface-secondary) ${
+        className={`mt-1.5 h-3 animate-pulse rounded bg-surface-secondary ${
           wide ? "w-28" : "w-16"
         }`}
       />
@@ -560,7 +558,7 @@ function NodesTable({
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
         <thead>
-          <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+          <tr className="border-b border-border bg-surface-secondary text-left">
             <SortableTh column={table.getColumn("name")!}>{m.common_name()}</SortableTh>
             <SortableTh column={table.getColumn("today")!} align="right" className="text-right">
               {m.dashboard_today()}
@@ -577,7 +575,7 @@ function NodesTable({
             </SortableTh>
           </tr>
         </thead>
-        <tbody className="divide-y divide-(--separator)">
+        <tbody className="divide-y divide-separator">
           {table.getRowModel().rows.map((row) => {
             const { node, rxSpeed, todayTraffic, txSpeed } = row.original;
             const enabled = node.enabled ?? false;
@@ -593,7 +591,7 @@ function NodesTable({
             return (
               <tr
                 key={node.id}
-                className={`transition-colors duration-150 hover:bg-(--surface-secondary) ${enabled ? "" : "opacity-60"}`}
+                className={`transition-colors duration-150 hover:bg-surface-secondary ${enabled ? "" : "opacity-60"}`}
               >
                 <Td>
                   <div className="flex items-center gap-2.5">
@@ -601,7 +599,7 @@ function NodesTable({
                     <Link
                       to="/nodes/$nodeId"
                       params={{ nodeId: node.id ?? "" }}
-                      className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                      className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       {node.name || m.common_em_dash()}
                     </Link>
@@ -631,12 +629,12 @@ function NodesTable({
                   />
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↑</span> {formatBytesPerSecond(txSpeed)}
+                  <span className="text-muted">↑</span> {formatBytesPerSecond(txSpeed)}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↓</span> {formatBytesPerSecond(rxSpeed)}
+                  <span className="text-muted">↓</span> {formatBytesPerSecond(rxSpeed)}
                 </Td>
-                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                   {node.last_polled_at
                     ? relTimeFromISO(node.last_polled_at, now)
                     : m.common_em_dash()}
@@ -679,13 +677,13 @@ function NodeTodayUsage({
   if (loading) {
     return (
       <span
-        className="ml-auto block h-3 w-14 animate-pulse rounded bg-(--surface-secondary)"
+        className="ml-auto block h-3 w-14 animate-pulse rounded bg-surface-secondary"
         aria-hidden
       />
     );
   }
   if (unavailable) {
-    return <span className="font-mono text-xs text-(--muted)">{m.common_em_dash()}</span>;
+    return <span className="font-mono text-xs text-muted">{m.common_em_dash()}</span>;
   }
 
   const tx = traffic?.tx ?? 0;
@@ -710,18 +708,18 @@ function NodeState({
   lastError?: string;
 }) {
   if (!enabled) {
-    return <span className="text-xs text-(--muted)">{m.common_disabled()}</span>;
+    return <span className="text-xs text-muted">{m.common_disabled()}</span>;
   }
   if (health === "error") {
     const msg = lastError || m.common_error();
     return (
-      <span className="block max-w-[260px] truncate text-xs text-(--danger)" title={msg}>
+      <span className="block max-w-[260px] truncate text-xs text-danger" title={msg}>
         {msg}
       </span>
     );
   }
   if (health === "ok") {
-    return <span className="text-xs text-(--muted)">{m.common_healthy()}</span>;
+    return <span className="text-xs text-muted">{m.common_healthy()}</span>;
   }
-  return <span className="text-xs text-(--muted)">{m.common_never_polled()}</span>;
+  return <span className="text-xs text-muted">{m.common_never_polled()}</span>;
 }

@@ -193,7 +193,7 @@ function NodeDetailPage() {
         </>
       }
       headerRight={
-        <div className="flex items-center gap-3 text-xs text-(--muted)">
+        <div className="flex items-center gap-3 text-xs text-muted">
           {updatedAt !== null && (
             <span
               className="hidden tabular-nums sm:inline"
@@ -202,7 +202,7 @@ function NodeDetailPage() {
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
-          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          <span className="hidden h-3.5 w-px bg-border sm:block" />
           {auth && <UserMenu auth={auth} />}
         </div>
       }
@@ -276,12 +276,12 @@ function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number }
   if (alerts.length === 0) return null;
   return (
     <Section title={m.monitoring_node_alerts()} meta={String(alerts.length)}>
-      <div className="divide-y divide-(--separator)">
+      <div className="divide-y divide-separator">
         {alerts.map((alert) => (
           <Link
             key={alert.id}
             to="/settings/monitoring"
-            className="flex items-center gap-3 px-3 py-2.5 text-(--foreground) no-underline hover:bg-(--surface-secondary)"
+            className="flex items-center gap-3 px-3 py-2.5 text-foreground no-underline hover:bg-surface-secondary"
           >
             <SeverityBadge
               severity={alert.severity === "critical" ? "critical" : "warning"}
@@ -292,7 +292,7 @@ function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number }
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
               {alert.monitor_name ?? m.monitoring_monitor()}
             </span>
-            <span className="text-xs text-(--muted)">
+            <span className="text-xs text-muted">
               {alert.started_at ? relTimeFromISO(alert.started_at, now) : m.common_em_dash()}
             </span>
           </Link>
@@ -304,18 +304,18 @@ function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number }
 
 /* ── Detail rail (config + health) ─────────────────────────────────────── */
 
-const railValue = "min-w-0 truncate text-[13px] leading-5 text-(--foreground)";
+const railValue = "min-w-0 truncate text-[13px] leading-5 text-foreground";
 const railMono = cn(railValue, "font-mono tabular-nums");
 
 function DetailRail({ node, loading, now }: { node: Node | null; loading: boolean; now: number }) {
   if (loading) {
     return (
-      <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
+      <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="flex-1 px-4 py-3">
-            <div className="h-3 w-16 animate-pulse rounded bg-(--surface-secondary)" />
+            <div className="h-3 w-16 animate-pulse rounded bg-surface-secondary" />
             <div className="mt-1 flex h-5 items-center">
-              <div className="h-3.5 w-28 animate-pulse rounded bg-(--surface-secondary)" />
+              <div className="h-3.5 w-28 animate-pulse rounded bg-surface-secondary" />
             </div>
           </div>
         ))}
@@ -337,7 +337,7 @@ function DetailRail({ node, loading, now }: { node: Node | null; loading: boolea
   const rxSpeed = enabled ? (node?.current_rx_speed ?? 0) : 0;
 
   return (
-    <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
+    <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
       <RailItem label={m.node_rail_endpoint()} className="sm:flex-[2]">
         <div className="group/key flex min-w-0 items-center gap-1.5">
           <span className={railMono}>{node?.api_url || m.common_em_dash()}</span>
@@ -351,12 +351,12 @@ function DetailRail({ node, loading, now }: { node: Node | null; loading: boolea
       </RailItem>
       <RailItem label={m.node_rail_tx_speed()}>
         <span className={railMono}>
-          <span className="text-(--muted)">↑</span> {formatBytesPerSecond(txSpeed)}
+          <span className="text-muted">↑</span> {formatBytesPerSecond(txSpeed)}
         </span>
       </RailItem>
       <RailItem label={m.node_rail_rx_speed()}>
         <span className={railMono}>
-          <span className="text-(--muted)">↓</span> {formatBytesPerSecond(rxSpeed)}
+          <span className="text-muted">↓</span> {formatBytesPerSecond(rxSpeed)}
         </span>
       </RailItem>
       <RailItem label={m.node_rail_last_poll()}>
@@ -365,10 +365,7 @@ function DetailRail({ node, loading, now }: { node: Node | null; loading: boolea
         </span>
       </RailItem>
       <RailItem label={m.node_rail_state()}>
-        <span
-          className={cn(railValue, stateTone === "danger" && "text-(--danger)")}
-          title={stateLabel}
-        >
+        <span className={cn(railValue, stateTone === "danger" && "text-danger")} title={stateLabel}>
           {stateLabel}
         </span>
       </RailItem>
@@ -387,7 +384,7 @@ function RailItem({
 }) {
   return (
     <div className={cn("min-w-0 flex-1 px-4 py-3", className)}>
-      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</div>
       <div className="mt-1 flex h-5 min-w-0 items-center">{children}</div>
     </div>
   );
@@ -428,9 +425,9 @@ function TrafficSection({
     >
       <div className="p-3 sm:p-4">
         {loading ? (
-          <div className="h-[220px] animate-pulse rounded bg-(--surface-secondary)" />
+          <div className="h-[220px] animate-pulse rounded bg-surface-secondary" />
         ) : points.length === 0 ? (
-          <div className="grid h-[220px] place-items-center text-[13px] text-(--muted)">
+          <div className="grid h-[220px] place-items-center text-[13px] text-muted">
             {m.common_no_traffic_in_window()}
           </div>
         ) : (
@@ -439,28 +436,28 @@ function TrafficSection({
       </div>
 
       {!loading && byUser.length > 0 && (
-        <div className="overflow-x-auto border-t border-(--border)">
+        <div className="overflow-x-auto border-t border-border">
           <table className="w-full border-collapse text-[13px]">
             <thead>
-              <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+              <tr className="border-b border-border bg-surface-secondary text-left">
                 <Th>{m.node_traffic_top_users()}</Th>
                 <Th className="text-right">{m.common_th_tx()}</Th>
                 <Th className="text-right">{m.common_th_rx()}</Th>
                 <Th className="text-right">{m.common_th_total()}</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-(--separator)">
+            <tbody className="divide-y divide-separator">
               {byUser.map((u, i) => (
                 <tr
                   key={u.user?.id || i}
-                  className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                  className="transition-colors duration-150 hover:bg-surface-secondary"
                 >
                   <Td>
                     {u.user?.id ? (
                       <Link
                         to="/users/$userId"
                         params={{ userId: u.user.id }}
-                        className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                        className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {u.user?.email || m.common_unknown()}
                       </Link>
@@ -471,12 +468,12 @@ function TrafficSection({
                     )}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                    <span className="text-(--muted)">↑</span> {formatBytes(u.tx ?? 0)}
+                    <span className="text-muted">↑</span> {formatBytes(u.tx ?? 0)}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                    <span className="text-(--muted)">↓</span> {formatBytes(u.rx ?? 0)}
+                    <span className="text-muted">↓</span> {formatBytes(u.rx ?? 0)}
                   </Td>
-                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                     {formatBytes((u.tx ?? 0) + (u.rx ?? 0))}
                   </Td>
                 </tr>
@@ -503,8 +500,8 @@ function DangerRow({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <p className="text-[13px] font-medium text-(--foreground)">{label}</p>
-        <p className="mt-0.5 text-xs leading-5 text-(--muted)">{description}</p>
+        <p className="text-[13px] font-medium text-foreground">{label}</p>
+        <p className="mt-0.5 text-xs leading-5 text-muted">{description}</p>
       </div>
       <div className="shrink-0">{action}</div>
     </div>
@@ -539,7 +536,7 @@ function NodeDangerSection({
             </Button>
           }
         />
-        <div className="h-px bg-(--separator)" />
+        <div className="h-px bg-separator" />
         <DangerRow
           label={m.node_reset_api_secret_title()}
           description={m.node_reset_api_secret_desc()}
@@ -581,26 +578,26 @@ function ResetAPISecretModal({
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Heading>{m.node_reset_api_secret_confirm_title()}</Modal.Heading>
-            <p className="mt-1.5 text-sm leading-5 text-(--muted)">
+            <p className="mt-1.5 text-sm leading-5 text-muted">
               {m.node_reset_api_secret_confirm_body()}
             </p>
           </Modal.Header>
           <Modal.Body>
             {error && (
-              <p className="text-[13px] text-(--danger)" role="alert">
+              <p className="text-[13px] text-danger" role="alert">
                 {error}
               </p>
             )}
 
             {result?.api_secret && (
-              <div className="rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3">
+              <div className="rounded-lg border bg-surface-secondary p-3">
                 <div className="flex items-center gap-2 text-[13px]">
                   <Dot tone="ok" />
                   <span className="font-medium">{m.node_reset_api_secret_done()}</span>
                 </div>
-                <p className="mt-1 text-xs text-(--muted)">{m.node_reset_api_secret_new_hint()}</p>
+                <p className="mt-1 text-xs text-muted">{m.node_reset_api_secret_new_hint()}</p>
                 <div className="group/key mt-2 flex items-center gap-1.5">
-                  <span className="min-w-0 truncate font-mono text-[12px] text-(--muted)">
+                  <span className="min-w-0 truncate font-mono text-[12px] text-muted">
                     {result.api_secret}
                   </span>
                   <CopyButton value={result.api_secret} label={m.nodes_add_copy_api_secret()} />
@@ -655,11 +652,11 @@ function DeleteNodeModal({
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Heading>{title}</Modal.Heading>
-            <p className="mt-1.5 text-sm leading-5 text-(--muted)">{body}</p>
+            <p className="mt-1.5 text-sm leading-5 text-muted">{body}</p>
           </Modal.Header>
           {step === 2 && error ? (
             <Modal.Body>
-              <p className="text-[13px] text-(--danger)" role="alert">
+              <p className="text-[13px] text-danger" role="alert">
                 {error}
               </p>
             </Modal.Body>
@@ -678,7 +675,7 @@ function DeleteNodeModal({
                 variant="primary"
                 isPending={pending}
                 onPress={onConfirm}
-                className="bg-(--danger) text-(--danger-foreground) hover:opacity-90"
+                className="bg-danger text-danger-foreground hover:opacity-90"
               >
                 {pending ? m.common_deleting() : m.common_delete()}
               </Button>
@@ -733,7 +730,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
         <div className="flex items-center gap-2.5">
           {fetchedAt !== null && (
             <span
-              className="hidden text-xs tabular-nums text-(--muted) sm:inline"
+              className="hidden text-xs tabular-nums text-muted sm:inline"
               title={new Date(fetchedAt).toLocaleString(undefined, { timeZone: tz })}
             >
               {relTime(fetchedAt, now)}
@@ -757,7 +754,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
       ) : loading && !live ? (
         <TableSkeleton />
       ) : live?.error ? (
-        <div className="px-4 py-3 text-[13px] text-(--danger)" title={live.error}>
+        <div className="px-4 py-3 text-[13px] text-danger" title={live.error}>
           {live.error}
         </div>
       ) : !live ? (
@@ -787,15 +784,15 @@ function UserStreams({
 }) {
   const streams = group.streams ?? [];
   return (
-    <div className="border-t border-(--border) first:border-t-0">
-      <div className="flex items-center justify-between gap-3 bg-(--surface-secondary) px-3 py-1.5">
+    <div className="border-t border-border first:border-t-0">
+      <div className="flex items-center justify-between gap-3 bg-surface-secondary px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <Dot tone="ok" />
           <span className="truncate text-xs font-medium">
             {group.user?.email || m.common_unknown()}
           </span>
         </div>
-        <span className="shrink-0 font-mono text-xs tabular-nums text-(--muted)">
+        <span className="shrink-0 font-mono text-xs tabular-nums text-muted">
           {m.node_live_user_meta({
             devices: group.online_devices ?? 0,
             count: streams.length,
@@ -805,7 +802,7 @@ function UserStreams({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr className="border-b border-(--separator) text-left">
+            <tr className="border-b border-separator text-left">
               <Th>{m.common_th_target()}</Th>
               <Th>{m.common_th_state()}</Th>
               <Th className="text-right">{m.common_th_tx()}</Th>
@@ -814,23 +811,23 @@ function UserStreams({
               <Th className="text-right">{m.common_th_idle()}</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-(--separator)">
+          <tbody className="divide-y divide-separator">
             {streams.map((s, i) => {
               const target = s.hooked_req_addr || s.req_addr || m.common_em_dash();
               return (
                 <tr
                   key={`${s.connection}-${s.stream}-${i}`}
-                  className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                  className="transition-colors duration-150 hover:bg-surface-secondary"
                 >
                   <Td>
                     <span
-                      className="block max-w-[320px] truncate font-mono text-xs text-(--foreground)"
+                      className="block max-w-[320px] truncate font-mono text-xs text-foreground"
                       title={target}
                     >
                       {target}
                     </span>
                   </Td>
-                  <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
+                  <Td className="whitespace-nowrap font-mono text-xs text-muted">
                     {s.state || m.common_em_dash()}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
@@ -839,10 +836,10 @@ function UserStreams({
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
                     {formatBytes(s.rx ?? 0)}
                   </Td>
-                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                     {formatDuration(s.lifetime_sec ?? -1)}
                   </Td>
-                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                     {formatDuration(s.idle_sec ?? -1)}
                   </Td>
                 </tr>
@@ -857,11 +854,11 @@ function UserStreams({
 
 function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> }) {
   return (
-    <div className="bg-(--surface)">
+    <div className="bg-surface">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
+            <tr className="border-y border-border bg-surface-secondary text-left">
               <Th>{m.common_top_domains()}</Th>
               <Th>{m.common_th_asn()}</Th>
               <Th>{m.common_th_country()}</Th>
@@ -869,20 +866,20 @@ function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> 
               <Th className="text-right">{m.common_th_total()}</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-(--separator)">
+          <tbody className="divide-y divide-separator">
             {rows.map((d, i) => {
               const domain = d.domain || m.common_em_dash();
               const meta = d.ip_meta;
               const countryTitle = meta?.country_name || meta?.country_code || "";
               return (
-                <tr key={(d.domain || "") + i} className="hover:bg-(--surface-secondary)">
+                <tr key={(d.domain || "") + i} className="hover:bg-surface-secondary">
                   <Td>
                     {meta?.ipinfo_url ? (
                       <a
                         href={meta.ipinfo_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="block max-w-[260px] truncate font-mono text-xs text-(--foreground) underline decoration-(--border) underline-offset-2 transition-colors duration-150 hover:text-(--accent)"
+                        className="block max-w-[260px] truncate font-mono text-xs text-foreground underline decoration-border underline-offset-2 transition-colors duration-150 hover:text-accent"
                         title={m.common_ipinfo_open({ target: meta.ip || domain })}
                       >
                         {domain}
@@ -896,13 +893,13 @@ function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> 
                       </span>
                     )}
                   </Td>
-                  <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
+                  <Td className="whitespace-nowrap font-mono text-xs text-muted">
                     {meta?.asn || m.common_em_dash()}
                   </Td>
-                  <Td className="whitespace-nowrap text-xs text-(--muted)">
+                  <Td className="whitespace-nowrap text-xs text-muted">
                     {meta?.country_code ? (
                       <span title={countryTitle}>
-                        <span className="font-mono text-(--foreground)">{meta.country_code}</span>
+                        <span className="font-mono text-foreground">{meta.country_code}</span>
                         {meta.country_name && (
                           <span className="ml-1 hidden max-w-[140px] truncate align-bottom sm:inline-block">
                             {meta.country_name}
@@ -913,7 +910,7 @@ function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> 
                       m.common_em_dash()
                     )}
                   </Td>
-                  <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
+                  <Td className="text-right font-mono text-xs tabular-nums text-muted">
                     {d.streams ?? 0}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
@@ -931,21 +928,21 @@ function TopDomainsTable({ rows }: { rows: NonNullable<NodeLive["top_domains"]> 
 
 function ByConnectionTable({ rows }: { rows: NonNullable<NodeLive["by_connection"]> }) {
   return (
-    <div className="bg-(--surface)">
+    <div className="bg-surface">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
+            <tr className="border-y border-border bg-surface-secondary text-left">
               <Th>{m.common_th_device()}</Th>
               <Th>{m.common_th_top_domain()}</Th>
               <Th className="text-right">{m.common_th_streams()}</Th>
               <Th className="text-right">{m.common_th_total()}</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-(--separator)">
+          <tbody className="divide-y divide-separator">
             {rows.map((c, i) => (
-              <tr key={`${c.connection}-${i}`} className="hover:bg-(--surface-secondary)">
-                <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-(--muted)">
+              <tr key={`${c.connection}-${i}`} className="hover:bg-surface-secondary">
+                <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-muted">
                   #{c.connection ?? 0}
                 </Td>
                 <Td>
@@ -956,7 +953,7 @@ function ByConnectionTable({ rows }: { rows: NonNullable<NodeLive["by_connection
                     {c.top_domain || m.common_em_dash()}
                   </span>
                 </Td>
-                <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
+                <Td className="text-right font-mono text-xs tabular-nums text-muted">
                   {c.stream_count ?? 0}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">

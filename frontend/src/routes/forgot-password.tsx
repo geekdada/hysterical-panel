@@ -37,26 +37,26 @@ function ForgotPasswordPage() {
   return (
     <AuthShell>
       <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
-        <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-(--accent) text-sm font-bold text-(--accent-foreground)">
+        <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-accent text-sm font-bold text-accent-foreground">
           H
         </span>
-        <Card.Title className="text-[15px] font-semibold tracking-tight text-(--foreground)">
+        <Card.Title className="text-[15px] font-semibold tracking-tight text-foreground">
           {m.auth_reset_password()}
         </Card.Title>
-        <Card.Description className="text-[13px] text-(--muted)">{m.app_title()}</Card.Description>
+        <Card.Description className="text-[13px] text-muted">{m.app_title()}</Card.Description>
       </Card.Header>
       <Card.Content className="px-6 pt-4 pb-6">
         {resetMutation.isSuccess ? (
           <div className="flex flex-col gap-3 py-2">
-            <p className="text-[13px] text-(--foreground)">{m.auth_check_email()}</p>
-            <p className="text-[13px] text-(--muted)">{m.auth_reset_email_sent_intro()}</p>
-            <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
+            <p className="text-[13px] text-foreground">{m.auth_check_email()}</p>
+            <p className="text-[13px] text-muted">{m.auth_reset_email_sent_intro()}</p>
+            <Link to="/login" className="text-[13px] font-medium text-accent hover:opacity-80">
               {m.auth_back_to_sign_in()}
             </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <p className="text-[13px] text-(--muted)">{m.auth_reset_enter_email()}</p>
+            <p className="text-[13px] text-muted">{m.auth_reset_enter_email()}</p>
             <TextField>
               <Label>{m.auth_email()}</Label>
               <Input
@@ -72,7 +72,7 @@ function ForgotPasswordPage() {
             </TextField>
 
             {error && (
-              <p className="text-sm text-(--danger)" role="alert">
+              <p className="text-sm text-danger" role="alert">
                 {error}
               </p>
             )}
@@ -86,10 +86,7 @@ function ForgotPasswordPage() {
             >
               {resetMutation.isPending ? m.auth_sending() : m.auth_send_reset_link()}
             </Button>
-            <Link
-              to="/login"
-              className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
-            >
+            <Link to="/login" className="text-center text-[13px] text-muted hover:text-foreground">
               {m.auth_back_to_sign_in()}
             </Link>
           </form>

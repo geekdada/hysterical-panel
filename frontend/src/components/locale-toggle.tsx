@@ -57,7 +57,7 @@ export function LocaleToggle() {
       role="radiogroup"
       aria-label={m.aria_language()}
       onKeyDown={handleKeyDown}
-      className="inline-flex items-center rounded-(--radius) border border-(--border) p-0.5"
+      className="inline-flex items-center rounded-lg border p-0.5"
     >
       {OPTIONS.map(({ value, label, short }, index) => {
         const active = locale === value;
@@ -75,9 +75,7 @@ export function LocaleToggle() {
             tabIndex={active ? 0 : -1}
             onClick={() => select(value)}
             className={`min-w-6 px-1.5 text-[11px] font-medium leading-6 rounded-[5px] transition-colors duration-150 ${
-              active
-                ? "bg-(--surface-secondary) text-(--foreground)"
-                : "text-(--muted) hover:text-(--foreground)"
+              active ? "bg-surface-secondary text-foreground" : "text-muted hover:text-foreground"
             }`}
           >
             {short}

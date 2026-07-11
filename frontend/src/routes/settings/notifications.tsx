@@ -180,7 +180,7 @@ function NotificationChannelsPage() {
           <h1 className="text-base font-semibold tracking-tight">
             {m.settings_notification_channels_manage()}
           </h1>
-          <p className="mt-0.5 max-w-2xl text-[13px] text-(--muted)">
+          <p className="mt-0.5 max-w-2xl text-[13px] text-muted">
             {m.settings_notification_channels_manage_desc()}
           </p>
         </div>
@@ -188,7 +188,7 @@ function NotificationChannelsPage() {
           href="https://beszel.dev/guide/notifications/"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-(--accent) hover:opacity-80"
+          className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-accent hover:opacity-80"
         >
           <LinkIcon className="size-3.5" aria-hidden />
           {m.notifications_docs()}
@@ -198,9 +198,9 @@ function NotificationChannelsPage() {
       <ErrorAlert message={loadError} icon className="mb-4" />
 
       {showEnrollmentHint && (
-        <div className="mb-4 rounded-(--radius) border border-(--border) bg-(--surface-secondary) px-4 py-3 text-[13px] text-(--muted)">
+        <div className="mb-4 rounded-lg border bg-surface-secondary px-4 py-3 text-[13px] text-muted">
           {m.notifications_passkey_required()}{" "}
-          <Link to="/settings" className="font-medium text-(--accent) hover:opacity-80">
+          <Link to="/settings" className="font-medium text-accent hover:opacity-80">
             {m.nav_settings()}
           </Link>
         </div>
@@ -267,13 +267,13 @@ function NotificationChannelsPage() {
           <TableSkeleton />
         ) : channels.length === 0 ? (
           <PanelMessage>
-            <span className="block font-medium text-(--foreground)">
+            <span className="block font-medium text-foreground">
               {m.notifications_empty_title()}
             </span>
             <span className="mt-1 block">{m.notifications_empty_hint()}</span>
           </PanelMessage>
         ) : (
-          <div className="divide-y divide-(--separator)">
+          <div className="divide-y divide-separator">
             {channels.map((channel) => (
               <ChannelRow
                 key={channel.id}
@@ -305,10 +305,10 @@ function NotificationChannelsPage() {
 }
 
 const menuItemClass =
-  "h-7 rounded-md px-2 text-[13px] text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) data-[focus=true]:bg-(--surface-secondary) data-[hovered=true]:bg-(--surface-secondary)";
+  "h-7 rounded-md px-2 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-secondary data-[focus=true]:bg-surface-secondary data-[hovered=true]:bg-surface-secondary";
 const menuDangerItemClass =
-  "h-7 rounded-md px-2 text-[13px] text-(--danger) transition-colors duration-150 hover:bg-(--danger-soft) data-[focus=true]:bg-(--danger-soft) data-[hovered=true]:bg-(--danger-soft)";
-const menuIconClass = "size-3.5 shrink-0 text-(--muted)";
+  "h-7 rounded-md px-2 text-[13px] text-danger transition-colors duration-150 hover:bg-danger-soft data-[focus=true]:bg-danger-soft data-[hovered=true]:bg-danger-soft";
+const menuIconClass = "size-3.5 shrink-0 text-muted";
 
 function ChannelRow({
   channel,
@@ -352,9 +352,9 @@ function ChannelRow({
         <div className="flex min-w-0 items-center gap-2">
           <Dot tone={test.tone} />
           <span className="truncate text-[13px] font-medium">{name}</span>
-          {showService && <span className="shrink-0 text-[11px] text-(--muted)">{service}</span>}
+          {showService && <span className="shrink-0 text-[11px] text-muted">{service}</span>}
         </div>
-        <p className="mt-1 text-xs text-(--muted)">
+        <p className="mt-1 text-xs text-muted">
           {test.label}
           {channel.last_tested_at && now !== null && (
             <>
@@ -364,7 +364,7 @@ function ChannelRow({
           )}
         </p>
         {error && (
-          <p className="mt-1 text-xs text-(--danger)" role="alert">
+          <p className="mt-1 text-xs text-danger" role="alert">
             {error}
           </p>
         )}
@@ -391,7 +391,7 @@ function ChannelRow({
               <Switch.Control>
                 <Switch.Thumb />
               </Switch.Control>
-              <span className="text-xs text-(--muted)">
+              <span className="text-xs text-muted">
                 {channel.enabled ? m.notifications_enabled() : m.notifications_disabled()}
               </span>
             </Switch.Content>
@@ -404,11 +404,11 @@ function ChannelRow({
             aria-label={m.notifications_more_actions()}
             className="px-1.5"
           >
-            <Ellipsis className="size-4 text-(--muted)" aria-hidden />
+            <Ellipsis className="size-4 text-muted" aria-hidden />
           </Button>
           <Dropdown.Popover
             placement="bottom end"
-            className="min-w-40 rounded-(--radius) border border-(--border) bg-(--surface) p-1 shadow-none"
+            className="min-w-40 rounded-lg border bg-surface p-1 shadow-none"
           >
             <Dropdown.Menu
               onAction={(key: Key) => {
@@ -434,7 +434,7 @@ function ChannelRow({
                   </Label>
                 </Dropdown.Item>
               )}
-              <Separator className="my-1 bg-(--separator)" />
+              <Separator className="my-1 bg-separator" />
               <Dropdown.Item
                 id="delete"
                 variant="danger"
@@ -505,7 +505,7 @@ function ChannelFormModal({
               <Modal.Heading>
                 {isNew ? m.notifications_create_title() : m.notifications_edit_title()}
               </Modal.Heading>
-              <p className="mt-1.5 text-sm leading-5 text-(--muted)">
+              <p className="mt-1.5 text-sm leading-5 text-muted">
                 {m.notifications_form_description()}
               </p>
             </Modal.Header>
@@ -522,9 +522,7 @@ function ChannelFormModal({
                   <Input autoComplete="off" spellCheck={false} inputMode="url" />
                 </TextField>
                 {!isNew && (
-                  <p className="-mt-2 text-xs text-(--muted)">
-                    {m.notifications_url_replace_hint()}
-                  </p>
+                  <p className="-mt-2 text-xs text-muted">{m.notifications_url_replace_hint()}</p>
                 )}
                 <LabeledSwitch
                   label={m.notifications_enabled_label()}
@@ -533,7 +531,7 @@ function ChannelFormModal({
                 />
               </div>
               {error && (
-                <p className="mt-4 text-[13px] text-(--danger)" role="alert">
+                <p className="mt-4 text-[13px] text-danger" role="alert">
                   {error}
                 </p>
               )}

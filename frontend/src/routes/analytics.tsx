@@ -108,7 +108,7 @@ function AnalyticsPage() {
     <PageShell
       headerLeft={<BrandLink />}
       headerRight={
-        <div className="flex items-center gap-3 text-xs text-(--muted)">
+        <div className="flex items-center gap-3 text-xs text-muted">
           {updatedAt !== null && (
             <span
               className="hidden tabular-nums sm:inline"
@@ -117,7 +117,7 @@ function AnalyticsPage() {
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
-          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          <span className="hidden h-3.5 w-px bg-border sm:block" />
           {auth && <UserMenu auth={auth} />}
         </div>
       }
@@ -127,9 +127,7 @@ function AnalyticsPage() {
       ))}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <h2 className="shrink-0 text-[13px] font-semibold text-(--foreground)">
-          {m.common_traffic()}
-        </h2>
+        <h2 className="shrink-0 text-[13px] font-semibold text-foreground">{m.common_traffic()}</h2>
         <div className="min-w-0 w-full sm:w-auto">
           <TrafficRangePicker value={trafficRange} onChange={setTrafficRange} />
         </div>
@@ -184,9 +182,9 @@ function RangeTrafficSection({
         <>
           <div className="p-3 sm:p-4">
             {loading ? (
-              <div className="h-[220px] animate-pulse rounded bg-(--surface-secondary)" />
+              <div className="h-[220px] animate-pulse rounded bg-surface-secondary" />
             ) : points.length === 0 ? (
-              <div className="grid h-[220px] place-items-center text-[13px] text-(--muted)">
+              <div className="grid h-[220px] place-items-center text-[13px] text-muted">
                 {m.common_no_traffic_in_window()}
               </div>
             ) : (
@@ -283,7 +281,7 @@ function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_n
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
         <thead>
-          <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+          <tr className="border-b border-border bg-surface-secondary text-left">
             <SortableTh column={table.getColumn("name")!}>{m.common_name()}</SortableTh>
             <SortableTh column={table.getColumn("total")!} align="right" className="text-right">
               {m.common_th_total()}
@@ -296,7 +294,7 @@ function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_n
             </SortableTh>
           </tr>
         </thead>
-        <tbody className="divide-y divide-(--separator)">
+        <tbody className="divide-y divide-separator">
           {table.getRowModel().rows.map((row) => {
             const { node, rx, tx, total } = row.original;
             const id = node?.id ?? "";
@@ -305,14 +303,14 @@ function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_n
             return (
               <tr
                 key={id || `${label}-${row.id}`}
-                className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                className="transition-colors duration-150 hover:bg-surface-secondary"
               >
                 <Td>
                   {id && !deleted ? (
                     <Link
                       to="/nodes/$nodeId"
                       params={{ nodeId: id }}
-                      className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                      className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       {label}
                     </Link>
@@ -320,7 +318,7 @@ function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_n
                     <span
                       className={cn(
                         "block max-w-[180px] truncate font-medium",
-                        deleted && "text-(--muted)"
+                        deleted && "text-muted"
                       )}
                     >
                       {label}
@@ -331,10 +329,10 @@ function NodeBreakdownTable({ rows }: { rows: NonNullable<PanelNodeTraffic["by_n
                   {formatBytes(total)}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↑</span> {formatBytes(tx ?? 0)}
+                  <span className="text-muted">↑</span> {formatBytes(tx ?? 0)}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                  <span className="text-(--muted)">↓</span> {formatBytes(rx ?? 0)}
+                  <span className="text-muted">↓</span> {formatBytes(rx ?? 0)}
                 </Td>
               </tr>
             );

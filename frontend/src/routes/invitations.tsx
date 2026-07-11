@@ -108,9 +108,9 @@ function InvitationsPage() {
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
       {!settingsQuery.isPending && !invitationsEnabled && (
-        <div className="mb-5 rounded-(--radius) border border-(--border) bg-(--surface-secondary) px-4 py-3 text-[13px] text-(--muted)">
+        <div className="mb-5 rounded-lg border bg-surface-secondary px-4 py-3 text-[13px] text-muted">
           {m.invitations_disabled_banner()}{" "}
-          <Link to="/settings" className="font-medium text-(--accent) hover:opacity-80">
+          <Link to="/settings" className="font-medium text-accent hover:opacity-80">
             {m.invitations_enable_in_settings()}
           </Link>
           .
@@ -147,7 +147,7 @@ function InvitationsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead>
-                <tr className="border-b border-(--separator) text-left">
+                <tr className="border-b border-separator text-left">
                   <Th>{m.invitations_th_code()}</Th>
                   <Th>{m.common_email()}</Th>
                   <Th>{m.invitations_th_uses()}</Th>
@@ -156,7 +156,7 @@ function InvitationsPage() {
                   <Th className="text-right">{m.common_actions()}</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-(--separator)">
+              <tbody className="divide-y divide-separator">
                 {invitations.map((inv) => (
                   <InvitationRow
                     key={inv.id}
@@ -207,22 +207,22 @@ function InvitationRow({
     : { tone: "idle" as const, label: inv.invalid_reason || m.invitations_status_inactive() };
 
   return (
-    <tr className="hover:bg-(--surface-secondary)">
+    <tr className="hover:bg-surface-secondary">
       <Td>
         <div className="group/key flex items-center gap-1.5">
           <span className="font-mono text-[12px]">{inv.code}</span>
           <CopyButton value={inv.code ?? ""} label={m.invitations_copy_invite_code()} />
         </div>
       </Td>
-      <Td className="text-(--muted)">{inv.email || m.common_em_dash()}</Td>
+      <Td className="text-muted">{inv.email || m.common_em_dash()}</Td>
       <Td className="tabular-nums">{uses}</Td>
-      <Td className="text-(--muted)">
+      <Td className="text-muted">
         {inv.expires_at ? relTimeFromISO(inv.expires_at, now) : m.common_never()}
       </Td>
       <Td>
         <span className="inline-flex items-center gap-1.5">
           <Dot tone={status.tone} />
-          <span className={inv.valid ? "" : "text-(--muted) capitalize"}>{status.label}</span>
+          <span className={inv.valid ? "" : "text-muted capitalize"}>{status.label}</span>
         </span>
       </Td>
       <Td>
@@ -233,7 +233,7 @@ function InvitationRow({
             onClick={onDelete}
             title={m.invitations_delete_title()}
             aria-label={m.invitations_delete_title()}
-            className="inline-grid size-6 place-items-center rounded text-(--muted) transition-colors duration-150 hover:text-(--danger) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+            className="inline-grid size-6 place-items-center rounded text-muted transition-colors duration-150 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <TrashBin className="size-3.5" aria-hidden />
           </button>
@@ -280,9 +280,9 @@ function CreateInvitationForm({
   }
 
   return (
-    <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+    <div className="rounded-lg border bg-surface p-5">
       <h2 className="text-[13px] font-semibold tracking-tight">{m.invitations_create_title()}</h2>
-      <p className="mt-0.5 text-[13px] text-(--muted)">{m.invitations_create_description()}</p>
+      <p className="mt-0.5 text-[13px] text-muted">{m.invitations_create_description()}</p>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -337,12 +337,12 @@ function CreateInvitationForm({
         />
 
         {error && (
-          <p className="text-[13px] text-(--danger)" role="alert">
+          <p className="text-[13px] text-danger" role="alert">
             {error}
           </p>
         )}
 
-        <div className="flex justify-end border-t border-(--separator) pt-4">
+        <div className="flex justify-end border-t border-separator pt-4">
           <Button type="submit" variant="primary" isDisabled={disabled || pending}>
             {pending ? m.invitations_creating() : m.invitations_create_button()}
           </Button>
@@ -350,21 +350,21 @@ function CreateInvitationForm({
       </form>
 
       {created && (
-        <div className="mt-4 rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3">
+        <div className="mt-4 rounded-lg border bg-surface-secondary p-3">
           <div className="flex items-center gap-2 text-[13px]">
             <Dot tone="ok" />
             <span className="font-medium">{m.invitations_created()}</span>
             {created.email_sent === true && (
-              <span className="text-xs text-(--muted)">
+              <span className="text-xs text-muted">
                 {m.invitations_emailed_to({ email: created.email ?? "" })}
               </span>
             )}
             {created.email_sent === false && (
-              <span className="text-xs text-(--warning)">{m.invitations_email_not_sent()}</span>
+              <span className="text-xs text-warning">{m.invitations_email_not_sent()}</span>
             )}
           </div>
           <div className="group/key mt-2 flex items-center gap-1.5">
-            <span className="min-w-0 truncate font-mono text-[12px] text-(--muted)">
+            <span className="min-w-0 truncate font-mono text-[12px] text-muted">
               {created.link}
             </span>
             <CopyButton value={created.link ?? ""} label={m.invitations_copy_invite_link()} />

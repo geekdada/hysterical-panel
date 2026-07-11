@@ -104,7 +104,7 @@ function DatabasePage() {
     <PageShell
       headerLeft={<BrandLink />}
       headerRight={
-        <div className="flex items-center gap-3 text-xs text-(--muted)">
+        <div className="flex items-center gap-3 text-xs text-muted">
           {updatedAt !== null && (
             <span
               className="hidden tabular-nums sm:inline"
@@ -113,7 +113,7 @@ function DatabasePage() {
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
-          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          <span className="hidden h-3.5 w-px bg-border sm:block" />
           {auth && <UserMenu auth={auth} />}
         </div>
       }
@@ -152,7 +152,7 @@ function DatabasePage() {
             variant="secondary"
             isDisabled={pruneEligible <= 0 || pruneMutation.isPending}
             onPress={handlePruneRequest}
-            className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
+            className="border-danger text-danger hover:bg-danger-soft"
           >
             {pruneMutation.isPending ? m.database_prune_deleting() : m.database_prune_button()}
           </Button>
@@ -194,7 +194,7 @@ function SummaryRail({
   pruneEligible: number;
 }) {
   return (
-    <div className="flex flex-col divide-y divide-(--border) rounded-(--radius) border border-(--border) bg-(--surface) sm:flex-row sm:divide-x sm:divide-y-0">
+    <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
       <RailItem
         label={m.database_rail_storage()}
         loading={loading}
@@ -240,21 +240,21 @@ function RailItem({
   if (loading) {
     return (
       <div className="flex-1 px-4 py-3">
-        <div className="h-3 w-20 animate-pulse rounded bg-(--surface-secondary)" />
-        <div className="mt-2 h-4 w-24 animate-pulse rounded bg-(--surface-secondary)" />
+        <div className="h-3 w-20 animate-pulse rounded bg-surface-secondary" />
+        <div className="mt-2 h-4 w-24 animate-pulse rounded bg-surface-secondary" />
       </div>
     );
   }
 
   return (
     <div className="flex-1 px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</p>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</p>
       <p
-        className={`mt-1 font-mono text-[15px] tabular-nums ${tone === "danger" ? "text-(--danger)" : "text-(--foreground)"}`}
+        className={`mt-1 font-mono text-[15px] tabular-nums ${tone === "danger" ? "text-danger" : "text-foreground"}`}
       >
         {value}
       </p>
-      <p className="mt-0.5 truncate text-xs text-(--muted)">{children}</p>
+      <p className="mt-0.5 truncate text-xs text-muted">{children}</p>
     </div>
   );
 }
@@ -266,32 +266,32 @@ function TrafficTableSection({ loading, tables }: { loading: boolean; tables: Tr
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-[13px]">
-        <thead className="border-b border-(--border) bg-(--surface-secondary)">
+        <thead className="border-b border-border bg-surface-secondary">
           <tr>
             <Th>{m.database_th_table()}</Th>
             <Th className="text-right">{m.database_th_data_points()}</Th>
             <Th className="text-right">{m.database_th_older_than_30d()}</Th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-(--separator)">
+        <tbody className="divide-y divide-separator">
           {tables.map((table) => {
             const old = table.older_than_30_days ?? 0;
             return (
               <tr
                 key={table.table}
-                className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                className="transition-colors duration-150 hover:bg-surface-secondary"
               >
                 <Td>
-                  <span className="font-mono text-[13px] text-(--foreground)">
+                  <span className="font-mono text-[13px] text-foreground">
                     {table.table ?? m.common_em_dash()}
                   </span>
-                  <span className="ml-2 text-xs text-(--muted)">{tableLabel(table.table)}</span>
+                  <span className="ml-2 text-xs text-muted">{tableLabel(table.table)}</span>
                 </Td>
                 <Td className="text-right font-mono tabular-nums">
                   {formatLocaleCount(table.points ?? 0)}
                 </Td>
                 <Td
-                  className={`text-right font-mono tabular-nums ${old > 0 ? "text-(--danger)" : "text-(--muted)"}`}
+                  className={`text-right font-mono tabular-nums ${old > 0 ? "text-danger" : "text-muted"}`}
                 >
                   {formatLocaleCount(old)}
                 </Td>
@@ -318,24 +318,24 @@ function StorageTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-[13px]">
-        <thead className="border-b border-(--border) bg-(--surface-secondary)">
+        <thead className="border-b border-border bg-surface-secondary">
           <tr>
             <Th>{m.database_th_file()}</Th>
             <Th className="text-right">{m.database_th_size()}</Th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-(--separator)">
+        <tbody className="divide-y divide-separator">
           {files.map((file) => (
             <tr
               key={file.name}
-              className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+              className="transition-colors duration-150 hover:bg-surface-secondary"
             >
-              <Td className="font-mono text-(--foreground)">{file.name ?? m.common_em_dash()}</Td>
+              <Td className="font-mono text-foreground">{file.name ?? m.common_em_dash()}</Td>
               <Td className="text-right font-mono tabular-nums">{formatBytes(file.bytes ?? 0)}</Td>
             </tr>
           ))}
-          <tr className="border-t border-(--border) bg-(--surface-secondary)">
-            <Td className="font-medium text-(--foreground)">{m.common_total()}</Td>
+          <tr className="border-t border-border bg-surface-secondary">
+            <Td className="font-medium text-foreground">{m.common_total()}</Td>
             <Td className="text-right font-mono font-medium tabular-nums">
               {formatBytes(totalBytes)}
             </Td>
@@ -360,8 +360,8 @@ function MaintenancePanel({
   const deletedTotal = deleted.reduce((sum, row) => sum + (row.deleted_rows ?? 0), 0);
 
   return (
-    <div className="divide-y divide-(--separator)">
-      <div className="px-4 py-3 text-[13px] text-(--muted)">
+    <div className="divide-y divide-separator">
+      <div className="px-4 py-3 text-[13px] text-muted">
         {m.database_maintenance_eligible({
           bucketField: "bucket",
           cutoff: cutoff ? formatCutoff(cutoff, tz) : m.common_em_dash(),
@@ -369,9 +369,9 @@ function MaintenancePanel({
         })}
       </div>
       {result && (
-        <div className="px-4 py-3 text-[13px] text-(--foreground)">
+        <div className="px-4 py-3 text-[13px] text-foreground">
           {m.database_maintenance_deleted({ count: formatLocaleCount(deletedTotal) })}
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-(--muted)">
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
             {deleted.map((row) => (
               <span key={row.table} className="font-mono tabular-nums">
                 {m.database_maintenance_deleted_row({

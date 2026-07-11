@@ -99,10 +99,10 @@ function SettingsPage() {
     >
       <div className="mb-5">
         <h1 className="text-base font-semibold tracking-tight">{m.settings_timezone()}</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_timezone_desc()}</p>
+        <p className="mt-0.5 text-[13px] text-muted">{m.settings_timezone_desc()}</p>
       </div>
 
-      <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+      <div className="rounded-lg border bg-surface p-5">
         <TimezoneSetting />
       </div>
 
@@ -112,12 +112,12 @@ function SettingsPage() {
         <>
           <div className="mt-8 mb-5">
             <h1 className="text-base font-semibold tracking-tight">{m.settings_registration()}</h1>
-            <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_registration_desc()}</p>
+            <p className="mt-0.5 text-[13px] text-muted">{m.settings_registration_desc()}</p>
           </div>
 
           <ErrorAlert message={loadError} className="mb-4" />
 
-          <div className="flex flex-col gap-5 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+          <div className="flex flex-col gap-5 rounded-lg border bg-surface p-5">
             <LabeledSwitch
               label={m.settings_open_registration()}
               description={m.settings_open_registration_desc()}
@@ -146,7 +146,7 @@ function SettingsPage() {
           </div>
 
           {settings?.open_registration && !settings.require_invite_for_open && (
-            <p className="mt-3 text-xs text-(--muted)">{m.settings_smtp_note()}</p>
+            <p className="mt-3 text-xs text-muted">{m.settings_smtp_note()}</p>
           )}
 
           <IgnoredConnectionIPsSection />
@@ -155,73 +155,73 @@ function SettingsPage() {
             <h1 className="text-base font-semibold tracking-tight">
               {m.settings_notification_channels()}
             </h1>
-            <p className="mt-0.5 text-[13px] text-(--muted)">
+            <p className="mt-0.5 text-[13px] text-muted">
               {m.settings_notification_channels_desc()}
             </p>
           </div>
 
           <Link
             to="/settings/notifications"
-            className="group flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+            className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
               <Bell className="size-4" aria-hidden />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-(--foreground)">
+              <span className="block text-[13px] font-medium text-foreground">
                 {m.settings_notification_channels_manage()}
               </span>
-              <span className="block text-xs text-(--muted)">
+              <span className="block text-xs text-muted">
                 {m.settings_notification_channels_manage_desc()}
               </span>
             </span>
             <ChevronRight
-              className="size-4 shrink-0 text-(--muted) transition-colors duration-150 group-hover:text-(--foreground)"
+              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
               aria-hidden
             />
           </Link>
 
           <Link
             to="/settings/monitoring"
-            className="group mt-3 flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
               <Bell className="size-4" aria-hidden />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-(--foreground)">
+              <span className="block text-[13px] font-medium text-foreground">
                 {m.monitoring_title()}
               </span>
-              <span className="block text-xs text-(--muted)">{m.monitoring_description()}</span>
+              <span className="block text-xs text-muted">{m.monitoring_description()}</span>
             </span>
             <ChevronRight
-              className="size-4 shrink-0 text-(--muted) transition-colors duration-150 group-hover:text-(--foreground)"
+              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
               aria-hidden
             />
           </Link>
 
           <div className="mt-8 mb-5">
             <h1 className="text-base font-semibold tracking-tight">{m.settings_database()}</h1>
-            <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_database_desc()}</p>
+            <p className="mt-0.5 text-[13px] text-muted">{m.settings_database_desc()}</p>
           </div>
 
           <Link
             to="/settings/database"
-            className="group flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+            className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
               <Database className="size-4" aria-hidden />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-(--foreground)">
+              <span className="block text-[13px] font-medium text-foreground">
                 {m.settings_database_management()}
               </span>
-              <span className="block text-xs text-(--muted)">
+              <span className="block text-xs text-muted">
                 {m.settings_database_management_desc()}
               </span>
             </span>
             <ChevronRight
-              className="size-4 shrink-0 text-(--muted) transition-colors duration-150 group-hover:text-(--foreground)"
+              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
               aria-hidden
             />
           </Link>
@@ -319,15 +319,15 @@ function PasskeysSection({ userId }: { userId: string }) {
     <>
       <PasskeysSectionHeader />
 
-      <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
+      <div className="overflow-hidden rounded-lg border bg-surface">
         <div className="flex items-center justify-between gap-3 px-5 py-3">
           {loading ? (
             <span
-              className="inline-block h-3.5 w-20 animate-pulse rounded bg-(--surface-secondary)"
+              className="inline-block h-3.5 w-20 animate-pulse rounded bg-surface-secondary"
               aria-hidden
             />
           ) : (
-            <span className="text-[13px] text-(--muted)">
+            <span className="text-[13px] text-muted">
               {m.user_passkeys_meta({ count: String(rows.length) })}
             </span>
           )}
@@ -343,7 +343,7 @@ function PasskeysSection({ userId }: { userId: string }) {
 
         {error && (
           <div
-            className="border-t border-(--border) bg-(--danger-soft) px-5 py-2.5 text-[13px] text-(--danger-soft-foreground)"
+            className="border-t border-border bg-danger-soft px-5 py-2.5 text-[13px] text-danger-soft-foreground"
             role="alert"
           >
             {error}
@@ -353,11 +353,11 @@ function PasskeysSection({ userId }: { userId: string }) {
         {loading ? (
           <PasskeysListSkeleton />
         ) : rows.length === 0 ? (
-          <p className="border-t border-(--border) px-5 py-4 text-[13px] text-(--muted)">
+          <p className="border-t border-border px-5 py-4 text-[13px] text-muted">
             {m.user_passkeys_empty_hint_self()}
           </p>
         ) : (
-          <ul className="divide-y divide-(--separator) border-t border-(--border)">
+          <ul className="divide-y divide-separator border-t border-border">
             {rows.map((passkey) => (
               <PasskeyRow
                 key={passkey.id}
@@ -389,7 +389,7 @@ function PasskeysSectionHeader() {
   return (
     <div className="mt-8 mb-5">
       <h1 className="text-base font-semibold tracking-tight">{m.user_passkeys_title()}</h1>
-      <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_passkeys_desc()}</p>
+      <p className="mt-0.5 text-[13px] text-muted">{m.settings_passkeys_desc()}</p>
     </div>
   );
 }
@@ -405,13 +405,10 @@ function PasskeysSectionSkeleton() {
 
 function PasskeysCardSkeleton() {
   return (
-    <div
-      className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)"
-      aria-hidden
-    >
+    <div className="overflow-hidden rounded-lg border bg-surface" aria-hidden>
       <div className="flex items-center justify-between gap-3 px-5 py-3">
-        <div className="h-3.5 w-20 animate-pulse rounded bg-(--surface-secondary)" />
-        <div className="h-8 w-28 shrink-0 animate-pulse rounded-full bg-(--surface-secondary)" />
+        <div className="h-3.5 w-20 animate-pulse rounded bg-surface-secondary" />
+        <div className="h-8 w-28 shrink-0 animate-pulse rounded-full bg-surface-secondary" />
       </div>
       <PasskeysListSkeleton />
     </div>
@@ -420,13 +417,13 @@ function PasskeysCardSkeleton() {
 
 function PasskeysListSkeleton() {
   return (
-    <div className="border-t border-(--border)" aria-hidden>
+    <div className="border-t border-border" aria-hidden>
       <div className="flex items-center justify-between gap-3 px-5 py-3">
         <div className="min-w-0 space-y-1.5">
-          <div className="h-3.5 w-24 animate-pulse rounded bg-(--surface-secondary)" />
-          <div className="h-3 w-36 animate-pulse rounded bg-(--surface-secondary)" />
+          <div className="h-3.5 w-24 animate-pulse rounded bg-surface-secondary" />
+          <div className="h-3 w-36 animate-pulse rounded bg-surface-secondary" />
         </div>
-        <div className="h-8 w-14 shrink-0 animate-pulse rounded-full bg-(--surface-secondary)" />
+        <div className="h-8 w-14 shrink-0 animate-pulse rounded-full bg-surface-secondary" />
       </div>
     </div>
   );
@@ -453,10 +450,10 @@ function PasskeyRow({
   return (
     <li className="flex items-center justify-between gap-3 px-5 py-3">
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-medium text-(--foreground)">
+        <p className="truncate text-[13px] font-medium text-foreground">
           {passkey.name || m.user_passkeys_default_name()}
         </p>
-        <p className="mt-0.5 text-xs text-(--muted)">
+        <p className="mt-0.5 text-xs text-muted">
           {backup} · {lastUsed}
         </p>
       </div>
@@ -465,7 +462,7 @@ function PasskeyRow({
         variant="secondary"
         isDisabled={deleting}
         onPress={onDelete}
-        className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
+        className="border-danger text-danger hover:bg-danger-soft"
       >
         {deleting ? m.common_deleting() : m.common_delete()}
       </Button>
@@ -543,14 +540,14 @@ function IgnoredConnectionIPsSection() {
     <>
       <div className="mt-8 mb-5">
         <h1 className="text-base font-semibold tracking-tight">{m.settings_ignored_ips()}</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_ignored_ips_desc()}</p>
+        <p className="mt-0.5 text-[13px] text-muted">{m.settings_ignored_ips_desc()}</p>
       </div>
 
-      <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+      <div className="rounded-lg border bg-surface p-5">
         {ignoredQuery.isPending ? (
           <IgnoredIPsSkeleton />
         ) : items.length === 0 ? (
-          <p className="text-[13px] text-(--muted)">{m.settings_ignored_ips_empty()}</p>
+          <p className="text-[13px] text-muted">{m.settings_ignored_ips_empty()}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {items.map((item) => {
@@ -589,7 +586,7 @@ function IgnoredIPsSkeleton() {
       {widths.map((width) => (
         <div
           key={width}
-          className={cn("h-8 animate-pulse rounded-full bg-(--surface-secondary)", width)}
+          className={cn("h-8 animate-pulse rounded-full bg-surface-secondary", width)}
         />
       ))}
     </div>
@@ -643,10 +640,10 @@ function ManagementApiSection({
     <>
       <div className="mt-8 mb-5">
         <h1 className="text-base font-semibold tracking-tight">{m.settings_management_api()}</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">{m.settings_management_api_desc()}</p>
+        <p className="mt-0.5 text-[13px] text-muted">{m.settings_management_api_desc()}</p>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+      <div className="flex flex-col gap-4 rounded-lg border bg-surface p-5">
         <LabeledSwitch
           label={m.settings_enable_mgmt_api()}
           description={
@@ -659,7 +656,7 @@ function ManagementApiSection({
 
         {tokenSet && (
           <>
-            <div className="h-px bg-(--separator)" />
+            <div className="h-px bg-separator" />
 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-[13px]">
@@ -670,7 +667,7 @@ function ManagementApiSection({
                 size="sm"
                 isDisabled={pending || rotateMutation.isPending}
                 onPress={() => setRotateOpen(true)}
-                className="border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
+                className="border-danger text-danger hover:bg-danger-soft"
               >
                 {rotateMutation.isPending ? m.settings_rotating() : m.settings_rotate_token()}
               </Button>
@@ -696,8 +693,8 @@ function ManagementApiSection({
       />
 
       {revealedToken && (
-        <div className="mt-4 rounded-(--radius) border border-(--warning) bg-(--warning-soft) px-4 py-3">
-          <p className="text-[13px] font-semibold text-(--warning-soft-foreground)">
+        <div className="mt-4 rounded-lg border border-warning bg-warning-soft px-4 py-3">
+          <p className="text-[13px] font-semibold text-warning-soft-foreground">
             {m.settings_copy_token_now()}
           </p>
           <CopyableCode value={revealedToken} label="token" className="mt-2" />
@@ -706,19 +703,19 @@ function ManagementApiSection({
 
       <Link
         to="/settings/management-api"
-        className="group mt-3 flex items-center gap-3 rounded-(--radius) border border-(--border) bg-(--surface) px-4 py-3.5 transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+        className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
-        <span className="grid size-8 shrink-0 place-items-center rounded-(--radius) border border-(--border) bg-(--surface-secondary) text-(--muted)">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
           <Code className="size-4" aria-hidden />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium text-(--foreground)">
+          <span className="block text-[13px] font-medium text-foreground">
             {m.settings_api_reference()}
           </span>
-          <span className="block text-xs text-(--muted)">{m.settings_api_reference_desc()}</span>
+          <span className="block text-xs text-muted">{m.settings_api_reference_desc()}</span>
         </span>
         <ChevronRight
-          className="size-4 shrink-0 text-(--muted) transition-colors duration-150 group-hover:text-(--foreground)"
+          className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
           aria-hidden
         />
       </Link>

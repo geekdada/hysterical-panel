@@ -17,10 +17,10 @@ export const Route = createFileRoute("/reset-password")({
 function Header() {
   return (
     <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
-      <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-(--accent) text-sm font-bold text-(--accent-foreground)">
+      <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-accent text-sm font-bold text-accent-foreground">
         H
       </span>
-      <Card.Title className="text-[15px] font-semibold tracking-tight text-(--foreground)">
+      <Card.Title className="text-[15px] font-semibold tracking-tight text-foreground">
         {m.auth_reset_password()}
       </Card.Title>
     </Card.Header>
@@ -63,10 +63,10 @@ function ResetPasswordPage() {
         <Header />
         <Card.Content className="px-6 pt-4 pb-6">
           <div className="flex flex-col gap-3 py-2">
-            <p className="text-[13px] text-(--danger)" role="alert">
+            <p className="text-[13px] text-danger" role="alert">
               {m.auth_reset_link_invalid()}
             </p>
-            <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
+            <Link to="/login" className="text-[13px] font-medium text-accent hover:opacity-80">
               {m.auth_back_to_sign_in()}
             </Link>
           </div>
@@ -81,9 +81,9 @@ function ResetPasswordPage() {
       <Card.Content className="px-6 pt-4 pb-6">
         {resetMutation.isSuccess ? (
           <div className="flex flex-col gap-3 py-2">
-            <p className="text-[13px] text-(--foreground)">{m.auth_password_reset_success()}</p>
-            <p className="text-[13px] text-(--muted)">{m.auth_sign_in_new_password()}</p>
-            <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
+            <p className="text-[13px] text-foreground">{m.auth_password_reset_success()}</p>
+            <p className="text-[13px] text-muted">{m.auth_sign_in_new_password()}</p>
+            <Link to="/login" className="text-[13px] font-medium text-accent hover:opacity-80">
               {m.auth_go_to_sign_in()}
             </Link>
           </div>
@@ -119,7 +119,7 @@ function ResetPasswordPage() {
             </TextField>
 
             {error && (
-              <p className="text-sm text-(--danger)" role="alert">
+              <p className="text-sm text-danger" role="alert">
                 {error}
               </p>
             )}
@@ -133,10 +133,7 @@ function ResetPasswordPage() {
             >
               {resetMutation.isPending ? m.auth_resetting() : m.auth_reset_password_btn()}
             </Button>
-            <Link
-              to="/login"
-              className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
-            >
+            <Link to="/login" className="text-center text-[13px] text-muted hover:text-foreground">
               {m.auth_back_to_sign_in()}
             </Link>
           </form>

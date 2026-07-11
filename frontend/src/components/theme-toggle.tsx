@@ -48,7 +48,7 @@ export function ThemeToggle() {
       role="radiogroup"
       aria-label={m.aria_theme()}
       onKeyDown={handleKeyDown}
-      className="inline-flex items-center rounded-(--radius) border border-(--border) p-0.5"
+      className="inline-flex items-center rounded-lg border p-0.5"
     >
       {OPTIONS.map(({ value, label, Icon }, index) => {
         const active = pref === value;
@@ -67,9 +67,7 @@ export function ThemeToggle() {
             tabIndex={active ? 0 : -1}
             onClick={() => select(value)}
             className={`grid size-6 place-items-center rounded-[5px] transition-colors duration-150 ${
-              active
-                ? "bg-(--surface-secondary) text-(--foreground)"
-                : "text-(--muted) hover:text-(--foreground)"
+              active ? "bg-surface-secondary text-foreground" : "text-muted hover:text-foreground"
             }`}
           >
             <Icon className="size-3.5" aria-hidden />

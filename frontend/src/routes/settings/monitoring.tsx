@@ -141,7 +141,7 @@ function MonitoringPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">{m.monitoring_title()}</h1>
-          <p className="mt-1 text-sm text-(--muted)">{m.monitoring_description()}</p>
+          <p className="mt-1 text-sm text-muted">{m.monitoring_description()}</p>
         </div>
         <Button size="sm" variant="primary" onPress={() => setEditing("new")}>
           <Plus className="size-3.5" aria-hidden />
@@ -159,7 +159,7 @@ function MonitoringPage() {
         ) : active.length === 0 ? (
           <div className="px-6 py-10 text-center">
             <p className="text-[13px] font-medium">{m.monitoring_no_active()}</p>
-            <p className="mt-1 text-xs text-(--muted)">{m.monitoring_no_active_hint()}</p>
+            <p className="mt-1 text-xs text-muted">{m.monitoring_no_active_hint()}</p>
           </div>
         ) : (
           <AlertTable alerts={active} now={now} />
@@ -172,7 +172,7 @@ function MonitoringPage() {
         ) : (monitorsQuery.data ?? []).length === 0 ? (
           <PanelMessage>{m.monitoring_no_monitors()}</PanelMessage>
         ) : (
-          <div className="divide-y divide-(--separator)">
+          <div className="divide-y divide-separator">
             {(monitorsQuery.data ?? []).map((monitor) => (
               <div key={monitor.id} className="flex items-center gap-3 px-3 py-2.5">
                 <SeverityBadge
@@ -186,7 +186,7 @@ function MonitoringPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium">{monitor.name}</p>
-                  <p className="text-xs text-(--muted)">
+                  <p className="text-xs text-muted">
                     {kindLabel(monitor.kind ?? "offline")} ·{" "}
                     {formatDuration(monitor.evaluation_window_seconds ?? 0)} ·{" "}
                     {monitor.node_scope === "all_enabled"
@@ -208,7 +208,7 @@ function MonitoringPage() {
                   aria-label={m.monitoring_delete()}
                   onPress={() => setDeleting(monitor)}
                 >
-                  <TrashBin className="size-3.5 text-(--danger)" aria-hidden />
+                  <TrashBin className="size-3.5 text-danger" aria-hidden />
                 </Button>
               </div>
             ))}
@@ -221,7 +221,7 @@ function MonitoringPage() {
         action={
           <div className="flex gap-2">
             <select
-              className="h-8 rounded-(--radius) border border-(--border) bg-(--surface) px-2 text-xs"
+              className="h-8 rounded-lg border bg-surface px-2 text-xs"
               value={historyStatus}
               onChange={(event) => {
                 setHistoryStatus(event.target.value as typeof historyStatus);
@@ -233,7 +233,7 @@ function MonitoringPage() {
               <option value="cancelled">{m.monitoring_status_cancelled()}</option>
             </select>
             <select
-              className="h-8 rounded-(--radius) border border-(--border) bg-(--surface) px-2 text-xs"
+              className="h-8 rounded-lg border bg-surface px-2 text-xs"
               value={historySeverity}
               onChange={(event) => {
                 setHistorySeverity(event.target.value as typeof historySeverity);
@@ -254,7 +254,7 @@ function MonitoringPage() {
         ) : (
           <>
             <AlertTable alerts={history} now={now} />
-            <div className="flex items-center justify-end gap-2 border-t border-(--separator) px-3 py-2">
+            <div className="flex items-center justify-end gap-2 border-t border-separator px-3 py-2">
               <Button
                 size="sm"
                 variant="secondary"
@@ -263,7 +263,7 @@ function MonitoringPage() {
               >
                 {m.users_pagination_previous()}
               </Button>
-              <span className="text-xs tabular-nums text-(--muted)">{historyPage}</span>
+              <span className="text-xs tabular-nums text-muted">{historyPage}</span>
               <Button
                 size="sm"
                 variant="secondary"
@@ -334,7 +334,7 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
             <Th>{m.monitoring_delivery()}</Th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-(--separator)">
+        <tbody className="divide-y divide-separator">
           {alerts.map((alert) => (
             <tr key={alert.id}>
               <Td>
@@ -352,7 +352,7 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
                     <p className="text-[13px] font-medium">
                       {alert.monitor_name ?? m.monitoring_monitor()}
                     </p>
-                    <p className="text-xs text-(--muted)">
+                    <p className="text-xs text-muted">
                       {statusLabel(alert.status ?? "cancelled")} · {alertValue(alert)}
                       {alert.resolution_reason ? ` · ${alert.resolution_reason}` : ""}
                     </p>
@@ -364,7 +364,7 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
                   <Link
                     to="/nodes/$nodeId"
                     params={{ nodeId: alert.node.id }}
-                    className="text-[13px] text-(--accent) no-underline hover:underline"
+                    className="text-[13px] text-accent no-underline hover:underline"
                   >
                     {alert.node.name ?? alert.node.id}
                   </Link>
@@ -372,7 +372,7 @@ function AlertTable({ alerts, now }: { alerts: AlertItem[]; now: number }) {
                   m.common_em_dash()
                 )}
               </Td>
-              <Td className="text-xs text-(--muted)">
+              <Td className="text-xs text-muted">
                 {alert.started_at ? relTimeFromISO(alert.started_at, now) : m.common_em_dash()}
               </Td>
               <Td className="text-xs tabular-nums">
@@ -395,11 +395,11 @@ function DeliverySummary({ alert }: { alert: AlertItem }) {
   const skipped = alert.deliveries?.skipped ?? 0;
 
   if ((alert.delivery_channel_count ?? 0) === 0) {
-    return <span className="text-(--muted)">{m.monitoring_delivery_no_channels()}</span>;
+    return <span className="text-muted">{m.monitoring_delivery_no_channels()}</span>;
   }
 
   if (succeeded + failed + skipped === 0) {
-    return <span className="text-(--muted)">{m.monitoring_delivery_no_records()}</span>;
+    return <span className="text-muted">{m.monitoring_delivery_no_records()}</span>;
   }
 
   return m.monitoring_delivery_summary({
@@ -476,7 +476,7 @@ function MonitorModal({
               <Modal.Heading>
                 {value === "new" ? m.monitoring_new() : m.monitoring_edit()}
               </Modal.Heading>
-              <p className="mt-1.5 text-sm leading-5 text-(--muted)">
+              <p className="mt-1.5 text-sm leading-5 text-muted">
                 {value === "new" ? m.monitoring_new_hint() : m.monitoring_reconfigure_hint()}
               </p>
             </Modal.Header>
@@ -695,7 +695,7 @@ function MonitorModal({
                 </form.Field>
               </div>
               {error ? (
-                <p className="mt-4 text-[13px] text-(--danger)" role="alert">
+                <p className="mt-4 text-[13px] text-danger" role="alert">
                   {error}
                 </p>
               ) : null}

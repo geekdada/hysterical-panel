@@ -38,16 +38,16 @@ export function GranularityToggle({
     daily: () => m.common_daily(),
   };
   return (
-    <div className="inline-flex rounded-(--radius) border border-(--border) p-0.5">
+    <div className="inline-flex rounded-lg border p-0.5">
       {opts.map((o) => (
         <button
           key={o}
           type="button"
           onClick={() => onChange(o)}
-          className={`rounded-[calc(var(--radius)-2px)] px-2.5 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+          className={`rounded-[calc(var(--radius)-2px)] px-2.5 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
             value === o
-              ? "bg-(--surface-secondary) text-(--foreground)"
-              : "text-(--muted) hover:text-(--foreground)"
+              ? "bg-surface-secondary text-foreground"
+              : "text-muted hover:text-foreground"
           }`}
           aria-pressed={value === o}
         >
@@ -170,14 +170,14 @@ function ChartTooltip({
   const rx = payload.find((p) => p.dataKey === "rx")?.value ?? 0;
   const tx = payload.find((p) => p.dataKey === "tx")?.value ?? 0;
   return (
-    <div className="rounded-(--radius) border border-(--border) bg-(--surface) px-2.5 py-1.5 text-xs shadow-sm">
-      <div className="mb-1 font-medium text-(--foreground)">{label}</div>
-      <div className="flex flex-col gap-0.5 font-mono tabular-nums text-(--muted)">
+    <div className="rounded-lg border bg-surface px-2.5 py-1.5 text-xs shadow-sm">
+      <div className="mb-1 font-medium text-foreground">{label}</div>
+      <div className="flex flex-col gap-0.5 font-mono tabular-nums text-muted">
         <span>
-          <span className="text-(--accent)">↓</span> {formatBytes(rx)}
+          <span className="text-accent">↓</span> {formatBytes(rx)}
         </span>
         <span>↑ {formatBytes(tx)}</span>
-        <span className="text-(--foreground)">Σ {formatBytes(rx + tx)}</span>
+        <span className="text-foreground">Σ {formatBytes(rx + tx)}</span>
       </div>
     </div>
   );

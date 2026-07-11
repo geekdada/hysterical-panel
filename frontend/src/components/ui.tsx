@@ -40,8 +40,8 @@ export function PageShell({
   const max = width === "narrow" ? "max-w-3xl" : "max-w-7xl";
   return (
     <BreadcrumbTitleProvider>
-      <div className="min-h-svh bg-(--background) text-(--foreground)">
-        <header className="sticky top-0 z-20 border-b border-(--border) bg-(--surface)">
+      <div className="min-h-svh bg-background text-foreground">
+        <header className="sticky top-0 z-20 border-b border-border bg-surface">
           <div className={`mx-auto flex h-12 ${max} items-center justify-between px-4 sm:px-6`}>
             {headerLeft}
             {headerRight}
@@ -58,7 +58,7 @@ export function PageShell({
 export function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <span className="grid size-5 place-items-center rounded-[5px] bg-(--accent) text-[11px] font-bold text-(--accent-foreground)">
+      <span className="grid size-5 place-items-center rounded-[5px] bg-accent text-[11px] font-bold text-accent-foreground">
         H
       </span>
       <span className="text-[13px] font-semibold tracking-tight">{m.app_title()}</span>
@@ -72,7 +72,7 @@ export function BrandLink() {
   return (
     <Link
       to="/"
-      className="shrink-0 rounded-sm no-underline transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+      className="shrink-0 rounded-sm no-underline transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
       <Brand />
     </Link>
@@ -83,8 +83,8 @@ export function BrandLink() {
 // verify, forgot-password). Pages pass their Card.Header/Content as children.
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-svh items-center justify-center bg-(--background) p-4 text-(--foreground)">
-      <Card className="w-full max-w-sm border border-(--border) bg-(--surface)">{children}</Card>
+    <div className="flex min-h-svh items-center justify-center bg-background p-4 text-foreground">
+      <Card className="w-full max-w-sm border bg-surface">{children}</Card>
     </div>
   );
 }
@@ -106,16 +106,12 @@ export function Section({
     <section className={cn("mt-6", className)}>
       <div className="mb-2 flex flex-col gap-2 px-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <h2 className="shrink-0 text-[13px] font-semibold text-(--foreground)">{title}</h2>
-          {meta && (
-            <span className="min-w-0 truncate text-xs tabular-nums text-(--muted)">{meta}</span>
-          )}
+          <h2 className="shrink-0 text-[13px] font-semibold text-foreground">{title}</h2>
+          {meta && <span className="min-w-0 truncate text-xs tabular-nums text-muted">{meta}</span>}
         </div>
         {action && <div className="min-w-0 w-full sm:w-auto">{action}</div>}
       </div>
-      <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
-        {children}
-      </div>
+      <div className="overflow-hidden rounded-lg border bg-surface">{children}</div>
     </section>
   );
 }
@@ -229,7 +225,7 @@ export function CheckboxListField({
       {options.length === 0 ? (
         <p className="">{emptyLabel}</p>
       ) : (
-        <div className="mt-1 flex flex-col gap-4 border rounded-(--radius) px-4 py-3 max-h-40 overflow-y-auto">
+        <div className="mt-1 flex flex-col gap-4 border rounded-lg px-4 py-3 max-h-40 overflow-y-auto">
           {options.map((option) => (
             <Checkbox
               key={option.id}
@@ -259,7 +255,7 @@ export function Th({ children, className = "" }: { children?: ReactNode; classNa
   return (
     <th
       className={cn(
-        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted)",
+        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted",
         className
       )}
     >
@@ -292,14 +288,14 @@ export function ServerSortableTh({
     <th
       aria-sort={ariaSort}
       className={cn(
-        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted)",
+        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted",
         className
       )}
     >
       <button
         type="button"
         onClick={() => onSort(columnId)}
-        className={`inline-flex items-center gap-1 rounded-sm uppercase transition-colors duration-150 hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+        className={`inline-flex items-center gap-1 rounded-sm uppercase transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
           align === "right" ? "ml-auto justify-end" : ""
         }`}
       >
@@ -307,7 +303,7 @@ export function ServerSortableTh({
         <span
           aria-hidden
           className={`inline-block w-3 text-center font-mono text-[10px] ${
-            sorted ? "text-(--foreground)" : "text-(--muted)"
+            sorted ? "text-foreground" : "text-muted"
           }`}
         >
           {sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : "↕"}
@@ -335,14 +331,14 @@ export function SortableTh<TData>({
     <th
       aria-sort={ariaSort}
       className={cn(
-        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-(--muted)",
+        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted",
         className
       )}
     >
       <button
         type="button"
         onClick={() => column.toggleSorting(sorted === "asc")}
-        className={`inline-flex items-center gap-1 rounded-sm uppercase transition-colors duration-150 hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+        className={`inline-flex items-center gap-1 rounded-sm uppercase transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
           align === "right" ? "ml-auto justify-end" : ""
         }`}
       >
@@ -350,7 +346,7 @@ export function SortableTh<TData>({
         <span
           aria-hidden
           className={`inline-block w-3 text-center font-mono text-[10px] ${
-            sorted ? "text-(--foreground)" : "text-(--muted)"
+            sorted ? "text-foreground" : "text-muted"
           }`}
         >
           {sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : "↕"}
@@ -368,10 +364,10 @@ export function Td({ children, className = "" }: { children?: ReactNode; classNa
 
 export function Dot({ tone, title }: { tone: "ok" | "error" | "warn" | "idle"; title?: string }) {
   const fill = {
-    ok: "bg-(--success)",
-    error: "bg-(--danger)",
-    warn: "bg-(--warning)",
-    idle: "border border-(--muted) bg-transparent",
+    ok: "bg-success",
+    error: "bg-danger",
+    warn: "bg-warning",
+    idle: "border border-muted bg-transparent",
   }[tone];
   return (
     <span
@@ -396,8 +392,8 @@ export function SeverityBadge({
       className={cn(
         "inline-flex h-5 shrink-0 items-center rounded-[4px] border px-1.5 text-[10px] font-semibold leading-none",
         severity === "critical"
-          ? "border-(--danger)/30 bg-(--danger-soft) text-(--danger-soft-foreground)"
-          : "border-(--warning)/30 bg-(--warning-soft) text-(--warning-soft-foreground)",
+          ? "border-danger/30 bg-danger-soft text-danger-soft-foreground"
+          : "border-warning/30 bg-warning-soft text-warning-soft-foreground",
         className
       )}
     >
@@ -434,10 +430,10 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
       onClick={copy}
       title={copied ? m.common_copy_copied() : m.common_copy_copy({ label })}
       aria-label={copied ? m.common_copy_copied() : m.common_copy_copy({ label })}
-      className={`inline-grid size-5 shrink-0 place-items-center rounded transition-[opacity,color] duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) ${
+      className={`inline-grid size-5 shrink-0 place-items-center rounded transition-[opacity,color] duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
         copied
-          ? "text-(--success) opacity-100"
-          : "text-(--muted) opacity-0 hover:text-(--foreground) group-hover/key:opacity-100"
+          ? "text-success opacity-100"
+          : "text-muted opacity-0 hover:text-foreground group-hover/key:opacity-100"
       }`}
     >
       {copied ? (
@@ -465,7 +461,7 @@ export function ErrorAlert({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-(--radius) border border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)",
+        "flex items-center gap-2 rounded-lg border bg-danger-soft px-3 py-2 text-[13px] text-danger-soft-foreground",
         className
       )}
       role="alert"
@@ -488,7 +484,7 @@ export function CopyableCode({
 }) {
   return (
     <div className={cn("group/key relative", className)}>
-      <pre className="overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 pr-9 font-mono text-xs leading-relaxed text-(--foreground)">
+      <pre className="overflow-x-auto rounded-lg border bg-surface-secondary p-3 pr-9 font-mono text-xs leading-relaxed text-foreground">
         {value}
       </pre>
       <div className="absolute right-2 top-2">
@@ -509,26 +505,26 @@ export function Teaching({
 }) {
   return (
     <div className="px-6 py-12 text-center">
-      <p className="text-[13px] font-medium text-(--foreground)">{title}</p>
-      <p className="mx-auto mt-1 max-w-sm text-xs text-(--muted)">{hint}</p>
+      <p className="text-[13px] font-medium text-foreground">{title}</p>
+      <p className="mx-auto mt-1 max-w-sm text-xs text-muted">{hint}</p>
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
 }
 
 export function PanelMessage({ children }: { children: ReactNode }) {
-  return <div className="px-6 py-10 text-center text-[13px] text-(--muted)">{children}</div>;
+  return <div className="px-6 py-10 text-center text-[13px] text-muted">{children}</div>;
 }
 
 export function TableSkeleton({ rows = 4 }: { rows?: number }) {
   return (
-    <div className="divide-y divide-(--separator)">
+    <div className="divide-y divide-separator">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 px-3 py-[0.6875rem]">
-          <span className="size-2 shrink-0 animate-pulse rounded-full bg-(--surface-secondary)" />
-          <span className="h-3 w-28 animate-pulse rounded bg-(--surface-secondary)" />
-          <span className="hidden h-3 w-44 animate-pulse rounded bg-(--surface-secondary) sm:block" />
-          <span className="ml-auto h-3 w-16 animate-pulse rounded bg-(--surface-secondary)" />
+          <span className="size-2 shrink-0 animate-pulse rounded-full bg-surface-secondary" />
+          <span className="h-3 w-28 animate-pulse rounded bg-surface-secondary" />
+          <span className="hidden h-3 w-44 animate-pulse rounded bg-surface-secondary sm:block" />
+          <span className="ml-auto h-3 w-16 animate-pulse rounded bg-surface-secondary" />
         </div>
       ))}
     </div>
@@ -563,11 +559,11 @@ export function DestructiveConfirmModal({
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Heading>{title}</Modal.Heading>
-            <p className="mt-1.5 text-sm leading-5 text-(--muted)">{body}</p>
+            <p className="mt-1.5 text-sm leading-5 text-muted">{body}</p>
           </Modal.Header>
           {error ? (
             <Modal.Body>
-              <p className="text-[13px] text-(--danger)" role="alert">
+              <p className="text-[13px] text-danger" role="alert">
                 {error}
               </p>
             </Modal.Body>
@@ -581,7 +577,7 @@ export function DestructiveConfirmModal({
               variant="primary"
               isPending={pending}
               onPress={onConfirm}
-              className="bg-(--danger) text-(--danger-foreground) hover:opacity-90"
+              className="bg-danger text-danger-foreground hover:opacity-90"
             >
               {pending ? pendingLabel : confirmLabel}
             </Button>

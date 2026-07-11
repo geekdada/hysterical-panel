@@ -41,7 +41,7 @@ const CALENDAR_CELL =
   "size-8 min-w-8 p-0 text-center text-[12px] tabular-nums sm:size-9 sm:min-w-9 sm:text-[13px]";
 
 const TRIGGER =
-  "inline-flex h-8 w-full min-w-0 items-center gap-1.5 border border-(--border) bg-(--surface) px-2.5 font-mono text-[11px] font-medium tabular-nums text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) sm:w-auto sm:max-w-[min(100%,16rem)]";
+  "inline-flex h-8 w-full min-w-0 items-center gap-1.5 border bg-surface px-2.5 font-mono text-[11px] font-medium tabular-nums text-foreground transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-auto sm:max-w-[min(100%,16rem)]";
 
 function rangeLabelFormatter(locale: string, tz: string) {
   return new DateFormatter(locale, {
@@ -86,7 +86,7 @@ export function TrafficRangePicker({
     <div className="flex w-full min-w-0 justify-end">
       {!mounted ? (
         <div
-          className="h-8 w-full shrink-0 border border-(--border) bg-(--surface-secondary) animate-pulse sm:w-40"
+          className="h-8 w-full shrink-0 border bg-surface-secondary animate-pulse sm:w-40"
           aria-hidden
         />
       ) : (
@@ -116,13 +116,13 @@ export function TrafficRangePicker({
                 <span className="min-w-0 flex-1 truncate text-left text-[11px]">
                   {triggerLabel}
                 </span>
-                <DateRangePicker.TriggerIndicator className="size-3.5 shrink-0 text-(--muted)" />
+                <DateRangePicker.TriggerIndicator className="size-3.5 shrink-0 text-muted" />
               </DateRangePicker.Trigger>
             </DateField.Suffix>
           </DateField.Group>
 
           <DateRangePicker.Popover
-            className="traffic-range-popover z-50 flex w-[min(100vw-2rem,18rem)] max-w-full flex-col overflow-visible border border-(--border) bg-(--surface) p-2.5 shadow-sm outline-none focus:outline-none focus-visible:outline-none"
+            className="traffic-range-popover z-50 flex w-[min(100vw-2rem,18rem)] max-w-full flex-col overflow-visible border bg-surface p-2.5 shadow-sm outline-none focus:outline-none focus-visible:outline-none"
             offset={8}
             placement="bottom end"
             shouldFlip
@@ -136,7 +136,7 @@ export function TrafficRangePicker({
                     type="button"
                     aria-pressed={active}
                     onClick={() => selectShortcut(key)}
-                    className="group inline-flex rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-(--focus) cursor-pointer"
+                    className="group inline-flex rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-focus cursor-pointer"
                   >
                     <Chip
                       color={active ? "accent" : "default"}
@@ -144,7 +144,7 @@ export function TrafficRangePicker({
                       className={
                         active
                           ? undefined
-                          : "bg-(--surface-secondary) text-(--muted) transition-colors group-hover:bg-(--surface-tertiary) group-hover:text-(--foreground)"
+                          : "bg-surface-secondary text-muted transition-colors group-hover:bg-surface-tertiary group-hover:text-foreground"
                       }
                     >
                       {label()}
@@ -153,27 +153,27 @@ export function TrafficRangePicker({
                 );
               })}
             </div>
-            <div className="mt-4 border-t border-(--separator) pt-2">
+            <div className="mt-4 border-t border-separator pt-2">
               <RangeCalendar aria-label={m.traffic_range_aria()} className="mx-auto w-full">
                 <RangeCalendar.Header className="flex items-center">
-                  <RangeCalendar.YearPickerTrigger className="inline-flex h-7 min-w-0 flex-1 items-center gap-1 px-2 text-left text-[12px] font-semibold text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) sm:text-[13px]">
+                  <RangeCalendar.YearPickerTrigger className="inline-flex h-7 min-w-0 flex-1 items-center gap-1 px-2 text-left text-[12px] font-semibold text-foreground transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:text-[13px]">
                     <RangeCalendar.YearPickerTriggerHeading />
-                    <RangeCalendar.YearPickerTriggerIndicator className="text-(--muted)" />
+                    <RangeCalendar.YearPickerTriggerIndicator className="text-muted" />
                   </RangeCalendar.YearPickerTrigger>
                   <RangeCalendar.NavButton
                     slot="previous"
-                    className="size-7 shrink-0 text-(--muted) transition-colors duration-150 hover:bg-(--surface-secondary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                    className="size-7 shrink-0 text-muted transition-colors duration-150 hover:bg-surface-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                   />
                   <RangeCalendar.NavButton
                     slot="next"
-                    className="size-7 shrink-0 text-(--muted) transition-colors duration-150 hover:bg-(--surface-secondary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                    className="size-7 shrink-0 text-muted transition-colors duration-150 hover:bg-surface-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                   />
                 </RangeCalendar.Header>
                 <RangeCalendar.Grid className="w-full border-collapse">
                   <RangeCalendar.GridHeader>
                     {(day) => (
                       <RangeCalendar.HeaderCell
-                        className={`${CALENDAR_CELL} text-[10px] font-medium uppercase tracking-wide text-(--muted) sm:text-[11px]`}
+                        className={`${CALENDAR_CELL} text-[10px] font-medium uppercase tracking-wide text-muted sm:text-[11px]`}
                       >
                         {day}
                       </RangeCalendar.HeaderCell>
@@ -183,7 +183,7 @@ export function TrafficRangePicker({
                     {(date) => (
                       <RangeCalendar.Cell
                         date={date}
-                        className={`${CALENDAR_CELL} text-(--foreground) outline-none transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:ring-2 focus-visible:ring-(--focus)`}
+                        className={`${CALENDAR_CELL} text-foreground outline-none transition-colors duration-150 hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-focus`}
                       />
                     )}
                   </RangeCalendar.GridBody>
@@ -193,7 +193,7 @@ export function TrafficRangePicker({
                     {({ year }) => (
                       <RangeCalendar.YearPickerCell
                         year={year}
-                        className="text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                        className="text-foreground transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       />
                     )}
                   </RangeCalendar.YearPickerGridBody>

@@ -68,33 +68,33 @@ function RegisterPage() {
   return (
     <AuthShell>
       <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
-        <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-(--accent) text-sm font-bold text-(--accent-foreground)">
+        <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-accent text-sm font-bold text-accent-foreground">
           H
         </span>
-        <Card.Title className="text-[15px] font-semibold tracking-tight text-(--foreground)">
+        <Card.Title className="text-[15px] font-semibold tracking-tight text-foreground">
           {m.auth_create_your_account()}
         </Card.Title>
-        <Card.Description className="text-[13px] text-(--muted)">{m.app_title()}</Card.Description>
+        <Card.Description className="text-[13px] text-muted">{m.app_title()}</Card.Description>
       </Card.Header>
       <Card.Content className="px-6 pt-4 pb-6">
         {configQuery.isPending ? (
-          <p className="py-4 text-[13px] text-(--muted)">{m.common_loading()}</p>
+          <p className="py-4 text-[13px] text-muted">{m.common_loading()}</p>
         ) : !canRegister ? (
           <div className="flex flex-col gap-3 py-2">
-            <p className="text-[13px] text-(--muted)">{m.auth_registration_closed()}</p>
-            <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
+            <p className="text-[13px] text-muted">{m.auth_registration_closed()}</p>
+            <Link to="/login" className="text-[13px] font-medium text-accent hover:opacity-80">
               {m.auth_back_to_sign_in()}
             </Link>
           </div>
         ) : result?.requires_verification ? (
           <div className="flex flex-col gap-3 py-2">
-            <p className="text-[13px] text-(--foreground)">{m.auth_check_email()}</p>
-            <p className="text-[13px] text-(--muted)">
+            <p className="text-[13px] text-foreground">{m.auth_check_email()}</p>
+            <p className="text-[13px] text-muted">
               {result.verification_sent === false
                 ? m.auth_verification_failed_send()
                 : m.auth_verification_sent()}
             </p>
-            <Link to="/login" className="text-[13px] font-medium text-(--accent) hover:opacity-80">
+            <Link to="/login" className="text-[13px] font-medium text-accent hover:opacity-80">
               {m.auth_back_to_sign_in()}
             </Link>
           </div>
@@ -143,7 +143,7 @@ function RegisterPage() {
             )}
 
             {error && (
-              <p className="text-sm text-(--danger)" role="alert">
+              <p className="text-sm text-danger" role="alert">
                 {error}
               </p>
             )}
@@ -157,10 +157,7 @@ function RegisterPage() {
             >
               {registerMutation.isPending ? m.auth_creating_account() : m.auth_create_account_btn()}
             </Button>
-            <Link
-              to="/login"
-              className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
-            >
+            <Link to="/login" className="text-center text-[13px] text-muted hover:text-foreground">
               {m.auth_already_have_account()}
             </Link>
           </form>

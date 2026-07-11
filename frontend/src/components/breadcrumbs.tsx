@@ -119,7 +119,7 @@ export function BreadcrumbBar({ className }: { className?: string }) {
               <span className="sr-only">{crumb.label}</span>
               <span
                 aria-hidden="true"
-                className="block h-3.5 w-24 animate-pulse rounded bg-(--surface-secondary)"
+                className="block h-3.5 w-24 animate-pulse rounded bg-surface-secondary"
               />
             </HeroUIBreadcrumbs.Item>
           ) : (

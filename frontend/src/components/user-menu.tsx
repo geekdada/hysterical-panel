@@ -26,10 +26,10 @@ export function UserMenu({ auth }: { auth: Auth }) {
   const roleLabel = auth.user.role === "admin" ? m.role_admin() : m.role_user();
   const statusLabel = auth.user.status === "active" ? m.common_active() : m.common_disabled();
   const itemClass =
-    "h-7 rounded-md px-2 text-[13px] text-(--foreground) transition-colors duration-150 hover:bg-(--surface-secondary) data-[focus=true]:bg-(--surface-secondary) data-[hovered=true]:bg-(--surface-secondary)";
+    "h-7 rounded-md px-2 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-secondary data-[focus=true]:bg-surface-secondary data-[hovered=true]:bg-surface-secondary";
   const dangerItemClass =
-    "h-7 rounded-md px-2 text-[13px] text-(--danger) transition-colors duration-150 hover:bg-(--danger-soft) data-[focus=true]:bg-(--danger-soft) data-[hovered=true]:bg-(--danger-soft)";
-  const iconClass = "size-3.5 shrink-0 text-(--muted)";
+    "h-7 rounded-md px-2 text-[13px] text-danger transition-colors duration-150 hover:bg-danger-soft data-[focus=true]:bg-danger-soft data-[hovered=true]:bg-danger-soft";
+  const iconClass = "size-3.5 shrink-0 text-muted";
 
   function handleAction(key: Key) {
     if (key === "account") {
@@ -68,31 +68,31 @@ export function UserMenu({ auth }: { auth: Auth }) {
         variant="ghost"
         size="sm"
         aria-label={m.nav_account_menu()}
-        className="h-8 max-w-[220px] gap-1.5 rounded-(--radius) border border-transparent px-1.5 pr-2 text-[13px] font-medium text-(--foreground) transition-colors duration-150 hover:border-(--border) hover:bg-(--surface-secondary)"
+        className="h-8 max-w-[220px] gap-1.5 rounded-lg px-1.5 pr-2 text-[13px] font-medium text-foreground transition-colors duration-150 hover:border-border hover:bg-surface-secondary"
       >
         <AvatarInitial value={initial} />
         <span className="min-w-0 truncate sm:hidden">{m.nav_account()}</span>
         <span className="hidden min-w-0 truncate sm:inline">{auth.user.email}</span>
-        <ChevronDown className="size-3 shrink-0 text-(--muted)" aria-hidden />
+        <ChevronDown className="size-3 shrink-0 text-muted" aria-hidden />
       </Button>
       <Dropdown.Popover
         placement="bottom end"
-        className="min-w-64 rounded-(--radius) border border-(--border) bg-(--surface) p-1 shadow-none"
+        className="min-w-64 rounded-lg border bg-surface p-1 shadow-none"
       >
         <div className="px-2 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <AvatarInitial value={initial} />
             <div className="min-w-0">
-              <div className="truncate text-[13px] font-medium text-(--foreground)">
+              <div className="truncate text-[13px] font-medium text-foreground">
                 {auth.user.email}
               </div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] leading-none text-(--muted)">
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] leading-none text-muted">
                 <span>{roleLabel}</span>
-                <span className="size-1 rounded-full bg-(--separator)" />
+                <span className="size-1 rounded-full bg-separator" />
                 <span className="inline-flex items-center gap-1">
                   <span
                     className={`size-1.5 rounded-full ${
-                      auth.user.status === "active" ? "bg-(--success)" : "bg-(--muted)"
+                      auth.user.status === "active" ? "bg-success" : "bg-muted"
                     }`}
                   />
                   {statusLabel}
@@ -101,7 +101,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
             </div>
           </div>
         </div>
-        <Separator className="my-1 bg-(--separator)" />
+        <Separator className="my-1 bg-separator" />
         <Dropdown.Menu onAction={handleAction}>
           <Dropdown.Item id="account" textValue={m.nav_your_account()} className={itemClass}>
             <Person className={iconClass} aria-hidden />
@@ -135,7 +135,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
             <Gear className={iconClass} aria-hidden />
             <Label className="truncate">{m.nav_settings()}</Label>
           </Dropdown.Item>
-          <Separator className="my-1 bg-(--separator)" />
+          <Separator className="my-1 bg-separator" />
           <Dropdown.Item
             id="sign-out"
             variant="danger"
@@ -146,16 +146,16 @@ export function UserMenu({ auth }: { auth: Auth }) {
             <Label className="truncate">{m.nav_sign_out()}</Label>
           </Dropdown.Item>
         </Dropdown.Menu>
-        <Separator className="my-1 bg-(--separator)" />
+        <Separator className="my-1 bg-separator" />
         <div className="flex items-center justify-between gap-3 px-2 py-1">
-          <span className="text-[13px] text-(--foreground)">{m.nav_language()}</span>
+          <span className="text-[13px] text-foreground">{m.nav_language()}</span>
           <LocaleToggle />
         </div>
         <div className="flex items-center justify-between gap-3 px-2 py-1">
-          <span className="text-[13px] text-(--foreground)">{m.nav_theme()}</span>
+          <span className="text-[13px] text-foreground">{m.nav_theme()}</span>
           <ThemeToggle />
         </div>
-        <div className="mt-1 flex items-center justify-between gap-3 border-t border-(--separator) text-[10px] px-2 pt-1.5 pb-0.5 text-xs leading-4 text-muted/80">
+        <div className="mt-1 flex items-center justify-between gap-3 border-t border-separator text-[10px] px-2 pt-1.5 pb-0.5 text-xs leading-4 text-muted/80">
           <span className="font-mono tabular-nums">v{__APP_VERSION__}</span>
         </div>
       </Dropdown.Popover>
@@ -165,7 +165,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
 
 function AvatarInitial({ value }: { value: string }) {
   return (
-    <span className="grid size-5 shrink-0 place-items-center rounded-[5px] border border-(--border) bg-(--surface-secondary) text-[11px] font-semibold uppercase text-(--foreground)">
+    <span className="grid size-5 shrink-0 place-items-center rounded-[5px] border bg-surface-secondary text-[11px] font-semibold uppercase text-foreground">
       {value}
     </span>
   );

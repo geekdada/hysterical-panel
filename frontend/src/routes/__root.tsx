@@ -109,14 +109,14 @@ function RootComponent() {
 function NotFoundComponent() {
   const { auth } = Route.useRouteContext();
   return (
-    <div className="grid min-h-svh place-items-center bg-(--background) px-4 text-(--foreground)">
+    <div className="grid min-h-svh place-items-center bg-background px-4 text-foreground">
       <div className="text-center">
         <p className="text-[13px] font-medium">{m.not_found_title()}</p>
-        <p className="mx-auto mt-1 max-w-sm text-xs text-(--muted)">{m.not_found_hint()}</p>
+        <p className="mx-auto mt-1 max-w-sm text-xs text-muted">{m.not_found_hint()}</p>
         <div className="mt-4 flex justify-center">
           <Link
             to={auth ? "/" : "/login"}
-            className="inline-flex cursor-pointer place-items-center rounded-[5px] border border-(--border) bg-(--surface-secondary) px-3 py-0.5 text-[11px] text-(--foreground) no-underline transition-colors duration-150 hover:bg-(--surface-tertiary) hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+            className="inline-flex cursor-pointer place-items-center rounded-[5px] border bg-surface-secondary px-3 py-0.5 text-[11px] text-foreground no-underline transition-colors duration-150 hover:bg-surface-tertiary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             ← {auth ? m.not_found_back() : m.auth_back_to_sign_in()}
           </Link>
@@ -133,7 +133,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <HeadContent />
       </head>
-      <body className="bg-(--background) text-(--foreground) antialiased">
+      <body className="bg-background text-foreground antialiased">
         {children}
         <PasskeyAutoEnrollment />
         <Scripts />
@@ -221,7 +221,7 @@ function SessionRecoveryBanner() {
 
   return (
     <div
-      className="border-b border-(--border) bg-(--danger-soft) px-4 py-2 text-[13px] text-(--danger-soft-foreground) sm:px-6"
+      className="border-b border-border bg-danger-soft px-4 py-2 text-[13px] text-danger-soft-foreground sm:px-6"
       role="alert"
     >
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3">
@@ -238,12 +238,12 @@ function SessionRecoveryBanner() {
           <Link
             to="/users/$userId"
             params={{ userId: auth.user.id }}
-            className="text-[13px] font-medium text-(--accent) underline-offset-2 hover:underline"
+            className="text-[13px] font-medium text-accent underline-offset-2 hover:underline"
           >
             {m.session_account_settings()}
           </Link>
         </div>
-        {recoveryError && <span className="text-(--danger-soft-foreground)">{recoveryError}</span>}
+        {recoveryError && <span className="text-danger-soft-foreground">{recoveryError}</span>}
       </div>
     </div>
   );

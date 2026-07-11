@@ -99,10 +99,10 @@ function AddNodePage() {
     <PageShell width="narrow" headerLeft={<BrandLink />}>
       <div className="mb-5">
         <h1 className="text-base font-semibold tracking-tight">{m.nodes_add_title()}</h1>
-        <p className="mt-0.5 text-[13px] text-(--muted)">{m.nodes_add_description()}</p>
+        <p className="mt-0.5 text-[13px] text-muted">{m.nodes_add_description()}</p>
       </div>
 
-      <div className="rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+      <div className="rounded-lg border bg-surface p-5">
         {created ? (
           <CreatedView
             node={created}
@@ -227,7 +227,7 @@ function AddNodePage() {
                       onClick={() => {
                         field.handleChange(generateSecret());
                       }}
-                      className="rounded text-xs font-medium text-(--accent) transition-opacity duration-150 hover:opacity-80 focus-visible:underline focus-visible:outline-none"
+                      className="rounded text-xs font-medium text-accent transition-opacity duration-150 hover:opacity-80 focus-visible:underline focus-visible:outline-none"
                     >
                       {m.nodes_add_api_secret_generate()}
                     </button>
@@ -305,7 +305,7 @@ function AddNodePage() {
 
             <ErrorAlert message={submitError} icon />
 
-            <div className="flex items-center justify-end gap-2 border-t border-(--separator) pt-4">
+            <div className="flex items-center justify-end gap-2 border-t border-separator pt-4">
               <Button variant="ghost" onPress={() => navigate({ to: "/" })}>
                 {m.common_cancel()}
               </Button>
@@ -389,11 +389,11 @@ function CodeBlock({ lines, label }: { lines: { code: string; note?: string }[];
   const codeText = lines.map((l) => l.code).join("\n");
   return (
     <div className="relative mt-3">
-      <pre className="overflow-x-auto rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3 pr-10 font-mono text-xs leading-relaxed">
+      <pre className="overflow-x-auto rounded-lg border bg-surface-secondary p-3 pr-10 font-mono text-xs leading-relaxed">
         {lines.map((line) => (
           <div key={line.code}>
-            <span className="text-(--foreground)">{line.code}</span>
-            {line.note && <span className="text-(--muted)">{`  # ${line.note}`}</span>}
+            <span className="text-foreground">{line.code}</span>
+            {line.note && <span className="text-muted">{`  # ${line.note}`}</span>}
           </div>
         ))}
       </pre>
@@ -409,7 +409,7 @@ function ServerSetup({ apiSecret }: { apiSecret: string }) {
   const panelOrigin = resolvedOrigin || PANEL_URL_PLACEHOLDER;
 
   return (
-    <section className="mt-4 rounded-(--radius) border border-(--border) bg-(--surface) p-5">
+    <section className="mt-4 rounded-lg border bg-surface p-5">
       <Tabs defaultSelectedKey="hysteria" variant="secondary">
         <Tabs.ListContainer>
           <Tabs.List aria-label={m.nodes_setup_protocol_label()}>
@@ -445,7 +445,7 @@ function ServerSetupPanel({
       <h2 className="text-[13px] font-semibold tracking-tight">
         {m.nodes_setup_title({ protocol: protocol.name })}
       </h2>
-      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
+      <p className="mt-1 max-w-prose text-[13px] text-muted">
         {m.nodes_setup_intro({ protocol: protocol.name })}
       </p>
 
@@ -454,12 +454,12 @@ function ServerSetupPanel({
       <h3 className="mt-5 text-[13px] font-semibold tracking-tight">
         {m.nodes_setup_auth_title()}
       </h3>
-      <p className="mt-1 max-w-prose text-[13px] text-(--muted)">
+      <p className="mt-1 max-w-prose text-[13px] text-muted">
         {m.nodes_setup_auth_intro({ protocol: protocol.name })}
       </p>
 
       <CodeBlock lines={authYaml(panelOrigin, protocol.authPath)} label={m.common_copy_config()} />
-      <p className="mt-1.5 text-xs text-(--muted)">{m.nodes_setup_host_note()}</p>
+      <p className="mt-1.5 text-xs text-muted">{m.nodes_setup_host_note()}</p>
     </>
   );
 }
@@ -485,16 +485,16 @@ function CreatedView({
         <StatusDot tone="ok" className="mt-1.5" />
         <div>
           <p className="text-[13px] font-medium">{m.nodes_created_title()}</p>
-          <p className="mt-0.5 text-xs text-(--muted)">
+          <p className="mt-0.5 text-xs text-muted">
             {m.nodes_created_registered({ name: node.name ?? "" })}
           </p>
         </div>
       </div>
 
-      <div className="rounded-(--radius) border border-(--border) bg-(--surface-secondary) px-3 py-2.5 text-[13px]">
+      <div className="rounded-lg border bg-surface-secondary px-3 py-2.5 text-[13px]">
         {test.status === "pending" && (
-          <div className="flex items-center gap-2 text-(--muted)">
-            <span className="inline-block size-2 shrink-0 animate-pulse rounded-full bg-(--muted)" />
+          <div className="flex items-center gap-2 text-muted">
+            <span className="inline-block size-2 shrink-0 animate-pulse rounded-full bg-muted" />
             {m.nodes_created_testing()}
           </div>
         )}
@@ -502,7 +502,7 @@ function CreatedView({
           <div className="flex items-center gap-2">
             <StatusDot tone="ok" />
             <span>{m.nodes_created_reachable()}</span>
-            <span className="ml-auto font-mono tabular-nums text-(--muted)">
+            <span className="ml-auto font-mono tabular-nums text-muted">
               {m.nodes_created_latency_ms({ ms: test.latencyMs })}
             </span>
           </div>
@@ -511,23 +511,23 @@ function CreatedView({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <StatusDot tone="error" />
-              <span className="block truncate text-(--danger)" title={test.message}>
+              <span className="block truncate text-danger" title={test.message}>
                 {test.message}
               </span>
               <button
                 type="button"
                 onClick={onRetry}
-                className="ml-auto shrink-0 text-xs text-(--muted) underline-offset-2 transition-colors duration-150 hover:text-(--foreground) hover:underline"
+                className="ml-auto shrink-0 text-xs text-muted underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
               >
                 {m.common_retry()}
               </button>
             </div>
-            <p className="text-xs text-(--muted)">{m.nodes_created_saved_note()}</p>
+            <p className="text-xs text-muted">{m.nodes_created_saved_note()}</p>
           </div>
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-(--separator) pt-4">
+      <div className="flex items-center justify-end gap-2 border-t border-separator pt-4">
         <Button variant="ghost" onPress={onAddAnother}>
           {m.nodes_created_add_another()}
         </Button>
@@ -542,7 +542,7 @@ function CreatedView({
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
 function StatusDot({ tone, className = "" }: { tone: "ok" | "error"; className?: string }) {
-  const fill = tone === "ok" ? "bg-(--success)" : "bg-(--danger)";
+  const fill = tone === "ok" ? "bg-success" : "bg-danger";
   return <span className={`inline-block size-2 shrink-0 rounded-full ${fill} ${className}`} />;
 }
 
@@ -564,7 +564,7 @@ function IconAction({
       disabled={disabled}
       title={label}
       aria-label={label}
-      className="inline-grid size-7 place-items-center rounded text-(--muted) transition-colors duration-150 hover:text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus) disabled:pointer-events-none disabled:opacity-40"
+      className="inline-grid size-7 place-items-center rounded text-muted transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>
@@ -601,7 +601,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       disabled={!value}
     >
       {copied ? (
-        <span className="text-(--success)">
+        <span className="text-success">
           <Check className="size-3.5" aria-hidden />
         </span>
       ) : (

@@ -86,13 +86,13 @@ function LoginPage() {
   return (
     <AuthShell>
       <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
-        <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-(--accent) text-sm font-bold text-(--accent-foreground)">
+        <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-accent text-sm font-bold text-accent-foreground">
           H
         </span>
-        <Card.Title className="text-[15px] font-semibold tracking-tight text-(--foreground)">
+        <Card.Title className="text-[15px] font-semibold tracking-tight text-foreground">
           {m.app_title()}
         </Card.Title>
-        <Card.Description className="text-[13px] text-(--muted)">
+        <Card.Description className="text-[13px] text-muted">
           {m.auth_sign_in_continue()}
         </Card.Description>
       </Card.Header>
@@ -125,16 +125,13 @@ function LoginPage() {
             />
           </TextField>
           <div className="-mt-1 flex justify-end">
-            <Link
-              to="/forgot-password"
-              className="text-[13px] text-(--muted) hover:text-(--foreground)"
-            >
+            <Link to="/forgot-password" className="text-[13px] text-muted hover:text-foreground">
               {m.auth_forgot_password()}
             </Link>
           </div>
 
           {error && (
-            <p className="text-sm text-(--danger)" role="alert">
+            <p className="text-sm text-danger" role="alert">
               {error}
             </p>
           )}
@@ -151,8 +148,8 @@ function LoginPage() {
           {passkeysEnabled && (
             <>
               <div className="relative my-1 flex items-center justify-center">
-                <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-(--separator)" />
-                <span className="relative bg-(--surface) px-2 text-[12px] text-(--muted)">
+                <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-separator" />
+                <span className="relative bg-surface px-2 text-[12px] text-muted">
                   {m.auth_or()}
                 </span>
               </div>
@@ -173,7 +170,7 @@ function LoginPage() {
           {canRegister && (
             <Link
               to="/register"
-              className="text-center text-[13px] text-(--muted) hover:text-(--foreground)"
+              className="text-center text-[13px] text-muted hover:text-foreground"
             >
               {m.auth_create_account_link()}
             </Link>

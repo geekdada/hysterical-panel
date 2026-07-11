@@ -235,7 +235,7 @@ function UsersTable({
 
   return (
     <div>
-      <div className="border-b border-(--border) p-3">
+      <div className="border-b border-border p-3">
         <TextField
           aria-label={m.users_search_aria()}
           className="max-w-sm"
@@ -250,7 +250,7 @@ function UsersTable({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+            <tr className="border-b border-border bg-surface-secondary text-left">
               <ServerSortableTh columnId="email" sort={listSearch.sort} onSort={onSort}>
                 {m.common_email()}
               </ServerSortableTh>
@@ -305,7 +305,7 @@ function UsersTable({
               <Th>{m.common_actions()}</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-(--separator)">
+          <tbody className="divide-y divide-separator">
             {users.length > 0 ? (
               users.map((user) => {
                 const active = (user.status ?? "active") === "active";
@@ -313,7 +313,7 @@ function UsersTable({
                 return (
                   <tr
                     key={user.id}
-                    className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                    className="transition-colors duration-150 hover:bg-surface-secondary"
                   >
                     <Td>
                       <div className="flex items-center gap-2.5">
@@ -324,29 +324,27 @@ function UsersTable({
                         <Link
                           to="/users/$userId"
                           params={{ userId: user.id ?? "" }}
-                          className="block max-w-[200px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                          className="block max-w-[200px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                         >
                           {user.email || m.common_em_dash()}
                         </Link>
                       </div>
                     </Td>
                     <Td>
-                      <span className="text-xs capitalize text-(--muted)">
-                        {user.role ?? "user"}
-                      </span>
+                      <span className="text-xs capitalize text-muted">{user.role ?? "user"}</span>
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <span className="text-(--muted)">↑</span> {formatBytes(user.used_tx ?? 0)}
+                      <span className="text-muted">↑</span> {formatBytes(user.used_tx ?? 0)}
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <span className="text-(--muted)">↓</span> {formatBytes(user.used_rx ?? 0)}
+                      <span className="text-muted">↓</span> {formatBytes(user.used_rx ?? 0)}
                     </Td>
                     <Td className="text-right">
-                      <span className="text-xs text-(--muted)">
+                      <span className="text-xs text-muted">
                         {active ? m.common_active() : m.common_disabled()}
                       </span>
                     </Td>
-                    <Td className="whitespace-nowrap text-right text-xs text-(--muted)">
+                    <Td className="whitespace-nowrap text-right text-xs text-muted">
                       <span
                         title={
                           user.last_connected_at
@@ -361,7 +359,7 @@ function UsersTable({
                           : m.common_never()}
                       </span>
                     </Td>
-                    <Td className="whitespace-nowrap text-right text-xs text-(--muted)">
+                    <Td className="whitespace-nowrap text-right text-xs text-muted">
                       {user.created ? relTimeFromISO(user.created, now) : m.common_em_dash()}
                     </Td>
                     <Td>
@@ -380,7 +378,7 @@ function UsersTable({
               })
             ) : (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-xs text-(--muted)">
+                <td colSpan={8} className="px-3 py-8 text-center text-xs text-muted">
                   {m.users_no_search_results()}
                 </td>
               </tr>
@@ -389,14 +387,14 @@ function UsersTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--border) px-3 py-2.5">
-        <span className="text-xs text-(--muted)">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2.5">
+        <span className="text-xs text-muted">
           {listSearch.search.trim()
             ? m.users_footer_count_matches({ count: String(total) })
             : m.users_footer_count_users({ count: String(total) })}
         </span>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-(--muted)">
+          <label className="flex items-center gap-1.5 text-xs text-muted">
             {m.users_pagination_rows()}
             <select
               value={listSearch.per_page}
@@ -409,7 +407,7 @@ function UsersTable({
                   }),
                 })
               }
-              className="rounded-(--radius) border border-(--border) bg-(--surface) px-1.5 py-0.5 text-[13px] text-(--foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+              className="rounded-lg border bg-surface px-1.5 py-0.5 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               {USER_LIST_PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>
@@ -418,7 +416,7 @@ function UsersTable({
               ))}
             </select>
           </label>
-          <span className="text-xs tabular-nums text-(--muted)">
+          <span className="text-xs tabular-nums text-muted">
             {m.users_pagination_page({
               page: String(total === 0 ? 0 : listSearch.page),
               pageCount: String(total === 0 ? 0 : pageCount),
@@ -498,9 +496,7 @@ function CreateUserModal({
           <form onSubmit={handleSubmit}>
             <Modal.Header>
               <Modal.Heading>{m.users_create_title()}</Modal.Heading>
-              <p className="mt-1.5 text-sm leading-5 text-(--muted)">
-                {m.users_create_description()}
-              </p>
+              <p className="mt-1.5 text-sm leading-5 text-muted">{m.users_create_description()}</p>
             </Modal.Header>
             <Modal.Body>
               <TextField value={email} onChange={setEmail} autoFocus>
@@ -513,22 +509,22 @@ function CreateUserModal({
               </TextField>
 
               {error && (
-                <p className="mt-3 text-[13px] text-(--danger)" role="alert">
+                <p className="mt-3 text-[13px] text-danger" role="alert">
                   {error}
                 </p>
               )}
 
               {created && (
-                <div className="mt-4 rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3">
+                <div className="mt-4 rounded-lg border bg-surface-secondary p-3">
                   <div className="flex items-center gap-2 text-[13px]">
                     <Dot tone="ok" />
                     <span className="font-medium">{m.users_created()}</span>
-                    <span className="min-w-0 truncate text-xs text-(--muted)">{created.email}</span>
+                    <span className="min-w-0 truncate text-xs text-muted">{created.email}</span>
                   </div>
-                  <p className="mt-1 text-xs text-(--muted)">{m.users_created_auth_key_hint()}</p>
+                  <p className="mt-1 text-xs text-muted">{m.users_created_auth_key_hint()}</p>
                   {created.auth_string && (
                     <div className="group/key mt-2 flex items-center gap-1.5">
-                      <span className="min-w-0 truncate font-mono text-[12px] text-(--muted)">
+                      <span className="min-w-0 truncate font-mono text-[12px] text-muted">
                         {created.auth_string}
                       </span>
                       <CopyButton value={created.auth_string} label={m.common_copy_auth_key()} />

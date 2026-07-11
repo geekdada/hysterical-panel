@@ -130,7 +130,7 @@ function AccountDetailPage() {
         </>
       }
       headerRight={
-        <div className="flex items-center gap-3 text-xs text-(--muted)">
+        <div className="flex items-center gap-3 text-xs text-muted">
           {updatedAt !== null && (
             <span
               className="hidden tabular-nums sm:inline"
@@ -139,7 +139,7 @@ function AccountDetailPage() {
               {m.common_updated({ time: relTime(updatedAt, now) })}
             </span>
           )}
-          <span className="hidden h-3.5 w-px bg-(--border) sm:block" />
+          <span className="hidden h-3.5 w-px bg-border sm:block" />
           {auth && <UserMenu auth={auth} />}
         </div>
       }
@@ -209,15 +209,15 @@ function AccountRail({
   const tz = useActiveTimeZone();
   if (loading) {
     return (
-      <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
-        <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
+      <div className="overflow-hidden rounded-lg border bg-surface">
+        <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
           <RailSkeletonCell labelClassName="max-w-16" valueClassName="max-w-44" />
           <RailSkeletonCell labelClassName="max-w-20" valueClassName="max-w-48" />
           <RailSkeletonCell labelClassName="max-w-12" valueClassName="max-w-16" />
           <RailSkeletonCell labelClassName="max-w-14" valueClassName="max-w-20" />
           <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-24" />
         </div>
-        <div className="grid border-t border-(--border) divide-y divide-(--border) md:grid-cols-4 md:divide-x md:divide-y-0">
+        <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
           <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-28" />
           <RailSkeletonCell labelClassName="max-w-10" valueClassName="max-w-24" />
           <RailSkeletonCell labelClassName="max-w-10" valueClassName="max-w-24" />
@@ -234,8 +234,8 @@ function AccountRail({
   const quota = user?.quota_bytes ?? 0;
 
   return (
-    <div className="overflow-hidden rounded-(--radius) border border-(--border) bg-(--surface)">
-      <div className="grid divide-y divide-(--border) md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
+    <div className="overflow-hidden rounded-lg border bg-surface">
+      <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
         <RailItem label={m.user_rail_email()}>
           <span className="block truncate text-[13px]" title={user?.email || ""}>
             {user?.email || m.common_em_dash()}
@@ -243,7 +243,7 @@ function AccountRail({
         </RailItem>
         <RailItem label={m.user_rail_auth_key()}>
           <div className="group/key flex min-w-0 items-center gap-1.5">
-            <span className="block min-w-0 truncate font-mono text-[13px] text-(--foreground)">
+            <span className="block min-w-0 truncate font-mono text-[13px] text-foreground">
               {user?.auth_string || m.common_em_dash()}
             </span>
             {user?.auth_string && (
@@ -275,7 +275,7 @@ function AccountRail({
           </span>
         </RailItem>
       </div>
-      <div className="grid border-t border-(--border) divide-y divide-(--border) md:grid-cols-4 md:divide-x md:divide-y-0">
+      <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
         <RailItem label={m.user_rail_used_total()}>
           <span className="font-mono text-[15px] font-semibold tabular-nums">
             {formatBytes(usedTx + usedRx)}
@@ -283,12 +283,12 @@ function AccountRail({
         </RailItem>
         <RailItem label={m.common_th_tx()}>
           <span className="font-mono text-[13px] tabular-nums">
-            <span className="text-(--muted)">↑</span> {formatBytes(usedTx)}
+            <span className="text-muted">↑</span> {formatBytes(usedTx)}
           </span>
         </RailItem>
         <RailItem label={m.common_th_rx()}>
           <span className="font-mono text-[13px] tabular-nums">
-            <span className="text-(--muted)">↓</span> {formatBytes(usedRx)}
+            <span className="text-muted">↓</span> {formatBytes(usedRx)}
           </span>
         </RailItem>
         <RailItem label={m.user_rail_quota()}>
@@ -311,13 +311,10 @@ function RailSkeletonCell({
   return (
     <div className="min-w-0 px-4 py-3">
       <div
-        className={cn("h-3 w-full animate-pulse rounded bg-(--surface-secondary)", labelClassName)}
+        className={cn("h-3 w-full animate-pulse rounded bg-surface-secondary", labelClassName)}
       />
       <div
-        className={cn(
-          "mt-2 h-4 w-full animate-pulse rounded bg-(--surface-secondary)",
-          valueClassName
-        )}
+        className={cn("mt-2 h-4 w-full animate-pulse rounded bg-surface-secondary", valueClassName)}
       />
     </div>
   );
@@ -334,7 +331,7 @@ function RailItem({
 }) {
   return (
     <div className={cn("min-w-0 flex-1 px-4 py-3", className)}>
-      <div className="text-[11px] font-medium uppercase tracking-wider text-(--muted)">{label}</div>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</div>
       <div className="mt-1 min-w-0">{children}</div>
     </div>
   );
@@ -376,7 +373,7 @@ function RecentConnectionsSection({
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[13px]">
             <thead>
-              <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+              <tr className="border-b border-border bg-surface-secondary text-left">
                 <Th>{m.common_th_ip()}</Th>
                 <Th>{m.common_th_asn()}</Th>
                 <Th>{m.common_th_country()}</Th>
@@ -384,7 +381,7 @@ function RecentConnectionsSection({
                 {isAdmin && <Th className="w-24 text-right" />}
               </tr>
             </thead>
-            <tbody className="divide-y divide-(--separator)">
+            <tbody className="divide-y divide-separator">
               {rows.map((row, i) => {
                 const ip = row.ip || m.common_em_dash();
                 const meta = row.ip_meta;
@@ -392,14 +389,14 @@ function RecentConnectionsSection({
                 const canIgnore = Boolean(row.ip) && ignoringIp !== row.ip;
                 const isIgnoring = Boolean(row.ip) && ignoringIp === row.ip;
                 return (
-                  <tr key={`${row.ip || "ip"}-${i}`} className="hover:bg-(--surface-secondary)">
+                  <tr key={`${row.ip || "ip"}-${i}`} className="hover:bg-surface-secondary">
                     <Td>
                       {meta?.ipinfo_url ? (
                         <a
                           href={meta.ipinfo_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="block max-w-[260px] truncate font-mono text-xs text-(--foreground) underline decoration-(--border) underline-offset-2 transition-colors duration-150 hover:text-(--accent)"
+                          className="block max-w-[260px] truncate font-mono text-xs text-foreground underline decoration-border underline-offset-2 transition-colors duration-150 hover:text-accent"
                           title={m.common_ipinfo_open({ target: meta.ip || ip })}
                         >
                           {ip}
@@ -410,13 +407,13 @@ function RecentConnectionsSection({
                         </span>
                       )}
                     </Td>
-                    <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
+                    <Td className="whitespace-nowrap font-mono text-xs text-muted">
                       {meta?.asn || m.common_em_dash()}
                     </Td>
-                    <Td className="whitespace-nowrap text-xs text-(--muted)">
+                    <Td className="whitespace-nowrap text-xs text-muted">
                       {meta?.country_code ? (
                         <span title={countryTitle}>
-                          <span className="font-mono text-(--foreground)">{meta.country_code}</span>
+                          <span className="font-mono text-foreground">{meta.country_code}</span>
                           {meta.country_name && (
                             <span className="ml-1 hidden max-w-[140px] truncate align-bottom sm:inline-block">
                               {meta.country_name}
@@ -427,7 +424,7 @@ function RecentConnectionsSection({
                         m.common_em_dash()
                       )}
                     </Td>
-                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                       <span
                         title={
                           row.last_seen_at
@@ -479,8 +476,8 @@ function ManageRow({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <p className="text-[13px] font-medium text-(--foreground)">{label}</p>
-        <p className="mt-0.5 text-xs leading-5 text-(--muted)">{description}</p>
+        <p className="text-[13px] font-medium text-foreground">{label}</p>
+        <p className="mt-0.5 text-xs leading-5 text-muted">{description}</p>
       </div>
       <div className="shrink-0">{action}</div>
     </div>
@@ -549,7 +546,7 @@ function ManageSection({
       <Section title={m.user_manage_title()}>
         {error && (
           <div
-            className="border-b border-(--border) bg-(--danger-soft) px-4 py-2 text-[13px] text-(--danger-soft-foreground)"
+            className="border-b border-border bg-danger-soft px-4 py-2 text-[13px] text-danger-soft-foreground"
             role="alert"
           >
             {error}
@@ -574,7 +571,7 @@ function ManageSection({
             }
           />
 
-          <div className="h-px bg-(--separator)" />
+          <div className="h-px bg-separator" />
 
           <ManageRow
             label={m.user_manage_reset_label()}
@@ -630,27 +627,27 @@ function ResetAuthKeyModal({
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Heading>{m.user_manage_reset_confirm_title()}</Modal.Heading>
-            <p className="mt-1.5 text-sm leading-5 text-(--muted)">
+            <p className="mt-1.5 text-sm leading-5 text-muted">
               {m.user_manage_reset_confirm_body()}
             </p>
           </Modal.Header>
           <Modal.Body>
             {error && (
-              <p className="text-[13px] text-(--danger)" role="alert">
+              <p className="text-[13px] text-danger" role="alert">
                 {error}
               </p>
             )}
 
             {result && (
-              <div className="rounded-(--radius) border border-(--border) bg-(--surface-secondary) p-3">
+              <div className="rounded-lg border bg-surface-secondary p-3">
                 <div className="flex items-center gap-2 text-[13px]">
                   <Dot tone="ok" />
                   <span className="font-medium">{m.user_manage_reset_done()}</span>
                 </div>
-                <p className="mt-1 text-xs text-(--muted)">{m.user_manage_reset_new_key_hint()}</p>
+                <p className="mt-1 text-xs text-muted">{m.user_manage_reset_new_key_hint()}</p>
                 {result.auth_string && (
                   <div className="group/key mt-2 flex items-center gap-1.5">
-                    <span className="min-w-0 truncate font-mono text-[12px] text-(--muted)">
+                    <span className="min-w-0 truncate font-mono text-[12px] text-muted">
                       {result.auth_string}
                     </span>
                     <CopyButton value={result.auth_string} label={m.common_copy_auth_key()} />
@@ -737,7 +734,7 @@ function PasskeysSection({ userId, isSelf }: { userId: string; isSelf: boolean }
     >
       {error && (
         <div
-          className="border-b border-(--border) bg-(--danger-soft) px-3 py-2 text-[13px] text-(--danger-soft-foreground)"
+          className="border-b border-border bg-danger-soft px-3 py-2 text-[13px] text-danger-soft-foreground"
           role="alert"
         >
           {error}
@@ -783,7 +780,7 @@ function PasskeysTable({
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
         <thead>
-          <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+          <tr className="border-b border-border bg-surface-secondary text-left">
             <Th>{m.common_name()}</Th>
             <Th>{m.user_passkeys_th_transports()}</Th>
             <Th>{m.user_passkeys_th_backup()}</Th>
@@ -791,11 +788,11 @@ function PasskeysTable({
             <Th className="text-right">{m.user_passkeys_th_action()}</Th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-(--separator)">
+        <tbody className="divide-y divide-separator">
           {rows.map((passkey) => (
             <tr
               key={passkey.id}
-              className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+              className="transition-colors duration-150 hover:bg-surface-secondary"
             >
               <Td>
                 <span className="font-medium">
@@ -803,12 +800,12 @@ function PasskeysTable({
                 </span>
               </Td>
               <Td>
-                <span className="font-mono text-xs text-(--muted)">
+                <span className="font-mono text-xs text-muted">
                   {passkey.transports?.length ? passkey.transports.join(", ") : m.common_em_dash()}
                 </span>
               </Td>
               <Td>
-                <span className="text-xs text-(--muted)">
+                <span className="text-xs text-muted">
                   {passkey.backup_state
                     ? m.user_passkeys_backup_synced()
                     : passkey.backup_eligible
@@ -816,7 +813,7 @@ function PasskeysTable({
                       : m.user_passkeys_backup_device_bound()}
                 </span>
               </Td>
-              <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+              <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                 {passkey.last_used_at
                   ? relTimeFromISO(passkey.last_used_at, Date.now())
                   : m.common_never()}
@@ -876,9 +873,9 @@ function TrafficSection({
     >
       <div className="p-3 sm:p-4">
         {loading ? (
-          <div className="h-[220px] animate-pulse rounded bg-(--surface-secondary)" />
+          <div className="h-[220px] animate-pulse rounded bg-surface-secondary" />
         ) : points.length === 0 ? (
-          <div className="grid h-[220px] place-items-center text-[13px] text-(--muted)">
+          <div className="grid h-[220px] place-items-center text-[13px] text-muted">
             {m.common_no_traffic_in_window()}
           </div>
         ) : (
@@ -887,28 +884,28 @@ function TrafficSection({
       </div>
 
       {!loading && byNode.length > 0 && (
-        <div className="overflow-x-auto border-t border-(--border)">
+        <div className="overflow-x-auto border-t border-border">
           <table className="w-full border-collapse text-[13px]">
             <thead>
-              <tr className="border-b border-(--border) bg-(--surface-secondary) text-left">
+              <tr className="border-b border-border bg-surface-secondary text-left">
                 <Th>{m.user_traffic_top_nodes()}</Th>
                 <Th className="text-right">{m.common_th_tx()}</Th>
                 <Th className="text-right">{m.common_th_rx()}</Th>
                 <Th className="text-right">{m.common_th_total()}</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-(--separator)">
+            <tbody className="divide-y divide-separator">
               {byNode.map((n, i) => (
                 <tr
                   key={n.node?.id || i}
-                  className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                  className="transition-colors duration-150 hover:bg-surface-secondary"
                 >
                   <Td>
                     {isAdmin && n.node?.id ? (
                       <Link
                         to="/nodes/$nodeId"
                         params={{ nodeId: n.node.id }}
-                        className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-(--accent) hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus)"
+                        className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {n.node?.name || m.common_unknown()}
                       </Link>
@@ -919,12 +916,12 @@ function TrafficSection({
                     )}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                    <span className="text-(--muted)">↑</span> {formatBytes(n.tx ?? 0)}
+                    <span className="text-muted">↑</span> {formatBytes(n.tx ?? 0)}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                    <span className="text-(--muted)">↓</span> {formatBytes(n.rx ?? 0)}
+                    <span className="text-muted">↓</span> {formatBytes(n.rx ?? 0)}
                   </Td>
-                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                  <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                     {formatBytes((n.tx ?? 0) + (n.rx ?? 0))}
                   </Td>
                 </tr>
@@ -979,7 +976,7 @@ function LiveSection({ userId }: { userId: string }) {
         <div className="flex items-center gap-2.5">
           {fetchedAt !== null && (
             <span
-              className="hidden text-xs tabular-nums text-(--muted) sm:inline"
+              className="hidden text-xs tabular-nums text-muted sm:inline"
               title={new Date(fetchedAt).toLocaleString(undefined, { timeZone: tz })}
             >
               {relTime(fetchedAt, now)}
@@ -1032,15 +1029,15 @@ function NodeStreams({
   const streams = group.streams ?? [];
   const hasError = Boolean(group.error);
   return (
-    <div className="border-t border-(--border) first:border-t-0">
-      <div className="flex items-center justify-between gap-3 bg-(--surface-secondary) px-3 py-1.5">
+    <div className="border-t border-border first:border-t-0">
+      <div className="flex items-center justify-between gap-3 bg-surface-secondary px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <Dot tone={hasError ? "error" : streams.length > 0 ? "ok" : "idle"} />
           <span className="truncate text-xs font-medium">
             {group.node?.name || m.common_unknown()}
           </span>
         </div>
-        <span className="shrink-0 font-mono text-xs tabular-nums text-(--muted)">
+        <span className="shrink-0 font-mono text-xs tabular-nums text-muted">
           {m.user_live_node_meta({
             devices: String(group.online_devices ?? 0),
             count: String(streams.length),
@@ -1048,14 +1045,14 @@ function NodeStreams({
         </span>
       </div>
       {hasError ? (
-        <div className="px-3 py-2 text-[13px] text-(--danger)" title={group.error}>
+        <div className="px-3 py-2 text-[13px] text-danger" title={group.error}>
           {group.error}
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[13px]">
             <thead>
-              <tr className="border-b border-(--separator) text-left">
+              <tr className="border-b border-separator text-left">
                 <Th>{m.common_th_target()}</Th>
                 <Th>{m.common_th_state()}</Th>
                 <Th className="text-right">{m.common_th_tx()}</Th>
@@ -1064,23 +1061,23 @@ function NodeStreams({
                 <Th className="text-right">{m.common_th_idle()}</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-(--separator)">
+            <tbody className="divide-y divide-separator">
               {streams.map((s, i) => {
                 const target = s.hooked_req_addr || s.req_addr || m.common_em_dash();
                 return (
                   <tr
                     key={`${s.connection}-${s.stream}-${i}`}
-                    className="transition-colors duration-150 hover:bg-(--surface-secondary)"
+                    className="transition-colors duration-150 hover:bg-surface-secondary"
                   >
                     <Td>
                       <span
-                        className="block max-w-[320px] truncate font-mono text-xs text-(--foreground)"
+                        className="block max-w-[320px] truncate font-mono text-xs text-foreground"
                         title={target}
                       >
                         {target}
                       </span>
                     </Td>
-                    <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
+                    <Td className="whitespace-nowrap font-mono text-xs text-muted">
                       {s.state || m.common_em_dash()}
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
@@ -1089,10 +1086,10 @@ function NodeStreams({
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
                       {formatBytes(s.rx ?? 0)}
                     </Td>
-                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                       {formatDuration(s.lifetime_sec ?? -1)}
                     </Td>
-                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-(--muted)">
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                       {formatDuration(s.idle_sec ?? -1)}
                     </Td>
                   </tr>
@@ -1108,11 +1105,11 @@ function NodeStreams({
 
 function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> }) {
   return (
-    <div className="bg-(--surface)">
+    <div className="bg-surface">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
+            <tr className="border-y border-border bg-surface-secondary text-left">
               <Th>{m.common_top_domains()}</Th>
               <Th>{m.common_th_asn()}</Th>
               <Th>{m.common_th_country()}</Th>
@@ -1120,20 +1117,20 @@ function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> 
               <Th className="text-right">{m.common_th_total()}</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-(--separator)">
+          <tbody className="divide-y divide-separator">
             {rows.map((d, i) => {
               const domain = d.domain || m.common_em_dash();
               const meta = d.ip_meta;
               const countryTitle = meta?.country_name || meta?.country_code || "";
               return (
-                <tr key={(d.domain || "") + i} className="hover:bg-(--surface-secondary)">
+                <tr key={(d.domain || "") + i} className="hover:bg-surface-secondary">
                   <Td>
                     {meta?.ipinfo_url ? (
                       <a
                         href={meta.ipinfo_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="block max-w-[260px] truncate font-mono text-xs text-(--foreground) underline decoration-(--border) underline-offset-2 transition-colors duration-150 hover:text-(--accent)"
+                        className="block max-w-[260px] truncate font-mono text-xs text-foreground underline decoration-border underline-offset-2 transition-colors duration-150 hover:text-accent"
                         title={m.common_ipinfo_open({ target: meta.ip || domain })}
                       >
                         {domain}
@@ -1147,13 +1144,13 @@ function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> 
                       </span>
                     )}
                   </Td>
-                  <Td className="whitespace-nowrap font-mono text-xs text-(--muted)">
+                  <Td className="whitespace-nowrap font-mono text-xs text-muted">
                     {meta?.asn || m.common_em_dash()}
                   </Td>
-                  <Td className="whitespace-nowrap text-xs text-(--muted)">
+                  <Td className="whitespace-nowrap text-xs text-muted">
                     {meta?.country_code ? (
                       <span title={countryTitle}>
-                        <span className="font-mono text-(--foreground)">{meta.country_code}</span>
+                        <span className="font-mono text-foreground">{meta.country_code}</span>
                         {meta.country_name && (
                           <span className="ml-1 hidden max-w-[140px] truncate align-bottom sm:inline-block">
                             {meta.country_name}
@@ -1164,7 +1161,7 @@ function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> 
                       m.common_em_dash()
                     )}
                   </Td>
-                  <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
+                  <Td className="text-right font-mono text-xs tabular-nums text-muted">
                     {d.streams ?? 0}
                   </Td>
                   <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
@@ -1182,21 +1179,21 @@ function TopDomainsTable({ rows }: { rows: NonNullable<UserLive["top_domains"]> 
 
 function ByConnectionTable({ rows }: { rows: NonNullable<UserLive["by_connection"]> }) {
   return (
-    <div className="bg-(--surface)">
+    <div className="bg-surface">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr className="border-y border-(--border) bg-(--surface-secondary) text-left">
+            <tr className="border-y border-border bg-surface-secondary text-left">
               <Th>{m.common_th_device()}</Th>
               <Th>{m.common_th_top_domain()}</Th>
               <Th className="text-right">{m.common_th_streams()}</Th>
               <Th className="text-right">{m.common_th_total()}</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-(--separator)">
+          <tbody className="divide-y divide-separator">
             {rows.map((c, i) => (
-              <tr key={`${c.connection}-${i}`} className="hover:bg-(--surface-secondary)">
-                <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-(--muted)">
+              <tr key={`${c.connection}-${i}`} className="hover:bg-surface-secondary">
+                <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-muted">
                   #{c.connection ?? 0}
                 </Td>
                 <Td>
@@ -1207,7 +1204,7 @@ function ByConnectionTable({ rows }: { rows: NonNullable<UserLive["by_connection
                     {c.top_domain || m.common_em_dash()}
                   </span>
                 </Td>
-                <Td className="text-right font-mono text-xs tabular-nums text-(--muted)">
+                <Td className="text-right font-mono text-xs tabular-nums text-muted">
                   {c.stream_count ?? 0}
                 </Td>
                 <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
