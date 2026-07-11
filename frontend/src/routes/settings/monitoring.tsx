@@ -563,7 +563,7 @@ function MonitorModal({
                         field.state.meta.isTouched && field.state.meta.errors.length > 0;
                       return (
                         <NumberField
-                          className="w-full sm:w-44 [--border-width-field:0px]"
+                          className="w-full sm:w-44"
                           value={field.state.value}
                           onChange={field.handleChange}
                           onBlur={field.handleBlur}
@@ -601,7 +601,7 @@ function MonitorModal({
                               field.state.meta.isTouched && field.state.meta.errors.length > 0;
                             return (
                               <NumberField
-                                className="w-full sm:w-60 [--border-width-field:0px]"
+                                className="w-full sm:w-60"
                                 value={field.state.value}
                                 onChange={field.handleChange}
                                 onBlur={field.handleBlur}

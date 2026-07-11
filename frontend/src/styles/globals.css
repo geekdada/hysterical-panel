@@ -111,6 +111,10 @@ h3 {
   border: 1px solid var(--border);
 }
 
+.number-field button {
+  --border-width-field: 0;
+}
+
 /* HeroUI's default heights (40/36px) read tall against the ~13px base and dense
  * layout. Drop the default and small sizes a step, keeping a mobile touch bump. */
 .button {
