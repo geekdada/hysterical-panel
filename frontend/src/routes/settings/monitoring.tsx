@@ -504,7 +504,6 @@ function MonitorModal({
                       >
                         <Label>{m.monitoring_name()}</Label>
                         <Input
-                          autoFocus
                           maxLength={128}
                           autoComplete="off"
                           data-1p-ignore
