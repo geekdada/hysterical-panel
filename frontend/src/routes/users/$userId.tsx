@@ -207,7 +207,8 @@ function AccountRail({
   if (loading) {
     return (
       <div className="overflow-hidden rounded-lg border bg-surface">
-        <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
+        <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
+          <RailSkeletonCell labelClassName="max-w-14" valueClassName="max-w-36" />
           <RailSkeletonCell labelClassName="max-w-16" valueClassName="max-w-44" />
           <RailSkeletonCell labelClassName="max-w-20" valueClassName="max-w-48" />
           <RailSkeletonCell labelClassName="max-w-12" valueClassName="max-w-16" />
@@ -231,7 +232,15 @@ function AccountRail({
 
   return (
     <div className="overflow-hidden rounded-lg border bg-surface">
-      <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
+      <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
+        <RailItem label={m.user_rail_id()}>
+          <div className="group/id flex min-w-0 items-center gap-1.5">
+            <span className="block min-w-0 truncate font-mono text-[13px] text-foreground">
+              {user?.id || m.common_em_dash()}
+            </span>
+            {user?.id && <CopyButton value={user.id} label={m.common_copy_user_id()} />}
+          </div>
+        </RailItem>
         <RailItem label={m.user_rail_email()}>
           <span className="block truncate text-[13px]" title={user?.email || ""}>
             {user?.email || m.common_em_dash()}
