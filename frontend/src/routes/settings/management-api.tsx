@@ -141,7 +141,7 @@ function Endpoint({
   return (
     <section className="mt-8 border-t border-border pt-6">
       <div className="flex items-center gap-2">
-        <span className="rounded border bg-surface-secondary px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-foreground">
+        <span className="rounded border bg-surface-secondary px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-wide text-foreground">
           {method}
         </span>
         <span className="font-mono text-[13px] text-foreground">{path}</span>

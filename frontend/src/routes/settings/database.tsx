@@ -332,9 +332,7 @@ function StorageTable({
           ))}
           <tr className="border-t border-border bg-surface-secondary">
             <Td className="font-medium text-foreground">{m.common_total()}</Td>
-            <Td className="text-right font-mono font-medium tabular-nums">
-              {formatBytes(totalBytes)}
-            </Td>
+            <Td className="text-right font-mono tabular-nums">{formatBytes(totalBytes)}</Td>
           </tr>
         </tbody>
       </table>

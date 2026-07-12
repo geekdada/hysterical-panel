@@ -41,7 +41,7 @@ const CALENDAR_CELL =
   "size-8 min-w-8 p-0 text-center text-[12px] tabular-nums sm:size-9 sm:min-w-9 sm:text-[13px]";
 
 const TRIGGER =
-  "inline-flex h-8 w-full min-w-0 items-center gap-1.5 border bg-surface px-2.5 font-mono text-[11px] font-medium tabular-nums text-foreground transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-auto sm:max-w-[min(100%,16rem)]";
+  "inline-flex h-8 w-full min-w-0 items-center gap-1.5 border bg-surface px-2.5 font-mono text-[11px] tabular-nums text-foreground transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-auto sm:max-w-[min(100%,16rem)]";
 
 function rangeLabelFormatter(locale: string, tz: string) {
   return new DateFormatter(locale, {

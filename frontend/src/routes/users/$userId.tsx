@@ -286,7 +286,7 @@ function AccountRail({
       </div>
       <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
         <RailItem label={m.user_rail_used_total()}>
-          <span className="font-mono text-[15px] font-semibold tabular-nums">
+          <span className="font-mono text-[15px] font-medium tabular-nums">
             {formatBytes(usedTx + usedRx)}
           </span>
         </RailItem>
