@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Modal } from "@heroui/react";
+import { Button, Chip, Modal } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
@@ -340,15 +340,6 @@ function DetailRail({
   }
 
   const enabled = node?.enabled ?? false;
-  const health = node?.health ?? "never";
-  const stateLabel = !enabled
-    ? m.node_state_disabled()
-    : health === "error"
-      ? node?.last_error || m.node_state_error()
-      : health === "ok"
-        ? m.node_state_healthy()
-        : m.node_state_never_polled();
-  const stateTone = !enabled ? "muted" : health === "error" ? "danger" : "muted";
   const txSpeed = enabled ? (node?.current_tx_speed ?? 0) : 0;
   const rxSpeed = enabled ? (node?.current_rx_speed ?? 0) : 0;
 
@@ -372,17 +363,14 @@ function DetailRail({
           </span>
         </RailItem>
         <RailItem label={m.node_rail_state()}>
-          <span
-            className={cn(railValue, stateTone === "danger" && "text-danger")}
-            title={stateLabel}
-          >
-            {stateLabel}
-          </span>
+          <Chip size="sm" variant="soft" color={enabled ? "success" : "default"}>
+            {enabled ? m.common_active() : m.common_disabled()}
+          </Chip>
         </RailItem>
       </div>
       <div className="grid divide-y divide-border border-t border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <RailItem label={m.node_rail_online_devices()}>
-          <span className={railMono}>
+          <span className={cn(railValue, "tabular-nums")}>
             {node?.online_devices == null ? m.common_em_dash() : node.online_devices}
           </span>
         </RailItem>

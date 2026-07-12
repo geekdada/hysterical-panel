@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Modal } from "@heroui/react";
+import { Button, Chip, Modal } from "@heroui/react";
 import {
   clearAuth,
   deletePasskey,
@@ -251,10 +251,14 @@ function AccountRail({
           <span className="font-mono text-[13px]">{user?.role || m.common_em_dash()}</span>
         </RailItem>
         <RailItem label={m.common_status()}>
-          <span className="inline-flex min-w-0 items-center gap-2">
-            <Dot tone={active ? "ok" : "idle"} title={status} />
-            <span className="truncate text-[13px] capitalize">{status}</span>
-          </span>
+          <Chip
+            size="sm"
+            variant="soft"
+            color={active ? "success" : "default"}
+            className="capitalize"
+          >
+            {active ? m.common_active() : m.common_disabled()}
+          </Chip>
         </RailItem>
         <RailItem label={m.user_rail_last_connect()}>
           <span
@@ -288,7 +292,7 @@ function AccountRail({
           </span>
         </RailItem>
         <RailItem label={m.user_rail_online_devices()}>
-          <span className="font-mono text-[13px] tabular-nums">
+          <span className="text-[13px] tabular-nums">
             {user?.online_devices == null ? m.common_em_dash() : user.online_devices}
           </span>
         </RailItem>
