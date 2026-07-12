@@ -1,13 +1,14 @@
 # Hysterical Panel (backend)
 
 轻量级 Hysteria 2 管理面板后端，基于 PocketBase（作为 Go 框架二次开发）。
-只负责节点接口信息保存、自主轮询采集流量、用户管理与实时诊断。不部署节点、不做订阅计费。管理员还可管理加密的通知 Channel，但不提供规则、自动发送、重试队列或审计日志。
+只负责节点接口信息保存、自主轮询采集流量与最新在线设备数、用户管理与实时诊断。不部署节点、不做订阅计费。管理员可配置 Monitor 驱动 Alert 生命周期及一次性自动 Notification，也可管理加密的 Notification Channel；不提供重试队列、提醒、确认或审计日志。
 
 ## 模型
 
 两层：
 - **users** — 既是登录面板的人（`admin` 或 `user`），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick` 扇出以断开其在各节点上已建立的 Hysteria 连接（3 并发、异步、失败仅记日志）。账号「可用」= `status=active` **且** `verified=true`：`verified` 是登录与 Hysteria 鉴权的附加门禁（admin 建号与邀请码注册者恒为 `verified=true`，仅开放无码注册者需先验证邮箱）。成功 Hysteria 鉴权会更新 `last_connected_at` 与 `recent_connections`（最近 10 个唯一客户端 IP，不含端口；ASN / 国家等 MMDB 信息仅在 API 返回时补充，不落库）。
-- **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`）。
+- **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`），并保存最近一次成功 `/online` 的 Node 总设备数与观测时间。
+- **online_device_counts** — 每个 User/Node 的最新正数在线客户端实例投影；不保留历史。User 总数只汇总 Enabled Node 且跨 Node 不去重，Node 总数包含未知 auth string。
 
 另有两个辅助 collection：**`invitations`**（通用邀请码：`code` 唯一、`max_uses`/`expires_at`/`revoked`/`used_count`）与单例 **`app_settings`**（注册开关 `invitations_enabled` / `open_registration` / `require_invite_for_open`，默认全关）。
 
@@ -58,12 +59,13 @@ docker run --rm \
 
 ## 采集器
 
-后台 goroutine 每 5s 调度，按各节点 `poll_interval` 轮询 `GET /traffic`：
+后台 goroutine 每 5s 调度，按各节点 `poll_interval` 并发轮询 `GET /traffic` 与 `GET /online`：
 - counter-to-delta：处理 Hysteria 重启导致的计数器归零
 - 累加到 `users.used_tx/rx` 与 `traffic_hourly` / `traffic_daily`
 - 失败写 `node.last_error` 且不更新 cursor（漏采一轮不丢量）
+- `/online` 成功时事务替换该 Node 的最新用户计数并更新 Node 总数；失败保留旧值，不改变 Traffic health
 
-`/online` 与 `/dump/streams` 不进采集循环，由 live 接口实时穿透拉取。live 的 Top domains 只对已经是 IP 字面量的目标做本地 MMDB 查询，补充 ASN/网络标签、国家信息与 IPv4 的 `ipinfo.io` 快速链接；不会做 DNS 解析，也不会入库。
+`/traffic` 与 `/online` 独立提交，任一失败不阻止另一项成功结果落库。`/dump/streams` 不进采集循环，由 live 接口实时穿透拉取；live 不再请求或返回在线设备数。live 的 Top domains 只对已经是 IP 字面量的目标做本地 MMDB 查询，补充 ASN/网络标签、国家信息与 IPv4 的 `ipinfo.io` 快速链接；不会做 DNS 解析，也不会入库。
 
 ## 接口（前缀 `/api/panel/`，需登录；除标注外需 admin）
 
@@ -82,7 +84,7 @@ docker run --rm \
 | PATCH/DELETE | `/users/{id}` | 改/删 |
 | GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |
-| GET | `/users/{id}/live` | 实时诊断（admin；在线设备、活跃流、域名榜、设备维度） |
+| GET | `/users/{id}/live` | 实时 streams 诊断（admin；活跃流、域名榜、客户端连接维度） |
 | GET | `/settings` | 读取注册/邀请开关 |
 | PATCH | `/settings` | 改开关（层级校验：`invitations_enabled=true` 需 `open_registration=true`；`require_invite_for_open=true` 需 `invitations_enabled=true`，否则 400） |
 | GET/POST | `/notification-channels` | 管理员列出非秘密 Channel 元数据 / 新建单 URL Channel（默认 disabled） |

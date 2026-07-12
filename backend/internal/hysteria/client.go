@@ -104,14 +104,19 @@ func (c *Client) Traffic(ctx context.Context) (map[string]TrafficEntry, error) {
 }
 
 // Online returns the device (client instance) count keyed by auth string.
-func (c *Client) Online(ctx context.Context) (map[string]int, error) {
+func (c *Client) Online(ctx context.Context) (map[string]int64, error) {
 	resp, err := c.get(ctx, "/online", "")
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]int{}
+	out := map[string]int64{}
 	if err := decode(resp, &out); err != nil {
 		return nil, err
+	}
+	for auth, count := range out {
+		if count < 0 {
+			return nil, fmt.Errorf("hysteria api returned negative online device count for %q", auth)
+		}
 	}
 	return out, nil
 }

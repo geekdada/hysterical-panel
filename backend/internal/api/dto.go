@@ -15,6 +15,7 @@ type Node struct {
 	Health         string `json:"health"` // "ok" | "error" | "never"
 	CurrentTxSpeed int64  `json:"current_tx_speed"`
 	CurrentRxSpeed int64  `json:"current_rx_speed"`
+	OnlineDevices  *int64 `json:"online_devices"`
 }
 
 // NodeCreateRequest is the body for POST /nodes.
@@ -203,6 +204,13 @@ type PanelUser struct {
 	Created           string             `json:"created"`
 	LastConnectedAt   string             `json:"last_connected_at"`
 	RecentConnections []RecentConnection `json:"recent_connections"`
+}
+
+// UserDetail is returned by GET /users/{id}. OnlineDevices is the sum of the
+// latest known counts across the enabled nodes visible to the user.
+type UserDetail struct {
+	PanelUser
+	OnlineDevices *int64 `json:"online_devices"`
 }
 
 // RecentConnection is one recent successful Hysteria auth source for a user.
@@ -495,7 +503,6 @@ type DatabaseTrafficPruneResult struct {
 
 // LiveResponse is returned by GET /users/{id}/live.
 type LiveResponse struct {
-	OnlineDevices int              `json:"online_devices"`
 	ActiveStreams int              `json:"active_streams"`
 	ByNode        []LiveNodeResult `json:"by_node"`
 	TopDomains    []TopDomain      `json:"top_domains"`
@@ -504,16 +511,14 @@ type LiveResponse struct {
 
 // LiveNodeResult is the per-node breakdown inside the live response.
 type LiveNodeResult struct {
-	Node          NodeRef      `json:"node"`
-	OnlineDevices int          `json:"online_devices"`
-	Streams       []LiveStream `json:"streams"`
-	Error         string       `json:"error,omitempty"`
+	Node    NodeRef      `json:"node"`
+	Streams []LiveStream `json:"streams"`
+	Error   string       `json:"error,omitempty"`
 }
 
 // NodeLiveResponse is returned by GET /nodes/{id}/live. Unlike the user live
 // response it covers a single node and every user on it (no auth filter).
 type NodeLiveResponse struct {
-	OnlineDevices int                  `json:"online_devices"`
 	ActiveStreams int                  `json:"active_streams"`
 	ByUser        []NodeLiveUserResult `json:"by_user"`
 	TopDomains    []TopDomain          `json:"top_domains"`
@@ -524,9 +529,8 @@ type NodeLiveResponse struct {
 // NodeLiveUserResult groups a node's live streams under one panel user. Streams
 // whose auth string matches no panel user are grouped under an "unknown" entry.
 type NodeLiveUserResult struct {
-	User          UserRef      `json:"user"`
-	OnlineDevices int          `json:"online_devices"`
-	Streams       []LiveStream `json:"streams"`
+	User    UserRef      `json:"user"`
+	Streams []LiveStream `json:"streams"`
 }
 
 // LiveStream is one active stream shown in live diagnostics.

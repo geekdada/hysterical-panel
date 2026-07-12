@@ -1,11 +1,14 @@
-// Package collector polls every enabled Hysteria node's /traffic endpoint and
-// turns the cumulative counters into per-user, per-node deltas, persisting them
-// into the users running totals and the hourly/daily aggregation tables.
+// Package collector polls every enabled Hysteria node's /traffic and /online
+// endpoints. It turns cumulative traffic counters into per-user, per-node
+// deltas and replaces the latest online-device projection for each node.
 package collector
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
+	"math"
 	"sync"
 	"time"
 
@@ -13,6 +16,7 @@ import (
 
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/hysteria"
+	"hysterical-panel/internal/onlinedevices"
 )
 
 // Collector owns the background polling loop.
@@ -82,8 +86,6 @@ func (c *Collector) tick(ctx context.Context) {
 }
 
 func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
-	previousPoll := node.GetDateTime("last_polled_at").Time()
-
 	secret, err := c.box.Decrypt(node.GetString("api_secret"))
 	if err != nil {
 		c.recordNodeError(node, "decrypt secret: "+err.Error())
@@ -94,11 +96,39 @@ func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
 	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	traffic, err := cl.Traffic(cctx)
-	if err != nil {
-		c.recordNodeError(node, "poll /traffic: "+err.Error())
-		return err
+	var traffic map[string]hysteria.TrafficEntry
+	var online map[string]int64
+	var trafficErr, onlineErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		traffic, trafficErr = cl.Traffic(cctx)
+	}()
+	go func() {
+		defer wg.Done()
+		online, onlineErr = cl.Online(cctx)
+	}()
+	wg.Wait()
+
+	if trafficErr != nil {
+		c.recordNodeError(node, "poll /traffic: "+trafficErr.Error())
+		trafficErr = fmt.Errorf("poll /traffic: %w", trafficErr)
+	} else if err := c.recordTraffic(node, traffic); err != nil {
+		trafficErr = err
 	}
+
+	if onlineErr != nil {
+		onlineErr = fmt.Errorf("poll /online: %w", onlineErr)
+	} else if err := c.recordOnlineSnapshot(node.Id, online, time.Now().UTC()); err != nil {
+		onlineErr = fmt.Errorf("record /online snapshot: %w", err)
+	}
+
+	return errors.Join(trafficErr, onlineErr)
+}
+
+func (c *Collector) recordTraffic(node *core.Record, traffic map[string]hysteria.TrafficEntry) error {
+	previousPoll := node.GetDateTime("last_polled_at").Time()
 
 	now := time.Now().UTC()
 	bucketHour := now.Truncate(time.Hour)
@@ -153,6 +183,75 @@ func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
 				return err
 			}
 		}
+		return txApp.Save(node)
+	})
+}
+
+// recordOnlineSnapshot replaces the latest known positive per-user counts for
+// one node. The node-wide total intentionally includes auth strings that don't
+// map to a panel user, while user projections only contain known users.
+func (c *Collector) recordOnlineSnapshot(nodeID string, online map[string]int64, observedAt time.Time) error {
+	var total int64
+	for _, count := range online {
+		if count < 0 {
+			return fmt.Errorf("negative online device count")
+		}
+		if count > math.MaxInt64-total {
+			return fmt.Errorf("online device count overflow")
+		}
+		total += count
+	}
+
+	return c.app.RunInTransaction(func(txApp core.App) error {
+		node, err := txApp.FindRecordById("nodes", nodeID)
+		if err != nil {
+			return err
+		}
+		// The request may have started before an admin disabled or deleted the
+		// node. Never let a late response resurrect a cleared projection.
+		if !node.GetBool("enabled") || !node.GetDateTime("deleted_at").IsZero() {
+			if err := onlinedevices.DeleteNodeCounts(txApp, nodeID); err != nil {
+				return err
+			}
+			node.Set("online_devices", 0)
+			if node.GetDateTime("online_devices_observed_at").IsZero() {
+				node.Set("online_devices_observed_at", observedAt.UTC())
+			}
+			return txApp.Save(node)
+		}
+		users, err := txApp.FindRecordsByFilter("users", "", "", 0, 0)
+		if err != nil {
+			return err
+		}
+		userByAuth := make(map[string]*core.Record, len(users))
+		for _, user := range users {
+			userByAuth[user.GetString("auth_string")] = user
+		}
+
+		if err := onlinedevices.DeleteNodeCounts(txApp, nodeID); err != nil {
+			return err
+		}
+
+		collection, err := txApp.FindCollectionByNameOrId("online_device_counts")
+		if err != nil {
+			return err
+		}
+		for auth, count := range online {
+			user := userByAuth[auth]
+			if user == nil || count == 0 {
+				continue
+			}
+			record := core.NewRecord(collection)
+			record.Set("user", user.Id)
+			record.Set("node", nodeID)
+			record.Set("count", count)
+			if err := txApp.Save(record); err != nil {
+				return err
+			}
+		}
+
+		node.Set("online_devices", total)
+		node.Set("online_devices_observed_at", observedAt.UTC())
 		return txApp.Save(node)
 	})
 }

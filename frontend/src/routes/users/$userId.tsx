@@ -58,6 +58,7 @@ import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 type PanelUser = components["schemas"]["PanelUser"];
+type UserDetail = components["schemas"]["UserDetail"];
 type TrafficSummary = components["schemas"]["TrafficSummaryResponse"];
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type UserLive = components["schemas"]["LiveResponse"];
@@ -198,7 +199,7 @@ function AccountRail({
   loading,
   now,
 }: {
-  user: PanelUser | null;
+  user: UserDetail | null;
   loading: boolean;
   now: number | null;
 }) {
@@ -227,7 +228,6 @@ function AccountRail({
   const active = status === "active";
   const usedTx = user?.used_tx ?? 0;
   const usedRx = user?.used_rx ?? 0;
-  const quota = user?.quota_bytes ?? 0;
 
   return (
     <div className="overflow-hidden rounded-lg border bg-surface">
@@ -287,9 +287,9 @@ function AccountRail({
             <span className="text-muted">↓</span> {formatBytes(usedRx)}
           </span>
         </RailItem>
-        <RailItem label={m.user_rail_quota()}>
+        <RailItem label={m.user_rail_online_devices()}>
           <span className="font-mono text-[13px] tabular-nums">
-            {quota > 0 ? formatBytes(quota) : m.user_no_quota()}
+            {user?.online_devices == null ? m.common_em_dash() : user.online_devices}
           </span>
         </RailItem>
       </div>
@@ -957,10 +957,7 @@ function LiveSection({ userId }: { userId: string }) {
       meta={
         live ? (
           <span className="font-mono tabular-nums">
-            {m.user_live_meta({
-              devices: String(live.online_devices ?? 0),
-              streams: String(live.active_streams ?? 0),
-            })}
+            {m.user_live_meta({ streams: String(live.active_streams ?? 0) })}
           </span>
         ) : undefined
       }
@@ -1024,10 +1021,7 @@ function NodeStreams({ group }: { group: NonNullable<UserLive["by_node"]>[number
           </span>
         </div>
         <span className="shrink-0 font-mono text-xs tabular-nums text-muted">
-          {m.user_live_node_meta({
-            devices: String(group.online_devices ?? 0),
-            count: String(streams.length),
-          })}
+          {m.user_live_node_meta({ count: String(streams.length) })}
         </span>
       </div>
       {hasError ? (

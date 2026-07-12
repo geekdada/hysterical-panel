@@ -69,6 +69,65 @@ func TestTrafficTreatsMissingDirectionAsZero(t *testing.T) {
 	}
 }
 
+func TestOnlineReturnsDeviceCounts(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/online" || r.Method != http.MethodGet {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		gotAuth = r.Header.Get("Authorization")
+		_, _ = io.WriteString(w, `{"wang":2,"joe":1}`)
+	}))
+	defer srv.Close()
+
+	online, err := New(srv.URL, "secret", time.Second).Online(context.Background())
+	if err != nil {
+		t.Fatalf("Online returned error: %v", err)
+	}
+	if gotAuth != "secret" {
+		t.Fatalf("Authorization header = %q, want secret", gotAuth)
+	}
+	if online["wang"] != 2 || online["joe"] != 1 {
+		t.Fatalf("online = %v, want wang=2 joe=1", online)
+	}
+}
+
+func TestOnlineRejectsNegativeDeviceCount(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"wang":-1}`)
+	}))
+	defer srv.Close()
+
+	_, err := New(srv.URL, "secret", time.Second).Online(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "negative") {
+		t.Fatalf("err = %v, want negative device count error", err)
+	}
+}
+
+func TestOnlineRejectsHTTPAndJSONErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		code int
+	}{
+		{name: "http status", code: http.StatusServiceUnavailable},
+		{name: "invalid json", code: http.StatusOK, body: `{`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.code)
+				_, _ = io.WriteString(w, tt.body)
+			}))
+			defer srv.Close()
+
+			if _, err := New(srv.URL, "secret", time.Second).Online(context.Background()); err == nil {
+				t.Fatal("Online returned nil error")
+			}
+		})
+	}
+}
+
 func TestKickNon2xxIsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)

@@ -38,6 +38,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"AlertListResponse":                 AlertListResponse{},
 		"AlertSummaryResponse":              AlertSummaryResponse{},
 		"PanelUser":                         PanelUser{},
+		"UserDetail":                        UserDetail{},
 		"RecentConnection":                  RecentConnection{},
 		"UserListResponse":                  UserListResponse{},
 		"UserStatsResponse":                 UserStatsResponse{},
@@ -100,9 +101,11 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	if s, ok := schemas["Node"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "health", []any{"ok", "error", "never"})
 	}
-	if s, ok := schemas["PanelUser"]; ok && s.Value != nil {
-		setEnum(s.Value.Properties, "role", []any{"admin", "user"})
-		setEnum(s.Value.Properties, "status", []any{"active", "disabled"})
+	for _, name := range []string{"PanelUser", "UserDetail"} {
+		if s, ok := schemas[name]; ok && s.Value != nil {
+			setEnum(s.Value.Properties, "role", []any{"admin", "user"})
+			setEnum(s.Value.Properties, "status", []any{"active", "disabled"})
+		}
 	}
 	if s, ok := schemas["TrafficSeriesResponse"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "granularity", []any{"hourly", "daily"})
@@ -772,7 +775,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
 						Description: ptr("User detail"),
-						Content:     content(ref("PanelUser")),
+						Content:     content(ref("UserDetail")),
 					},
 				})),
 			}

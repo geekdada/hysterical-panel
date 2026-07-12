@@ -290,6 +290,10 @@ func publicNode(n *core.Record) map[string]any {
 	} else if !n.GetDateTime("last_polled_at").IsZero() {
 		health = "ok"
 	}
+	var onlineDevices any
+	if !n.GetDateTime("online_devices_observed_at").IsZero() {
+		onlineDevices = int64(n.GetInt("online_devices"))
+	}
 	return map[string]any{
 		"id":               n.Id,
 		"name":             n.GetString("name"),
@@ -301,6 +305,7 @@ func publicNode(n *core.Record) map[string]any {
 		"health":           health,
 		"current_tx_speed": n.GetInt("current_tx_speed"),
 		"current_rx_speed": n.GetInt("current_rx_speed"),
+		"online_devices":   onlineDevices,
 	}
 }
 

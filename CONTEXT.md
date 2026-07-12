@@ -48,12 +48,16 @@ _Avoid_: destroyed, archived, offline, disabled (as the name for this state)
 Aggregated tx/rx bytes attributed to a User on a Node over time (hourly/daily buckets and User totals). Not a billable quantity; reserved quota fields are not a product concept yet.
 _Avoid_: usage (as the noun), bandwidth, transfer, quota, consumption, metering
 
+**Online Device Count**:
+The latest number of Hysteria client instances reported by a Node for an Auth String. A User's count sums Enabled Nodes without deduplicating physical devices; a Node's total also includes unknown Auth Strings.
+_Avoid_: unique devices, physical devices, active streams, connections
+
 **Collector**:
-The background process that periodically reads each Enabled Node's traffic counters and records Traffic deltas. Distinct from Live diagnostics, which are on-demand and not stored.
+The background process that periodically reads each Enabled Node's traffic counters and online client-instance counts, recording Traffic deltas and the latest Online Device Count projection. Distinct from Live diagnostics, which are on-demand and not stored.
 _Avoid_: scraper, syncer, meter, poller, importer
 
 **Live**:
-An on-demand, uncached diagnostic snapshot of current connections and streams for a User or a Node, pulled from Nodes at request time. Not Traffic; not persisted.
+An on-demand, uncached diagnostic snapshot of current streams for a User or a Node, pulled from Nodes at request time. Not Traffic or Online Device Count; not persisted.
 _Avoid_: realtime monitor, session log, online status (as the feature name), telemetry dump
 
 **Kick**:

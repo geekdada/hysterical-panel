@@ -29,7 +29,9 @@ func TestMonitoringLanguageMigrationSchema(t *testing.T) {
 func TestMonitoringLanguageMigrationBackfillsEnglishAndRollsBack(t *testing.T) {
 	app := newMigratedTestApp(t)
 	runner := core.NewMigrationsRunner(app, core.AppMigrations)
-	if reverted, err := runner.Down(1); err != nil || len(reverted) != 1 {
+	// The online-device projection migration follows the notification-language
+	// migration, so roll both back to build a pre-language record.
+	if reverted, err := runner.Down(2); err != nil || len(reverted) != 2 {
 		t.Fatalf("revert notification language migration: reverted=%v err=%v", reverted, err)
 	}
 
@@ -54,7 +56,7 @@ func TestMonitoringLanguageMigrationBackfillsEnglishAndRollsBack(t *testing.T) {
 		t.Fatalf("backfilled alert language = %q, want en", got)
 	}
 
-	if _, err := runner.Down(1); err != nil {
+	if _, err := runner.Down(2); err != nil {
 		t.Fatalf("rollback notification language migration: %v", err)
 	}
 	monitors, _ := app.FindCollectionByNameOrId("monitors")

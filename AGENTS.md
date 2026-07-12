@@ -14,7 +14,7 @@
 后端职责边界（务必遵守，不要擅自扩张）：
 
 - 保存 Hysteria 节点的**接口信息**（API 地址 + secret），不部署节点、不管理服务器。
-- 自主轮询采集各节点流量，做用户级 / 节点级聚合 + admin 全局看板。
+- 自主轮询采集各节点流量与最新在线设备数，做用户级 / 节点级聚合 + admin 全局看板。
 - 用户管理（分页/排序/筛选列表）+ 实时诊断面板。
 - 作为 Hysteria 2 / anytls 节点的 `auth.type: http` 回调端点，按 `auth_string`（anytls 按其 hash）鉴权客户端连接。
 - 面板登录支持密码 + passkey（WebAuthn）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
@@ -114,7 +114,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..17）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..22）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -123,6 +123,7 @@ hysterical-panel/
 │       ├── notifications/      Shoutrrr URL 校验 + 单 Channel 测试投递（Beszel allowlist）
 │       ├── ipmeta/             IP 字面量 → ASN/国家（MMDB）+ test
 │       ├── collector/          counter-to-delta 采集核心
+│       ├── onlinedevices/      最新在线设备投影的共享持久化操作
 │       └── api/                /api/panel 路由（+ /api/mgmt、公开回调）
 │           ├── api.go          路由注册 + 4 个鉴权守卫（含 verified / active 门禁）+ 脱敏辅助 + nodesForUser
 │           ├── config.go       公开 GET /api/panel/config（静态字段 + 实时注册开关 + passkeys 标志）
@@ -183,10 +184,12 @@ hysterical-panel/
 - `poll_interval` (number, 秒, 默认 30)、`enabled` (bool)
 - `last_polled_at` (date)、`last_error` (text) — 用于 health 判断
 - `current_tx_speed`、`current_rx_speed` (number, int64, B/s) — 采集器每轮按相邻两次 counter 差除以间隔算出的瞬时速率，禁用/删除/采集失败置 0
+- `online_devices` (number, int64)、`online_devices_observed_at` (date) — 最近一次成功 `/online` 的 Node 总数与观测时间；总数包含无法映射到现有用户的 auth string，首次成功前 API 返回 `null`，禁用/删除时置 0
 - `deleted_at` (date) — **软删除**：`DELETE /nodes/{id}` 只写此字段，不真删；`nodesForUser` 与采集器都用 `deleted_at = '' && enabled = true` 过滤，保留历史流量归属
 
 `traffic_cursor` (user+node 唯一)：`last_tx`、`last_rx` —— counter-to-delta 的游标
 `traffic_hourly` / `traffic_daily` (user+node+bucket 唯一)：`bucket` (date, **UTC**)、`tx`、`rx`
+`online_device_counts` (user+node 唯一)：仅保存最近一次成功 `/online` 中可映射到现有用户的正数计数；每轮按 Node 整体替换，不保留历史。用户详情只汇总 Enabled Node，同一物理设备连接多个 Node 时会重复计数。
 
 `invitations`：`code` (text, unique) — 通用邀请码；`email`（可选，仅记录/发信，不绑定）、`max_uses`（0=不限）、`used_count`、`expires_at` (date, 空=永不)、`revoked` (bool)、`note`、`created_by` (relation→users)、`last_used_at`。
 
@@ -215,7 +218,7 @@ hysterical-panel/
 
 - `main.go` 在 `OnServe` 里启动一个后台 goroutine，`OnTerminate` 时 cancel。
 - 每 5s 统一 tick，按各节点 `poll_interval` 判断是否到点（不是每节点一个 ticker，便于增删节点）。最小采集粒度因此是 5s。
-- 每个节点每轮：`GET /traffic` → 对每个 auth_string 查 `users` → counter-to-delta → 累加 `users.used_*` + upsert hourly/daily → 更新 cursor。
+- 每个节点每轮并发请求 `GET /traffic` 与 `GET /online`。两者独立提交：`/traffic` 继续按 auth_string 做 counter-to-delta、累计 `users.used_*` 并 upsert hourly/daily；`/online` 事务替换该 Node 的最新用户投影并更新 Node 总数。
 - **counter reset 处理**（关键，别动）：
 
   ```go
@@ -225,8 +228,8 @@ hysterical-panel/
   }
   ```
 
-- 失败时写 `node.last_error` 且**不更新 cursor**，下一轮自然补回（counter 模式特性）。
-- `/online` 和 `/dump/streams` **不进采集循环**，由 live 接口实时拉。
+- `/traffic` 失败时写 `node.last_error` 且**不更新 cursor**，下一轮自然补回（counter 模式特性）；不阻止同轮成功的 `/online` 更新。
+- `/online` 失败时保留最后成功投影且不改变 Traffic health；`/dump/streams` 不进采集循环，只由 live 接口实时拉。
 
 ## 接口
 
@@ -246,7 +249,7 @@ hysterical-panel/
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段会静默 cancel 旧 Alert 并立即重评估。
 - `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口。
-- `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时诊断核心：并发拉可见节点的 `/dump/streams` + `/online`（5s 超时），按 `auth_string` 过滤/聚合出 `online_devices` / `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按设备分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
+- `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时 streams 诊断核心：并发拉可见节点的 `/dump/streams`（5s 超时），按 `auth_string` 过滤/聚合出 `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按客户端连接分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** 在线设备数来自 Collector 的最新 `/online` 投影，不属于 live 响应。Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
 
 ### OpenAPI
 

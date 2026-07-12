@@ -43,6 +43,7 @@ type PanelConfig = components["schemas"]["PanelConfigResponse"];
 type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
 type PanelTraffic = components["schemas"]["PanelTrafficResponse"];
 type PanelUser = components["schemas"]["PanelUser"];
+type UserDetail = components["schemas"]["UserDetail"];
 type UserCreateRequest = components["schemas"]["UserCreateRequest"];
 type UserListResponse = components["schemas"]["UserListResponse"];
 type UserStatsResponse = components["schemas"]["UserStatsResponse"];
@@ -111,7 +112,7 @@ export type NodeOverviewData = {
 export type UserOverviewData = {
   series: TrafficSeries | null;
   summary: TrafficSummary | null;
-  user: PanelUser | null;
+  user: UserDetail | null;
 };
 
 export type UsersListQuery = {
@@ -462,7 +463,7 @@ export async function fetchUserOverview(
   range: TrafficRangeQuery
 ): Promise<UserOverviewData> {
   const [user, summary, series] = await Promise.all([
-    apiRequest<PanelUser | null>(
+    apiRequest<UserDetail | null>(
       apiClient.GET("/api/panel/users/{id}", {
         params: { path: { id: userId } },
       })

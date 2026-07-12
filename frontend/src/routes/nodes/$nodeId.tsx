@@ -314,13 +314,25 @@ function DetailRail({
 }) {
   if (loading) {
     return (
-      <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="flex-1 px-4 py-3">
-            <div className="h-3 w-16 animate-pulse rounded bg-surface-secondary" />
-            <div className="mt-1 flex h-5 items-center">
-              <div className="h-3.5 w-28 animate-pulse rounded bg-surface-secondary" />
-            </div>
+      <div className="overflow-hidden rounded-lg border bg-surface">
+        {[4, 3].map((count, row) => (
+          <div
+            key={count}
+            className={cn(
+              "grid divide-y divide-border sm:divide-x sm:divide-y-0",
+              row === 0
+                ? "sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]"
+                : "border-t border-border sm:grid-cols-3"
+            )}
+          >
+            {Array.from({ length: count }).map((_, i) => (
+              <div key={i} className="min-w-0 px-4 py-3">
+                <div className="h-3 w-16 animate-pulse rounded bg-surface-secondary" />
+                <div className="mt-1 flex h-5 items-center">
+                  <div className="h-3.5 w-28 animate-pulse rounded bg-surface-secondary" />
+                </div>
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -341,53 +353,57 @@ function DetailRail({
   const rxSpeed = enabled ? (node?.current_rx_speed ?? 0) : 0;
 
   return (
-    <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
-      <RailItem label={m.node_rail_endpoint()} className="sm:flex-[2]">
-        <div className="group/key flex min-w-0 items-center gap-1.5">
-          <span className={railMono}>{node?.api_url || m.common_em_dash()}</span>
-          {node?.api_url && <CopyButton value={node.api_url} label={m.common_copy_endpoint()} />}
-        </div>
-      </RailItem>
-      <RailItem label={m.node_rail_poll_interval()}>
-        <span className={railMono}>
-          {node?.poll_interval ? `${node.poll_interval}s` : m.common_em_dash()}
-        </span>
-      </RailItem>
-      <RailItem label={m.node_rail_tx_speed()}>
-        <span className={railMono}>
-          <span className="text-muted">↑</span> {formatBytesPerSecond(txSpeed)}
-        </span>
-      </RailItem>
-      <RailItem label={m.node_rail_rx_speed()}>
-        <span className={railMono}>
-          <span className="text-muted">↓</span> {formatBytesPerSecond(rxSpeed)}
-        </span>
-      </RailItem>
-      <RailItem label={m.node_rail_last_poll()}>
-        <span className={railValue}>
-          {node?.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : m.common_em_dash()}
-        </span>
-      </RailItem>
-      <RailItem label={m.node_rail_state()}>
-        <span className={cn(railValue, stateTone === "danger" && "text-danger")} title={stateLabel}>
-          {stateLabel}
-        </span>
-      </RailItem>
+    <div className="overflow-hidden rounded-lg border bg-surface">
+      <div className="grid divide-y divide-border sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] sm:divide-x sm:divide-y-0">
+        <RailItem label={m.node_rail_endpoint()}>
+          <div className="group/key flex min-w-0 items-center gap-1.5">
+            <span className={railMono}>{node?.api_url || m.common_em_dash()}</span>
+            {node?.api_url && <CopyButton value={node.api_url} label={m.common_copy_endpoint()} />}
+          </div>
+        </RailItem>
+        <RailItem label={m.node_rail_poll_interval()}>
+          <span className={railMono}>
+            {node?.poll_interval ? `${node.poll_interval}s` : m.common_em_dash()}
+          </span>
+        </RailItem>
+        <RailItem label={m.node_rail_last_poll()}>
+          <span className={railValue}>
+            {node?.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : m.common_em_dash()}
+          </span>
+        </RailItem>
+        <RailItem label={m.node_rail_state()}>
+          <span
+            className={cn(railValue, stateTone === "danger" && "text-danger")}
+            title={stateLabel}
+          >
+            {stateLabel}
+          </span>
+        </RailItem>
+      </div>
+      <div className="grid divide-y divide-border border-t border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <RailItem label={m.node_rail_online_devices()}>
+          <span className={railMono}>
+            {node?.online_devices == null ? m.common_em_dash() : node.online_devices}
+          </span>
+        </RailItem>
+        <RailItem label={m.node_rail_tx_speed()}>
+          <span className={railMono}>
+            <span className="text-muted">↑</span> {formatBytesPerSecond(txSpeed)}
+          </span>
+        </RailItem>
+        <RailItem label={m.node_rail_rx_speed()}>
+          <span className={railMono}>
+            <span className="text-muted">↓</span> {formatBytesPerSecond(rxSpeed)}
+          </span>
+        </RailItem>
+      </div>
     </div>
   );
 }
 
-function RailItem({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
+function RailItem({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className={cn("min-w-0 flex-1 px-4 py-3", className)}>
+    <div className="min-w-0 flex-1 px-4 py-3">
       <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</div>
       <div className="mt-1 flex h-5 min-w-0 items-center">{children}</div>
     </div>
@@ -718,10 +734,7 @@ function StreamsSection({ nodeId }: { nodeId: string }) {
       meta={
         live && !live.error ? (
           <span className="font-mono tabular-nums">
-            {m.node_live_meta({
-              devices: live.online_devices ?? 0,
-              streams: live.active_streams ?? 0,
-            })}
+            {m.node_live_meta({ streams: live.active_streams ?? 0 })}
           </span>
         ) : undefined
       }
@@ -786,10 +799,7 @@ function UserStreams({ group }: { group: NonNullable<NodeLive["by_user"]>[number
           </span>
         </div>
         <span className="shrink-0 font-mono text-xs tabular-nums text-muted">
-          {m.node_live_user_meta({
-            devices: group.online_devices ?? 0,
-            count: streams.length,
-          })}
+          {m.node_live_user_meta({ count: streams.length })}
         </span>
       </div>
       <div className="overflow-x-auto">

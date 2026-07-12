@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"math"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -24,7 +26,60 @@ func (h *Handlers) getUser(e *core.RequestEvent) error {
 		return apis.NewNotFoundError("user not found", err)
 	}
 	ignored := h.loadIgnoredConnectionIPSet()
-	return ok(e, publicUser(u, h.ipLookup, ignored))
+	public := publicUser(u, h.ipLookup, ignored)
+	onlineDevices, err := h.onlineDevicesForUser(u.Id)
+	if err != nil {
+		return apis.NewBadRequestError("failed to load online devices", err)
+	}
+	public["online_devices"] = onlineDevices
+	return ok(e, public)
+}
+
+func (h *Handlers) onlineDevicesForUser(userID string) (*int64, error) {
+	nodes, err := h.nodesForUser(userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(nodes) == 0 {
+		zero := int64(0)
+		return &zero, nil
+	}
+
+	visibleNodeIDs := make(map[string]struct{}, len(nodes))
+	hasObservation := false
+	for _, node := range nodes {
+		visibleNodeIDs[node.Id] = struct{}{}
+		if !node.GetDateTime("online_devices_observed_at").IsZero() {
+			hasObservation = true
+		}
+	}
+	if !hasObservation {
+		return nil, nil
+	}
+
+	counts, err := h.app.FindRecordsByFilter(
+		"online_device_counts",
+		"user = {:user}",
+		"",
+		0,
+		0,
+		map[string]any{"user": userID},
+	)
+	if err != nil {
+		return nil, err
+	}
+	var total int64
+	for _, count := range counts {
+		if _, visible := visibleNodeIDs[count.GetString("node")]; !visible {
+			continue
+		}
+		value := int64(count.GetInt("count"))
+		if value < 0 || value > math.MaxInt64-total {
+			return nil, fmt.Errorf("invalid stored online device count")
+		}
+		total += value
+	}
+	return &total, nil
 }
 
 // newUserParams carries resolved field values for a new users record. Callers

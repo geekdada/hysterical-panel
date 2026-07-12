@@ -11,7 +11,7 @@ import (
 )
 
 // GET /nodes/:id/live
-// On-demand diagnostics for a single node: pulls /dump/streams and /online once,
+// On-demand diagnostics for a single node: pulls /dump/streams once,
 // groups every stream by the panel user that owns its auth string (no auth
 // filter, unlike the user-scoped endpoint). Never cached, never persisted.
 func (h *Handlers) nodeLive(e *core.RequestEvent) error {
@@ -33,8 +33,6 @@ func (h *Handlers) nodeLive(e *core.RequestEvent) error {
 	if serr != nil {
 		return ok(e, nodeLiveError(serr.Error()))
 	}
-	online, _ := cl.Online(ctx) // best-effort; a nil map reads back as zero
-
 	// Resolve auth_string -> panel user once, so each stream can be attributed.
 	users, err := h.app.FindRecordsByFilter("users", "", "", 0, 0)
 	if err != nil {
@@ -76,21 +74,12 @@ func (h *Handlers) nodeLive(e *core.RequestEvent) error {
 	for _, auth := range order {
 		g := groups[auth]
 		byUser = append(byUser, map[string]any{
-			"user":           g.ref,
-			"online_devices": online[auth],
-			"streams":        g.streams,
+			"user":    g.ref,
+			"streams": g.streams,
 		})
 	}
 
-	// True node-wide online count: every device the node reports, including users
-	// that are connected but have no active stream right now.
-	totalOnline := 0
-	for _, c := range online {
-		totalOnline += c
-	}
-
 	return ok(e, map[string]any{
-		"online_devices": totalOnline,
 		"active_streams": len(streams),
 		"by_user":        byUser,
 		"top_domains":    agg.topDomains(),
@@ -102,7 +91,6 @@ func (h *Handlers) nodeLive(e *core.RequestEvent) error {
 // reached, so the frontend renders a normal "error" state instead of a failure.
 func nodeLiveError(msg string) map[string]any {
 	return map[string]any{
-		"online_devices": 0,
 		"active_streams": 0,
 		"by_user":        []any{},
 		"top_domains":    []any{},

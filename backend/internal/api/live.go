@@ -15,8 +15,8 @@ import (
 )
 
 // GET /users/:id/live
-// Real-time diagnostics: pulls /dump/streams and /online from every visible
-// node concurrently, filters by the user's auth_string, and aggregates. Never
+// Real-time diagnostics: pulls /dump/streams from every visible node
+// concurrently, filters by the user's auth_string, and aggregates. Never
 // cached, never persisted.
 func (h *Handlers) userLive(e *core.RequestEvent) error {
 	u, err := h.app.FindRecordById("users", e.Request.PathValue("id"))
@@ -32,7 +32,6 @@ func (h *Handlers) userLive(e *core.RequestEvent) error {
 
 	type nodeResult struct {
 		nodeID, nodeName string
-		online           int
 		streams          []hysteria.Stream
 		errMsg           string
 	}
@@ -65,16 +64,13 @@ func (h *Handlers) userLive(e *core.RequestEvent) error {
 					res.streams = append(res.streams, s)
 				}
 			}
-			if online, oerr := cl.Online(ctx); oerr == nil {
-				res.online = online[authStr]
-			}
 			results[i] = res
 		}(i, n)
 	}
 	wg.Wait()
 
 	now := time.Now().UTC()
-	var totalOnline, totalStreams int
+	var totalStreams int
 	byNode := make([]map[string]any, 0, len(results))
 	agg := newLiveAggregator(h.ipLookup)
 
@@ -84,13 +80,11 @@ func (h *Handlers) userLive(e *core.RequestEvent) error {
 			nodeStreams = append(nodeStreams, agg.add(s, now))
 		}
 
-		totalOnline += r.online
 		totalStreams += len(r.streams)
 
 		nodeEntry := map[string]any{
-			"node":           map[string]any{"id": r.nodeID, "name": r.nodeName},
-			"online_devices": r.online,
-			"streams":        nodeStreams,
+			"node":    map[string]any{"id": r.nodeID, "name": r.nodeName},
+			"streams": nodeStreams,
 		}
 		if r.errMsg != "" {
 			nodeEntry["error"] = r.errMsg
@@ -99,7 +93,6 @@ func (h *Handlers) userLive(e *core.RequestEvent) error {
 	}
 
 	return ok(e, map[string]any{
-		"online_devices": totalOnline,
 		"active_streams": totalStreams,
 		"by_node":        byNode,
 		"top_domains":    agg.topDomains(),
