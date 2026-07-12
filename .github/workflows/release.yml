@@ -205,7 +205,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   release:
-    name: Create draft release
+    name: Create release
     runs-on: ubuntu-latest
     needs: [metadata, backend, frontend]
     permissions:
@@ -249,19 +249,18 @@ jobs:
 
           cat release-body.md
 
-      - name: Create or update draft release
+      - name: Create or update release
         shell: bash
         run: |
           set -euo pipefail
 
           if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-            # Editing notes preserves the existing draft status, so a manual
-            # re-run never accidentally publishes the release.
-            gh release edit "$TAG" --repo "$REPO" --notes-file release-body.md
+            gh release edit "$TAG" --repo "$REPO" --draft=false \
+              --prerelease="$PRERELEASE" --notes-file release-body.md
           elif [[ "$PRERELEASE" == "true" ]]; then
-            gh release create "$TAG" --repo "$REPO" --draft --prerelease \
+            gh release create "$TAG" --repo "$REPO" --prerelease \
               --title "$TAG" --notes-file release-body.md
           else
-            gh release create "$TAG" --repo "$REPO" --draft \
+            gh release create "$TAG" --repo "$REPO" \
               --title "$TAG" --notes-file release-body.md
           fi
