@@ -59,6 +59,7 @@
 
 1. **两层模型，没有 Account 抽象。**
    `users` 既是登录面板的人，也是节点认证的主体；凭据独立保存在 `user_auth_strings`。每个 User 恰有一个 `current` Auth String 可用于新连接，所有旧值转为 `retired`、永不再认证或复用，但继续用于旧 Node Client ID 归属。Auth String 与登录 `email` **完全独立**，不要把 email 当节点凭据用。Node Client Auth 成功后返回稳定的 `user.id`，而不是凭据。
+   PocketBase 后台 `/_/` 是首个面板 admin 的受支持创建入口：`OnRecordCreateRequest("users")` hook 会把 User 与随机 Current Auth String 放在同一事务中创建，失败一起回滚。面板、自助注册与 Management API 的自定义创建路径不触发该 request hook，继续显式走自己的事务 helper。
 
 2. **节点对用户的可见性全员开放。**
    所有 `enabled` 节点默认对所有用户生效。这个逻辑收口在 `internal/api/api.go` 的 `nodesForUser(userID)` 函数里——目前返回全部 enabled 节点。**将来要做用户组，只改这一个函数**，不要在 handler 或采集器里散落过滤逻辑。
@@ -307,7 +308,7 @@ hysterical-panel/
 | `PB_ENCRYPTION_KEY` | 否 | PocketBase 设置库加密密钥，须 **32 字符**；未设则设置库明文存储 |
 
 - `api_secret` 绝不能明文返回给前端，也不要写进日志。Hysteria API 调用都带 `Authorization: <secret>` header。
-- 首次启动按提示创建 superuser（PocketBase 后台 `/_/`）。
+- 首次启动先按提示创建 PocketBase superuser，再在后台 `/_/` 的 `users` collection 创建首个面板用户（`role=admin`、`status=active`、`verified=true`）；create request hook 自动生成 Current Auth String。
 
 ### Docker / 发布
 

@@ -119,6 +119,69 @@ func TestRegistrationAndManagementCreationProvisionCurrentAuthStrings(t *testing
 	}
 }
 
+func TestUserCreateRequestHookProvisionsCurrentAuthStringAtomically(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := &Handlers{app: app}
+	h.bindUserCreateAuthString()
+
+	user, err := h.newUserRecord(newUserParams{
+		Email: "dashboard-created@example.com", Password: "password12345", Role: "admin", Status: "active", Verified: true,
+	})
+	if err != nil {
+		t.Fatalf("new dashboard User: %v", err)
+	}
+	createUserThroughRecordRequest(t, app, user)
+	current, err := authstrings.CurrentValue(app, user.Id)
+	if err != nil {
+		t.Fatalf("dashboard User Current Auth String: %v", err)
+	}
+	if len(current) != 16 {
+		t.Fatalf("generated Current Auth String length = %d, want 16", len(current))
+	}
+	const collisionID = "Collision123456"
+	if err := app.RunInTransaction(func(txApp core.App) error {
+		_, err := authstrings.Rotate(txApp, user.Id, collisionID)
+		return err
+	}); err != nil {
+		t.Fatalf("prepare historical Auth String collision: %v", err)
+	}
+
+	colliding, err := h.newUserRecord(newUserParams{
+		Email: "dashboard-collision@example.com", Password: "password12345", Role: "user", Status: "active", Verified: true,
+	})
+	if err != nil {
+		t.Fatalf("new colliding User: %v", err)
+	}
+	colliding.Id = collisionID
+	event := &core.RecordRequestEvent{
+		RequestEvent: &core.RequestEvent{App: app},
+		Record:       colliding,
+	}
+	event.Collection, _ = app.FindCollectionByNameOrId("users")
+	if err := app.OnRecordCreateRequest().Trigger(event, func(e *core.RecordRequestEvent) error {
+		return e.App.Save(e.Record)
+	}); err == nil {
+		t.Fatal("dashboard create accepted a User ID colliding with Auth String history")
+	}
+	if _, err := app.FindRecordById("users", collisionID); err == nil {
+		t.Fatal("failed Auth String provisioning left a dashboard-created orphan User")
+	}
+}
+
+func createUserThroughRecordRequest(t *testing.T, app core.App, user *core.Record) {
+	t.Helper()
+	event := &core.RecordRequestEvent{
+		RequestEvent: &core.RequestEvent{App: app},
+		Record:       user,
+	}
+	event.Collection, _ = app.FindCollectionByNameOrId("users")
+	if err := app.OnRecordCreateRequest().Trigger(event, func(e *core.RecordRequestEvent) error {
+		return e.App.Save(e.Record)
+	}); err != nil {
+		t.Fatalf("create User through record request: %v", err)
+	}
+}
+
 func assertCredentialState(t *testing.T, app core.App, authString, wantState string) {
 	t.Helper()
 	record, err := app.FindFirstRecordByFilter(

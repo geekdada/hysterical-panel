@@ -39,7 +39,7 @@ make serve     # 或: go run . serve
 
 `PANEL_MASTER_KEY` 由 `internal/config`（[caarlos0/env](https://github.com/caarlos0/env)）解析，未设置则拒绝启动；`PB_DATA_DIR` / `PB_ENCRYPTION_KEY` 在 `main.go` 注入 `pocketbase.NewWithConfig`。`MMDB_DIR` 用于实时诊断的 Top domains IP 元数据；缺失或损坏会让服务启动失败，避免静默丢失 ASN / 国家信息。
 
-首次启动按提示创建 superuser（PocketBase 后台 `/_/`）。迁移在 `./migrations` 中以代码形式提交，启动时自动应用。
+首次启动按提示创建 superuser，然后进入 PocketBase 后台 `/_/` 的 `users` collection 创建首个面板用户：设置 email/password、`role=admin`、`status=active`、`verified=true`。User create request hook 会在同一事务中自动生成其 Current Auth String；凭据创建失败时 User 也会回滚。此入口仅用于后台引导，客户端不能指定 Auth String。迁移在 `./migrations` 中以代码形式提交，启动时自动应用。
 
 ## Docker
 

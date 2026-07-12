@@ -37,14 +37,18 @@ func registrationDecision(s settings) (allowed, codeRequired bool) {
 }
 
 // generateUniqueAuthString mints a random Hysteria auth key, retrying on the
-// (astronomically unlikely) chance of a collision with an existing user.
+// (astronomically unlikely) chance of a collision with credential history.
 func (h *Handlers) generateUniqueAuthString() (string, error) {
+	return generateUniqueAuthString(h.app)
+}
+
+func generateUniqueAuthString(app core.App) (string, error) {
 	for i := 0; i < 8; i++ {
 		candidate, err := token.Alphanumeric(16)
 		if err != nil {
 			return "", err
 		}
-		if !authstrings.Exists(h.app, candidate) {
+		if !authstrings.Exists(app, candidate) {
 			return candidate, nil
 		}
 	}
