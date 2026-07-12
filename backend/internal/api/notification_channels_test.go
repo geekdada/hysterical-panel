@@ -15,7 +15,6 @@ import (
 
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/notifications"
-	"hysterical-panel/internal/token"
 )
 
 func TestNotificationChannelMigrationSchema(t *testing.T) {
@@ -390,7 +389,6 @@ func TestNotificationRevealOptionsRequiresPasskeysAndEnrollment(t *testing.T) {
 
 	admin := newUsersTestRecord(t, app, "admin@example.test", "admin-auth-string")
 	admin.Set("role", "admin")
-	admin.Set("auth_string_anytls_hash", token.Sha256Hex("admin-auth-string"))
 	if err := app.Save(admin); err != nil {
 		t.Fatalf("save admin: %v", err)
 	}

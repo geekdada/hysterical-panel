@@ -6,9 +6,9 @@
 ## 模型
 
 两层：
-- **users** — 既是登录面板的人（`admin` 或 `user`），也是 Hysteria 认证的账号（`auth_string` 字段，与登录 email 独立）。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick` 扇出以断开其在各节点上已建立的 Hysteria 连接（3 并发、异步、失败仅记日志）。账号「可用」= `status=active` **且** `verified=true`：`verified` 是登录与 Hysteria 鉴权的附加门禁（admin 建号与邀请码注册者恒为 `verified=true`，仅开放无码注册者需先验证邮箱）。成功 Hysteria 鉴权会更新 `last_connected_at` 与 `recent_connections`（最近 10 个唯一客户端 IP，不含端口；ASN / 国家等 MMDB 信息仅在 API 返回时补充，不落库）。
+- **users** — 既是登录面板的人（`admin` 或 `user`），也是节点认证主体。节点凭据独立保存在 `user_auth_strings`：每个 User 只有一个 Current Auth String 可认证，Retired 历史仅用于旧 Node Client ID 归属。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick [user.id]` 扇出（3 并发、异步、失败仅记日志）。账号「可用」= `status=active` **且** `verified=true`。成功节点鉴权会更新 `last_connected_at` 与 `recent_connections`。
 - **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`），并保存最近一次成功 `/online` 的 Node 总设备数与观测时间。
-- **online_device_counts** — 每个 User/Node 的最新正数在线客户端实例投影；不保留历史。User 总数只汇总 Enabled Node 且跨 Node 不去重，Node 总数包含未知 auth string。
+- **online_device_counts** — 每个 User/Node 的最新正数在线客户端实例投影；不保留历史。User 总数只汇总 Enabled Node 且跨 Node 不去重，Node 总数包含未知 Node Client ID。
 
 另有两个辅助 collection：**`invitations`**（通用邀请码：`code` 唯一、`max_uses`/`expires_at`/`revoked`/`used_count`）与单例 **`app_settings`**（注册开关 `invitations_enabled` / `open_registration` / `require_invite_for_open`，默认全关）。
 
@@ -134,13 +134,13 @@ docker run --rm \
 
 ### Hysteria 回调 `POST /api/hysteria/auth`（供 Hysteria 节点调用）
 
-给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<client-auth-key>","tx":1000000}`；后端按 `auth` 在 `users.auth_string` 里查匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<auth_string>"}`，其它返回非 200。返回的 `id` 故意回填为 `auth_string`，让节点后续 `/traffic` 上报的 key 与采集器查询用的字段一致。成功鉴权会异步更新 `users.last_connected_at`，并从 `addr` 提取客户端 IP 写入 `users.recent_connections`：只存 IP、不存端口，最多保留最近 10 个唯一 IP；重复 IP 更新 `last_seen_at`。用户 API 返回时会用 MMDB 临时补充 ASN / 国家 / IPv4 ipinfo 链接，这些元数据不落库。
+给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<current-auth-string>","tx":1000000}`；后端只按 `user_auth_strings` 中的 Current Auth String 匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<user.id>"}`，其它返回非 200。稳定 User ID 会用于节点后续 `/traffic`、`/online`、`/dump/streams` 与 `/kick`；Retired Auth String 不能认证，但仍可把迁移前连接的统计归属回 User。成功鉴权会异步更新连接元数据。
 
 | 状态码 | 含义 |
 |---|---|
 | 200 | 验证通过，body 含 `ok` 与 `id` |
 | 400 | 请求体缺失 `auth` 或不是合法 JSON |
-| 401 | `auth` 在 users 中查无此人 |
+| 401 | `auth` 不匹配任何 Current Auth String |
 | 403 | 用户存在但 `status=disabled` 或 `verified=false` |
 
 节点侧 `server.yaml` 示例：
@@ -156,9 +156,7 @@ auth:
 
 ### anytls 回调 `POST /api/anytls/auth`（供 anytls 节点调用）
 
-给 [anytls fork](https://github.com/geekdada/anytls-go/tree/feat/stats-and-http-auth) 的 `auth.type: http` 用。契约与 `/api/hysteria/auth` 完全一致（请求体、状态码语义、`{"ok","id"}` 响应、异步连接元数据更新都相同），唯一区别：anytls 客户端发送 `hex(sha256(password))`（64 位小写十六进制）而非原始密码，因此后端按 `auth`（小写化后）在 `users.auth_string_anytls_hash` 里查匹配，而不是 `auth_string`。命中后返回的 `id` **仍是 `auth_string`**——让 anytls 上报的 `/traffic` key 与采集器一致，采集器 / live / kick 因此零改动。用户的 anytls 密码即其 `auth_string`（两协议共用同一凭据）。
-
-`auth_string_anytls_hash` 由 `users` 集合上的 `OnRecordCreate` / `OnRecordUpdate` 钩子在每次保存时自动从 `auth_string` 派生（见 `internal/api/api.go` 的 `bindUserAnytlsHashSync`），所有写入路径（admin CRUD、注册、重置、管理 API、PocketBase 后台）自动保持同步；存量数据由迁移 `1730000016` 回填。
+给 [anytls fork](https://github.com/geekdada/anytls-go/tree/feat/stats-and-http-auth) 的 `auth.type: http` 用。契约与 `/api/hysteria/auth` 完全一致，唯一区别是 AnyTLS 客户端发送 `hex(sha256(password))`；后端只匹配 Current `user_auth_strings.auth_string_anytls_hash`。成功同样返回 `user.id`，Retired hash 不再认证。原始 Auth String 与派生 hash 都保存在内部 `user_auth_strings` history 中，普通 API 只返回 Current 值。
 
 节点侧 `server.yaml` 示例：
 ```yaml
@@ -177,7 +175,7 @@ auth:
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/mgmt/users?email=` 或 `?auth_string=` | 按 email 或 Hysteria `auth_string` 精确查询单个用户（二选一，不能同时给）。返回 `PanelUser` 形状（含 `auth_string`，不含任何密码/凭据） |
+| GET | `/api/mgmt/users?email=` 或 `?auth_string=` | 按 email 或 Current `auth_string` 精确查询单个用户（二选一，不能同时给）；Retired 值不匹配。返回 `PanelUser` 形状（含 Current `auth_string`） |
 | POST | `/api/mgmt/users` | 请求体 `{ email }`，自动生成密码与 `auth_string`（不返回）。返回 `{ id, email, status }`，状态码 **201**。创建后用户需走找回密码流程拿到登录凭证 |
 
 所有 `/api/mgmt/*` 请求必须带 `Authorization: Bearer <token>`。功能未启用时返回 **404**（避免泄露表面存在）；token 缺失或不匹配返回 **401**。
@@ -192,6 +190,7 @@ auth:
 main.go                     启动：migration + 采集器 + 路由
 migrations/                 collection 定义（users 扩展 / nodes / traffic_* / passkeys / invitations / app_settings）
 internal/config/            环境变量（caarlos0/env）
+internal/authstrings/       Current/Retired Auth String 与 Node Client ID 解析
 internal/cryptobox/         AES-GCM 加解密（主密钥来自 config）
 internal/token/             URL-safe 随机 token（邀请码 / auth_string）
 internal/hysteria/          Traffic Stats API 客户端

@@ -14,6 +14,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/hysteria"
 	"hysterical-panel/internal/onlinedevices"
@@ -135,18 +136,41 @@ func (c *Collector) recordTraffic(node *core.Record, traffic map[string]hysteria
 	bucketDay := now.Truncate(24 * time.Hour)
 	var nodeDtx, nodeDrx int64
 
-	for authStr, entry := range traffic {
-		user, err := c.app.FindFirstRecordByFilter("users", "auth_string = {:a}", map[string]any{"a": authStr})
-		if err != nil || user == nil {
-			// orphan auth string (deleted/unknown user) — skip silently
+	resolver, err := authstrings.LoadResolver(c.app)
+	if err != nil {
+		return err
+	}
+	type userCounters struct {
+		user   *core.Record
+		tx, rx int64
+	}
+	byUser := make(map[string]*userCounters)
+	for clientID, entry := range traffic {
+		user := resolver.Resolve(clientID)
+		if user == nil {
+			// Unknown or deleted Node Client ID — skip silently.
 			continue
 		}
+		counters := byUser[user.Id]
+		if counters == nil {
+			counters = &userCounters{user: user}
+			byUser[user.Id] = counters
+		}
+		if entry.Tx < 0 || entry.Rx < 0 || entry.Tx > math.MaxInt64-counters.tx || entry.Rx > math.MaxInt64-counters.rx {
+			return fmt.Errorf("invalid traffic counters for user %s", user.Id)
+		}
+		counters.tx += entry.Tx
+		counters.rx += entry.Rx
+	}
+
+	for _, counters := range byUser {
+		user := counters.user
 		// Always advance the cursor, even for disabled users, so re-enabling
 		// resumes from "now" instead of dumping the whole disabled-period
 		// counter into a single bucket.
-		dtx, drx, err := c.applyDelta(user, node, entry.Tx, entry.Rx)
+		dtx, drx, err := c.applyDelta(user, node, counters.tx, counters.rx)
 		if err != nil {
-			log.Printf("[collector] delta user=%s node=%s: %v", authStr, node.Id, err)
+			log.Printf("[collector] delta user=%s node=%s: %v", user.Id, node.Id, err)
 			continue
 		}
 		// Disabled users keep their counter tracked but stop accruing usage.
@@ -219,13 +243,20 @@ func (c *Collector) recordOnlineSnapshot(nodeID string, online map[string]int64,
 			}
 			return txApp.Save(node)
 		}
-		users, err := txApp.FindRecordsByFilter("users", "", "", 0, 0)
+		resolver, err := authstrings.LoadResolver(txApp)
 		if err != nil {
 			return err
 		}
-		userByAuth := make(map[string]*core.Record, len(users))
-		for _, user := range users {
-			userByAuth[user.GetString("auth_string")] = user
+		countsByUser := make(map[string]int64)
+		for clientID, count := range online {
+			user := resolver.Resolve(clientID)
+			if user == nil {
+				continue
+			}
+			if count > math.MaxInt64-countsByUser[user.Id] {
+				return fmt.Errorf("online device count overflow for user %s", user.Id)
+			}
+			countsByUser[user.Id] += count
 		}
 
 		if err := onlinedevices.DeleteNodeCounts(txApp, nodeID); err != nil {
@@ -236,13 +267,12 @@ func (c *Collector) recordOnlineSnapshot(nodeID string, online map[string]int64,
 		if err != nil {
 			return err
 		}
-		for auth, count := range online {
-			user := userByAuth[auth]
-			if user == nil || count == 0 {
+		for userID, count := range countsByUser {
+			if count == 0 {
 				continue
 			}
 			record := core.NewRecord(collection)
-			record.Set("user", user.Id)
+			record.Set("user", userID)
 			record.Set("node", nodeID)
 			record.Set("count", count)
 			if err := txApp.Save(record); err != nil {

@@ -63,18 +63,18 @@ func TestNormalizeUserListSort(t *testing.T) {
 }
 
 func TestBuildUserListFilter(t *testing.T) {
-	filter, params := buildUserListFilter("")
+	filter, params := buildUserListFilter("", "")
 	if filter != "" || params != nil {
 		t.Fatalf("empty search: filter=%q params=%v", filter, params)
 	}
 
-	filter, params = buildUserListFilter("  alice  ")
-	wantFilter := "(email ~ {:like} || role ~ {:like} || status ~ {:like} || auth_string = {:auth})"
+	filter, params = buildUserListFilter("  alice  ", "user123")
+	wantFilter := "(email ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:auth_user})"
 	if filter != wantFilter {
 		t.Fatalf("filter = %q, want %q", filter, wantFilter)
 	}
-	if params["like"] != "%alice%" || params["auth"] != "alice" {
-		t.Fatalf("params = %#v, want like=%%alice%% auth=alice", params)
+	if params["like"] != "%alice%" || params["auth_user"] != "user123" {
+		t.Fatalf("params = %#v, want like=%%alice%% auth_user=user123", params)
 	}
 }
 
@@ -86,8 +86,8 @@ func TestParseUserListQuery(t *testing.T) {
 }
 
 func TestBuildUserListFilterParamsType(t *testing.T) {
-	_, params := buildUserListFilter("x")
-	if params == nil || params["like"] == nil || params["auth"] == nil {
+	_, params := buildUserListFilter("x", "")
+	if params == nil || params["like"] == nil || params["auth_user"] == nil {
 		t.Fatalf("params = %#v", params)
 	}
 }

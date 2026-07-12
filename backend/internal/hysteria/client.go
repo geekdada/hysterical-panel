@@ -90,7 +90,7 @@ func decode(resp *http.Response, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-// Traffic returns the cumulative tx/rx counters keyed by auth string.
+// Traffic returns the cumulative tx/rx counters keyed by Node Client ID.
 func (c *Client) Traffic(ctx context.Context) (map[string]TrafficEntry, error) {
 	resp, err := c.get(ctx, "/traffic", "")
 	if err != nil {
@@ -103,7 +103,7 @@ func (c *Client) Traffic(ctx context.Context) (map[string]TrafficEntry, error) {
 	return out, nil
 }
 
-// Online returns the device (client instance) count keyed by auth string.
+// Online returns the device (client instance) count keyed by Node Client ID.
 func (c *Client) Online(ctx context.Context) (map[string]int64, error) {
 	resp, err := c.get(ctx, "/online", "")
 	if err != nil {

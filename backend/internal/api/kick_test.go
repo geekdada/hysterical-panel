@@ -2,11 +2,18 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/cryptobox"
 )
 
 // TestFanOutKicksConcurrencyCap proves the semaphore holds: with 10 targets
@@ -128,5 +135,50 @@ func TestFanOutKicksEmptyReturnsEmpty(t *testing.T) {
 	})
 	if len(results) != 0 {
 		t.Fatalf("len(results) = %d, want 0", len(results))
+	}
+}
+
+func TestKickUserSendsStableUserID(t *testing.T) {
+	app := newMigratedTestApp(t)
+	box, err := cryptobox.New("test-master-key")
+	if err != nil {
+		t.Fatalf("cryptobox.New: %v", err)
+	}
+	received := make(chan []string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var ids []string
+		if err := json.NewDecoder(r.Body).Decode(&ids); err != nil {
+			t.Errorf("decode kick body: %v", err)
+		}
+		received <- ids
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	nodes, err := app.FindCollectionByNameOrId("nodes")
+	if err != nil {
+		t.Fatalf("find nodes: %v", err)
+	}
+	secret, err := box.Encrypt("node-secret")
+	if err != nil {
+		t.Fatalf("encrypt secret: %v", err)
+	}
+	node := core.NewRecord(nodes)
+	node.Set("name", "kick target")
+	node.Set("api_url", server.URL)
+	node.Set("api_secret", secret)
+	node.Set("enabled", true)
+	if err := app.Save(node); err != nil {
+		t.Fatalf("save node: %v", err)
+	}
+
+	(&Handlers{app: app, box: box}).kickUser("stable-user-id")
+	select {
+	case ids := <-received:
+		if len(ids) != 1 || ids[0] != "stable-user-id" {
+			t.Fatalf("kick ids = %v, want [stable-user-id]", ids)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("kick request not received")
 	}
 }

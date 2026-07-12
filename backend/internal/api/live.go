@@ -11,19 +11,23 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
+	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/hysteria"
 )
 
 // GET /users/:id/live
 // Real-time diagnostics: pulls /dump/streams from every visible node
-// concurrently, filters by the user's auth_string, and aggregates. Never
+// concurrently, resolves stable and legacy Node Client IDs, and aggregates. Never
 // cached, never persisted.
 func (h *Handlers) userLive(e *core.RequestEvent) error {
 	u, err := h.app.FindRecordById("users", e.Request.PathValue("id"))
 	if err != nil {
 		return apis.NewNotFoundError("user not found", err)
 	}
-	authStr := u.GetString("auth_string")
+	resolver, err := authstrings.LoadResolver(h.app)
+	if err != nil {
+		return apis.NewBadRequestError("failed to load auth strings", err)
+	}
 
 	nodes, err := h.nodesForUser(u.Id)
 	if err != nil {
@@ -60,7 +64,7 @@ func (h *Handlers) userLive(e *core.RequestEvent) error {
 				return
 			}
 			for _, s := range streams {
-				if s.Auth == authStr {
+				if owner := resolver.Resolve(s.Auth); owner != nil && owner.Id == u.Id {
 					res.streams = append(res.streams, s)
 				}
 			}

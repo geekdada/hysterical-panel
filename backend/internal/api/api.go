@@ -14,7 +14,6 @@ import (
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/ipmeta"
 	"hysterical-panel/internal/notifications"
-	"hysterical-panel/internal/token"
 )
 
 type ipMetadataLookup interface {
@@ -49,7 +48,6 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	}
 
 	h.bindAuthGate()
-	h.bindUserAnytlsHashSync()
 
 	g := se.Router.Group("/api/panel")
 	g.Bind(apis.RequireAuth("users")) // must be a logged-in users-collection record
@@ -155,7 +153,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 
 	// Public: anytls servers POST here to authenticate clients. anytls sends
 	// hex(sha256(password)) as the auth value, so it's matched against
-	// users.auth_string_anytls_hash; otherwise the contract mirrors /api/hysteria/auth
+	// the Current user_auth_strings hash; otherwise the contract mirrors /api/hysteria/auth
 	// and is likewise kept out of openapi.go.
 	se.Router.POST("/api/anytls/auth", h.anytlsAuth)
 
@@ -260,21 +258,6 @@ func (h *Handlers) bindAuthGate() {
 	})
 }
 
-// bindUserAnytlsHashSync keeps users.auth_string_anytls_hash derived from
-// auth_string on every save. This is the single sync choke point: it fires before
-// validation/persist inside app.Save for both create and update, so every write
-// path — admin CRUD, self-registration, auth-key reset, the management API, and
-// the PocketBase admin UI — stays in sync without per-call-site code. The anytls
-// /auth callback matches clients against this hash (see anytls_auth.go).
-func (h *Handlers) bindUserAnytlsHashSync() {
-	setHash := func(e *core.RecordEvent) error {
-		e.Record.Set("auth_string_anytls_hash", token.Sha256Hex(e.Record.GetString("auth_string")))
-		return e.Next()
-	}
-	h.app.OnRecordCreate("users").BindFunc(setHash)
-	h.app.OnRecordUpdate("users").BindFunc(setHash)
-}
-
 // nodesForUser is the single choke point for node visibility. Today every
 // enabled node is visible to every user; user-group filtering can be added here
 // later without touching callers.
@@ -309,12 +292,12 @@ func publicNode(n *core.Record) map[string]any {
 	}
 }
 
-func publicUser(u *core.Record, lookup ipMetadataLookup, ignored map[string]struct{}) map[string]any {
+func publicUser(u *core.Record, authString string, lookup ipMetadataLookup, ignored map[string]struct{}) map[string]any {
 	return map[string]any{
 		"id":                 u.Id,
 		"email":              u.GetString("email"),
 		"role":               u.GetString("role"),
-		"auth_string":        u.GetString("auth_string"),
+		"auth_string":        authString,
 		"quota_bytes":        u.GetInt("quota_bytes"),
 		"used_tx":            u.GetInt("used_tx"),
 		"used_rx":            u.GetInt("used_rx"),
@@ -327,12 +310,12 @@ func publicUser(u *core.Record, lookup ipMetadataLookup, ignored map[string]stru
 
 // panelUser is the typed counterpart of publicUser, used where a PanelUser DTO
 // is needed directly (e.g. the registration auth response).
-func panelUser(u *core.Record, lookup ipMetadataLookup, ignored map[string]struct{}) PanelUser {
+func panelUser(u *core.Record, authString string, lookup ipMetadataLookup, ignored map[string]struct{}) PanelUser {
 	return PanelUser{
 		ID:                u.Id,
 		Email:             u.GetString("email"),
 		Role:              u.GetString("role"),
-		AuthString:        u.GetString("auth_string"),
+		AuthString:        authString,
 		QuotaBytes:        int64(u.GetInt("quota_bytes")),
 		UsedTx:            int64(u.GetInt("used_tx")),
 		UsedRx:            int64(u.GetInt("used_rx")),

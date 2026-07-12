@@ -9,8 +9,6 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-
-	"hysterical-panel/internal/token"
 )
 
 func TestGetUserReturnsOnlineDeviceSumAcrossEnabledNodes(t *testing.T) {
@@ -137,10 +135,6 @@ func TestOpenAPIMovesOnlineDevicesOutOfLiveResponses(t *testing.T) {
 func createOnlineTestUser(t *testing.T, app core.App, email, auth string) *core.Record {
 	t.Helper()
 	user := newUsersTestRecord(t, app, email, auth)
-	user.Set("auth_string_anytls_hash", token.Sha256Hex(auth))
-	if err := app.Save(user); err != nil {
-		t.Fatalf("save user: %v", err)
-	}
 	return user
 }
 

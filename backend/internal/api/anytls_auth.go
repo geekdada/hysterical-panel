@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/authstrings"
 )
 
 // anytls HTTP auth callback (POST /api/anytls/auth). Clients send
@@ -18,9 +20,5 @@ func (h *Handlers) anytlsAuth(e *core.RequestEvent) error {
 // hex(sha256(password)) where password is auth_string. Hex casing is normalized
 // before lookup.
 func (h *Handlers) lookupUserByAuthStringAnytlsHash(hash string) (*core.Record, error) {
-	return h.app.FindFirstRecordByFilter(
-		"users",
-		"auth_string_anytls_hash = {:a}",
-		map[string]any{"a": strings.ToLower(hash)},
-	)
+	return authstrings.FindCurrentUserByAnytlsHash(h.app, strings.ToLower(hash))
 }

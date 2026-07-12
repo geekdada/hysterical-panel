@@ -2,6 +2,8 @@ package api
 
 import (
 	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/authstrings"
 )
 
 // Hysteria 2 HTTP auth callback (POST /api/hysteria/auth). Clients send the raw
@@ -13,9 +15,5 @@ func (h *Handlers) hysteriaAuth(e *core.RequestEvent) error {
 
 // lookupUserByAuthString matches Hysteria clients, which send auth_string as-is.
 func (h *Handlers) lookupUserByAuthString(auth string) (*core.Record, error) {
-	return h.app.FindFirstRecordByFilter(
-		"users",
-		"auth_string = {:a}",
-		map[string]any{"a": auth},
-	)
+	return authstrings.FindCurrentUserByAuthString(h.app, auth)
 }

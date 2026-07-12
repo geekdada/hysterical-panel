@@ -7,12 +7,13 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
+	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/hysteria"
 )
 
 // GET /nodes/:id/live
 // On-demand diagnostics for a single node: pulls /dump/streams once,
-// groups every stream by the panel user that owns its auth string (no auth
+// groups every stream by the panel user that owns its Node Client ID (no auth
 // filter, unlike the user-scoped endpoint). Never cached, never persisted.
 func (h *Handlers) nodeLive(e *core.RequestEvent) error {
 	n, err := h.findActiveNode(e.Request.PathValue("id"))
@@ -33,17 +34,9 @@ func (h *Handlers) nodeLive(e *core.RequestEvent) error {
 	if serr != nil {
 		return ok(e, nodeLiveError(serr.Error()))
 	}
-	// Resolve auth_string -> panel user once, so each stream can be attributed.
-	users, err := h.app.FindRecordsByFilter("users", "", "", 0, 0)
+	resolver, err := authstrings.LoadResolver(h.app)
 	if err != nil {
-		return apis.NewBadRequestError("failed to list users", err)
-	}
-	userByAuth := make(map[string]map[string]any, len(users))
-	for _, u := range users {
-		userByAuth[u.GetString("auth_string")] = map[string]any{
-			"id":    u.Id,
-			"email": u.GetString("email"),
-		}
+		return apis.NewBadRequestError("failed to load auth strings", err)
 	}
 
 	now := time.Now().UTC()
@@ -54,25 +47,30 @@ func (h *Handlers) nodeLive(e *core.RequestEvent) error {
 		streams []map[string]any
 	}
 	groups := map[string]*userGroup{}
-	order := []string{} // preserve first-seen auth order for stable output
+	order := []string{} // preserve first-seen canonical client ID order
 
 	for _, s := range streams {
-		g := groups[s.Auth]
+		groupID := s.Auth
+		var ref map[string]any
+		if user := resolver.Resolve(s.Auth); user != nil {
+			groupID = user.Id
+			ref = map[string]any{"id": user.Id, "email": user.GetString("email")}
+		}
+		g := groups[groupID]
 		if g == nil {
-			ref := userByAuth[s.Auth]
 			if ref == nil {
 				ref = map[string]any{"id": "", "email": "unknown"}
 			}
 			g = &userGroup{ref: ref}
-			groups[s.Auth] = g
-			order = append(order, s.Auth)
+			groups[groupID] = g
+			order = append(order, groupID)
 		}
 		g.streams = append(g.streams, agg.add(s, now))
 	}
 
 	byUser := make([]map[string]any, 0, len(order))
-	for _, auth := range order {
-		g := groups[auth]
+	for _, groupID := range order {
+		g := groups[groupID]
 		byUser = append(byUser, map[string]any{
 			"user":    g.ref,
 			"streams": g.streams,

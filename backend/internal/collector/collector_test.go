@@ -10,7 +10,9 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/cryptobox"
+	"hysterical-panel/internal/hysteria"
 	_ "hysterical-panel/migrations"
 )
 
@@ -75,6 +77,69 @@ func TestSpeedPerSecondWithoutPreviousPoll(t *testing.T) {
 	}
 }
 
+func TestRecordTrafficAggregatesLegacyAndStableNodeClientIDs(t *testing.T) {
+	app := newMigratedCollectorTestApp(t)
+	box, err := cryptobox.New("test-master-key")
+	if err != nil {
+		t.Fatalf("new box: %v", err)
+	}
+	user := createCollectorTestUser(t, app, "mixed@example.com", "LegacySecret", "active")
+	node := createCollectorTestNode(t, app, box, "http://127.0.0.1:9999")
+	c := New(app, box)
+
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{
+		"LegacySecret": {Tx: 100, Rx: 200},
+		user.Id:        {Tx: 50, Rx: 75},
+	}); err != nil {
+		t.Fatalf("first recordTraffic: %v", err)
+	}
+	assertCollectorUserTotals(t, app, user.Id, 150, 275)
+
+	node, err = app.FindRecordById("nodes", node.Id)
+	if err != nil {
+		t.Fatalf("reload node: %v", err)
+	}
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{
+		"LegacySecret": {Tx: 120, Rx: 230},
+		user.Id:        {Tx: 70, Rx: 90},
+	}); err != nil {
+		t.Fatalf("second recordTraffic: %v", err)
+	}
+	assertCollectorUserTotals(t, app, user.Id, 190, 320)
+
+	if err := app.RunInTransaction(func(txApp core.App) error {
+		_, err := authstrings.Rotate(txApp, user.Id, "NextSecret")
+		return err
+	}); err != nil {
+		t.Fatalf("rotate auth string: %v", err)
+	}
+	node, err = app.FindRecordById("nodes", node.Id)
+	if err != nil {
+		t.Fatalf("reload node after rotation: %v", err)
+	}
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{
+		"LegacySecret": {Tx: 130, Rx: 240},
+		user.Id:        {Tx: 80, Rx: 100},
+	}); err != nil {
+		t.Fatalf("recordTraffic after rotation: %v", err)
+	}
+	assertCollectorUserTotals(t, app, user.Id, 210, 340)
+}
+
+func assertCollectorUserTotals(t *testing.T, app core.App, userID string, wantTx, wantRx int64) {
+	t.Helper()
+	user, err := app.FindRecordById("users", userID)
+	if err != nil {
+		t.Fatalf("reload user: %v", err)
+	}
+	if got := int64(user.GetInt("used_tx")); got != wantTx {
+		t.Fatalf("used_tx = %d, want %d", got, wantTx)
+	}
+	if got := int64(user.GetInt("used_rx")); got != wantRx {
+		t.Fatalf("used_rx = %d, want %d", got, wantRx)
+	}
+}
+
 func TestPollNodePersistsOnlineSnapshotWhenTrafficFails(t *testing.T) {
 	app := newMigratedCollectorTestApp(t)
 	box, err := cryptobox.New("test-master-key")
@@ -88,7 +153,7 @@ func TestPollNodePersistsOnlineSnapshotWhenTrafficFails(t *testing.T) {
 		case "/traffic":
 			http.Error(w, "unavailable", http.StatusServiceUnavailable)
 		case "/online":
-			_, _ = fmt.Fprint(w, `{"wang":2,"orphan":3}`)
+			_, _ = fmt.Fprintf(w, `{"wang":2,%q:1,"orphan":3}`, user.Id)
 		default:
 			http.NotFound(w, r)
 		}
@@ -105,8 +170,8 @@ func TestPollNodePersistsOnlineSnapshotWhenTrafficFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reload node: %v", err)
 	}
-	if got := int64(storedNode.GetInt("online_devices")); got != 5 {
-		t.Fatalf("node online_devices = %d, want 5", got)
+	if got := int64(storedNode.GetInt("online_devices")); got != 6 {
+		t.Fatalf("node online_devices = %d, want 6", got)
 	}
 	if storedNode.GetDateTime("online_devices_observed_at").IsZero() {
 		t.Fatal("online_devices_observed_at is zero")
@@ -119,8 +184,8 @@ func TestPollNodePersistsOnlineSnapshotWhenTrafficFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find online count: %v", err)
 	}
-	if got := int64(count.GetInt("count")); got != 2 {
-		t.Fatalf("user online count = %d, want 2", got)
+	if got := int64(count.GetInt("count")); got != 3 {
+		t.Fatalf("user online count = %d, want 3", got)
 	}
 }
 
@@ -293,12 +358,16 @@ func createCollectorTestUser(t *testing.T, app core.App, email, auth, status str
 	user.SetEmail(email)
 	user.SetPassword("correct horse battery staple")
 	user.SetVerified(true)
-	user.Set("auth_string", auth)
-	user.Set("auth_string_anytls_hash", fmt.Sprintf("%064x", len(auth)))
 	user.Set("role", "user")
 	user.Set("status", status)
-	if err := app.Save(user); err != nil {
-		t.Fatalf("save user: %v", err)
+	if err := app.RunInTransaction(func(txApp core.App) error {
+		if err := txApp.Save(user); err != nil {
+			return err
+		}
+		_, err := authstrings.CreateCurrent(txApp, user.Id, auth)
+		return err
+	}); err != nil {
+		t.Fatalf("save user with auth string: %v", err)
 	}
 	return user
 }

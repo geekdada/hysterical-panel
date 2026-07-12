@@ -235,7 +235,7 @@ type UserStatsResponse struct {
 }
 
 // UserCreateRequest is the body for POST /users. Only email is required; an
-// admin can quick-create by email alone. Password and auth_string are
+// admin can quick-create by email alone. Password and the Current Auth String are
 // system-generated when omitted, and the account is always created verified.
 type UserCreateRequest struct {
 	Email      string  `json:"email"`

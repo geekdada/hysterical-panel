@@ -85,7 +85,7 @@ func fanOutKicks(ctx context.Context, targets []kickTarget, kick kicker) []kickR
 //
 // This complements hysteriaAuth's 403 (which blocks new connections for
 // disabled users): /kick only drops currently-established sessions.
-func (h *Handlers) kickUser(userID, authString string) {
+func (h *Handlers) kickUser(userID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), kickOverallTimeout)
 	defer cancel()
 
@@ -111,7 +111,7 @@ func (h *Handlers) kickUser(userID, authString string) {
 			return nil
 		}
 		cl := hysteria.New(t.url, t.secret, kickPerNodeTimeout)
-		return cl.Kick(ctx, []string{authString})
+		return cl.Kick(ctx, []string{userID})
 	}
 
 	for _, r := range fanOutKicks(ctx, targets, kick) {

@@ -58,7 +58,7 @@
 ## 核心架构决策（不要推翻，除非需求方明确要求）
 
 1. **两层模型，没有 Account 抽象。**
-   `users` 既是登录面板的人，也是 Hysteria 认证的账号。Hysteria 的 auth key 存在 `users.auth_string`，与登录用的 `email` **完全独立**——改 Hysteria 账号名不应影响登录。不要把 email 当 auth key 用。
+   `users` 既是登录面板的人，也是节点认证的主体；凭据独立保存在 `user_auth_strings`。每个 User 恰有一个 `current` Auth String 可用于新连接，所有旧值转为 `retired`、永不再认证或复用，但继续用于旧 Node Client ID 归属。Auth String 与登录 `email` **完全独立**，不要把 email 当节点凭据用。Node Client Auth 成功后返回稳定的 `user.id`，而不是凭据。
 
 2. **节点对用户的可见性全员开放。**
    所有 `enabled` 节点默认对所有用户生效。这个逻辑收口在 `internal/api/api.go` 的 `nodesForUser(userID)` 函数里——目前返回全部 enabled 节点。**将来要做用户组，只改这一个函数**，不要在 handler 或采集器里散落过滤逻辑。
@@ -74,7 +74,7 @@
 
 6. **`status` 是用户启停的单一来源，且真正生效；`verified` 是附加门禁。**
    `active`/`disabled` 两态。落地在三处：登录鉴权 `bindAuthGate`（`OnRecordAuthRequest("users")`，非 active 一律 403 `account is disabled`，覆盖登录与 token 刷新）；Hysteria 回调 `hysteriaAuth`（非 active 返回 403，拒绝客户端新连接）；采集器 `pollNode` 里非 active 用户**仍推进 cursor 但不计量**（避免重新启用时把停用期间的 counter 一次性灌进单个 bucket）。`disabled` 同时挡新连接 + 面板登录 + 停止记账；写 `status` 经 `validUserStatus` 校验。
-   **停用时（status `active`→`disabled`）会触发一次 best-effort `/kick` 扇出**：`updateUser` 检测到该转换后，起一个**后台 goroutine**（**不阻塞 PATCH 响应**），以 **3 并发**（信号量 `kickConcurrency`）对 `nodesForUser(userID)` 返回的每个节点 `POST /kick [auth_string]`（5s/节点超时，整体 30s 上限）。失败只记日志（`[kick] ...`）、单个失败不影响其余、`nodesForUser` 返回空也直接结束。落地在 `internal/api/kick.go` 的 `kickUser` / `fanOutKicks`，Hysteria client 在 `internal/hysteria/client.go` 的 `Kick`。**只清存量会话**：`node_client_auth.go` 的 403 已挡客户端重连，`/kick` 只是把当前已建立的连接断掉。其他状态转换（建号 / 删除 / 改 auth_string）不触发 `/kick`，靠后续 401/403 自然清退。
+   **停用时（status `active`→`disabled`）会触发一次 best-effort `/kick` 扇出**：`updateUser` 检测到该转换后，起一个**后台 goroutine**（**不阻塞 PATCH 响应**），以 **3 并发**（信号量 `kickConcurrency`）对 `nodesForUser(userID)` 返回的每个节点 `POST /kick [user.id]`（5s/节点超时，整体 30s 上限）。失败只记日志（`[kick] ...`）、单个失败不影响其余、`nodesForUser` 返回空也直接结束。落地在 `internal/api/kick.go` 的 `kickUser` / `fanOutKicks`，Hysteria client 在 `internal/hysteria/client.go` 的 `Kick`。**只清新 Node Client ID 下的存量会话**：迁移前以 Auth String 为 ID 的短期连接自然排空；`node_client_auth.go` 的 403 继续阻止重连。其他状态转换不触发 `/kick`。
    **账号「可用」= `status=active` 且 `verified=true`**：`bindAuthGate` 与 `hysteriaAuth` 都在 status 检查后再判 `verified`（非 verified → 403 `email not verified`）。admin 建号与邀请码注册者恒 `verified=true`，新门禁只挡「开放注册且无邀请码」的未验证用户，直到其点开验证邮件。
 
 7. **注册访问由 `app_settings` 三开关 + `registrationDecision` 收口，三开关是严格层级。**
@@ -114,10 +114,11 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..22）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..23）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
+│       ├── authstrings/        Current/Retired Auth String + Node Client ID 统一解析
 │       ├── token/              URL-safe 随机 token（邀请码 / auth_string）+ test
 │       ├── hysteria/           Traffic Stats API 客户端
 │       ├── notifications/      Shoutrrr URL 校验 + 单 Channel 测试投递（Beszel allowlist）
@@ -171,12 +172,17 @@ hysterical-panel/
 
 `users`（扩展 PocketBase 内置 auth collection）：
 
-- `auth_string` (text, unique, required) — Hysteria auth key，= /traffic 返回的 key；自助注册时由系统随机生成
-- `auth_string_anytls_hash` (text, unique, required) — `hex(sha256(auth_string))`，64 位小写十六进制，供 anytls 回调按客户端发来的哈希匹配用户。**由 `users` 集合的 `OnRecordCreate`/`OnRecordUpdate` 钩子（`bindUserAnytlsHashSync`）在每次保存时自动从 `auth_string` 派生**，禁止手动设置；存量数据由迁移 `1730000016` 回填
 - `role` (select [admin, user])、`status` (select [active, disabled]) — `status` 是用户启停的单一来源（active = 启用）
 - `verified` (PocketBase 内置 auth 字段) — 账号可用的附加门禁；admin 建号与邀请注册者恒 true，仅开放无码注册者初始 false
 - `quota_bytes`、`used_tx`、`used_rx` (number, int64) — quota 当前不计费，仅留字段
 - `last_connected_at` (date)、`recent_connections` (json) — Hysteria 鉴权成功后更新；`recent_connections` 只保留最近 10 个唯一客户端 IP（不含端口），MMDB ASN / 国家等信息在 API 序列化时临时补充，不落库
+
+`user_auth_strings`：
+
+- `user` (relation→users, cascade delete)、`auth_string` (text, unique, hidden)、`auth_string_anytls_hash` (text, unique, hidden)、`state` (`current`/`retired`)
+- 每个 User 最多一个 `current`；正式创建路径在同一事务中保证实际恰有一个。轮换会原子地 retire 旧值并插入从未使用过的新值，历史值永不恢复、转让或复用
+- Auth String 与 User ID 是互斥命名空间：任何 Auth String 都不得等于任何 `user.id`；写入、迁移与 Resolver 都会拒绝冲突，避免节点统计错误归属
+- Hysteria 只用 Current 原始值认证，AnyTLS 只用 Current hash 认证；普通 User/Management API 也只展示或查询 Current。所有历史原始值仍参与 Node Client ID → User 归属
 
 `nodes`：
 
@@ -218,7 +224,7 @@ hysterical-panel/
 
 - `main.go` 在 `OnServe` 里启动一个后台 goroutine，`OnTerminate` 时 cancel。
 - 每 5s 统一 tick，按各节点 `poll_interval` 判断是否到点（不是每节点一个 ticker，便于增删节点）。最小采集粒度因此是 5s。
-- 每个节点每轮并发请求 `GET /traffic` 与 `GET /online`。两者独立提交：`/traffic` 继续按 auth_string 做 counter-to-delta、累计 `users.used_*` 并 upsert hourly/daily；`/online` 事务替换该 Node 的最新用户投影并更新 Node 总数。
+- 每个节点每轮并发请求 `GET /traffic` 与 `GET /online`。两者独立提交：Node 上报 key 先按 `user.id` 或任意历史 Auth String 统一解析为 User；`/traffic` 对同一 User 的混合 key counters 求和后只推进一次 user+node cursor、累计 `users.used_*` 并 upsert hourly/daily；`/online` 同样合并 User 计数，事务替换该 Node 的最新投影并更新含未知 ID 的 Node 总数。
 - **counter reset 处理**（关键，别动）：
 
   ```go
@@ -239,7 +245,7 @@ hysterical-panel/
 
 - 凡是返回 node 的响应**必须经过 `publicNode()` 剥除 api_secret**。新增 node 相关接口时务必走这个函数。
 - `PATCH /nodes/{id}` 的 `api_secret`：**缺省=不变，传空字符串=报错**（防止误清空）。
-- `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。`PATCH /users/{id}` 在状态从 `active`→`disabled` 时，**异步**对 `nodesForUser(userID)` 返回的每个节点扇出 `POST /kick [auth_string]`（3 并发，5s/节点，best-effort，失败只记日志，不阻塞响应）；详见核心决策 #6。
+- `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。`PATCH /users/{id}` 在状态从 `active`→`disabled` 时，**异步**对 `nodesForUser(userID)` 返回的每个节点扇出 `POST /kick [user.id]`（3 并发，5s/节点，best-effort，失败只记日志，不阻塞响应）；详见核心决策 #6。
 - `GET /users`（仅 admin）是**分页 / 排序 / 筛选**列表（`users_list.go`：`page`、`perPage`∈{25,50,100}、`search`、`sort` 白名单），`GET /users/stats` 给看板汇总。`POST /users/{id}/reset-auth-string`、`POST /nodes/{id}/reset-api-secret` 重新随机生成对应凭据并返回（节点 secret 仍脱敏）。
 - **admin 全局看板**：`GET /traffic`、`GET /traffic/series`（`from`/`to` 必填，UTC）、`GET /nodes/traffic/summary` 是跨用户跨节点的全局聚合（`traffic_panel.go`），与下面单节点维度接口区分。
 - `GET /database/stats`、`POST /database/prune`（仅 admin，`database.go`）：查看库体量并按 **30 天 UTC 留存**裁剪 `traffic_hourly`/`traffic_daily` 历史。
@@ -249,7 +255,7 @@ hysterical-panel/
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段会静默 cancel 旧 Alert 并立即重评估。
 - `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口。
-- `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时 streams 诊断核心：并发拉可见节点的 `/dump/streams`（5s 超时），按 `auth_string` 过滤/聚合出 `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按客户端连接分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** 在线设备数来自 Collector 的最新 `/online` 投影，不属于 live 响应。Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
+- `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时 streams 诊断核心：并发拉可见节点的 `/dump/streams`（5s 超时），把稳定 `user.id` 与全部历史 Auth String 统一归属后，聚合出 `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按客户端连接分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** 在线设备数来自 Collector 的最新 `/online` 投影，不属于 live 响应。Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
 
 ### OpenAPI
 
@@ -266,9 +272,9 @@ hysterical-panel/
 
 **找回密码**（无自建后端代码，纯走 PocketBase 内置）：前端 `/forgot-password` 调内置 `POST /api/collections/users/request-password-reset`（`{email}`，恒 204，内置反枚举 + 2 分钟重发节流）；`/reset-password?token=` 调内置 `POST /api/collections/users/confirm-password-reset`（`{token,password,passwordConfirm}`，成功且 token 邮箱匹配会顺带置 `verified=true`）。两端点不触发 `OnRecordAuthRequest`，不受 `bindAuthGate` 阻挡（`disabled` 用户可重置但仍无法登录）。前端函数在 `src/api/auth.ts` 的 `requestPasswordReset`/`confirmPasswordReset`。**部署须一次性配置**：把 PocketBase `Settings → Application URL` 设为前端域名，并把 users collection 的 **Reset password** 邮件模板链接由默认的 `{APP_URL}/_/#/auth/confirm-password-reset/{TOKEN}` 改成 `{APP_URL}/reset-password?token={TOKEN}`，否则邮件链接落到 PocketBase 后台而非前端重置页。该模板邮件走内置 SMTP，不经 `mailer.go`。
 
-`POST /api/hysteria/auth` — Hysteria 2 节点 `auth.type: http` 回调，每次客户端连接时触发。按请求体 `auth` 在 `users.auth_string` 查匹配，命中且 `status=active` 且 `verified=true` → `200 {"ok":true,"id":"<auth_string>"}`；查无此人 401；存在但 disabled 或未验证 403；缺 `auth`/非法 JSON 400。返回的 `id` **故意回填为 `auth_string`**，让节点后续 `/traffic` 上报的 key 与采集器查询字段一致（见 `node_client_auth.go` / `hysteria_auth.go` 注释）。成功鉴权会异步更新 `users.last_connected_at`，并从请求体 `addr` 提取客户端 IP 写入 `users.recent_connections`（最近 10 个唯一 IP，重复 IP 更新 `last_seen_at`；只存 IP，不存端口；ASN / 国家 / ipinfo 链接由 API 返回用户记录时用 MMDB 临时补充）。**绝不记录 `auth` 值本身**（凭据），拒绝日志只记 addr 与拒绝原因。该路由不进 OpenAPI。
+`POST /api/hysteria/auth` — Hysteria 2 节点 `auth.type: http` 回调，每次客户端连接时触发。按请求体 `auth` 匹配 Current Auth String，命中且 `status=active` 且 `verified=true` → `200 {"ok":true,"id":"<user.id>"}`；Retired/未知值 401；存在但 disabled 或未验证 403；缺 `auth`/非法 JSON 400。返回稳定 User ID，使节点统计与 Kick 不再持有凭据。成功鉴权仍异步更新 `last_connected_at` / `recent_connections`，且绝不记录请求中的凭据值。该路由不进 OpenAPI。
 
-`POST /api/anytls/auth` — [anytls fork](https://github.com/geekdada/anytls-go/tree/feat/stats-and-http-auth) 节点 `auth.type: http` 回调。与 hysteria 回调共用同一实现核心（`node_client_auth.go` 的 `handleNodeClientAuth`），契约、状态码、`{"ok","id"}` 响应、连接元数据更新完全一致；**唯一区别**：anytls 客户端发送 `hex(sha256(password))`（64 位小写十六进制）而非原始密码，故后端按 `auth`（小写化后）查 `users.auth_string_anytls_hash` 而非 `auth_string`（见 `anytls_auth.go`）。返回的 `id` **仍回填 `auth_string`**，使 anytls 的 `/traffic` key 与采集器一致——采集器 / live / kick 因此零改动。用户的 anytls 密码即其 `auth_string`（两协议共用同一凭据）。同样不进 OpenAPI。
+`POST /api/anytls/auth` — [anytls fork](https://github.com/geekdada/anytls-go/tree/feat/stats-and-http-auth) 节点 `auth.type: http` 回调。与 Hysteria 回调共用 `handleNodeClientAuth`；唯一区别是 AnyTLS 发送 `hex(sha256(password))`，后端匹配 Current `auth_string_anytls_hash`。成功同样返回 `user.id`，Retired hash 不再认证；用户的 AnyTLS password 仍与 Hysteria Auth String 共用。同样不进 OpenAPI。
 
 > 邮件走 PocketBase 内置 SMTP（`/_/` 后台配置，无新增 env）。`mailer.go` 在 `SMTP.Enabled=false` 时不发信：邀请接口仍返回 `link` 供手动分享，开放无码注册因依赖验证邮件而不可用。
 

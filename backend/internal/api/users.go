@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
+	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/token"
 )
 
@@ -25,8 +26,12 @@ func (h *Handlers) getUser(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewNotFoundError("user not found", err)
 	}
+	authString, err := authstrings.CurrentValue(h.app, u.Id)
+	if err != nil {
+		return apis.NewBadRequestError("failed to load auth string", err)
+	}
 	ignored := h.loadIgnoredConnectionIPSet()
-	public := publicUser(u, h.ipLookup, ignored)
+	public := publicUser(u, authString, h.ipLookup, ignored)
 	onlineDevices, err := h.onlineDevicesForUser(u.Id)
 	if err != nil {
 		return apis.NewBadRequestError("failed to load online devices", err)
@@ -90,7 +95,6 @@ func (h *Handlers) onlineDevicesForUser(userID string) (*int64, error) {
 type newUserParams struct {
 	Email      string
 	Password   string
-	AuthString string
 	Role       string
 	Status     string
 	Verified   bool
@@ -106,7 +110,6 @@ func (h *Handlers) newUserRecord(p newUserParams) (*core.Record, error) {
 	u.SetEmail(strings.TrimSpace(p.Email))
 	u.SetPassword(p.Password)
 	u.SetVerified(p.Verified)
-	u.Set("auth_string", p.AuthString)
 	u.Set("role", p.Role)
 	u.Set("status", p.Status)
 	if p.QuotaBytes != nil {
@@ -115,6 +118,16 @@ func (h *Handlers) newUserRecord(p newUserParams) (*core.Record, error) {
 	u.Set("used_tx", 0)
 	u.Set("used_rx", 0)
 	return u, nil
+}
+
+func (h *Handlers) saveNewUserWithAuthString(u *core.Record, authString string) error {
+	return h.app.RunInTransaction(func(txApp core.App) error {
+		if err := txApp.Save(u); err != nil {
+			return err
+		}
+		_, err := authstrings.CreateCurrent(txApp, u.Id, authString)
+		return err
+	})
 }
 
 // createUser provisions a user. Only email is required: an admin can quick-create
@@ -170,7 +183,6 @@ func (h *Handlers) createUser(e *core.RequestEvent) error {
 	u, err := h.newUserRecord(newUserParams{
 		Email:      email,
 		Password:   password,
-		AuthString: authString,
 		Role:       role,
 		Status:     status,
 		Verified:   true,
@@ -179,11 +191,11 @@ func (h *Handlers) createUser(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	if err := h.app.Save(u); err != nil {
+	if err := h.saveNewUserWithAuthString(u, authString); err != nil {
 		return apis.NewBadRequestError("failed to create user (email or auth_string may be taken)", err)
 	}
 	ignored := h.loadIgnoredConnectionIPSet()
-	return ok(e, publicUser(u, h.ipLookup, ignored))
+	return ok(e, publicUser(u, authString, h.ipLookup, ignored))
 }
 
 func (h *Handlers) updateUser(e *core.RequestEvent) error {
@@ -200,17 +212,25 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 	// fan-out to drop currently-established Hysteria sessions; reconnects are
 	// already denied by hysteriaAuth's 403 for disabled users.
 	wasActive := u.GetString("status") == "active"
+	currentAuthString, err := authstrings.CurrentValue(h.app, u.Id)
+	if err != nil {
+		return apis.NewBadRequestError("failed to load auth string", err)
+	}
 	if in.Email != nil {
 		u.SetEmail(*in.Email)
 	}
 	if in.Password != nil && *in.Password != "" {
 		u.SetPassword(*in.Password)
 	}
+	var nextAuthString *string
 	if in.AuthString != nil {
-		if *in.AuthString == "" {
+		trimmed := strings.TrimSpace(*in.AuthString)
+		if trimmed == "" {
 			return apis.NewBadRequestError("auth_string cannot be empty", nil)
 		}
-		u.Set("auth_string", *in.AuthString)
+		if trimmed != currentAuthString {
+			nextAuthString = &trimmed
+		}
 	}
 	if in.Role != nil {
 		if !validUserRole(*in.Role) {
@@ -227,14 +247,26 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 	if in.QuotaBytes != nil {
 		u.Set("quota_bytes", *in.QuotaBytes)
 	}
-	if err := h.app.Save(u); err != nil {
+	if err := h.app.RunInTransaction(func(txApp core.App) error {
+		if err := txApp.Save(u); err != nil {
+			return err
+		}
+		if nextAuthString != nil {
+			_, err := authstrings.Rotate(txApp, u.Id, *nextAuthString)
+			return err
+		}
+		return nil
+	}); err != nil {
 		return apis.NewBadRequestError("failed to update user", err)
 	}
+	if nextAuthString != nil {
+		currentAuthString = *nextAuthString
+	}
 	if wasActive && u.GetString("status") == "disabled" {
-		go h.kickUser(u.Id, u.GetString("auth_string"))
+		go h.kickUser(u.Id)
 	}
 	ignored := h.loadIgnoredConnectionIPSet()
-	return ok(e, publicUser(u, h.ipLookup, ignored))
+	return ok(e, publicUser(u, currentAuthString, h.ipLookup, ignored))
 }
 
 func (h *Handlers) deleteUser(e *core.RequestEvent) error {
@@ -250,9 +282,8 @@ func (h *Handlers) deleteUser(e *core.RequestEvent) error {
 
 // resetUserAuthString rotates a user's Hysteria auth key. The new value is
 // server-generated (the client never supplies one) and the existing usage
-// counters / traffic history are preserved; the old key simply stops matching
-// on the next Hysteria connect callback, and the collector resumes tracking
-// the user under the new key on its next poll.
+// counters / traffic history are preserved. The retired key stops authenticating
+// but remains available for legacy Node Client ID attribution.
 func (h *Handlers) resetUserAuthString(e *core.RequestEvent) error {
 	u, err := h.app.FindRecordById("users", e.Request.PathValue("id"))
 	if err != nil {
@@ -262,12 +293,14 @@ func (h *Handlers) resetUserAuthString(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewBadRequestError("failed to reset auth key", err)
 	}
-	u.Set("auth_string", authString)
-	if err := h.app.Save(u); err != nil {
+	if err := h.app.RunInTransaction(func(txApp core.App) error {
+		_, err := authstrings.Rotate(txApp, u.Id, authString)
+		return err
+	}); err != nil {
 		return apis.NewBadRequestError("failed to reset auth key", err)
 	}
 	ignored := h.loadIgnoredConnectionIPSet()
-	return ok(e, publicUser(u, h.ipLookup, ignored))
+	return ok(e, publicUser(u, authString, h.ipLookup, ignored))
 }
 
 func strOr(p *string, def string) string {

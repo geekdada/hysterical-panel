@@ -700,7 +700,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 						Value: &openapi3.Parameter{
 							Name:        "search",
 							In:          "query",
-							Description: "Filter by email, role, or status substring; auth_string exact match only",
+							Description: "Filter by email, role, or status substring; current auth_string exact match only",
 							Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
 						},
 					},

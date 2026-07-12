@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/hook"
 
+	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/token"
 )
 
@@ -48,34 +49,33 @@ type mgmtCreateUserResponse struct {
 	Status string `json:"status"`
 }
 
-// mgmtGetUser looks up a single user by exact email or auth_string match,
+// mgmtGetUser looks up a single user by exact email or Current Auth String,
 // exactly one of which must be provided. It returns the panel's PanelUser
-// shape (including auth_string, the upstream proxy credential key).
+// shape (including only the Current Auth String).
 func (h *Handlers) mgmtGetUser(e *core.RequestEvent) error {
 	email := strings.TrimSpace(e.Request.URL.Query().Get("email"))
 	authString := strings.TrimSpace(e.Request.URL.Query().Get("auth_string"))
 
-	var field, value string
+	var user *core.Record
+	var err error
 	switch {
 	case email != "" && authString != "":
 		return apis.NewBadRequestError("provide either email or auth_string, not both", nil)
 	case email != "":
-		field, value = "email", email
+		user, err = h.app.FindFirstRecordByFilter("users", "email = {:v}", map[string]any{"v": email})
 	case authString != "":
-		field, value = "auth_string", authString
+		user, err = authstrings.FindCurrentUserByAuthString(h.app, authString)
 	default:
 		return apis.NewBadRequestError("email or auth_string is required", nil)
 	}
-
-	user, err := h.app.FindFirstRecordByFilter(
-		"users",
-		field+" = {:v}",
-		map[string]any{"v": value},
-	)
 	if err != nil || user == nil {
 		return apis.NewNotFoundError("user not found", nil)
 	}
-	return e.JSON(http.StatusOK, panelUser(user, h.ipLookup, h.loadIgnoredConnectionIPSet()))
+	currentAuthString, err := authstrings.CurrentValue(h.app, user.Id)
+	if err != nil {
+		return apis.NewNotFoundError("user not found", nil)
+	}
+	return e.JSON(http.StatusOK, panelUser(user, currentAuthString, h.ipLookup, h.loadIgnoredConnectionIPSet()))
 }
 
 // mgmtCreateUser provisions a user from an email only. Password and
@@ -100,17 +100,16 @@ func (h *Handlers) mgmtCreateUser(e *core.RequestEvent) error {
 	}
 
 	u, err := h.newUserRecord(newUserParams{
-		Email:      email,
-		Password:   password,
-		AuthString: authString,
-		Role:       "user",
-		Status:     "active",
-		Verified:   true,
+		Email:    email,
+		Password: password,
+		Role:     "user",
+		Status:   "active",
+		Verified: true,
 	})
 	if err != nil {
 		return err
 	}
-	if err := h.app.Save(u); err != nil {
+	if err := h.saveNewUserWithAuthString(u, authString); err != nil {
 		return apis.NewBadRequestError("failed to create user (email may be taken)", err)
 	}
 	return e.JSON(http.StatusCreated, mgmtCreateUserResponse{

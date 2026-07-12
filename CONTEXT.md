@@ -9,8 +9,20 @@ The person who can log into the panel and whose credential authenticates client 
 _Avoid_: Account, Client (for this meaning), Member, Operator (as the entity)
 
 **Auth String**:
-The User's node credential presented (or hashed, for AnyTLS) when a client connects. Independent of panel login email and password; the AnyTLS hash is a derived lookup key, not a second credential.
+One of the User's node credentials, presented raw by Hysteria or hashed by AnyTLS when a client connects. Independent of panel login email and password; its AnyTLS hash is a derived lookup key, not a second credential.
 _Avoid_: password (for node auth), API key, token, username, account name
+
+**Current Auth String**:
+The User's sole Auth String accepted for new Node Client Auth. Product APIs that expose or search `auth_string` always mean this value.
+_Avoid_: active credential, latest key, primary Auth String
+
+**Retired Auth String**:
+An Auth String that no longer authenticates new connections but remains associated with its User so legacy Node Client IDs in Node statistics stay attributable. It can never become Current again.
+_Avoid_: expired key, disabled credential, alias
+
+**Node Client ID**:
+The stable User ID returned by successful Node Client Auth and subsequently used by Nodes for Traffic, Online Device Count, Live, and Kick. It identifies the User without retaining their Auth String as the Node's accounting key.
+_Avoid_: Auth String, credential, username, traffic key
 
 **Status**:
 Whether the User is `active` or `disabled`. The single on/off switch for panel login, new node connections, and whether traffic is counted.
@@ -49,7 +61,7 @@ Aggregated tx/rx bytes attributed to a User on a Node over time (hourly/daily bu
 _Avoid_: usage (as the noun), bandwidth, transfer, quota, consumption, metering
 
 **Online Device Count**:
-The latest number of Hysteria client instances reported by a Node for an Auth String. A User's count sums Enabled Nodes without deduplicating physical devices; a Node's total also includes unknown Auth Strings.
+The latest number of client instances reported by a Node for a Node Client ID. A User's count merges stable and legacy IDs and sums Enabled Nodes without deduplicating physical devices; a Node's total also includes unknown IDs.
 _Avoid_: unique devices, physical devices, active streams, connections
 
 **Collector**:
@@ -73,7 +85,7 @@ The hierarchical rules that decide whether self-serve registration is allowed an
 _Avoid_: signup mode, access mode, onboarding settings (as the domain noun)
 
 **Node Client Auth**:
-The panel's HTTP auth callback for Nodes deciding whether a client may connect. Hysteria and AnyTLS share one contract; only the lookup key differs. Distinct from panel login and from the Management API.
+The panel's HTTP auth callback for Nodes deciding whether a client may connect. Hysteria and AnyTLS validate the Current Auth String through different lookup forms, then return the same stable Node Client ID. Distinct from panel login and from the Management API.
 _Avoid_: webhook (as the feature name), AAA, login API, auth server
 
 **Management API**:

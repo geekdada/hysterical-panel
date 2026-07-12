@@ -12,12 +12,12 @@ import (
 // request/response contract (see nodeClientAuthRequest and handleNodeClientAuth);
 // they differ only in how the client sends credentials and how we look up users.
 //
-//   - Hysteria: clients send the raw auth_string; we match users.auth_string.
-//   - anytls: clients send hex(sha256(password)); we match users.auth_string_anytls_hash
-//     (password is the same auth_string; the hash is synced on every user save).
+//   - Hysteria: clients send the raw Auth String; we match the Current credential.
+//   - AnyTLS: clients send hex(sha256(password)); we match the Current credential's
+//     derived hash (password is the same Auth String).
 //
-// Both endpoints return the matched user's auth_string as "id" so /traffic keys
-// stay consistent with the collector regardless of protocol.
+// Both endpoints return the matched User ID as the stable Node Client ID. The
+// credential is therefore never retained by the Node as its accounting key.
 
 // nodeClientAuthRequest matches Hysteria 2's HTTP auth payload:
 // https://v2.hysteria.network/docs/advanced/Auth/#http
@@ -29,8 +29,8 @@ type nodeClientAuthRequest struct {
 }
 
 // handleNodeClientAuth implements the shared HTTP-auth contract. lookup resolves
-// the user from the request's auth value; the response always uses auth_string as
-// id so node /traffic and the collector stay aligned across protocols.
+// the user from the request's auth value; the response always uses user.id as
+// the stable identifier consumed by the Node's stats and kick APIs.
 //
 // Failure semantics follow the node contract: any non-200 status rejects the
 // client. We never log the auth value itself (it's a credential), only addr
@@ -85,6 +85,6 @@ func (h *Handlers) handleNodeClientAuth(
 
 	return ok(e, map[string]any{
 		"ok": true,
-		"id": user.GetString("auth_string"),
+		"id": user.Id,
 	})
 }

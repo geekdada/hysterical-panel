@@ -10,6 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
+	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/token"
 )
 
@@ -43,12 +44,7 @@ func (h *Handlers) generateUniqueAuthString() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		existing, _ := h.app.FindFirstRecordByFilter(
-			"users",
-			"auth_string = {:a}",
-			map[string]any{"a": candidate},
-		)
-		if existing == nil {
+		if !authstrings.Exists(h.app, candidate) {
 			return candidate, nil
 		}
 	}
@@ -109,17 +105,16 @@ func (h *Handlers) register(e *core.RequestEvent) error {
 	}
 
 	u, err := h.newUserRecord(newUserParams{
-		Email:      email,
-		Password:   in.Password,
-		AuthString: authString,
-		Role:       "user",
-		Status:     "active",
-		Verified:   verified,
+		Email:    email,
+		Password: in.Password,
+		Role:     "user",
+		Status:   "active",
+		Verified: verified,
 	})
 	if err != nil {
 		return err
 	}
-	if err := h.app.Save(u); err != nil {
+	if err := h.saveNewUserWithAuthString(u, authString); err != nil {
 		return apis.NewBadRequestError("failed to register (email may be taken)", err)
 	}
 
@@ -146,6 +141,6 @@ func (h *Handlers) register(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewBadRequestError("failed to issue auth token", err)
 	}
-	record := panelUser(u, h.ipLookup, h.loadIgnoredConnectionIPSet())
+	record := panelUser(u, authString, h.ipLookup, h.loadIgnoredConnectionIPSet())
 	return ok(e, RegisterResponse{Token: authToken, Record: &record})
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/search"
+
+	"hysterical-panel/internal/authstrings"
 )
 
 var (
@@ -96,15 +98,15 @@ func normalizeUserListSort(raw string) string {
 	return "created"
 }
 
-func buildUserListFilter(search string) (string, dbx.Params) {
+func buildUserListFilter(search, authUserID string) (string, dbx.Params) {
 	search = strings.TrimSpace(search)
 	if search == "" {
 		return "", nil
 	}
-	return "(email ~ {:like} || role ~ {:like} || status ~ {:like} || auth_string = {:auth})",
+	return "(email ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:auth_user})",
 		dbx.Params{
-			"like": "%" + search + "%",
-			"auth": search,
+			"like":      "%" + search + "%",
+			"auth_user": authUserID,
 		}
 }
 
@@ -144,7 +146,13 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 		e.Request.URL.Query().Get("sort"),
 	)
 
-	filter, params := buildUserListFilter(q.Search)
+	authUserID := ""
+	if q.Search != "" {
+		if user, err := authstrings.FindCurrentUserByAuthString(h.app, q.Search); err == nil && user != nil {
+			authUserID = user.Id
+		}
+	}
+	filter, params := buildUserListFilter(q.Search, authUserID)
 
 	total, err := h.countRecordsByFilter("users", filter, params)
 	if err != nil {
@@ -159,8 +167,16 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 
 	items := make([]PanelUser, 0, len(users))
 	ignored := h.loadIgnoredConnectionIPSet()
+	resolver, err := authstrings.LoadResolver(h.app)
+	if err != nil {
+		return apis.NewBadRequestError("failed to load auth strings", err)
+	}
 	for _, u := range users {
-		items = append(items, panelUser(u, h.ipLookup, ignored))
+		authString, err := resolver.CurrentForUser(u.Id)
+		if err != nil {
+			return apis.NewBadRequestError("failed to load auth string", err)
+		}
+		items = append(items, panelUser(u, authString, h.ipLookup, ignored))
 	}
 
 	return ok(e, UserListResponse{
