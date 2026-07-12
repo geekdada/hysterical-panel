@@ -202,7 +202,7 @@ function NotificationChannelsPage() {
       )}
 
       <ChannelFormModal
-        key={createOpen ? "new" : "closed"}
+        key={createOpen ? "create-open" : "create-closed"}
         isOpen={createOpen}
         onOpenChange={openCreate}
         pending={createMutation.isPending}
@@ -214,7 +214,7 @@ function NotificationChannelsPage() {
         onSubmit={(body) => createMutation.mutate(body as NotificationChannelCreateRequest)}
       />
       <ChannelFormModal
-        key={editing?.id ?? "closed"}
+        key={editing?.id ? `edit-${editing.id}` : "edit-closed"}
         channel={editing}
         isOpen={editing !== null}
         onOpenChange={closeEdit}
