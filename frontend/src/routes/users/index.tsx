@@ -7,7 +7,8 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Input, Label, Modal, TextField } from "@heroui/react";
+import { Button, Input, Label, Modal, TextField, Tooltip } from "@heroui/react";
+import { CircleInfo } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
@@ -266,7 +267,7 @@ function UsersTable({
 
   return (
     <div>
-      <div className="border-b border-border p-3">
+      <div className="flex items-center gap-2 border-b border-border p-3">
         <TextField
           aria-label={m.users_search_aria()}
           className="max-w-sm"
@@ -276,6 +277,14 @@ function UsersTable({
           <Label className="sr-only">{m.users_search_aria()}</Label>
           <Input placeholder={m.users_search_placeholder()} />
         </TextField>
+        <Tooltip delay={0}>
+          <Button isIconOnly variant="tertiary" aria-label={m.users_search_hint()}>
+            <CircleInfo className="size-4" aria-hidden />
+          </Button>
+          <Tooltip.Content className="max-w-xs">
+            <p>{m.users_search_hint()}</p>
+          </Tooltip.Content>
+        </Tooltip>
       </div>
 
       <div className="overflow-x-auto">
