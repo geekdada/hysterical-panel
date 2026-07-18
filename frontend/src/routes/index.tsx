@@ -524,12 +524,12 @@ function NodesTable({
       },
       {
         accessorKey: "txSpeed",
-        id: "txSpeed",
+        id: "tx_speed",
         sortDescFirst: false,
       },
       {
         accessorKey: "rxSpeed",
-        id: "rxSpeed",
+        id: "rx_speed",
         sortDescFirst: false,
       },
       {
@@ -567,10 +567,10 @@ function NodesTable({
             <SortableTh column={table.getColumn("today")!} align="right" className="text-right">
               {m.dashboard_today()}
             </SortableTh>
-            <SortableTh column={table.getColumn("txSpeed")!} align="right" className="text-right">
+            <SortableTh column={table.getColumn("tx_speed")!} align="right" className="text-right">
               {m.dashboard_tx_speed()}
             </SortableTh>
-            <SortableTh column={table.getColumn("rxSpeed")!} align="right" className="text-right">
+            <SortableTh column={table.getColumn("rx_speed")!} align="right" className="text-right">
               {m.dashboard_rx_speed()}
             </SortableTh>
             <Th className="text-right">{m.dashboard_last_poll()}</Th>
