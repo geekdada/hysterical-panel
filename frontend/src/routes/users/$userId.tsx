@@ -234,7 +234,7 @@ function AccountRail({
     <div className="overflow-hidden rounded-lg border bg-surface">
       <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
         <RailItem label={m.user_rail_id()}>
-          <div className="group/id flex min-w-0 items-center gap-1.5">
+          <div className="group flex min-w-0 items-center gap-1.5">
             <span className="block min-w-0 truncate font-mono text-[13px] text-foreground">
               {user?.id || m.common_em_dash()}
             </span>
@@ -242,12 +242,18 @@ function AccountRail({
           </div>
         </RailItem>
         <RailItem label={m.user_rail_email()}>
-          <span className="block truncate text-[13px]" title={user?.email || ""}>
-            {user?.email || m.common_em_dash()}
-          </span>
+          <div className="group flex min-w-0 items-center gap-1.5">
+            <span
+              className="block min-w-0 truncate font-mono text-[13px] text-foreground"
+              title={user?.email || ""}
+            >
+              {user?.email || m.common_em_dash()}
+            </span>
+            {user?.email && <CopyButton value={user.email} label={m.common_copy_email()} />}
+          </div>
         </RailItem>
         <RailItem label={m.user_rail_auth_key()}>
-          <div className="group/key flex min-w-0 items-center gap-1.5">
+          <div className="group flex min-w-0 items-center gap-1.5">
             <span className="block min-w-0 truncate font-mono text-[13px] text-foreground">
               {user?.auth_string || m.common_em_dash()}
             </span>
@@ -257,7 +263,12 @@ function AccountRail({
           </div>
         </RailItem>
         <RailItem label={m.common_role()}>
-          <span className="font-mono text-[13px]">{user?.role || m.common_em_dash()}</span>
+          <div className="group flex min-w-0 items-center gap-1.5">
+            <span className="font-mono text-[13px] text-foreground">
+              {user?.role || m.common_em_dash()}
+            </span>
+            {user?.role && <CopyButton value={user.role} label={m.common_copy_role()} />}
+          </div>
         </RailItem>
         <RailItem label={m.common_status()}>
           <Chip

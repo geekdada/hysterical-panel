@@ -430,11 +430,12 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
       onClick={copy}
       title={copied ? m.common_copy_copied() : m.common_copy_copy({ label })}
       aria-label={copied ? m.common_copy_copied() : m.common_copy_copy({ label })}
-      className={`inline-grid size-5 shrink-0 place-items-center rounded transition-[opacity,color] duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+      className={cn(
+        "inline-grid size-5 shrink-0 place-items-center rounded transition-[opacity,color] duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
         copied
           ? "text-success opacity-100"
-          : "text-muted opacity-0 hover:text-foreground group-hover/key:opacity-100"
-      }`}
+          : "text-muted opacity-0 hover:text-foreground group-hover:opacity-100"
+      )}
     >
       {copied ? (
         <Check className="size-3.5" aria-hidden />
