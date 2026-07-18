@@ -69,12 +69,23 @@ func TestBuildUserListFilter(t *testing.T) {
 	}
 
 	filter, params = buildUserListFilter("  alice  ", "user123")
-	wantFilter := "(email ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:auth_user})"
+	wantFilter := "(email ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:search} || id = {:auth_user})"
 	if filter != wantFilter {
 		t.Fatalf("filter = %q, want %q", filter, wantFilter)
 	}
-	if params["like"] != "%alice%" || params["auth_user"] != "user123" {
-		t.Fatalf("params = %#v, want like=%%alice%% auth_user=user123", params)
+	if params["like"] != "%alice%" || params["search"] != "alice" || params["auth_user"] != "user123" {
+		t.Fatalf("params = %#v, want like=%%alice%% search=alice auth_user=user123", params)
+	}
+}
+
+func TestBuildUserListFilterExactID(t *testing.T) {
+	filter, params := buildUserListFilter("abc123xyz", "")
+	wantFilter := "(email ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:search} || id = {:auth_user})"
+	if filter != wantFilter {
+		t.Fatalf("filter = %q, want %q", filter, wantFilter)
+	}
+	if params["search"] != "abc123xyz" || params["auth_user"] != "" {
+		t.Fatalf("params = %#v, want search=abc123xyz auth_user=''", params)
 	}
 }
 

@@ -103,9 +103,10 @@ func buildUserListFilter(search, authUserID string) (string, dbx.Params) {
 	if search == "" {
 		return "", nil
 	}
-	return "(email ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:auth_user})",
+	return "(email ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:search} || id = {:auth_user})",
 		dbx.Params{
 			"like":      "%" + search + "%",
+			"search":    search,
 			"auth_user": authUserID,
 		}
 }
