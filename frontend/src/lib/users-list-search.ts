@@ -71,9 +71,3 @@ export function sortColumnId(sort: string): string {
 export function isSortDesc(sort: string): boolean {
   return sort.startsWith("-");
 }
-
-export function toggleUsersListSort(current: string, columnId: string): string {
-  const id = sortColumnId(current);
-  if (id !== columnId) return columnId;
-  return isSortDesc(current) ? columnId : `-${columnId}`;
-}

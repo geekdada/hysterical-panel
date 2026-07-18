@@ -1,5 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
@@ -21,7 +27,7 @@ import {
   PageShell,
   PanelMessage,
   Section,
-  ServerSortableTh,
+  SortableTh,
   TableSkeleton,
   Td,
   Teaching,
@@ -33,8 +39,9 @@ import { useActiveTimeZone } from "~/lib/use-timezone";
 import { useHydratedNow } from "~/lib/use-hydrated-now";
 import {
   USER_LIST_PAGE_SIZE_OPTIONS,
+  isSortDesc,
   parseUsersListSearch,
-  toggleUsersListSort,
+  sortColumnId,
   type UsersListSearch,
 } from "~/lib/users-list-search";
 import * as m from "~/paraglide/messages.js";
@@ -58,9 +65,6 @@ export const Route = createFileRoute("/users/")({
 function UsersPage() {
   const { auth } = Route.useRouteContext();
   const listSearch = Route.useSearch();
-  const routerNavigate = useNavigate({ from: Route.fullPath });
-  const updateSearch: typeof routerNavigate = (options) =>
-    routerNavigate({ ...options, replace: true });
   const now = useHydratedNow(30_000);
 
   const usersQuery = useQuery({
@@ -166,15 +170,6 @@ function UsersPage() {
             currentUserId={auth?.user.id}
             togglingId={toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null}
             onToggleStatus={handleToggleStatus}
-            onSort={(columnId) =>
-              updateSearch({
-                search: (prev) => ({
-                  ...prev,
-                  sort: toggleUsersListSort(prev.sort, columnId),
-                  page: 1,
-                }),
-              })
-            }
           />
         ) : (
           <Teaching title={m.users_empty_title()} hint={m.users_empty_hint()} />
@@ -193,7 +188,6 @@ function UsersTable({
   currentUserId,
   togglingId,
   onToggleStatus,
-  onSort,
 }: {
   listSearch: UsersListSearch;
   now: number | null;
@@ -203,13 +197,54 @@ function UsersTable({
   currentUserId?: string;
   togglingId: string | null;
   onToggleStatus: (user: PanelUser) => void;
-  onSort: (columnId: string) => void;
 }) {
   const routerNavigate = useNavigate({ from: Route.fullPath });
   const updateSearch: typeof routerNavigate = (options) =>
     routerNavigate({ ...options, replace: true });
   const tz = useActiveTimeZone();
   const [searchDraft, setSearchDraft] = useState(listSearch.search);
+  const sorting = useMemo<SortingState>(
+    () => [{ id: sortColumnId(listSearch.sort), desc: isSortDesc(listSearch.sort) }],
+    [listSearch.sort]
+  );
+  const columns = useMemo<ColumnDef<PanelUser>[]>(
+    () => [
+      { accessorFn: (user) => user.email ?? "", id: "email", sortDescFirst: false },
+      { accessorFn: (user) => user.role ?? "user", id: "role", sortDescFirst: false },
+      { accessorFn: (user) => user.used_tx ?? 0, id: "used_tx", sortDescFirst: false },
+      { accessorFn: (user) => user.used_rx ?? 0, id: "used_rx", sortDescFirst: false },
+      {
+        accessorFn: (user) => user.last_connected_at ?? "",
+        id: "last_connected_at",
+        sortDescFirst: false,
+      },
+      { accessorFn: (user) => user.created ?? "", id: "created", sortDescFirst: false },
+      { id: "actions", enableSorting: false },
+    ],
+    []
+  );
+  const table = useReactTable({
+    columns,
+    data: users,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
+    manualSorting: true,
+    getCoreRowModel: getCoreRowModel(),
+    onSortingChange: (updater) => {
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      const first = next[0];
+      if (!first) return;
+      updateSearch({
+        search: (prev) => ({
+          ...prev,
+          sort: first.desc ? `-${first.id}` : first.id,
+          page: 1,
+        }),
+      });
+    },
+    state: { sorting },
+  });
+  const tableRows = table.getRowModel().rows;
 
   useEffect(() => {
     setSearchDraft(listSearch.search);
@@ -247,54 +282,31 @@ function UsersTable({
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="border-b border-border bg-surface-secondary text-left">
-              <ServerSortableTh columnId="email" sort={listSearch.sort} onSort={onSort}>
-                {m.common_email()}
-              </ServerSortableTh>
-              <ServerSortableTh columnId="role" sort={listSearch.sort} onSort={onSort}>
-                {m.common_role()}
-              </ServerSortableTh>
-              <ServerSortableTh
-                columnId="used_tx"
-                sort={listSearch.sort}
-                onSort={onSort}
-                align="right"
-                className="text-right"
-              >
+              <SortableTh column={table.getColumn("email")!}>{m.common_email()}</SortableTh>
+              <SortableTh column={table.getColumn("role")!}>{m.common_role()}</SortableTh>
+              <SortableTh column={table.getColumn("used_tx")!} align="right" className="text-right">
                 {m.common_th_tx()}
-              </ServerSortableTh>
-              <ServerSortableTh
-                columnId="used_rx"
-                sort={listSearch.sort}
-                onSort={onSort}
-                align="right"
-                className="text-right"
-              >
+              </SortableTh>
+              <SortableTh column={table.getColumn("used_rx")!} align="right" className="text-right">
                 {m.common_th_rx()}
-              </ServerSortableTh>
-              <ServerSortableTh
-                columnId="last_connected_at"
-                sort={listSearch.sort}
-                onSort={onSort}
+              </SortableTh>
+              <SortableTh
+                column={table.getColumn("last_connected_at")!}
                 align="right"
                 className="text-right"
               >
                 {m.users_th_last_connect()}
-              </ServerSortableTh>
-              <ServerSortableTh
-                columnId="created"
-                sort={listSearch.sort}
-                onSort={onSort}
-                align="right"
-                className="text-right"
-              >
+              </SortableTh>
+              <SortableTh column={table.getColumn("created")!} align="right" className="text-right">
                 {m.users_th_created()}
-              </ServerSortableTh>
+              </SortableTh>
               <Th>{m.common_actions()}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-separator">
-            {users.length > 0 ? (
-              users.map((user) => {
+            {tableRows.length > 0 ? (
+              tableRows.map((row) => {
+                const user = row.original;
                 const active = (user.status ?? "active") === "active";
                 const isSelf = Boolean(currentUserId && user.id === currentUserId);
                 return (
@@ -360,7 +372,7 @@ function UsersTable({
               })
             ) : (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-xs text-muted">
+                <td colSpan={columns.length} className="px-3 py-8 text-center text-xs text-muted">
                   {m.users_no_search_results()}
                 </td>
               </tr>
