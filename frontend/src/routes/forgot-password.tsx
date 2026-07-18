@@ -5,12 +5,13 @@ import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { requestPasswordReset } from "~/api/auth";
 import { AuthShell } from "~/components/ui";
 import { localizeApiError } from "~/lib/api-error";
+import { defaultDashboardSearch } from "~/lib/dashboard-search";
 import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/forgot-password")({
   beforeLoad: ({ context }) => {
     if (context.auth) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: "/", search: defaultDashboardSearch() });
     }
   },
   component: ForgotPasswordPage,

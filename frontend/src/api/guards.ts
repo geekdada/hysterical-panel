@@ -1,4 +1,5 @@
 import { redirect } from "@tanstack/react-router";
+import { defaultDashboardSearch } from "~/lib/dashboard-search";
 import type { Auth } from "./auth";
 
 export function requireAuth(auth: Auth | null): asserts auth is Auth {
@@ -18,7 +19,7 @@ export function requireAuth(auth: Auth | null): asserts auth is Auth {
 export function requireAdmin(auth: Auth | null): void {
   requireAuth(auth);
   if (auth.user.role !== "admin") {
-    throw redirect({ to: "/" });
+    throw redirect({ to: "/", search: defaultDashboardSearch() });
   }
 }
 

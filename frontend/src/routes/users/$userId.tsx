@@ -53,6 +53,7 @@ import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { formatBytes, formatDuration, relTime, relTimeFromISO } from "~/lib/format";
 import { cn } from "~/lib/cn";
+import { defaultDashboardSearch } from "~/lib/dashboard-search";
 import { useActiveTimeZone } from "~/lib/use-timezone";
 import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
@@ -149,7 +150,11 @@ function AccountDetailPage() {
           hint={m.user_not_found_hint()}
           action={
             isAdmin ? (
-              <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => navigate({ to: "/", search: defaultDashboardSearch() })}
+              >
                 {m.common_back_dashboard()}
               </Button>
             ) : (

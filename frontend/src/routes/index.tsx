@@ -46,7 +46,14 @@ import {
 import { FALLBACK_TIME_ZONE } from "~/lib/timezone";
 import { useActiveTimeZone } from "~/lib/use-timezone";
 import { useHydratedNow } from "~/lib/use-hydrated-now";
-import { defaultUsersListSearch, type UsersListSearch } from "~/lib/users-list-search";
+import { parseDashboardSearch } from "~/lib/dashboard-search";
+import {
+  defaultUsersListSearch,
+  isSortDesc,
+  sortColumnId,
+  type UsersListSearch,
+} from "~/lib/users-list-search";
+import { cn } from "~/lib/cn";
 import * as m from "~/paraglide/messages.js";
 
 type Node = components["schemas"]["Node"];
@@ -86,6 +93,7 @@ function dashboardNodeTrafficRangeQuery(tz: string): TrafficRangeQuery {
 }
 
 export const Route = createFileRoute("/")({
+  validateSearch: parseDashboardSearch,
   beforeLoad: ({ context }) => {
     if (!context.auth) {
       throw redirect({ to: "/login" });
@@ -117,6 +125,7 @@ export const Route = createFileRoute("/")({
 
 function DashboardPage() {
   const { auth } = Route.useRouteContext();
+  const { sort } = Route.useSearch();
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
   const tz = useActiveTimeZone();
@@ -333,6 +342,7 @@ function DashboardPage() {
           <NodesTable
             nodes={nodes}
             now={now}
+            sort={sort}
             todayTrafficByNode={nodeTrafficById}
             todayTrafficLoading={nodeTrafficLoading}
             todayTrafficUnavailable={Boolean(nodeTrafficError)}
@@ -374,11 +384,12 @@ function TrafficPeriodToggle({
           key={o}
           type="button"
           onClick={() => onChange(o)}
-          className={`rounded-[calc(var(--radius)-2px)] px-1.5 py-0.5 text-[10px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+          className={cn(
+            "rounded-sm px-1.5 py-0.5 text-[10px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
             value === o
               ? "bg-surface-secondary text-foreground"
               : "text-muted hover:text-foreground"
-          }`}
+          )}
           aria-pressed={value === o}
         >
           {TRAFFIC_PERIOD_LABELS[o]}
@@ -465,17 +476,25 @@ function StatSkeleton({ withDot, wide }: { withDot: boolean; wide: boolean }) {
 function NodesTable({
   nodes,
   now,
+  sort,
   todayTrafficByNode,
   todayTrafficLoading,
   todayTrafficUnavailable,
 }: {
   nodes: Node[];
   now: number | null;
+  sort: string;
   todayTrafficByNode: Map<string, NodeTodayTraffic>;
   todayTrafficLoading: boolean;
   todayTrafficUnavailable: boolean;
 }) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
+  const routerNavigate = useNavigate({ from: Route.fullPath });
+  const updateSearch: typeof routerNavigate = (options) =>
+    routerNavigate({ ...options, replace: true });
+  const sorting = useMemo<SortingState>(
+    () => [{ id: sortColumnId(sort), desc: isSortDesc(sort) }],
+    [sort]
+  );
   const rows = useMemo<NodeTableRow[]>(
     () =>
       nodes.map((node) => {
@@ -528,7 +547,14 @@ function NodesTable({
     enableSortingRemoval: false,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
+    onSortingChange: (updater) => {
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      const first = next[0];
+      if (!first) return;
+      updateSearch({
+        search: (prev) => ({ ...prev, sort: first.desc ? `-${first.id}` : first.id }),
+      });
+    },
     state: { sorting },
   });
 

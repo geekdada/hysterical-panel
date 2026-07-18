@@ -18,6 +18,7 @@ import type { components } from "~/api/schema";
 import { createNode, queryErrorMessage, queryKeys, testNode } from "~/api/queries";
 import { BrandLink, ErrorAlert, LabeledSwitch, PageShell } from "~/components/ui";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
+import { defaultDashboardSearch } from "~/lib/dashboard-search";
 import { usePanelApiOrigin } from "~/lib/use-panel-api-origin";
 import * as m from "~/paraglide/messages.js";
 
@@ -111,7 +112,7 @@ function AddNodePage() {
               if (created.id) testMutation.mutate(created.id);
             }}
             onAddAnother={addAnother}
-            onDone={() => navigate({ to: "/" })}
+            onDone={() => navigate({ to: "/", search: defaultDashboardSearch() })}
           />
         ) : (
           <form
@@ -306,7 +307,10 @@ function AddNodePage() {
             <ErrorAlert message={submitError} icon />
 
             <div className="flex items-center justify-end gap-2 border-t border-separator pt-4">
-              <Button variant="ghost" onPress={() => navigate({ to: "/" })}>
+              <Button
+                variant="ghost"
+                onPress={() => navigate({ to: "/", search: defaultDashboardSearch() })}
+              >
                 {m.common_cancel()}
               </Button>
               <form.Subscribe

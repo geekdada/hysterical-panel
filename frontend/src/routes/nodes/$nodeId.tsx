@@ -41,6 +41,7 @@ import {
 import { SetBreadcrumbTitle } from "~/components/breadcrumbs";
 import { UserMenu } from "~/components/user-menu";
 import { cn } from "~/lib/cn";
+import { defaultDashboardSearch } from "~/lib/dashboard-search";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import {
   formatBytes,
@@ -124,7 +125,7 @@ function NodeDetailPage() {
     onSuccess: () => {
       setDeleteOpen(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardBase() });
-      void navigate({ to: "/" });
+      void navigate({ to: "/", search: defaultDashboardSearch() });
     },
   });
 
@@ -210,7 +211,11 @@ function NodeDetailPage() {
           title={m.node_not_found_title()}
           hint={m.node_not_found_hint()}
           action={
-            <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/" })}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={() => navigate({ to: "/", search: defaultDashboardSearch() })}
+            >
               {m.common_back_dashboard()}
             </Button>
           }

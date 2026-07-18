@@ -6,12 +6,13 @@ import { login, loginWithPasskey } from "~/api/auth";
 import { panelConfigQueryOptions } from "~/api/queries";
 import { AuthShell } from "~/components/ui";
 import { localizeApiError } from "~/lib/api-error";
+import { defaultDashboardSearch } from "~/lib/dashboard-search";
 import * as m from "~/paraglide/messages.js";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: ({ context }) => {
     if (context.auth) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: "/", search: defaultDashboardSearch() });
     }
   },
   loader: async ({ context }) => {

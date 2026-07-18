@@ -17,6 +17,7 @@ import {
 } from "@heroui/react";
 import { BreadcrumbTitleProvider, BreadcrumbBar } from "~/components/breadcrumbs";
 import { cn } from "~/lib/cn";
+import { defaultDashboardSearch } from "~/lib/dashboard-search";
 import * as m from "~/paraglide/messages.js";
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
@@ -72,6 +73,7 @@ export function BrandLink() {
   return (
     <Link
       to="/"
+      search={defaultDashboardSearch()}
       className="shrink-0 rounded-sm no-underline transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
       <Brand />
