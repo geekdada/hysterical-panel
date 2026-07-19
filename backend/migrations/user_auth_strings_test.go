@@ -23,9 +23,25 @@ func migratedApp(t *testing.T) core.App {
 	return app
 }
 
+// authStringsMigrationRunner scopes Down/Up to the user_auth_strings migration
+// so tests keep working when newer migrations are appended after it.
+func authStringsMigrationRunner(t *testing.T, app core.App) *core.MigrationsRunner {
+	t.Helper()
+	const target = "1730000023_create_user_auth_strings.go"
+	var list core.MigrationsList
+	for _, m := range core.AppMigrations.Items() {
+		list.Add(m)
+		if m.File == target {
+			return core.NewMigrationsRunner(app, list)
+		}
+	}
+	t.Fatalf("migration %s not registered", target)
+	return nil
+}
+
 func TestUserAuthStringsMigrationBackfillsAndRollsBackCurrentCredential(t *testing.T) {
 	app := migratedApp(t)
-	runner := core.NewMigrationsRunner(app, core.AppMigrations)
+	runner := authStringsMigrationRunner(t, app)
 	if reverted, err := runner.Down(1); err != nil || len(reverted) != 1 {
 		t.Fatalf("revert auth string migration: reverted=%v err=%v", reverted, err)
 	}
@@ -71,7 +87,7 @@ func TestUserAuthStringsMigrationBackfillsAndRollsBackCurrentCredential(t *testi
 
 func TestUserAuthStringsMigrationRejectsAuthStringUserIDCollision(t *testing.T) {
 	app := migratedApp(t)
-	runner := core.NewMigrationsRunner(app, core.AppMigrations)
+	runner := authStringsMigrationRunner(t, app)
 	if _, err := runner.Down(1); err != nil {
 		t.Fatalf("revert auth string migration: %v", err)
 	}
