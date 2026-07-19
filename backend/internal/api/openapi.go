@@ -796,7 +796,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
 						Description: ptr("Updated user"),
-						Content:     content(ref("PanelUser")),
+						Content:     content(ref("UserDetail")),
 					},
 				})),
 			}

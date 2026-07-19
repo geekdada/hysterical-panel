@@ -19,6 +19,7 @@ type userInput struct {
 	Role       *string `json:"role"`
 	QuotaBytes *int64  `json:"quota_bytes"`
 	Status     *string `json:"status"`
+	Remark     *string `json:"remark"`
 }
 
 func (h *Handlers) getUser(e *core.RequestEvent) error {
@@ -35,6 +36,9 @@ func (h *Handlers) getUser(e *core.RequestEvent) error {
 	onlineDevices, err := h.onlineDevicesForUser(u.Id)
 	if err != nil {
 		return apis.NewBadRequestError("failed to load online devices", err)
+	}
+	if e.Auth != nil && e.Auth.GetString("role") == "admin" {
+		public["remark"] = u.GetString("remark")
 	}
 	public["online_devices"] = onlineDevices
 	return ok(e, public)
@@ -247,6 +251,9 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 	if in.QuotaBytes != nil {
 		u.Set("quota_bytes", *in.QuotaBytes)
 	}
+	if in.Remark != nil {
+		u.Set("remark", *in.Remark)
+	}
 	if err := h.app.RunInTransaction(func(txApp core.App) error {
 		if err := txApp.Save(u); err != nil {
 			return err
@@ -266,7 +273,14 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 		go h.kickUser(u.Id)
 	}
 	ignored := h.loadIgnoredConnectionIPSet()
-	return ok(e, publicUser(u, currentAuthString, h.ipLookup, ignored))
+	public := publicUser(u, currentAuthString, h.ipLookup, ignored)
+	onlineDevices, err := h.onlineDevicesForUser(u.Id)
+	if err != nil {
+		return apis.NewBadRequestError("failed to load online devices", err)
+	}
+	public["remark"] = u.GetString("remark")
+	public["online_devices"] = onlineDevices
+	return ok(e, public)
 }
 
 func (h *Handlers) deleteUser(e *core.RequestEvent) error {

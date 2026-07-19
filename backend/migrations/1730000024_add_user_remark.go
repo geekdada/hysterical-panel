@@ -1,0 +1,27 @@
+package migrations
+
+import (
+	"github.com/pocketbase/pocketbase/core"
+	m "github.com/pocketbase/pocketbase/migrations"
+)
+
+func init() {
+	m.Register(func(app core.App) error {
+		users, err := app.FindCollectionByNameOrId("users")
+		if err != nil {
+			return err
+		}
+		users.Fields.Add(&core.TextField{
+			Name: "remark",
+			Max:  2000,
+		})
+		return app.Save(users)
+	}, func(app core.App) error {
+		users, err := app.FindCollectionByNameOrId("users")
+		if err != nil {
+			return err
+		}
+		users.Fields.RemoveByName("remark")
+		return app.Save(users)
+	})
+}

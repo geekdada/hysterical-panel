@@ -210,6 +210,7 @@ type PanelUser struct {
 // latest known counts across the enabled nodes visible to the user.
 type UserDetail struct {
 	PanelUser
+	Remark        string `json:"remark"`
 	OnlineDevices *int64 `json:"online_devices"`
 }
 
@@ -254,6 +255,7 @@ type UserUpdateRequest struct {
 	Role       *string `json:"role,omitempty"`
 	QuotaBytes *int64  `json:"quota_bytes,omitempty"`
 	Status     *string `json:"status,omitempty"`
+	Remark     *string `json:"remark,omitempty"`
 }
 
 // ── Registration ───────────────────────────────────────────────────────────────
