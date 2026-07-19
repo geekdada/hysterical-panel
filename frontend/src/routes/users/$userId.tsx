@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Chip, Modal } from "@heroui/react";
+import { Button, Chip, Modal, TextArea } from "@heroui/react";
 import {
   clearAuth,
   deletePasskey,
@@ -23,6 +23,7 @@ import {
   queryKeys,
   resetUserAuthString,
   toTrafficRangeQuery,
+  updateUser,
   updateUserStatus,
   userOverviewQueryOptions,
 } from "~/api/queries";
@@ -51,7 +52,13 @@ import {
 import { SetBreadcrumbTitle } from "~/components/breadcrumbs";
 import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
-import { formatBytes, formatDuration, relTime, relTimeFromISO } from "~/lib/format";
+import {
+  formatBytes,
+  formatDuration,
+  formatLocaleDateTime,
+  relTime,
+  relTimeFromISO,
+} from "~/lib/format";
 import { cn } from "~/lib/cn";
 import { defaultDashboardSearch } from "~/lib/dashboard-search";
 import { useActiveTimeZone } from "~/lib/use-timezone";
@@ -212,19 +219,22 @@ function AccountRail({
   if (loading) {
     return (
       <div className="overflow-hidden rounded-lg border bg-surface">
-        <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
+        <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)] md:divide-x md:divide-y-0">
           <RailSkeletonCell labelClassName="max-w-14" valueClassName="max-w-36" />
           <RailSkeletonCell labelClassName="max-w-16" valueClassName="max-w-44" />
           <RailSkeletonCell labelClassName="max-w-20" valueClassName="max-w-48" />
-          <RailSkeletonCell labelClassName="max-w-12" valueClassName="max-w-16" />
-          <RailSkeletonCell labelClassName="max-w-14" valueClassName="max-w-20" />
-          <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-24" />
         </div>
         <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
           <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-28" />
           <RailSkeletonCell labelClassName="max-w-10" valueClassName="max-w-24" />
           <RailSkeletonCell labelClassName="max-w-10" valueClassName="max-w-24" />
           <RailSkeletonCell labelClassName="max-w-16" valueClassName="max-w-24" />
+        </div>
+        <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
+          <RailSkeletonCell labelClassName="max-w-12" valueClassName="max-w-16" />
+          <RailSkeletonCell labelClassName="max-w-14" valueClassName="max-w-20" />
+          <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-24" />
+          <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-24" />
         </div>
       </div>
     );
@@ -237,7 +247,7 @@ function AccountRail({
 
   return (
     <div className="overflow-hidden rounded-lg border bg-surface">
-      <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_8rem_9rem_9rem] md:divide-x md:divide-y-0">
+      <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)] md:divide-x md:divide-y-0">
         <RailItem label={m.user_rail_id()}>
           <div className="group flex min-w-0 items-center gap-1.5">
             <span className="block min-w-0 truncate font-mono text-[13px] text-foreground">
@@ -267,13 +277,34 @@ function AccountRail({
             )}
           </div>
         </RailItem>
+      </div>
+      <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
+        <RailItem label={m.user_rail_used_total()}>
+          <span className="font-mono text-[15px] font-medium tabular-nums">
+            {formatBytes(usedTx + usedRx)}
+          </span>
+        </RailItem>
+        <RailItem label={m.common_th_tx()}>
+          <span className="font-mono text-[13px] tabular-nums">
+            <span className="text-muted">↑</span> {formatBytes(usedTx)}
+          </span>
+        </RailItem>
+        <RailItem label={m.common_th_rx()}>
+          <span className="font-mono text-[13px] tabular-nums">
+            <span className="text-muted">↓</span> {formatBytes(usedRx)}
+          </span>
+        </RailItem>
+        <RailItem label={m.user_rail_online_devices()}>
+          <span className="text-[13px] tabular-nums">
+            {user?.online_devices == null ? m.common_em_dash() : user.online_devices}
+          </span>
+        </RailItem>
+      </div>
+      <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
         <RailItem label={m.common_role()}>
-          <div className="group flex min-w-0 items-center gap-1.5">
-            <span className="font-mono text-[13px] text-foreground">
-              {user?.role || m.common_em_dash()}
-            </span>
-            {user?.role && <CopyButton value={user.role} label={m.common_copy_role()} />}
-          </div>
+          <span className="font-mono text-[13px] text-foreground">
+            {user?.role || m.common_em_dash()}
+          </span>
         </RailItem>
         <RailItem label={m.common_status()}>
           <Chip
@@ -299,26 +330,11 @@ function AccountRail({
               : m.common_never()}
           </span>
         </RailItem>
-      </div>
-      <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
-        <RailItem label={m.user_rail_used_total()}>
-          <span className="font-mono text-[15px] font-medium tabular-nums">
-            {formatBytes(usedTx + usedRx)}
-          </span>
-        </RailItem>
-        <RailItem label={m.common_th_tx()}>
-          <span className="font-mono text-[13px] tabular-nums">
-            <span className="text-muted">↑</span> {formatBytes(usedTx)}
-          </span>
-        </RailItem>
-        <RailItem label={m.common_th_rx()}>
-          <span className="font-mono text-[13px] tabular-nums">
-            <span className="text-muted">↓</span> {formatBytes(usedRx)}
-          </span>
-        </RailItem>
-        <RailItem label={m.user_rail_online_devices()}>
+        <RailItem label={m.user_rail_created()}>
           <span className="text-[13px] tabular-nums">
-            {user?.online_devices == null ? m.common_em_dash() : user.online_devices}
+            {user?.created
+              ? formatLocaleDateTime(new Date(user.created).getTime(), undefined, tz)
+              : m.common_em_dash()}
           </span>
         </RailItem>
       </div>
@@ -515,12 +531,17 @@ function ManageSection({
   isSelf,
 }: {
   userId: string;
-  user: PanelUser;
+  user: UserDetail;
   isSelf: boolean;
 }) {
   const queryClient = useQueryClient();
   const [resetOpen, setResetOpen] = useState(false);
   const [resetResult, setResetResult] = useState<PanelUser | null>(null);
+  const [draftRemark, setDraftRemark] = useState(user.remark ?? "");
+
+  useEffect(() => {
+    setDraftRemark(user.remark ?? "");
+  }, [user.remark]);
 
   function invalidateAllUsers() {
     void queryClient.invalidateQueries({ queryKey: [...queryKeys.all, "users"] });
@@ -540,6 +561,11 @@ function ManageSection({
     },
   });
 
+  const remarkMutation = useMutation({
+    mutationFn: (remark: string) => updateUser(userId, { remark }),
+    onSuccess: invalidateAllUsers,
+  });
+
   const active = (user.status ?? "active") === "active";
   const toggleError = toggleMutation.error
     ? queryErrorMessage(toggleMutation.error, m.error_user_update_network())
@@ -547,7 +573,11 @@ function ManageSection({
   const resetError = resetMutation.error
     ? queryErrorMessage(resetMutation.error, m.error_user_reset_auth_network())
     : "";
-  const error = toggleError || resetError;
+  const remarkError = remarkMutation.error
+    ? queryErrorMessage(remarkMutation.error, m.error_user_update_network())
+    : "";
+  const error = toggleError || resetError || remarkError;
+  const canSaveRemark = draftRemark !== (user.remark ?? "");
 
   function handleToggleStatus() {
     const next: "active" | "disabled" = active ? "disabled" : "active";
@@ -564,6 +594,10 @@ function ManageSection({
 
   function handleResetConfirm() {
     resetMutation.mutate();
+  }
+
+  function handleSaveRemark() {
+    remarkMutation.mutate(draftRemark);
   }
 
   return (
@@ -615,6 +649,44 @@ function ManageSection({
               </Button>
             }
           />
+
+          <div className="h-px bg-separator" />
+
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-[13px] font-medium text-foreground">
+                {m.user_manage_remark_label()}
+              </p>
+              <p className="mt-0.5 text-xs leading-5 text-muted">{m.user_manage_remark_desc()}</p>
+            </div>
+            <div className="flex w-full flex-col gap-2">
+              <TextArea
+                aria-label={m.user_manage_remark_label()}
+                rows={3}
+                maxLength={2000}
+                variant="secondary"
+                fullWidth
+                style={{ resize: "vertical" }}
+                placeholder={m.user_manage_remark_placeholder()}
+                value={draftRemark}
+                onChange={(event) => setDraftRemark(event.target.value)}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs tabular-nums text-muted">{draftRemark.length}/2000</span>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  isPending={remarkMutation.isPending}
+                  isDisabled={!canSaveRemark || remarkMutation.isPending}
+                  onPress={handleSaveRemark}
+                >
+                  {remarkMutation.isPending
+                    ? m.user_manage_remark_saving()
+                    : m.user_manage_remark_save()}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </Section>
 

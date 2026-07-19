@@ -45,6 +45,7 @@ type PanelTraffic = components["schemas"]["PanelTrafficResponse"];
 type PanelUser = components["schemas"]["PanelUser"];
 type UserDetail = components["schemas"]["UserDetail"];
 type UserCreateRequest = components["schemas"]["UserCreateRequest"];
+type UserUpdateRequest = components["schemas"]["UserUpdateRequest"];
 type UserListResponse = components["schemas"]["UserListResponse"];
 type UserStatsResponse = components["schemas"]["UserStatsResponse"];
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
@@ -317,11 +318,22 @@ export function createUser(body: UserCreateRequest): Promise<PanelUser> {
   );
 }
 
-export function updateUserStatus(id: string, status: "active" | "disabled"): Promise<PanelUser> {
-  return apiRequest<PanelUser>(
+export function updateUserStatus(id: string, status: "active" | "disabled"): Promise<UserDetail> {
+  return apiRequest<UserDetail>(
     apiClient.PATCH("/api/panel/users/{id}", {
       params: { path: { id } },
       body: { status },
+    }),
+    m.error_user_update(),
+    m.error_user_update_network()
+  );
+}
+
+export function updateUser(id: string, body: Partial<UserUpdateRequest>): Promise<UserDetail> {
+  return apiRequest<UserDetail>(
+    apiClient.PATCH("/api/panel/users/{id}", {
+      params: { path: { id } },
+      body,
     }),
     m.error_user_update(),
     m.error_user_update_network()
