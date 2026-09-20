@@ -1,7 +1,7 @@
 # Hysterical Panel (backend)
 
 轻量级 Hysteria 2 管理面板后端，基于 PocketBase（作为 Go 框架二次开发）。
-只负责节点接口信息保存、自主轮询采集流量与最新在线设备数、用户管理与实时诊断。不部署节点、不做订阅计费。管理员可配置 Monitor 驱动 Alert 生命周期及一次性自动 Notification，也可管理加密的 Notification Channel；不提供重试队列、提醒、确认或审计日志。
+只负责节点接口信息保存、自主轮询采集流量与最新在线设备数、用户管理、订阅门禁与实时诊断。不部署节点、不处理支付或账单。管理员可配置 Monitor 驱动 Alert 生命周期及一次性自动 Notification，也可管理加密的 Notification Channel；不提供重试队列、提醒、确认或审计日志。
 
 ## 模型
 
@@ -9,6 +9,7 @@
 - **users** — 既是登录面板的人（`admin` 或 `user`），也是节点认证主体。节点凭据独立保存在 `user_auth_strings`：每个 User 只有一个 Current Auth String 可认证，Retired 历史仅用于旧 Node Client ID 归属。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick [user.id]` 扇出（3 并发、异步、失败仅记日志）。账号「可用」= `status=active` **且** `verified=true`。成功节点鉴权会更新 `last_connected_at` 与 `recent_connections`。
 - **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`），并保存最近一次成功 `/online` 的 Node 总设备数与观测时间。
 - **online_device_counts** — 每个 User/Node 的最新正数在线客户端实例投影；不保留历史。User 总数只汇总 Enabled Node 且跨 Node 不去重，Node 总数包含未知 Node Client ID。
+- **subscription_types / user_subscriptions** — 管理员定义额度与 30/360 天重置周期，授予 360 天订阅；节点鉴权要求当前窗口仍有额度。升级前的用户在首次授予前豁免，新用户（包括 admin）须由管理员授予。详见 [`docs/subscriptions.md`](../docs/subscriptions.md)。
 
 另有两个辅助 collection：**`invitations`**（通用邀请码：`code` 唯一、`max_uses`/`expires_at`/`revoked`/`used_count`）与单例 **`app_settings`**（注册开关 `invitations_enabled` / `open_registration` / `require_invite_for_open`，默认全关）。
 
@@ -62,6 +63,7 @@ docker run --rm \
 后台 goroutine 每 5s 调度，按各节点 `poll_interval` 并发轮询 `GET /traffic` 与 `GET /online`：
 - counter-to-delta：处理 Hysteria 重启导致的计数器归零
 - 累加到 `users.used_tx/rx` 与 `traffic_hourly` / `traffic_daily`
+- 同一事务内按发送和接收之和结算当前订阅窗口；耗尽后拒绝新连接并异步 Kick
 - 失败写 `node.last_error` 且不更新 cursor（漏采一轮不丢量）
 - `/online` 成功时事务替换该 Node 的最新用户计数并更新 Node 总数；失败保留旧值，不改变 Traffic health
 
@@ -81,6 +83,11 @@ docker run --rm \
 | GET | `/users/stats` | 用户总数与 active 数 `{ total, active }` |
 | POST | `/users` | 新建（email+password+auth_string） |
 | GET | `/users/{id}` | 详情（admin 或本人） |
+| GET | `/subscription-types` | 管理员列出订阅类型 |
+| POST / PATCH / DELETE | `/subscription-types`、`/subscription-types/{id}` | 管理员创建、修改、删除尚未授予的类型；已授予过的类型只可隐藏或修改额度 |
+| GET | `/users/{id}/subscriptions` | 授予记录和当前窗口用量（admin 或本人） |
+| POST | `/users/{id}/subscriptions` | 管理员授予一份订阅，当前已有一份时排队到其到期时间 |
+| POST / DELETE | `/users/{id}/subscriptions/{subscriptionId}/top-up`、`/users/{id}/subscriptions/{subscriptionId}` | 管理员给当前窗口加一份额度，或终止当前/排队订阅 |
 | PATCH/DELETE | `/users/{id}` | 改/删 |
 | GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |

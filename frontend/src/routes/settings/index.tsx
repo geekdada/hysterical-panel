@@ -201,6 +201,19 @@ function SettingsPage() {
             />
           </Link>
 
+          <Link
+            to="/settings/subscriptions"
+            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-foreground">
+                {m.subscriptions_title()}
+              </span>
+              <span className="block text-xs text-muted">{m.subscriptions_description()}</span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
+          </Link>
+
           <div className="mt-8 mb-5">
             <h1 className="text-base font-semibold tracking-tight">{m.settings_database()}</h1>
             <p className="mt-0.5 text-[13px] text-muted">{m.settings_database_desc()}</p>

@@ -17,7 +17,6 @@ type userInput struct {
 	Password   *string `json:"password"`
 	AuthString *string `json:"auth_string"`
 	Role       *string `json:"role"`
-	QuotaBytes *int64  `json:"quota_bytes"`
 	Status     *string `json:"status"`
 	Remark     *string `json:"remark"`
 }
@@ -97,12 +96,11 @@ func (h *Handlers) onlineDevicesForUser(userID string) (*int64, error) {
 // shared defaults (trimmed email, zeroed usage counters). The record is
 // returned unsaved so callers keep their own Save error message and side effects.
 type newUserParams struct {
-	Email      string
-	Password   string
-	Role       string
-	Status     string
-	Verified   bool
-	QuotaBytes *int64 // nil leaves the field unset
+	Email    string
+	Password string
+	Role     string
+	Status   string
+	Verified bool
 }
 
 func (h *Handlers) newUserRecord(p newUserParams) (*core.Record, error) {
@@ -116,9 +114,7 @@ func (h *Handlers) newUserRecord(p newUserParams) (*core.Record, error) {
 	u.SetVerified(p.Verified)
 	u.Set("role", p.Role)
 	u.Set("status", p.Status)
-	if p.QuotaBytes != nil {
-		u.Set("quota_bytes", *p.QuotaBytes)
-	}
+	u.Set("subscription_required", true)
 	u.Set("used_tx", 0)
 	u.Set("used_rx", 0)
 	return u, nil
@@ -185,12 +181,11 @@ func (h *Handlers) createUser(e *core.RequestEvent) error {
 	}
 
 	u, err := h.newUserRecord(newUserParams{
-		Email:      email,
-		Password:   password,
-		Role:       role,
-		Status:     status,
-		Verified:   true,
-		QuotaBytes: in.QuotaBytes,
+		Email:    email,
+		Password: password,
+		Role:     role,
+		Status:   status,
+		Verified: true,
 	})
 	if err != nil {
 		return err
@@ -247,9 +242,6 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 			return apis.NewBadRequestError("status must be active or disabled", nil)
 		}
 		u.Set("status", *in.Status)
-	}
-	if in.QuotaBytes != nil {
-		u.Set("quota_bytes", *in.QuotaBytes)
 	}
 	if in.Remark != nil {
 		u.Set("remark", *in.Remark)

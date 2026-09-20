@@ -7,7 +7,7 @@ import { intlLocale } from "~/lib/locale";
 
 export function formatBytes(bytes: number, locale = intlLocale()): string {
   if (bytes === 0) return m.format_bytes_zero();
-  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+  const units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   const val = bytes / Math.pow(1024, i);
   const formatted = new Intl.NumberFormat(locale, {

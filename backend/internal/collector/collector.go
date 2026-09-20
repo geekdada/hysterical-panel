@@ -5,6 +5,7 @@ package collector
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -18,24 +19,30 @@ import (
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/hysteria"
 	"hysterical-panel/internal/onlinedevices"
+	"hysterical-panel/internal/subscriptions"
 )
 
 // Collector owns the background polling loop.
 type Collector struct {
-	app core.App
-	box *cryptobox.Box
+	app         core.App
+	box         *cryptobox.Box
+	onExhausted func(string)
 
 	mu       sync.Mutex
 	lastPoll map[string]time.Time // node id -> last poll time
 }
 
 // New builds a collector.
-func New(app core.App, box *cryptobox.Box) *Collector {
-	return &Collector{
+func New(app core.App, box *cryptobox.Box, onExhausted ...func(string)) *Collector {
+	c := &Collector{
 		app:      app,
 		box:      box,
 		lastPoll: map[string]time.Time{},
 	}
+	if len(onExhausted) > 0 {
+		c.onExhausted = onExhausted[0]
+	}
+	return c
 }
 
 // Start launches the loop. It ticks every 5s and polls each node when its own
@@ -164,32 +171,52 @@ func (c *Collector) recordTraffic(node *core.Record, traffic map[string]hysteria
 	}
 
 	for _, counters := range byUser {
-		user := counters.user
-		// Always advance the cursor, even for disabled users, so re-enabling
-		// resumes from "now" instead of dumping the whole disabled-period
-		// counter into a single bucket.
-		dtx, drx, err := c.applyDelta(user, node, counters.tx, counters.rx)
+		var dtx, drx int64
+		var counted, exhausted bool
+		err := c.app.RunInTransaction(func(app core.App) error {
+			user, err := app.FindRecordById("users", counters.user.Id)
+			if err != nil {
+				return err
+			}
+			// Advance the cursor during disabled periods without charging usage.
+			dtx, drx, err = c.applyDelta(app, user, node, counters.tx, counters.rx)
+			if err != nil {
+				return err
+			}
+			if user.GetString("status") != "active" || (dtx == 0 && drx == 0) {
+				return nil
+			}
+			if drx > math.MaxInt64-dtx {
+				return fmt.Errorf("traffic delta overflow")
+			}
+			if err := c.bumpUserTotals(app, user, dtx, drx); err != nil {
+				return err
+			}
+			if err := c.upsertAgg(app, "traffic_hourly", user.Id, node.Id, bucketHour, dtx, drx); err != nil {
+				return err
+			}
+			if err := c.upsertAgg(app, "traffic_daily", user.Id, node.Id, bucketDay, dtx, drx); err != nil {
+				return err
+			}
+			if user.GetBool("subscription_required") {
+				exhausted, err = subscriptions.AddUsage(app, user.Id, now, dtx+drx)
+				if err != nil {
+					return err
+				}
+			}
+			counted = true
+			return nil
+		})
 		if err != nil {
-			log.Printf("[collector] delta user=%s node=%s: %v", user.Id, node.Id, err)
+			log.Printf("[collector] delta user=%s node=%s: %v", counters.user.Id, node.Id, err)
 			continue
 		}
-		// Disabled users keep their counter tracked but stop accruing usage.
-		if user.GetString("status") != "active" {
-			continue
+		if counted {
+			nodeDtx += dtx
+			nodeDrx += drx
 		}
-		nodeDtx += dtx
-		nodeDrx += drx
-		if dtx == 0 && drx == 0 {
-			continue
-		}
-		if err := c.bumpUserTotals(user, dtx, drx); err != nil {
-			log.Printf("[collector] bump user totals: %v", err)
-		}
-		if err := c.upsertAgg("traffic_hourly", user.Id, node.Id, bucketHour, dtx, drx); err != nil {
-			log.Printf("[collector] upsert hourly: %v", err)
-		}
-		if err := c.upsertAgg("traffic_daily", user.Id, node.Id, bucketDay, dtx, drx); err != nil {
-			log.Printf("[collector] upsert daily: %v", err)
+		if exhausted && c.onExhausted != nil {
+			c.onExhausted(counters.user.Id)
 		}
 	}
 
@@ -302,15 +329,18 @@ func recordObservation(app core.App, node *core.Record, observedAt time.Time, el
 
 // applyDelta reads the cursor for (user,node), computes the delta with reset
 // handling, and writes the new cursor. Returns the delta to be accumulated.
-func (c *Collector) applyDelta(user, node *core.Record, curTx, curRx int64) (int64, int64, error) {
-	cursor, err := c.app.FindFirstRecordByFilter(
+func (c *Collector) applyDelta(app core.App, user, node *core.Record, curTx, curRx int64) (int64, int64, error) {
+	cursor, err := app.FindFirstRecordByFilter(
 		"traffic_cursor",
 		"user = {:u} && node = {:n}",
 		map[string]any{"u": user.Id, "n": node.Id},
 	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, err
+	}
 	if err != nil || cursor == nil {
 		// first observation: treat the whole counter as the delta
-		coll, cerr := c.app.FindCollectionByNameOrId("traffic_cursor")
+		coll, cerr := app.FindCollectionByNameOrId("traffic_cursor")
 		if cerr != nil {
 			return 0, 0, cerr
 		}
@@ -319,7 +349,7 @@ func (c *Collector) applyDelta(user, node *core.Record, curTx, curRx int64) (int
 		cursor.Set("node", node.Id)
 		cursor.Set("last_tx", curTx)
 		cursor.Set("last_rx", curRx)
-		if serr := c.app.Save(cursor); serr != nil {
+		if serr := app.Save(cursor); serr != nil {
 			return 0, 0, serr
 		}
 		return curTx, curRx, nil
@@ -333,7 +363,7 @@ func (c *Collector) applyDelta(user, node *core.Record, curTx, curRx int64) (int
 
 	cursor.Set("last_tx", curTx)
 	cursor.Set("last_rx", curRx)
-	if err := c.app.Save(cursor); err != nil {
+	if err := app.Save(cursor); err != nil {
 		return 0, 0, err
 	}
 	return dtx, drx, nil
@@ -360,20 +390,26 @@ func speedPerSecond(deltaBytes int64, from, to time.Time) int64 {
 	return int64(float64(deltaBytes) / seconds)
 }
 
-func (c *Collector) bumpUserTotals(user *core.Record, dtx, drx int64) error {
+func (c *Collector) bumpUserTotals(app core.App, user *core.Record, dtx, drx int64) error {
+	if dtx > math.MaxInt64-int64(user.GetInt("used_tx")) || drx > math.MaxInt64-int64(user.GetInt("used_rx")) {
+		return fmt.Errorf("user total overflow")
+	}
 	user.Set("used_tx", int64(user.GetInt("used_tx"))+dtx)
 	user.Set("used_rx", int64(user.GetInt("used_rx"))+drx)
-	return c.app.Save(user)
+	return app.Save(user)
 }
 
-func (c *Collector) upsertAgg(coll, userID, nodeID string, bucket time.Time, dtx, drx int64) error {
-	rec, err := c.app.FindFirstRecordByFilter(
+func (c *Collector) upsertAgg(app core.App, coll, userID, nodeID string, bucket time.Time, dtx, drx int64) error {
+	rec, err := app.FindFirstRecordByFilter(
 		coll,
 		"user = {:u} && node = {:n} && bucket = {:b}",
 		map[string]any{"u": userID, "n": nodeID, "b": bucket.Format("2006-01-02 15:04:05.000Z")},
 	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
 	if err != nil || rec == nil {
-		c2, cerr := c.app.FindCollectionByNameOrId(coll)
+		c2, cerr := app.FindCollectionByNameOrId(coll)
 		if cerr != nil {
 			return cerr
 		}
@@ -383,11 +419,11 @@ func (c *Collector) upsertAgg(coll, userID, nodeID string, bucket time.Time, dtx
 		rec.Set("bucket", bucket.UTC())
 		rec.Set("tx", dtx)
 		rec.Set("rx", drx)
-		return c.app.Save(rec)
+		return app.Save(rec)
 	}
 	rec.Set("tx", int64(rec.GetInt("tx"))+dtx)
 	rec.Set("rx", int64(rec.GetInt("rx"))+drx)
-	return c.app.Save(rec)
+	return app.Save(rec)
 }
 
 func (c *Collector) recordNodeError(node *core.Record, msg string) {

@@ -1,6 +1,6 @@
 # Hysterical Panel
 
-A lightweight management panel for Hysteria 2 / AnyTLS nodes: user and node registry, traffic aggregation, and HTTP auth callbacks. Not a subscription, billing, or node-deployment product.
+A lightweight management panel for Hysteria 2 / AnyTLS nodes: user and node registry, traffic aggregation, subscriptions, and HTTP auth callbacks. Not a billing or node-deployment product.
 
 ## Language
 
@@ -25,7 +25,7 @@ The stable User ID returned by successful Node Client Auth and subsequently used
 _Avoid_: Auth String, credential, username, traffic key
 
 **Status**:
-Whether the User is `active` or `disabled`. The single on/off switch for panel login, new node connections, and whether traffic is counted.
+Whether the User is `active` or `disabled`. A disabled User cannot log into the panel or start node connections, and their Traffic is not counted; an active User may also need a subscription to connect, unless they retain the legacy exemption.
 _Avoid_: enabled, banned, suspended (as synonyms for this switch)
 
 **Verified**:
@@ -57,8 +57,32 @@ A Node removed from the panel's active set but retained so historical traffic st
 _Avoid_: destroyed, archived, offline, disabled (as the name for this state)
 
 **Traffic**:
-Aggregated tx/rx bytes attributed to a User on a Node over time (hourly/daily buckets and User totals). Not a billable quantity; reserved quota fields are not a product concept yet.
-_Avoid_: usage (as the noun), bandwidth, transfer, quota, consumption, metering
+Aggregated tx/rx bytes attributed to a User on a Node over time (hourly/daily buckets and User totals). User totals remain cumulative even when subscription allowances reset; Traffic is not a monetary charge.
+_Avoid_: bandwidth, transfer, consumption, metering
+
+**Subscription Type**:
+An admin-managed definition of a 360-day subscription's positive Traffic allowance and its 30-day or 360-day reset interval. Allowance changes affect every referencing User Subscription; the interval cannot change once the Type has been granted, and a granted Type can be hidden but not deleted.
+_Avoid_: tariff, product, price plan, tier
+
+**User Subscription**:
+A Subscription Type granted to a User for a particular 360-day interval. A User may have one current and at most one queued User Subscription; a queued grant starts at its scheduled time and never starts early because the current grant is exhausted or terminated.
+_Avoid_: purchase, payment, User Status, Role
+
+**Subscription Required**:
+The User's permanent node-access policy once their first subscription is granted. New Users require a subscription from creation; preexisting Users retain a legacy exemption until their first grant, after which expiry or cancellation cannot restore it.
+_Avoid_: migrated to metered, User Status, Verified
+
+**Legacy Unmetered User**:
+A preexisting User who has not yet been granted a subscription and may still connect without one, subject to Status and Verified. Their Traffic continues to accumulate in User totals without an Allowance Window.
+_Avoid_: unlimited Subscription Type, free subscription
+
+**Allowance Window**:
+One 30-day or 360-day portion of a User Subscription in which tx and rx Traffic across Nodes share the Subscription Type's allowance. Windows run from the grant's exact UTC start time; unused allowance does not carry forward, and delayed Collector polls may leave a negative remaining allowance after settlement.
+_Avoid_: calendar month, billing cycle, User lifetime Traffic
+
+**Allowance Top-up**:
+An administrator's addition of one current Subscription Type allowance to the current Allowance Window without changing Traffic already used. Repeated additions accumulate until the window ends or an edit to the Type's allowance replaces that window's effective allowance.
+_Avoid_: reset used Traffic, clear counters, renew subscription
 
 **Online Device Count**:
 The latest number of client instances reported by a Node for a Node Client ID. A User's count merges stable and legacy IDs and sums Enabled Nodes without deduplicating physical devices; a Node's total also includes unknown IDs.
@@ -73,7 +97,7 @@ An on-demand, uncached diagnostic snapshot of current streams for a User or a No
 _Avoid_: realtime monitor, session log, online status (as the feature name), telemetry dump
 
 **Kick**:
-A best-effort request to Nodes to drop a User's already-established sessions, typically when Status becomes `disabled`. Clears existing sessions only; Status and Verified continue to block reconnects.
+A best-effort request to Nodes to drop a User's already-established sessions, such as after disabling the User or exhausting their subscription. Clears existing sessions only; Status, Verified, and subscription access rules continue to block reconnects.
 _Avoid_: ban, terminate, force logout, disconnect (as the feature name)
 
 **Invitation**:

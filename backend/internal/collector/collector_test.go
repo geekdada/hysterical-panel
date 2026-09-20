@@ -13,6 +13,7 @@ import (
 	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/hysteria"
+	"hysterical-panel/internal/subscriptions"
 	_ "hysterical-panel/migrations"
 )
 
@@ -124,6 +125,103 @@ func TestRecordTrafficAggregatesLegacyAndStableNodeClientIDs(t *testing.T) {
 		t.Fatalf("recordTraffic after rotation: %v", err)
 	}
 	assertCollectorUserTotals(t, app, user.Id, 210, 340)
+}
+
+func TestRecordTrafficConsumesSubscriptionAndKicksOnExhaustion(t *testing.T) {
+	app := newMigratedCollectorTestApp(t)
+	box, err := cryptobox.New("test-master-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := createCollectorTestUser(t, app, "metered@example.com", "MeteredSecret", "active")
+	user.Set("subscription_required", true)
+	if err := app.Save(user); err != nil {
+		t.Fatal(err)
+	}
+	types, _ := app.FindCollectionByNameOrId("subscription_types")
+	typ := core.NewRecord(types)
+	typ.Set("name", "Small")
+	typ.Set("allowance_bytes", 100)
+	typ.Set("reset_days", 30)
+	if err := app.Save(typ); err != nil {
+		t.Fatal(err)
+	}
+	grants, _ := app.FindCollectionByNameOrId("user_subscriptions")
+	grant := core.NewRecord(grants)
+	grant.Set("user", user.Id)
+	grant.Set("subscription_type", typ.Id)
+	grant.Set("starts_at", time.Now().UTC().Add(-time.Hour))
+	grant.Set("ends_at", time.Now().UTC().Add(359*24*time.Hour))
+	if err := app.Save(grant); err != nil {
+		t.Fatal(err)
+	}
+	node := createCollectorTestNode(t, app, box, "http://127.0.0.1:9999")
+	kicks := 0
+	c := New(app, box, func(id string) {
+		if id != user.Id {
+			t.Errorf("kick id = %s", id)
+		}
+		kicks++
+	})
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{user.Id: {Tx: 70, Rx: 50}}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := subscriptions.Current(app, user.Id, time.Now().UTC())
+	if err != nil || state == nil || state.Used != 120 || state.Remaining != -20 || kicks != 1 {
+		t.Fatalf("usage = %v, kicks = %d, err = %v", state, kicks, err)
+	}
+	assertCollectorUserTotals(t, app, user.Id, 70, 50)
+}
+
+func TestLateCounterPollAndResetSettleInCurrentSubscriptionWindow(t *testing.T) {
+	app := newMigratedCollectorTestApp(t)
+	box, err := cryptobox.New("test-master-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := createCollectorTestUser(t, app, "late-poll@example.com", "LatePollSecret", "active")
+	user.Set("subscription_required", true)
+	if err := app.Save(user); err != nil {
+		t.Fatal(err)
+	}
+	types, _ := app.FindCollectionByNameOrId("subscription_types")
+	typ := core.NewRecord(types)
+	typ.Set("name", "Monthly")
+	typ.Set("allowance_bytes", 100)
+	typ.Set("reset_days", 30)
+	if err := app.Save(typ); err != nil {
+		t.Fatal(err)
+	}
+	grants, _ := app.FindCollectionByNameOrId("user_subscriptions")
+	grant := core.NewRecord(grants)
+	start := time.Now().UTC().Truncate(time.Millisecond).Add(-31 * 24 * time.Hour)
+	grant.Set("user", user.Id)
+	grant.Set("subscription_type", typ.Id)
+	grant.Set("starts_at", start)
+	grant.Set("ends_at", start.Add(360*24*time.Hour))
+	grant.Set("window_index", 0)
+	grant.Set("used_bytes", 90)
+	if err := app.Save(grant); err != nil {
+		t.Fatal(err)
+	}
+	node := createCollectorTestNode(t, app, box, "http://127.0.0.1:9999")
+	c := New(app, box)
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{user.Id: {Tx: 20, Rx: 10}}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := subscriptions.Current(app, user.Id, time.Now().UTC())
+	if err != nil || state == nil || state.Window != 1 || state.Used != 30 {
+		t.Fatalf("late poll state = %v, err = %v", state, err)
+	}
+	// A node counter reset contributes its new value, not a negative delta.
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{user.Id: {Tx: 2, Rx: 3}}); err != nil {
+		t.Fatal(err)
+	}
+	state, err = subscriptions.Current(app, user.Id, time.Now().UTC())
+	if err != nil || state == nil || state.Used != 35 {
+		t.Fatalf("counter reset state = %v, err = %v", state, err)
+	}
+	assertCollectorUserTotals(t, app, user.Id, 22, 13)
 }
 
 func assertCollectorUserTotals(t *testing.T, app core.App, userID string, wantTx, wantRx int64) {

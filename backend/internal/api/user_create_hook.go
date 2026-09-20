@@ -17,6 +17,7 @@ func (h *Handlers) bindUserCreateAuthString() {
 			e.App = app
 			defer func() { e.App = originalApp }()
 
+			e.Record.Set("subscription_required", true)
 			if err := e.Next(); err != nil {
 				return err
 			}

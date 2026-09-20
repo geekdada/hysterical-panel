@@ -44,6 +44,11 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"UserStatsResponse":                 UserStatsResponse{},
 		"UserCreateRequest":                 UserCreateRequest{},
 		"UserUpdateRequest":                 UserUpdateRequest{},
+		"SubscriptionType":                  SubscriptionType{},
+		"SubscriptionTypeCreateRequest":     SubscriptionTypeCreateRequest{},
+		"SubscriptionTypeUpdateRequest":     SubscriptionTypeUpdateRequest{},
+		"SubscriptionGrantRequest":          SubscriptionGrantRequest{},
+		"UserSubscription":                  UserSubscription{},
 		"Passkey":                           Passkey{},
 		"PasskeyOptionsResponse":            PasskeyOptionsResponse{},
 		"PasskeyFinishRequest":              PasskeyFinishRequest{},
@@ -106,6 +111,19 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			setEnum(s.Value.Properties, "role", []any{"admin", "user"})
 			setEnum(s.Value.Properties, "status", []any{"active", "disabled"})
 		}
+	}
+	for name, fields := range map[string][]string{
+		"SubscriptionType":              {"id", "name", "allowance_bytes", "reset_days", "hidden", "assigned"},
+		"SubscriptionTypeCreateRequest": {"name", "allowance_bytes", "reset_days"},
+		"SubscriptionGrantRequest":      {"subscription_type"},
+		"UserSubscription":              {"id", "subscription_type", "type_name", "status", "starts_at", "ends_at", "terminated_at", "window_ends_at", "allowance_bytes", "used_bytes", "remaining_bytes", "over_allowance"},
+	} {
+		if s := schemas[name]; s != nil && s.Value != nil {
+			s.Value.Required = append(s.Value.Required, fields...)
+		}
+	}
+	if s, ok := schemas["UserSubscription"]; ok && s.Value != nil {
+		setEnum(s.Value.Properties, "status", []any{"current", "queued", "expired", "terminated"})
 	}
 	if s, ok := schemas["TrafficSeriesResponse"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "granularity", []any{"hourly", "daily"})
@@ -1512,6 +1530,51 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			withAuth(op)
 			return op
 		}(),
+	})
+
+	subOp := func(id, summary, response, body string) *openapi3.Operation {
+		op := &openapi3.Operation{
+			OperationID: id, Summary: summary, Tags: []string{"subscriptions"},
+			Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{
+				Description: ptr(summary), Content: content(ref(response)),
+			}})),
+		}
+		if body != "" {
+			op.RequestBody = &openapi3.RequestBodyRef{Value: openapi3.NewRequestBody().WithRequired(true).WithJSONSchemaRef(ref(body))}
+			op.Responses.Set("400", badRequest)
+		}
+		withAuth(op)
+		return op
+	}
+	listTypes := subOp("listSubscriptionTypes", "List subscription types", "SubscriptionType", "")
+	listTypes.Responses.Set("200", &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Subscription types"), Content: content(arrayRef("SubscriptionType"))}})
+	listGrants := subOp("listUserSubscriptions", "List a user's subscriptions", "UserSubscription", "")
+	listGrants.Responses.Set("200", &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Subscriptions"), Content: content(arrayRef("UserSubscription"))}})
+	t.Paths.Set("/api/panel/subscription-types", &openapi3.PathItem{
+		Get:  listTypes,
+		Post: subOp("createSubscriptionType", "Create a subscription type", "SubscriptionType", "SubscriptionTypeCreateRequest"),
+	})
+	t.Paths.Set("/api/panel/subscription-types/{id}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Subscription type ID")},
+		Patch:      subOp("updateSubscriptionType", "Update a subscription type", "SubscriptionType", "SubscriptionTypeUpdateRequest"),
+		Delete:     subOp("deleteSubscriptionType", "Delete an unused subscription type", "DeleteResponse", ""),
+	})
+	t.Paths.Set("/api/panel/users/{id}/subscriptions", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Get:        listGrants,
+		Post:       subOp("grantSubscription", "Grant or queue a subscription", "UserSubscription", "SubscriptionGrantRequest"),
+	})
+	subscriptionIdParam := &openapi3.ParameterRef{Value: &openapi3.Parameter{
+		Name: "subscriptionId", In: "path", Required: true,
+		Schema: &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
+	}}
+	t.Paths.Set("/api/panel/users/{id}/subscriptions/{subscriptionId}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID"), subscriptionIdParam},
+		Delete:     subOp("terminateSubscription", "Terminate a current or queued subscription", "DeleteResponse", ""),
+	})
+	t.Paths.Set("/api/panel/users/{id}/subscriptions/{subscriptionId}/top-up", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID"), subscriptionIdParam},
+		Post:       subOp("topUpSubscription", "Add one allowance to a current subscription", "UserSubscription", ""),
 	})
 
 	return t, nil

@@ -193,17 +193,17 @@ type AlertSummaryResponse struct {
 
 // PanelUser is the public representation returned by user endpoints.
 type PanelUser struct {
-	ID                string             `json:"id"`
-	Email             string             `json:"email"`
-	Role              string             `json:"role"` // "admin" | "user"
-	AuthString        string             `json:"auth_string"`
-	QuotaBytes        int64              `json:"quota_bytes"`
-	UsedTx            int64              `json:"used_tx"`
-	UsedRx            int64              `json:"used_rx"`
-	Status            string             `json:"status"` // "active" | "disabled"
-	Created           string             `json:"created"`
-	LastConnectedAt   string             `json:"last_connected_at"`
-	RecentConnections []RecentConnection `json:"recent_connections"`
+	ID                   string             `json:"id"`
+	Email                string             `json:"email"`
+	Role                 string             `json:"role"` // "admin" | "user"
+	AuthString           string             `json:"auth_string"`
+	SubscriptionRequired bool               `json:"subscription_required"`
+	UsedTx               int64              `json:"used_tx"`
+	UsedRx               int64              `json:"used_rx"`
+	Status               string             `json:"status"` // "active" | "disabled"
+	Created              string             `json:"created"`
+	LastConnectedAt      string             `json:"last_connected_at"`
+	RecentConnections    []RecentConnection `json:"recent_connections"`
 }
 
 // UserDetail is returned by GET /users/{id}. OnlineDevices is the sum of the
@@ -243,7 +243,6 @@ type UserCreateRequest struct {
 	Password   *string `json:"password,omitempty"`
 	AuthString *string `json:"auth_string,omitempty"`
 	Role       *string `json:"role,omitempty"`
-	QuotaBytes *int64  `json:"quota_bytes,omitempty"`
 	Status     *string `json:"status,omitempty"`
 }
 
@@ -253,9 +252,49 @@ type UserUpdateRequest struct {
 	Password   *string `json:"password,omitempty"`
 	AuthString *string `json:"auth_string,omitempty"`
 	Role       *string `json:"role,omitempty"`
-	QuotaBytes *int64  `json:"quota_bytes,omitempty"`
 	Status     *string `json:"status,omitempty"`
 	Remark     *string `json:"remark,omitempty"`
+}
+
+type SubscriptionType struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	AllowanceBytes int64  `json:"allowance_bytes"`
+	ResetDays      int    `json:"reset_days"`
+	Hidden         bool   `json:"hidden"`
+	Assigned       bool   `json:"assigned"`
+}
+
+type SubscriptionTypeCreateRequest struct {
+	Name           string `json:"name"`
+	AllowanceBytes int64  `json:"allowance_bytes"`
+	ResetDays      int    `json:"reset_days"`
+}
+
+type SubscriptionTypeUpdateRequest struct {
+	Name           *string `json:"name,omitempty"`
+	AllowanceBytes *int64  `json:"allowance_bytes,omitempty"`
+	ResetDays      *int    `json:"reset_days,omitempty"`
+	Hidden         *bool   `json:"hidden,omitempty"`
+}
+
+type SubscriptionGrantRequest struct {
+	SubscriptionType string `json:"subscription_type"`
+}
+
+type UserSubscription struct {
+	ID               string `json:"id"`
+	SubscriptionType string `json:"subscription_type"`
+	TypeName         string `json:"type_name"`
+	Status           string `json:"status"`
+	StartsAt         string `json:"starts_at"`
+	EndsAt           string `json:"ends_at"`
+	TerminatedAt     string `json:"terminated_at"`
+	WindowEndsAt     string `json:"window_ends_at"`
+	AllowanceBytes   int64  `json:"allowance_bytes"`
+	UsedBytes        int64  `json:"used_bytes"`
+	RemainingBytes   int64  `json:"remaining_bytes"`
+	OverAllowance    bool   `json:"over_allowance"`
 }
 
 // ── Registration ───────────────────────────────────────────────────────────────

@@ -64,6 +64,10 @@ type MonitorUpdateRequest = components["schemas"]["MonitorUpdateRequest"];
 type Alert = components["schemas"]["Alert"];
 type AlertListResponse = components["schemas"]["AlertListResponse"];
 type AlertSummaryResponse = components["schemas"]["AlertSummaryResponse"];
+type SubscriptionType = components["schemas"]["SubscriptionType"];
+type SubscriptionTypeCreateRequest = components["schemas"]["SubscriptionTypeCreateRequest"];
+type SubscriptionTypeUpdateRequest = components["schemas"]["SubscriptionTypeUpdateRequest"];
+type UserSubscription = components["schemas"]["UserSubscription"];
 
 export type {
   Invitation,
@@ -84,6 +88,10 @@ export type {
   Alert,
   AlertListResponse,
   AlertSummaryResponse,
+  SubscriptionType,
+  SubscriptionTypeCreateRequest,
+  SubscriptionTypeUpdateRequest,
+  UserSubscription,
 };
 
 export const REFRESH_MS = 20_000;
@@ -186,6 +194,9 @@ export const queryKeys = {
   alertSummary: () => [...queryKeys.alertsBase(), "summary"] as const,
   nodeAlerts: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "alerts"] as const,
   settings: () => [...queryKeys.all, "settings"] as const,
+  subscriptionTypes: () => [...queryKeys.all, "subscription-types"] as const,
+  userSubscriptions: (userId: string) =>
+    [...queryKeys.all, "users", userId, "subscriptions"] as const,
   nodeLive: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "live"] as const,
   nodeOverview: (nodeId: string, range: TrafficRangeQuery | null) =>
     [
@@ -337,6 +348,81 @@ export function updateUser(id: string, body: Partial<UserUpdateRequest>): Promis
     }),
     m.error_user_update(),
     m.error_user_update_network()
+  );
+}
+
+export function fetchSubscriptionTypes(): Promise<SubscriptionType[]> {
+  return apiRequest<SubscriptionType[]>(apiClient.GET("/api/panel/subscription-types"));
+}
+
+export function subscriptionTypesQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.subscriptionTypes(),
+    queryFn: fetchSubscriptionTypes,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function createSubscriptionType(
+  body: SubscriptionTypeCreateRequest
+): Promise<SubscriptionType> {
+  return apiRequest<SubscriptionType>(apiClient.POST("/api/panel/subscription-types", { body }));
+}
+
+export function updateSubscriptionType(
+  id: string,
+  body: SubscriptionTypeUpdateRequest
+): Promise<SubscriptionType> {
+  return apiRequest<SubscriptionType>(
+    apiClient.PATCH("/api/panel/subscription-types/{id}", { params: { path: { id } }, body })
+  );
+}
+
+export function deleteSubscriptionType(id: string): Promise<void> {
+  return apiRequest<void>(
+    apiClient.DELETE("/api/panel/subscription-types/{id}", { params: { path: { id } } })
+  );
+}
+
+export function fetchUserSubscriptions(id: string): Promise<UserSubscription[]> {
+  return apiRequest<UserSubscription[]>(
+    apiClient.GET("/api/panel/users/{id}/subscriptions", { params: { path: { id } } })
+  );
+}
+
+export function userSubscriptionsQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: queryKeys.userSubscriptions(id),
+    queryFn: () => fetchUserSubscriptions(id),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
+export function grantSubscription(id: string, subscriptionType: string): Promise<UserSubscription> {
+  return apiRequest<UserSubscription>(
+    apiClient.POST("/api/panel/users/{id}/subscriptions", {
+      params: { path: { id } },
+      body: { subscription_type: subscriptionType },
+    })
+  );
+}
+
+export function topUpSubscription(id: string, subscriptionId: string): Promise<UserSubscription> {
+  return apiRequest<UserSubscription>(
+    apiClient.POST("/api/panel/users/{id}/subscriptions/{subscriptionId}/top-up", {
+      params: { path: { id, subscriptionId } },
+    })
+  );
+}
+
+export function terminateSubscription(id: string, subscriptionId: string): Promise<void> {
+  return apiRequest<void>(
+    apiClient.DELETE("/api/panel/users/{id}/subscriptions/{subscriptionId}", {
+      params: { path: { id, subscriptionId } },
+    })
   );
 }
 

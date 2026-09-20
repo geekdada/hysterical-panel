@@ -23,6 +23,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersIndexRouteImport } from './routes/users/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
+import { Route as SettingsSubscriptionsRouteImport } from './routes/settings/subscriptions'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsMonitoringRouteImport } from './routes/settings/monitoring'
 import { Route as SettingsManagementApiRouteImport } from './routes/settings/management-api'
@@ -100,6 +101,11 @@ const UsersUserIdRoute = UsersUserIdRouteImport.update({
   path: '/$userId',
   getParentRoute: () => UsersRouteRoute,
 } as any)
+const SettingsSubscriptionsRoute = SettingsSubscriptionsRouteImport.update({
+  id: '/subscriptions',
+  path: '/subscriptions',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -149,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/settings/management-api': typeof SettingsManagementApiRoute
   '/settings/monitoring': typeof SettingsMonitoringRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
+  '/settings/subscriptions': typeof SettingsSubscriptionsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -169,6 +176,7 @@ export interface FileRoutesByTo {
   '/settings/management-api': typeof SettingsManagementApiRoute
   '/settings/monitoring': typeof SettingsMonitoringRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
+  '/settings/subscriptions': typeof SettingsSubscriptionsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings': typeof SettingsIndexRoute
   '/users': typeof UsersIndexRoute
@@ -192,6 +200,7 @@ export interface FileRoutesById {
   '/settings/management-api': typeof SettingsManagementApiRoute
   '/settings/monitoring': typeof SettingsMonitoringRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
+  '/settings/subscriptions': typeof SettingsSubscriptionsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -216,6 +225,7 @@ export interface FileRouteTypes {
     | '/settings/management-api'
     | '/settings/monitoring'
     | '/settings/notifications'
+    | '/settings/subscriptions'
     | '/users/$userId'
     | '/settings/'
     | '/users/'
@@ -236,6 +246,7 @@ export interface FileRouteTypes {
     | '/settings/management-api'
     | '/settings/monitoring'
     | '/settings/notifications'
+    | '/settings/subscriptions'
     | '/users/$userId'
     | '/settings'
     | '/users'
@@ -258,6 +269,7 @@ export interface FileRouteTypes {
     | '/settings/management-api'
     | '/settings/monitoring'
     | '/settings/notifications'
+    | '/settings/subscriptions'
     | '/users/$userId'
     | '/settings/'
     | '/users/'
@@ -377,6 +389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UsersUserIdRouteImport
       parentRoute: typeof UsersRouteRoute
     }
+    '/settings/subscriptions': {
+      id: '/settings/subscriptions'
+      path: '/subscriptions'
+      fullPath: '/settings/subscriptions'
+      preLoaderRoute: typeof SettingsSubscriptionsRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/notifications': {
       id: '/settings/notifications'
       path: '/notifications'
@@ -441,6 +460,7 @@ interface SettingsRouteRouteChildren {
   SettingsManagementApiRoute: typeof SettingsManagementApiRoute
   SettingsMonitoringRoute: typeof SettingsMonitoringRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
+  SettingsSubscriptionsRoute: typeof SettingsSubscriptionsRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
@@ -449,6 +469,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsManagementApiRoute: SettingsManagementApiRoute,
   SettingsMonitoringRoute: SettingsMonitoringRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
+  SettingsSubscriptionsRoute: SettingsSubscriptionsRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
 

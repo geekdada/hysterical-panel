@@ -138,6 +138,9 @@ func TestUserCreateRequestHookProvisionsCurrentAuthStringAtomically(t *testing.T
 	if len(current) != 16 {
 		t.Fatalf("generated Current Auth String length = %d, want 16", len(current))
 	}
+	if !user.GetBool("subscription_required") {
+		t.Fatal("new dashboard User does not require a subscription")
+	}
 	const collisionID = "Collision123456"
 	if err := app.RunInTransaction(func(txApp core.App) error {
 		_, err := authstrings.Rotate(txApp, user.Id, collisionID)

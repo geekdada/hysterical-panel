@@ -18,7 +18,7 @@
 - 用户管理（分页/排序/筛选列表）+ 实时诊断面板。
 - 作为 Hysteria 2 / anytls 节点的 `auth.type: http` 回调端点，按 `auth_string`（anytls 按其 hash）鉴权客户端连接。
 - 面板登录支持密码 + passkey（WebAuthn）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
-- **不做**：订阅、用量计费、节点部署。这些是明确排除项，需求方已确认。Monitoring 通过通用 Observation 支持 offline / high-traffic Monitor、Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
+- **不做**：支付/账单、节点部署。订阅仅作为节点访问与流量额度门禁，见 `docs/subscriptions.md`。Monitoring 通过通用 Observation 支持 offline / high-traffic Monitor、Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
 
 ## 常用命令
 
@@ -175,7 +175,9 @@ hysterical-panel/
 
 - `role` (select [admin, user])、`status` (select [active, disabled]) — `status` 是用户启停的单一来源（active = 启用）
 - `verified` (PocketBase 内置 auth 字段) — 账号可用的附加门禁；admin 建号与邀请注册者恒 true，仅开放无码注册者初始 false
-- `quota_bytes`、`used_tx`、`used_rx` (number, int64) — quota 当前不计费，仅留字段
+- `subscription_required` (bool) — 存量用户迁移时为 false，首次授予订阅后永久为 true；新用户默认 true。`used_tx`、`used_rx` (number, int64) 仍为用户终身累计流量
+- `subscription_types` — 额度（字节）、固定 30/360 天重置周期、隐藏状态；已授予过的类型不可删除或修改重置周期
+- `user_subscriptions` — 360 天的用户授予记录、当前窗口的使用量与手动加额；具体门禁与排队规则见 `docs/subscriptions.md`
 - `last_connected_at` (date)、`recent_connections` (json) — Hysteria 鉴权成功后更新；`recent_connections` 只保留最近 10 个唯一客户端 IP（不含端口），MMDB ASN / 国家等信息在 API 序列化时临时补充，不落库
 
 `user_auth_strings`：

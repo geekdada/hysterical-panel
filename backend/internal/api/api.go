@@ -4,7 +4,10 @@
 package api
 
 import (
+	"context"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/pocketbase/pocketbase/apis"
@@ -14,6 +17,7 @@ import (
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/ipmeta"
 	"hysterical-panel/internal/notifications"
+	"hysterical-panel/internal/subscriptions"
 )
 
 type ipMetadataLookup interface {
@@ -34,7 +38,7 @@ type Handlers struct {
 }
 
 // Register wires every /api/panel/* route onto the serve event router.
-func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, passkeys *webauthn.WebAuthn, monitoring monitorLifecycle, public PanelConfigResponse) {
+func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, passkeys *webauthn.WebAuthn, monitoring monitorLifecycle, public PanelConfigResponse) *Handlers {
 	h := &Handlers{
 		app:           app,
 		box:           box,
@@ -115,6 +119,14 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/nodes/{id}/alerts", h.nodeAlerts).Bind(adminOnly)
 
 	// users
+	g.GET("/subscription-types", h.listSubscriptionTypes).Bind(adminOnly)
+	g.POST("/subscription-types", h.createSubscriptionType).Bind(adminOnly)
+	g.PATCH("/subscription-types/{id}", h.updateSubscriptionType).Bind(adminOnly)
+	g.DELETE("/subscription-types/{id}", h.deleteSubscriptionType).Bind(adminOnly)
+	g.GET("/users/{id}/subscriptions", h.listUserSubscriptions).Bind(adminOrSelf)
+	g.POST("/users/{id}/subscriptions", h.grantSubscription).Bind(adminOnly)
+	g.POST("/users/{id}/subscriptions/{subscriptionId}/top-up", h.topUpSubscription).Bind(adminOnly)
+	g.DELETE("/users/{id}/subscriptions/{subscriptionId}", h.terminateSubscription).Bind(adminOnly)
 	g.GET("/users", h.listUsers).Bind(adminOnly)
 	g.GET("/users/stats", h.getUserStats).Bind(adminOnly)
 	g.POST("/users", h.createUser).Bind(adminOnly)
@@ -166,6 +178,52 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	mgmt.Bind(h.requireMgmtToken())
 	mgmt.GET("/users", h.mgmtGetUser)
 	mgmt.POST("/users", h.mgmtCreateUser)
+	return h
+}
+
+func (h *Handlers) KickAsync(userID string) { go h.kickUser(userID) }
+
+func (h *Handlers) StartSubscriptionExpiry(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			h.processSubscriptionExpiry()
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
+func (h *Handlers) processSubscriptionExpiry() {
+	now := time.Now().UTC()
+	grants, err := h.app.FindRecordsByFilter("user_subscriptions", "expiry_processed = false && terminated_at = '' && ends_at <= {:now}", "ends_at", 0, 0, map[string]any{"now": now.Format("2006-01-02 15:04:05.000Z")})
+	if err != nil {
+		log.Printf("[subscription] find expired grants: %v", err)
+		return
+	}
+	for _, grant := range grants {
+		user, err := h.app.FindRecordById("users", grant.GetString("user"))
+		if err != nil {
+			log.Printf("[subscription] find user: %v", err)
+			continue
+		}
+		allowed, err := subscriptions.Allowed(h.app, user, now)
+		if err != nil {
+			log.Printf("[subscription] check access: %v", err)
+			continue
+		}
+		if !allowed && user.GetString("status") == "active" {
+			h.kickUser(user.Id)
+		}
+		grant.Set("expiry_processed", true)
+		if err := h.app.Save(grant); err != nil {
+			log.Printf("[subscription] mark expiry: %v", err)
+		}
+	}
 }
 
 // requireAdmin rejects any authenticated user whose role is not "admin".
@@ -295,17 +353,17 @@ func publicNode(n *core.Record) map[string]any {
 
 func publicUser(u *core.Record, authString string, lookup ipMetadataLookup, ignored map[string]struct{}) map[string]any {
 	return map[string]any{
-		"id":                 u.Id,
-		"email":              u.GetString("email"),
-		"role":               u.GetString("role"),
-		"auth_string":        authString,
-		"quota_bytes":        u.GetInt("quota_bytes"),
-		"used_tx":            u.GetInt("used_tx"),
-		"used_rx":            u.GetInt("used_rx"),
-		"status":             u.GetString("status"),
-		"created":            u.GetString("created"),
-		"last_connected_at":  u.GetString("last_connected_at"),
-		"recent_connections": recentConnectionsFromRecord(u, lookup, ignored),
+		"id":                    u.Id,
+		"email":                 u.GetString("email"),
+		"role":                  u.GetString("role"),
+		"auth_string":           authString,
+		"subscription_required": u.GetBool("subscription_required"),
+		"used_tx":               u.GetInt("used_tx"),
+		"used_rx":               u.GetInt("used_rx"),
+		"status":                u.GetString("status"),
+		"created":               u.GetString("created"),
+		"last_connected_at":     u.GetString("last_connected_at"),
+		"recent_connections":    recentConnectionsFromRecord(u, lookup, ignored),
 	}
 }
 
@@ -313,17 +371,17 @@ func publicUser(u *core.Record, authString string, lookup ipMetadataLookup, igno
 // is needed directly (e.g. the registration auth response).
 func panelUser(u *core.Record, authString string, lookup ipMetadataLookup, ignored map[string]struct{}) PanelUser {
 	return PanelUser{
-		ID:                u.Id,
-		Email:             u.GetString("email"),
-		Role:              u.GetString("role"),
-		AuthString:        authString,
-		QuotaBytes:        int64(u.GetInt("quota_bytes")),
-		UsedTx:            int64(u.GetInt("used_tx")),
-		UsedRx:            int64(u.GetInt("used_rx")),
-		Status:            u.GetString("status"),
-		Created:           u.GetString("created"),
-		LastConnectedAt:   u.GetString("last_connected_at"),
-		RecentConnections: recentConnectionsFromRecord(u, lookup, ignored),
+		ID:                   u.Id,
+		Email:                u.GetString("email"),
+		Role:                 u.GetString("role"),
+		AuthString:           authString,
+		SubscriptionRequired: u.GetBool("subscription_required"),
+		UsedTx:               int64(u.GetInt("used_tx")),
+		UsedRx:               int64(u.GetInt("used_rx")),
+		Status:               u.GetString("status"),
+		Created:              u.GetString("created"),
+		LastConnectedAt:      u.GetString("last_connected_at"),
+		RecentConnections:    recentConnectionsFromRecord(u, lookup, ignored),
 	}
 }
 

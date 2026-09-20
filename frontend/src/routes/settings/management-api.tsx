@@ -20,7 +20,7 @@ const GET_RESPONSE = `{
   "email": "user@example.com",
   "role": "user",
   "auth_string": "qZ4yN8tR2vL6wB1k",
-  "quota_bytes": 0,
+  "subscription_required": true,
   "used_tx": 1048576,
   "used_rx": 5242880,
   "status": "active",

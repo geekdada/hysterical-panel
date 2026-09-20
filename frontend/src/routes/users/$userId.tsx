@@ -26,10 +26,12 @@ import {
   updateUser,
   updateUserStatus,
   userOverviewQueryOptions,
+  userSubscriptionsQueryOptions,
 } from "~/api/queries";
 import { markResponsePrivate } from "~/api/ssr";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
+import { SubscriptionSection } from "~/components/subscription-section";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
@@ -83,6 +85,7 @@ export const Route = createFileRoute("/users/$userId")({
     const range = toTrafficRangeQuery(defaultLocalTrafficRange(tz), tz);
     await Promise.allSettled([
       context.queryClient.ensureQueryData(userOverviewQueryOptions(params.userId, range)),
+      context.queryClient.ensureQueryData(userSubscriptionsQueryOptions(params.userId)),
       context.queryClient.ensureQueryData(panelConfigQueryOptions()),
     ]);
   },
@@ -174,6 +177,14 @@ function AccountDetailPage() {
       ) : (
         <>
           <AccountRail user={user} loading={loading && !user} now={now} />
+
+          {user && (
+            <SubscriptionSection
+              userId={userId}
+              isAdmin={isAdmin}
+              legacy={!user.subscription_required}
+            />
+          )}
 
           <TrafficSection
             loading={loading && !series}
@@ -307,14 +318,21 @@ function AccountRail({
           </span>
         </RailItem>
         <RailItem label={m.common_status()}>
-          <Chip
-            size="sm"
-            variant="soft"
-            color={active ? "success" : "default"}
-            className="capitalize"
-          >
-            {active ? m.common_active() : m.common_disabled()}
-          </Chip>
+          <div className="flex flex-wrap items-center gap-2">
+            <Chip
+              size="sm"
+              variant="soft"
+              color={active ? "success" : "default"}
+              className="capitalize"
+            >
+              {active ? m.common_active() : m.common_disabled()}
+            </Chip>
+            {user && !user.subscription_required && (
+              <Chip size="sm" variant="soft">
+                {m.subscription_legacy()}
+              </Chip>
+            )}
+          </div>
         </RailItem>
         <RailItem label={m.user_rail_last_connect()}>
           <span

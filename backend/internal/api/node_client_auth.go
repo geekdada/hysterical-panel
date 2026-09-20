@@ -6,6 +6,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"hysterical-panel/internal/subscriptions"
 )
 
 // HTTP auth callbacks for node clients. Hysteria 2 and anytls share the same
@@ -60,6 +61,13 @@ func (h *Handlers) handleNodeClientAuth(
 	if !user.GetBool("verified") {
 		log.Printf("[%s] reject addr=%s: email not verified", logPrefix, in.Addr)
 		return apis.NewForbiddenError("email not verified", nil)
+	}
+	allowed, err := subscriptions.Allowed(h.app, user, time.Now().UTC())
+	if err != nil {
+		return apis.NewInternalServerError("subscription check failed", err)
+	}
+	if !allowed {
+		return apis.NewForbiddenError("no available subscription", nil)
 	}
 
 	userID := user.Id

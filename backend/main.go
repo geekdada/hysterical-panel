@@ -111,7 +111,7 @@ func main() {
 		monitorService := monitoring.New(app, box, notifications.New(), frontendURL)
 
 		// register custom panel routes
-		api.Register(se, app, box, ipLookup, passkeys, monitorService, api.PanelConfigResponse{
+		handlers := api.Register(se, app, box, ipLookup, passkeys, monitorService, api.PanelConfigResponse{
 			APIURL:          backendURL,
 			FrontendURL:     frontendURL,
 			PasskeysEnabled: passkeyConfig.Enabled,
@@ -120,8 +120,9 @@ func main() {
 
 		// start the background traffic collector
 		ctx, cancel := context.WithCancel(context.Background())
-		c := collector.New(app, box)
+		c := collector.New(app, box, handlers.KickAsync)
 		c.Start(ctx)
+		handlers.StartSubscriptionExpiry(ctx)
 		monitorService.Start(ctx)
 
 		// stop the collector when the app terminates
