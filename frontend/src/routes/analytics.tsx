@@ -37,9 +37,8 @@ import {
 import { UserMenu } from "~/components/user-menu";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { cn } from "~/lib/cn";
-import { formatBytes, formatLocaleDateTime, relTime } from "~/lib/format";
+import { formatBytes, formatLocaleDateTime } from "~/lib/format";
 import { useActiveTimeZone } from "~/lib/use-timezone";
-import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
@@ -71,8 +70,6 @@ function AnalyticsPage() {
   const [trafficRange, setTrafficRange] = useState<LocalDateRange>(() =>
     defaultLocalTrafficRange(tz)
   );
-  const now = useHydratedNow();
-
   useEffect(() => {
     setTrafficRange((current) => {
       const next = defaultLocalTrafficRange(tz);
@@ -104,11 +101,8 @@ function AnalyticsPage() {
       headerRight={
         <div className="flex items-center gap-3 text-xs text-muted">
           {updatedAt !== null && (
-            <span
-              className="hidden tabular-nums sm:inline"
-              title={formatLocaleDateTime(updatedAt, undefined, tz)}
-            >
-              {m.common_updated({ time: relTime(updatedAt, now) })}
+            <span className="hidden tabular-nums sm:inline">
+              {m.common_updated({ time: formatLocaleDateTime(updatedAt, undefined, tz) })}
             </span>
           )}
           <span className="hidden h-3.5 w-px bg-border sm:block" />

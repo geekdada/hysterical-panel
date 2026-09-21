@@ -465,7 +465,6 @@ export function analyticsOverviewQueryOptions(range: TrafficRangeQuery) {
     queryFn: () => fetchAnalyticsOverview(range),
     enabled: canQueryPanelApi(),
     staleTime: REFRESH_MS,
-    refetchInterval: REFRESH_MS,
   });
 }
 
