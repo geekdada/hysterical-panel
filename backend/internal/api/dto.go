@@ -282,6 +282,10 @@ type SubscriptionGrantRequest struct {
 	SubscriptionType string `json:"subscription_type"`
 }
 
+type SubscriptionTopUpRequest struct {
+	AllowanceBytes int64 `json:"allowance_bytes"`
+}
+
 type UserSubscription struct {
 	ID               string `json:"id"`
 	SubscriptionType string `json:"subscription_type"`

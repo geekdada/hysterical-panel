@@ -87,7 +87,7 @@ docker run --rm \
 | POST / PATCH / DELETE | `/subscription-types`、`/subscription-types/{id}` | 管理员创建、修改、删除尚未授予的类型；已授予过的类型只可隐藏或修改额度 |
 | GET | `/users/{id}/subscriptions` | 授予记录和当前窗口用量（admin 或本人） |
 | POST | `/users/{id}/subscriptions` | 管理员授予一份订阅，当前已有一份时排队到其到期时间 |
-| POST / DELETE | `/users/{id}/subscriptions/{subscriptionId}/top-up`、`/users/{id}/subscriptions/{subscriptionId}` | 管理员给当前窗口加一份额度，或终止当前/排队订阅 |
+| POST / DELETE | `/users/{id}/subscriptions/{subscriptionId}/top-up`、`/users/{id}/subscriptions/{subscriptionId}` | 管理员给当前窗口增加 `allowance_bytes` 字节，或终止当前/排队订阅 |
 | PATCH/DELETE | `/users/{id}` | 改/删 |
 | GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |

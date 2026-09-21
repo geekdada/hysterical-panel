@@ -48,6 +48,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"SubscriptionTypeCreateRequest":     SubscriptionTypeCreateRequest{},
 		"SubscriptionTypeUpdateRequest":     SubscriptionTypeUpdateRequest{},
 		"SubscriptionGrantRequest":          SubscriptionGrantRequest{},
+		"SubscriptionTopUpRequest":          SubscriptionTopUpRequest{},
 		"UserSubscription":                  UserSubscription{},
 		"Passkey":                           Passkey{},
 		"PasskeyOptionsResponse":            PasskeyOptionsResponse{},
@@ -116,6 +117,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"SubscriptionType":              {"id", "name", "allowance_bytes", "reset_days", "hidden", "assigned"},
 		"SubscriptionTypeCreateRequest": {"name", "allowance_bytes", "reset_days"},
 		"SubscriptionGrantRequest":      {"subscription_type"},
+		"SubscriptionTopUpRequest":      {"allowance_bytes"},
 		"UserSubscription":              {"id", "subscription_type", "type_name", "status", "starts_at", "ends_at", "terminated_at", "window_ends_at", "allowance_bytes", "used_bytes", "remaining_bytes", "over_allowance"},
 	} {
 		if s := schemas[name]; s != nil && s.Value != nil {
@@ -1574,7 +1576,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	})
 	t.Paths.Set("/api/panel/users/{id}/subscriptions/{subscriptionId}/top-up", &openapi3.PathItem{
 		Parameters: openapi3.Parameters{idParam("User ID"), subscriptionIdParam},
-		Post:       subOp("topUpSubscription", "Add one allowance to a current subscription", "UserSubscription", ""),
+		Post:       subOp("topUpSubscription", "Add bytes to the current subscription window", "UserSubscription", "SubscriptionTopUpRequest"),
 	})
 
 	return t, nil

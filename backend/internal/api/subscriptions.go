@@ -272,6 +272,13 @@ func (h *Handlers) grantSubscription(e *core.RequestEvent) error {
 }
 
 func (h *Handlers) topUpSubscription(e *core.RequestEvent) error {
+	var in SubscriptionTopUpRequest
+	if err := e.BindBody(&in); err != nil {
+		return apis.NewBadRequestError("invalid body", err)
+	}
+	if in.AllowanceBytes <= 0 {
+		return apis.NewBadRequestError("allowance_bytes must be positive", nil)
+	}
 	var changed *core.Record
 	err := h.app.RunInTransaction(func(app core.App) error {
 		grant, err := app.FindRecordById("user_subscriptions", e.Request.PathValue("subscriptionId"))
@@ -287,12 +294,12 @@ func (h *Handlers) topUpSubscription(e *core.RequestEvent) error {
 		}
 		base := int64(state.Type.GetInt("allowance_bytes"))
 		extra := state.Allowance - base
-		if base > math.MaxInt64-extra {
+		if in.AllowanceBytes > math.MaxInt64-extra {
 			return apis.NewBadRequestError("allowance overflow", nil)
 		}
 		grant.Set("window_index", state.Window)
 		grant.Set("used_bytes", state.Used)
-		grant.Set("extra_bytes", extra+base)
+		grant.Set("extra_bytes", extra+in.AllowanceBytes)
 		if err := app.Save(grant); err != nil {
 			return err
 		}

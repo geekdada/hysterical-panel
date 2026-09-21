@@ -172,7 +172,7 @@ func TestTypeEditReplacesCurrentTopUpsWithoutChangingUsed(t *testing.T) {
 	}
 	grants, _ := app.FindRecordsByFilter("user_subscriptions", "user = {:u}", "", 1, 0, map[string]any{"u": user.Id})
 	for i := 0; i < 2; i++ {
-		e, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+grants[0].Id+"/top-up", nil)
+		e, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+grants[0].Id+"/top-up", map[string]any{"allowance_bytes": 100})
 		e.Request.SetPathValue("id", user.Id)
 		e.Request.SetPathValue("subscriptionId", grants[0].Id)
 		if err := h.topUpSubscription(e); err != nil {
@@ -195,7 +195,7 @@ func TestTypeEditReplacesCurrentTopUpsWithoutChangingUsed(t *testing.T) {
 	if err != nil || state == nil || state.Allowance != 200 || state.Used != 120 {
 		t.Fatalf("after edit = %v, err = %v; want allowance 200 used 120", state, err)
 	}
-	topUp, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+grants[0].Id+"/top-up", nil)
+	topUp, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+grants[0].Id+"/top-up", map[string]any{"allowance_bytes": 200})
 	topUp.Request.SetPathValue("id", user.Id)
 	topUp.Request.SetPathValue("subscriptionId", grants[0].Id)
 	if err := h.topUpSubscription(topUp); err != nil {
@@ -218,6 +218,46 @@ func TestTypeEditReplacesCurrentTopUpsWithoutChangingUsed(t *testing.T) {
 	changeReset.Request.SetPathValue("id", types[0].Id)
 	if err := h.updateSubscriptionType(changeReset); err == nil {
 		t.Fatal("assigned type reset interval changed")
+	}
+}
+
+func TestTopUpAddsRequestedBytes(t *testing.T) {
+	app := newMigratedTestApp(t)
+	user := newUsersTestRecord(t, app, "topup@example.com", "TopUpKey")
+	h := &Handlers{app: app}
+	typeEvent, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/subscription-types", map[string]any{"name": "Starter", "allowance_bytes": 100, "reset_days": 30})
+	if err := h.createSubscriptionType(typeEvent); err != nil {
+		t.Fatal(err)
+	}
+	types, _ := app.FindRecordsByFilter("subscription_types", "", "", 1, 0)
+	grantEvent, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions", map[string]any{"subscription_type": types[0].Id})
+	grantEvent.Request.SetPathValue("id", user.Id)
+	if err := h.grantSubscription(grantEvent); err != nil {
+		t.Fatal(err)
+	}
+	grants, _ := app.FindRecordsByFilter("user_subscriptions", "user = {:u}", "", 1, 0, map[string]any{"u": user.Id})
+	topUp := func(bytes any) error {
+		event, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+grants[0].Id+"/top-up", map[string]any{"allowance_bytes": bytes})
+		event.Request.SetPathValue("id", user.Id)
+		event.Request.SetPathValue("subscriptionId", grants[0].Id)
+		return h.topUpSubscription(event)
+	}
+	if err := topUp(40); err != nil {
+		t.Fatal(err)
+	}
+	state, err := subscriptions.Current(app, user.Id, time.Now().UTC())
+	if err != nil || state == nil || state.Allowance != 140 || state.Used != 0 {
+		t.Fatalf("after top-up = %v, err = %v; want allowance 140", state, err)
+	}
+	if err := topUp(0); err == nil {
+		t.Fatal("zero top-up accepted")
+	}
+	if err := topUp(-5); err == nil {
+		t.Fatal("negative top-up accepted")
+	}
+	state, err = subscriptions.Current(app, user.Id, time.Now().UTC())
+	if err != nil || state == nil || state.Allowance != 140 {
+		t.Fatalf("rejected top-up changed allowance: %v, err = %v", state, err)
 	}
 }
 
