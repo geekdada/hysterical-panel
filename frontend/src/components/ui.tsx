@@ -160,6 +160,8 @@ export function SelectField({
   onChange,
   options,
   description,
+  isDisabled = false,
+  fullWidth = false,
 }: {
   variant?: "secondary" | "primary";
   label: string;
@@ -167,10 +169,14 @@ export function SelectField({
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
   description?: string;
+  isDisabled?: boolean;
+  fullWidth?: boolean;
 }) {
   return (
     <Select
       variant={variant}
+      fullWidth={fullWidth}
+      isDisabled={isDisabled}
       value={value}
       onChange={(key) => onChange(String(Array.isArray(key) ? key[0] : key))}
     >
@@ -493,6 +499,7 @@ export function DestructiveConfirmModal({
   pendingLabel,
   pending,
   error,
+  destructive = true,
   onOpenChange,
   onConfirm,
 }: {
@@ -503,6 +510,7 @@ export function DestructiveConfirmModal({
   pendingLabel: string;
   pending: boolean;
   error: string;
+  destructive?: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
@@ -523,15 +531,23 @@ export function DestructiveConfirmModal({
             </Modal.Body>
           ) : null}
           <Modal.Footer>
-            <Button size="sm" variant="secondary" onPress={() => onOpenChange(false)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={pending}
+              onPress={() => onOpenChange(false)}
+            >
               {m.common_cancel()}
             </Button>
             <Button
               size="sm"
               variant="primary"
               isPending={pending}
+              isDisabled={pending}
               onPress={onConfirm}
-              className="bg-danger text-danger-foreground hover:opacity-90"
+              className={
+                destructive ? "bg-danger text-danger-foreground hover:opacity-90" : undefined
+              }
             >
               {pending ? pendingLabel : confirmLabel}
             </Button>
