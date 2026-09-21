@@ -24,7 +24,6 @@ export function UserMenu({ auth }: { auth: Auth }) {
   const showPbAdmin = auth.user.role === "admin" && origin.length > 0;
   const initial = auth.user.email.trim().charAt(0).toUpperCase() || "U";
   const roleLabel = auth.user.role === "admin" ? m.role_admin() : m.role_user();
-  const statusLabel = auth.user.status === "active" ? m.common_active() : m.common_disabled();
   const itemClass =
     "h-7 rounded-md px-2 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-secondary data-[focus=true]:bg-surface-secondary data-[hovered=true]:bg-surface-secondary";
   const dangerItemClass =
@@ -86,18 +85,7 @@ export function UserMenu({ auth }: { auth: Auth }) {
               <div className="truncate text-[13px] font-medium text-foreground">
                 {auth.user.email}
               </div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] leading-none text-muted">
-                <span>{roleLabel}</span>
-                <span className="size-1 rounded-full bg-separator" />
-                <span className="inline-flex items-center gap-1">
-                  <span
-                    className={`size-1.5 rounded-full ${
-                      auth.user.status === "active" ? "bg-success" : "bg-muted"
-                    }`}
-                  />
-                  {statusLabel}
-                </span>
-              </div>
+              <div className="mt-0.5 text-[11px] leading-none text-muted">{roleLabel}</div>
             </div>
           </div>
         </div>
