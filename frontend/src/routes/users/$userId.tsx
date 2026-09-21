@@ -206,11 +206,11 @@ function AccountDetailPage() {
 
           {isAdmin && <LiveSection userId={userId} />}
 
+          {isAdmin && user && <PasskeysSection userId={userId} isSelf={auth?.user.id === userId} />}
+
           {isAdmin && user && (
             <ManageSection userId={userId} user={user} isSelf={auth?.user.id === userId} />
           )}
-
-          {isAdmin && user && <PasskeysSection userId={userId} isSelf={auth?.user.id === userId} />}
         </>
       )}
     </PageShell>
@@ -291,9 +291,7 @@ function AccountRail({
       </div>
       <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
         <RailItem label={m.user_rail_used_total()}>
-          <span className="font-mono text-[15px] font-medium tabular-nums">
-            {formatBytes(usedTx + usedRx)}
-          </span>
+          <span className="font-mono text-[13px] tabular-nums">{formatBytes(usedTx + usedRx)}</span>
         </RailItem>
         <RailItem label={m.common_th_tx()}>
           <span className="font-mono text-[13px] tabular-nums">
