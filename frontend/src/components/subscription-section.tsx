@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@heroui/react";
+import { Button, FieldError, Label, Modal, NumberField } from "@heroui/react";
 import {
   grantSubscription,
   queryErrorMessage,
@@ -9,12 +9,23 @@ import {
   terminateSubscription,
   topUpSubscription,
   userSubscriptionsQueryOptions,
+  type SubscriptionType,
   type UserSubscription,
 } from "~/api/queries";
-import { DestructiveConfirmModal, ErrorAlert, Section, SelectField } from "~/components/ui";
+import { DestructiveConfirmModal, Section, SelectField } from "~/components/ui";
 import { formatBytes, formatLocaleDateTime } from "~/lib/format";
+import { cn } from "~/lib/cn";
 import { useActiveTimeZone } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
+
+const GIB = 1024 ** 3;
+
+function allowanceBytes(gib: number): number | null {
+  if (!Number.isFinite(gib) || gib <= 0) return null;
+  const bytes = gib * GIB;
+  if (!Number.isSafeInteger(bytes)) return null;
+  return bytes;
+}
 
 export function SubscriptionSection({
   userId,
@@ -32,7 +43,12 @@ export function SubscriptionSection({
     ...subscriptionTypesQueryOptions(),
     enabled: isAdmin && typeof window !== "undefined",
   });
+  const [grantOpen, setGrantOpen] = useState(false);
   const [selected, setSelected] = useState("");
+  const [toTopUp, setToTopUp] = useState<UserSubscription | null>(null);
+  const [gib, setGib] = useState(Number.NaN);
+  const [gibTouched, setGibTouched] = useState(false);
+  const [topUpFieldKey, setTopUpFieldKey] = useState(0);
   const [toTerminate, setToTerminate] = useState<UserSubscription | null>(null);
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.userSubscriptions(userId) });
@@ -40,11 +56,18 @@ export function SubscriptionSection({
   };
   const grant = useMutation({
     mutationFn: (id: string) => grantSubscription(userId, id),
-    onSuccess: refresh,
+    onSuccess: () => {
+      setGrantOpen(false);
+      refresh();
+    },
   });
   const topUp = useMutation({
-    mutationFn: (id: string) => topUpSubscription(userId, id),
-    onSuccess: refresh,
+    mutationFn: (input: { id: string; allowanceBytes: number }) =>
+      topUpSubscription(userId, input.id, input.allowanceBytes),
+    onSuccess: () => {
+      setToTopUp(null);
+      refresh();
+    },
   });
   const terminate = useMutation({
     mutationFn: (id: string) => terminateSubscription(userId, id),
@@ -53,133 +76,448 @@ export function SubscriptionSection({
       refresh();
     },
   });
-  const active = (grantsQuery.data ?? []).find((item) => item.status === "current");
-  const queued = (grantsQuery.data ?? []).find((item) => item.status === "queued");
+  const grants = grantsQuery.data ?? [];
+  const active = grants.find((item) => item.status === "current");
+  const queued = grants.find((item) => item.status === "queued");
   const availableTypes = (typesQuery.data ?? []).filter((item) => !item.hidden);
-  const selectedType = selected || availableTypes[0]?.id || "";
-  const error = [grantsQuery.error, typesQuery.error, grant.error, topUp.error, terminate.error]
+  const canGrant = isAdmin && !queued && availableTypes.length > 0;
+  const loadError = [grantsQuery.error, isAdmin ? typesQuery.error : null]
     .filter(Boolean)
-    .map((item) => queryErrorMessage(item, m.subscription_action_error()))
+    .map((item) => queryErrorMessage(item, m.subscription_load_error()))
     .join(" ");
-  const grantControl = isAdmin && !queued && availableTypes.length > 0 && (
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="min-w-44 flex-1 sm:max-w-64">
-        <SelectField
-          label={m.subscription_select_type()}
-          value={selectedType}
-          onChange={setSelected}
-          options={availableTypes.map((item) => ({ value: item.id, label: item.name }))}
-        />
-      </div>
-      <Button
-        size="sm"
-        variant="secondary"
-        isPending={grant.isPending}
-        onPress={() => grant.mutate(selectedType)}
-      >
-        {m.subscription_grant()}
-      </Button>
-    </div>
+  const selectedId = selected || availableTypes[0]?.id || "";
+
+  function openTopUp(item: UserSubscription) {
+    const type = (typesQuery.data ?? []).find((entry) => entry.id === item.subscription_type);
+    setGib(type ? type.allowance_bytes / GIB : Number.NaN);
+    setGibTouched(false);
+    setTopUpFieldKey((key) => key + 1);
+    topUp.reset();
+    setToTopUp(item);
+  }
+
+  function openGrant() {
+    setSelected((current) =>
+      availableTypes.some((item) => item.id === current) ? current : (availableTypes[0]?.id ?? "")
+    );
+    grant.reset();
+    setGrantOpen(true);
+  }
+
+  const grantButton = canGrant ? (
+    <Button size="sm" variant="secondary" onPress={openGrant}>
+      {m.subscription_grant()}
+    </Button>
+  ) : null;
+  const grantModal = (canGrant || grantOpen) && (
+    <GrantModal
+      isOpen={grantOpen}
+      types={availableTypes}
+      selected={selectedId}
+      legacy={legacy}
+      willQueue={Boolean(active)}
+      pending={grant.isPending}
+      error={grant.error ? queryErrorMessage(grant.error, m.subscription_action_error()) : ""}
+      onSelectedChange={setSelected}
+      onOpenChange={(open) => {
+        if (!open) {
+          setGrantOpen(false);
+          grant.reset();
+        }
+      }}
+      onConfirm={() => {
+        if (selectedId) grant.mutate(selectedId);
+      }}
+    />
   );
 
-  if (legacy)
-    return isAdmin ? (
-      <div className="mt-4">
-        <ErrorAlert message={error} />
-        {grantControl}
-      </div>
-    ) : null;
+  if (legacy) {
+    if (!isAdmin) return null;
+    return (
+      <>
+        <Section title={m.subscription_title()} action={grantButton}>
+          <LoadError message={loadError} />
+          <p className="px-4 py-3 text-[13px] text-muted">{m.subscription_legacy()}</p>
+        </Section>
+        {grantModal}
+      </>
+    );
+  }
+
+  const rows = [active, queued].filter((item): item is UserSubscription => Boolean(item));
+  const unavailable = (!active || active.remaining_bytes <= 0) && !grantsQuery.isPending;
 
   return (
-    <Section title={m.subscription_title()}>
-      <ErrorAlert message={error} className="mb-3" />
-      {(!active || active.remaining_bytes <= 0) && !grantsQuery.isPending && (
-        <p className="text-[13px] text-muted">{m.subscription_none()}</p>
-      )}
-      <div className="divide-y divide-border">
-        {[active, queued]
-          .filter((item): item is UserSubscription => Boolean(item))
-          .map((item) => (
-            <div key={item.id} className="py-3 first:pt-0">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-[13px] font-medium">
-                    {item.type_name} ·{" "}
-                    {item.status === "current" ? m.subscription_current() : m.subscription_queued()}
-                  </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {m.subscription_starts()}{" "}
-                    {formatLocaleDateTime(Date.parse(item.starts_at), undefined, tz)} ·{" "}
-                    {m.subscription_ends()}{" "}
-                    {formatLocaleDateTime(Date.parse(item.ends_at), undefined, tz)}
-                  </p>
-                </div>
-                {isAdmin && (
-                  <div className="flex gap-2">
-                    {item.status === "current" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        isPending={topUp.isPending}
-                        onPress={() => topUp.mutate(item.id)}
-                      >
-                        {m.subscription_topup()}
-                      </Button>
-                    )}
-                    <Button size="sm" variant="tertiary" onPress={() => setToTerminate(item)}>
-                      {m.subscription_terminate()}
-                    </Button>
-                  </div>
+    <>
+      <Section title={m.subscription_title()} action={grantButton}>
+        <LoadError message={loadError} />
+        {grantsQuery.isPending ? (
+          <SubscriptionSkeleton />
+        ) : (
+          <>
+            {unavailable && (
+              <p
+                className={cn(
+                  "px-4 py-3 text-[13px] text-muted",
+                  rows.length > 0 && "border-b border-border"
                 )}
-              </div>
-              {item.status === "current" && (
-                <div className="mt-3 grid gap-2 text-[13px] sm:grid-cols-2 lg:grid-cols-4">
-                  <p>
-                    {m.subscription_allowance()}{" "}
-                    <span className="font-mono tabular-nums">
-                      {formatBytes(item.allowance_bytes)}
-                    </span>
-                  </p>
-                  <p>
-                    {m.subscription_used()}{" "}
-                    <span className="font-mono tabular-nums">{formatBytes(item.used_bytes)}</span>
-                  </p>
-                  <p>
-                    {m.subscription_remaining()}{" "}
-                    <span className="font-mono tabular-nums">
-                      {formatBytes(Math.max(0, item.remaining_bytes))}
-                    </span>{" "}
-                    {item.over_allowance && (
-                      <span className="text-danger">{m.subscription_over()}</span>
-                    )}
-                  </p>
-                  <p>
-                    {m.subscription_resets()}{" "}
-                    <span className="tabular-nums">
-                      {formatLocaleDateTime(Date.parse(item.window_ends_at), undefined, tz)}
-                    </span>
-                  </p>
-                </div>
-              )}
+              >
+                {m.subscription_none()}
+              </p>
+            )}
+            <div className="divide-y divide-border">
+              {rows.map((item) => (
+                <GrantRow
+                  key={item.id}
+                  item={item}
+                  isAdmin={isAdmin}
+                  timeZone={tz}
+                  onTopUp={() => openTopUp(item)}
+                  onTerminate={() => {
+                    terminate.reset();
+                    setToTerminate(item);
+                  }}
+                />
+              ))}
             </div>
-          ))}
-      </div>
-      {grantControl && <div className="mt-4 border-t border-border pt-4">{grantControl}</div>}
+          </>
+        )}
+      </Section>
+      {grantModal}
+      <TopUpModal
+        isOpen={toTopUp !== null}
+        fieldKey={topUpFieldKey}
+        gib={gib}
+        gibTouched={gibTouched}
+        pending={topUp.isPending}
+        error={topUp.error ? queryErrorMessage(topUp.error, m.subscription_action_error()) : ""}
+        onGibChange={setGib}
+        onTouch={() => setGibTouched(true)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setToTopUp(null);
+            topUp.reset();
+          }
+        }}
+        onConfirm={(bytes) => {
+          if (toTopUp) topUp.mutate({ id: toTopUp.id, allowanceBytes: bytes });
+        }}
+      />
       <DestructiveConfirmModal
         isOpen={toTerminate !== null}
         title={m.subscription_terminate()}
         body={m.subscription_terminate_confirm()}
         confirmLabel={m.subscription_terminate()}
-        pendingLabel={m.common_deleting()}
+        pendingLabel={m.subscription_terminating()}
         pending={terminate.isPending}
-        error={terminate.error ? queryErrorMessage(terminate.error) : ""}
+        error={
+          terminate.error ? queryErrorMessage(terminate.error, m.subscription_action_error()) : ""
+        }
         onOpenChange={(open) => {
-          if (!open) setToTerminate(null);
+          if (!open) {
+            setToTerminate(null);
+            terminate.reset();
+          }
         }}
         onConfirm={() => {
           if (toTerminate) terminate.mutate(toTerminate.id);
         }}
       />
-    </Section>
+    </>
+  );
+}
+
+function GrantRow({
+  item,
+  isAdmin,
+  timeZone,
+  onTopUp,
+  onTerminate,
+}: {
+  item: UserSubscription;
+  isAdmin: boolean;
+  timeZone: string;
+  onTopUp: () => void;
+  onTerminate: () => void;
+}) {
+  const current = item.status === "current";
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-medium text-foreground">{item.type_name}</p>
+          <p className="mt-0.5 text-xs text-muted">
+            {current ? m.subscription_current() : m.subscription_queued()}
+            {" · "}
+            {m.subscription_starts()}{" "}
+            {formatLocaleDateTime(Date.parse(item.starts_at), undefined, timeZone)}
+            {" · "}
+            {m.subscription_ends()}{" "}
+            {formatLocaleDateTime(Date.parse(item.ends_at), undefined, timeZone)}
+          </p>
+        </div>
+        {isAdmin && (
+          <div className="flex shrink-0 items-center gap-3">
+            {current && (
+              <Button size="sm" variant="secondary" onPress={onTopUp}>
+                {m.subscription_topup()}
+              </Button>
+            )}
+            <Button size="sm" variant="danger-soft" onPress={onTerminate}>
+              {m.subscription_terminate()}
+            </Button>
+          </div>
+        )}
+      </div>
+      {current && (
+        <div className="grid divide-y divide-border border-t border-border md:grid-cols-4 md:divide-x md:divide-y-0">
+          <Meter label={m.subscription_allowance()}>
+            <span className="font-mono text-[13px] tabular-nums">
+              {formatBytes(item.allowance_bytes)}
+            </span>
+          </Meter>
+          <Meter label={m.subscription_used()}>
+            <span className="font-mono text-[13px] tabular-nums">
+              {formatBytes(item.used_bytes)}
+            </span>
+          </Meter>
+          <Meter label={m.subscription_remaining()}>
+            <span className="inline-flex items-baseline gap-2">
+              <span className="font-mono text-[15px] font-medium tabular-nums">
+                {formatBytes(Math.max(0, item.remaining_bytes))}
+              </span>
+              {item.over_allowance && (
+                <span className="text-xs text-danger">{m.subscription_over()}</span>
+              )}
+            </span>
+          </Meter>
+          <Meter label={m.subscription_resets()}>
+            <span className="text-[13px] tabular-nums">
+              {formatLocaleDateTime(Date.parse(item.window_ends_at), undefined, timeZone)}
+            </span>
+          </Meter>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Meter({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0 px-4 py-3">
+      <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</div>
+      <div className="mt-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function TopUpModal({
+  isOpen,
+  fieldKey,
+  gib,
+  gibTouched,
+  pending,
+  error,
+  onGibChange,
+  onTouch,
+  onOpenChange,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  fieldKey: number;
+  gib: number;
+  gibTouched: boolean;
+  pending: boolean;
+  error: string;
+  onGibChange: (value: number) => void;
+  onTouch: () => void;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (bytes: number) => void;
+}) {
+  const bytes = allowanceBytes(gib);
+  const invalid = gibTouched && bytes == null;
+  const focusAmount = typeof window !== "undefined" && !("ontouchstart" in window);
+
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="sm" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              onTouch();
+              if (pending || bytes == null) return;
+              onConfirm(bytes);
+            }}
+          >
+            <Modal.Header>
+              <Modal.Heading>{m.subscription_topup()}</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <div className="flex flex-col gap-3">
+                <NumberField
+                  key={fieldKey}
+                  fullWidth
+                  value={gib}
+                  onChange={onGibChange}
+                  onBlur={onTouch}
+                  formatOptions={{ maximumFractionDigits: 6, useGrouping: false }}
+                  commitBehavior="validate"
+                  isRequired
+                  isInvalid={invalid}
+                  isDisabled={pending}
+                >
+                  <Label>
+                    {m.subscriptions_allowance()}
+                    <span className="sr-only"> ({m.subscriptions_unit_gib()})</span>
+                  </Label>
+                  <NumberField.Group
+                    className="relative"
+                    style={{ gridTemplateColumns: "minmax(0, 1fr)", height: "auto" }}
+                  >
+                    <NumberField.Input
+                      autoFocus={isOpen && focusAmount}
+                      autoComplete="off"
+                      style={{ paddingInlineEnd: "2.75rem" }}
+                    />
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted"
+                    >
+                      {m.subscriptions_unit_gib()}
+                    </span>
+                  </NumberField.Group>
+                  {invalid ? <FieldError>{m.subscriptions_allowance_invalid()}</FieldError> : null}
+                </NumberField>
+                {bytes != null ? (
+                  <p className="text-xs leading-5 text-muted">
+                    {m.subscription_topup_hint({ amount: formatBytes(bytes) })}
+                  </p>
+                ) : null}
+                {error ? (
+                  <p className="text-[13px] text-danger" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+              </div>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button slot="close" variant="secondary" isDisabled={pending}>
+                {m.common_cancel()}
+              </Button>
+              <Button type="submit" variant="primary" isDisabled={pending} isPending={pending}>
+                {pending ? m.subscription_topup_pending() : m.subscription_topup()}
+              </Button>
+            </Modal.Footer>
+          </form>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
+function GrantModal({
+  isOpen,
+  types,
+  selected,
+  legacy,
+  willQueue,
+  pending,
+  error,
+  onSelectedChange,
+  onOpenChange,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  types: SubscriptionType[];
+  selected: string;
+  legacy: boolean;
+  willQueue: boolean;
+  pending: boolean;
+  error: string;
+  onSelectedChange: (value: string) => void;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  const name = types.find((item) => item.id === selected)?.name ?? "";
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="sm" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!pending && selected) onConfirm();
+            }}
+          >
+            <Modal.Header>
+              <Modal.Heading>{m.subscription_grant()}</Modal.Heading>
+              <p className="mt-1.5 text-sm leading-5 text-muted">
+                {grantConfirm(name, legacy, willQueue)}
+              </p>
+            </Modal.Header>
+            <Modal.Body>
+              <div className="flex flex-col gap-3">
+                <SelectField
+                  fullWidth
+                  label={m.subscription_select_type()}
+                  value={selected}
+                  onChange={onSelectedChange}
+                  isDisabled={pending || types.length === 0}
+                  options={types.map((item) => ({ value: item.id, label: item.name }))}
+                />
+                {error ? (
+                  <p className="text-[13px] text-danger" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+              </div>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button slot="close" variant="secondary" isDisabled={pending}>
+                {m.common_cancel()}
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isDisabled={pending || !selected}
+                isPending={pending}
+              >
+                {pending ? m.subscription_granting() : m.subscription_grant()}
+              </Button>
+            </Modal.Footer>
+          </form>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
+function grantConfirm(name: string, legacy: boolean, willQueue: boolean) {
+  if (legacy) return m.subscription_grant_confirm_legacy({ name });
+  if (willQueue) return m.subscription_grant_confirm_queued({ name });
+  return m.subscription_grant_confirm_now({ name });
+}
+
+function LoadError({ message }: { message: string }) {
+  if (!message) return null;
+  return (
+    <div
+      className="border-b border-border bg-danger-soft px-4 py-2 text-[13px] text-danger-soft-foreground"
+      role="alert"
+    >
+      {message}
+    </div>
+  );
+}
+
+function SubscriptionSkeleton() {
+  return (
+    <div className="px-4 py-3">
+      <div className="h-3 w-28 animate-pulse rounded bg-surface-secondary" />
+      <div className="mt-2 h-3 w-56 animate-pulse rounded bg-surface-secondary" />
+    </div>
   );
 }

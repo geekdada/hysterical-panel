@@ -410,10 +410,15 @@ export function grantSubscription(id: string, subscriptionType: string): Promise
   );
 }
 
-export function topUpSubscription(id: string, subscriptionId: string): Promise<UserSubscription> {
+export function topUpSubscription(
+  id: string,
+  subscriptionId: string,
+  allowanceBytes: number
+): Promise<UserSubscription> {
   return apiRequest<UserSubscription>(
     apiClient.POST("/api/panel/users/{id}/subscriptions/{subscriptionId}/top-up", {
       params: { path: { id, subscriptionId } },
+      body: { allowance_bytes: allowanceBytes },
     })
   );
 }
