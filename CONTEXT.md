@@ -167,3 +167,11 @@ _Avoid_: Alert, message queue, reminder
 **Notification Language**:
 The language a Monitor selects for its automatic Notifications. An Alert snapshots it so firing and recovery Notifications use the same language.
 _Avoid_: interface language, Channel language, locale (as the domain noun)
+
+**Email Sendout**:
+An administrator-initiated transactional email, composed once from the fixed service template in a chosen language and addressed to one User or to every User who is active and Verified. Recipients cannot unsubscribe.
+_Avoid_: Notification, Broadcast, Announcement, Campaign, newsletter
+
+**Sendout Recipient**:
+One User addressed by an Email Sendout, carrying that User's own delivery outcome. A single-recipient Sendout has exactly one.
+_Avoid_: Delivery, Notification, subscriber
