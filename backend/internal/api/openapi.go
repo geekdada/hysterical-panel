@@ -143,7 +143,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"EmailSendoutCounts":             {"total", "pending", "sent", "failed", "skipped", "cancelled"},
 		"EmailSendout":                   {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created"},
 		"EmailSendoutDetail":             {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created", "html", "text"},
-		"EmailSendoutRecipient":          {"id", "user_id", "email", "status", "attempts", "queued_at", "last_attempt_at", "sent_at"},
+		"EmailSendoutRecipient":          {"id", "user_id", "email", "status", "attempts", "queued_at"},
 		"EmailSendoutResendResponse":     {"requeued"},
 		"SettingsResponse":               {"email_sendout_rate_per_minute"},
 	} {

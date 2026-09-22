@@ -755,8 +755,8 @@ type EmailSendoutRecipient struct {
 	Reason        *string `json:"reason,omitempty"`
 	Attempts      int     `json:"attempts"`
 	QueuedAt      string  `json:"queued_at"`
-	LastAttemptAt string  `json:"last_attempt_at"`
-	SentAt        string  `json:"sent_at"`
+	LastAttemptAt *string `json:"last_attempt_at,omitempty"`
+	SentAt        *string `json:"sent_at,omitempty"`
 }
 
 // EmailSendoutResendRequest selects failed recipients to requeue; an empty
