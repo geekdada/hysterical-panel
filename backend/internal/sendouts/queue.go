@@ -176,7 +176,13 @@ func Requeue(app core.App, sendout *core.Record, recipientIDs []string, now time
 	if !sendout.GetDateTime("cancelled_at").IsZero() {
 		return 0, ErrCancelled
 	}
-	var where dbx.Expression = dbx.HashExp{"sendout": sendout.Id, "status": StatusFailed}
+	// The in-memory cancelled_at check above can race with a concurrent Cancel
+	// that commits after it. The UPDATE itself must refuse a cancelled Sendout
+	// so a failed row never turns pending underneath one.
+	where := dbx.And(
+		dbx.HashExp{"sendout": sendout.Id, "status": StatusFailed},
+		dbx.NewExp("sendout IN (SELECT id FROM "+SendoutsCollection+" WHERE id = {:sid} AND cancelled_at = '')", dbx.Params{"sid": sendout.Id}),
+	)
 	if len(recipientIDs) > 0 {
 		ids := make([]any, len(recipientIDs))
 		for i, id := range recipientIDs {

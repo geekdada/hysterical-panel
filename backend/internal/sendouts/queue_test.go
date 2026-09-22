@@ -135,6 +135,37 @@ func TestRequeueMovesFailedRecipientsToQueueTail(t *testing.T) {
 	}
 }
 
+// TestRequeueRaceAgainstConcurrentCancel reproduces a race where Requeue reads
+// a stale, not-yet-cancelled Sendout, a concurrent Cancel commits in between,
+// and Requeue's UPDATE must still refuse to move failed rows back to pending.
+func TestRequeueRaceAgainstConcurrentCancel(t *testing.T) {
+	app := newTestApp(t)
+	sendout := newTestSendout(t, app, testNow,
+		newTestUser(t, app, "a@example.com", "active", true),
+		newTestUser(t, app, "b@example.com", "active", true),
+	)
+	rows := recipientsOf(t, app, sendout.Id)
+	setRecipientStatus(t, app, rows[0], StatusFailed, ReasonDeliveryFailed)
+
+	// A concurrent request cancels the Sendout through its own freshly loaded
+	// copy; `sendout` above stays stale, as Requeue's caller would have it.
+	concurrent := reload(t, app, SendoutsCollection, sendout.Id)
+	if err := Cancel(app, concurrent, testNow); err != nil {
+		t.Fatalf("Cancel() error = %v", err)
+	}
+
+	n, err := Requeue(app, sendout, nil, testNow.Add(time.Hour))
+	if err != nil && !errors.Is(err, ErrCancelled) {
+		t.Fatalf("Requeue() error = %v, want nil or ErrCancelled", err)
+	}
+	if n != 0 {
+		t.Fatalf("Requeue() requeued %d rows against a cancelled sendout, want 0", n)
+	}
+	if got := reload(t, app, RecipientsCollection, rows[0].Id).GetString("status"); got != StatusFailed {
+		t.Fatalf("failed row status = %q after race, want still failed", got)
+	}
+}
+
 func TestRequeueRejectsCancelledSendout(t *testing.T) {
 	app := newTestApp(t)
 	sendout := newTestSendout(t, app, testNow, newTestUser(t, app, "a@example.com", "active", true))
