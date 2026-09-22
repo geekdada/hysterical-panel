@@ -1,4 +1,5 @@
-FROM node:22-alpine AS build
+# .output is plain JS, so build once on the host arch instead of under QEMU.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 

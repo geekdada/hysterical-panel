@@ -87,8 +87,8 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-  backend:
-    name: Build and publish backend image
+  openapi:
+    name: Generate OpenAPI schema
     runs-on: ubuntu-latest
     needs: metadata
 
@@ -123,6 +123,17 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  backend:
+    name: Build and publish backend image
+    runs-on: ubuntu-latest
+    needs: metadata
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -153,13 +164,11 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.metadata.outputs.version }}
             org.opencontainers.image.created=${{ needs.metadata.outputs.created }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   frontend:
     name: Build and publish frontend image
     runs-on: ubuntu-latest
-    needs: [metadata, backend]
+    needs: [metadata, openapi]
 
     steps:
       - name: Checkout tag
@@ -201,8 +210,6 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.metadata.outputs.version }}
             org.opencontainers.image.created=${{ needs.metadata.outputs.created }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   release:
     name: Create release
