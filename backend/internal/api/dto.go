@@ -680,3 +680,59 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 	Data    any    `json:"data,omitempty"`
 }
+
+// ── Email Sendouts ────────────────────────────────────────────────────────────
+
+// EmailSendoutContextResponse is what the composer needs before a Sendout is
+// written: the template frame's inputs, SMTP availability and audience size.
+type EmailSendoutContextResponse struct {
+	AppName                string `json:"app_name"`
+	FrontendURL            string `json:"frontend_url"`
+	SMTPEnabled            bool   `json:"smtp_enabled"`
+	EligibleRecipientCount int64  `json:"eligible_recipient_count"`
+	RatePerMinute          int    `json:"rate_per_minute"`
+}
+
+// EmailSendoutRecipientCandidate is one active and Verified User offered by
+// the single-recipient picker.
+type EmailSendoutRecipientCandidate struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
+// EmailSendoutCreateRequest carries the browser-composed email. HTML and Text
+// are sent unchanged; Content is the editor JSON kept for the record.
+type EmailSendoutCreateRequest struct {
+	Subject  string         `json:"subject"`
+	Language string         `json:"language"`
+	Audience string         `json:"audience"`
+	UserID   string         `json:"user_id,omitempty"`
+	HTML     string         `json:"html"`
+	Text     string         `json:"text"`
+	Content  map[string]any `json:"content"`
+}
+
+// EmailSendoutCounts groups Sendout Recipients by status; Pending includes the
+// row being sent right now.
+type EmailSendoutCounts struct {
+	Total     int64 `json:"total"`
+	Pending   int64 `json:"pending"`
+	Sent      int64 `json:"sent"`
+	Failed    int64 `json:"failed"`
+	Skipped   int64 `json:"skipped"`
+	Cancelled int64 `json:"cancelled"`
+}
+
+// EmailSendout is a Sendout without its content. Status is derived from the
+// recipients: cancelled, sending, or completed.
+type EmailSendout struct {
+	ID             string             `json:"id"`
+	Subject        string             `json:"subject"`
+	Language       string             `json:"language"`
+	Audience       string             `json:"audience"`
+	Status         string             `json:"status"`
+	Counts         EmailSendoutCounts `json:"counts"`
+	CreatedByEmail string             `json:"created_by_email"`
+	Created        string             `json:"created"`
+	CancelledAt    *string            `json:"cancelled_at,omitempty"`
+}

@@ -23,6 +23,7 @@ import (
 	"hysterical-panel/internal/monitoring"
 	"hysterical-panel/internal/notifications"
 	"hysterical-panel/internal/panelserve"
+	"hysterical-panel/internal/sendouts"
 	"hysterical-panel/internal/version"
 )
 
@@ -109,9 +110,10 @@ func main() {
 		}
 
 		monitorService := monitoring.New(app, box, notifications.New(), frontendURL)
+		sendoutService := sendouts.New(app)
 
 		// register custom panel routes
-		handlers := api.Register(se, app, box, ipLookup, passkeys, monitorService, api.PanelConfigResponse{
+		handlers := api.Register(se, app, box, ipLookup, passkeys, monitorService, sendoutService, api.PanelConfigResponse{
 			APIURL:          backendURL,
 			FrontendURL:     frontendURL,
 			PasskeysEnabled: passkeyConfig.Enabled,
@@ -124,6 +126,7 @@ func main() {
 		c.Start(ctx)
 		handlers.StartSubscriptionExpiry(ctx)
 		monitorService.Start(ctx)
+		sendoutService.Start(ctx)
 
 		// stop the collector when the app terminates
 		app.OnTerminate().BindFunc(func(te *core.TerminateEvent) error {

@@ -34,11 +34,12 @@ type Handlers struct {
 	registerLimit *passkeyRateLimiter
 	notifications notificationDelivery
 	monitoring    monitorLifecycle
+	sendoutQueue  sendoutNotifier
 	publicConfig  PanelConfigResponse
 }
 
 // Register wires every /api/panel/* route onto the serve event router.
-func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, passkeys *webauthn.WebAuthn, monitoring monitorLifecycle, public PanelConfigResponse) *Handlers {
+func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ipMetadataLookup, passkeys *webauthn.WebAuthn, monitoring monitorLifecycle, sendoutQueue sendoutNotifier, public PanelConfigResponse) *Handlers {
 	h := &Handlers{
 		app:           app,
 		box:           box,
@@ -48,6 +49,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 		registerLimit: newPasskeyRateLimiter(registerRateMax, registerRateWindow),
 		notifications: notifications.New(),
 		monitoring:    monitoring,
+		sendoutQueue:  sendoutQueue,
 		publicConfig:  public,
 	}
 
@@ -117,6 +119,11 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/alerts", h.listAlerts).Bind(adminOnly)
 	g.GET("/alerts/summary", h.alertSummary).Bind(adminOnly)
 	g.GET("/nodes/{id}/alerts", h.nodeAlerts).Bind(adminOnly)
+
+	// email sendouts (transactional mail through PocketBase SMTP; ADR 0008)
+	g.GET("/email-sendouts/context", h.emailSendoutContext).Bind(adminOnly)
+	g.GET("/email-sendouts/eligible-recipients", h.listEmailSendoutCandidates).Bind(adminOnly)
+	g.POST("/email-sendouts", h.createEmailSendout).Bind(adminOnly)
 
 	// users
 	g.GET("/subscription-types", h.listSubscriptionTypes).Bind(adminOnly)
