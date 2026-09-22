@@ -347,7 +347,7 @@ function GrantRow({
           </Meter>
           <Meter label={m.subscription_remaining()}>
             <span className="inline-flex items-baseline gap-2">
-              <span className="font-mono text-[13px] font-medium tabular-nums">
+              <span className="font-mono text-[13px] tabular-nums">
                 {formatBytes(Math.max(0, item.remaining_bytes))}
               </span>
               {item.over_allowance && (
