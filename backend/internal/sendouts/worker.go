@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"net/mail"
 	"time"
@@ -175,11 +176,35 @@ func (s *Service) message(sendout *core.Record, to string) *mailer.Message {
 	}
 }
 
+// finish writes the row's terminal state with a guarded column UPDATE rather
+// than a full-record Save. A Save would validate the in-memory `user`
+// relation, which is stale and fails if the recipient's User was deleted
+// while the send was in flight (PocketBase clears `user` on the row via
+// SaveNoValidate at that point).
 func (s *Service) finish(row *core.Record, status, reason string) error {
-	row.Set("status", status)
-	row.Set("reason", reason)
+	sentAt := ""
 	if status == StatusSent {
-		row.Set("sent_at", s.now())
+		sentAt = s.now().Format(dbDateLayout)
 	}
-	return s.app.Save(row)
+	res, err := s.app.DB().NewQuery(
+		"UPDATE " + RecipientsCollection + " SET status = {:status}, reason = {:reason}, email = {:email}, sent_at = {:sentAt}, updated = {:now} WHERE id = {:id} AND status = 'sending'",
+	).Bind(dbx.Params{
+		"status": status,
+		"reason": reason,
+		"email":  row.GetString("email"),
+		"sentAt": sentAt,
+		"now":    s.now().Format(dbDateLayout),
+		"id":     row.Id,
+	}).Execute()
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return fmt.Errorf("sendouts: finish recipient %s: expected 1 row updated, got %d", row.Id, n)
+	}
+	return nil
 }

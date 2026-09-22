@@ -151,3 +151,50 @@ func TestNotifyDoesNotBlock(t *testing.T) {
 	s.Notify()
 	s.Notify()
 }
+
+// TestProcessNextHandlesUserDeletedDuringSend covers a race where the
+// recipient's User is deleted while the send is in flight: PocketBase clears
+// `user` on the row via SaveNoValidate, and finish must not clobber that with
+// a stale full-record Save that fails RelationField validation.
+func TestProcessNextHandlesUserDeletedDuringSend(t *testing.T) {
+	s, _ := newTestService(t, nil)
+	user := newTestUser(t, s.app, "a@example.com", "active", true)
+	sendout := newTestSendout(t, s.app, testNow, user)
+	s.send = func(msg *mailer.Message) error {
+		if err := s.app.Delete(user); err != nil {
+			t.Fatalf("delete user during send: %v", err)
+		}
+		return nil
+	}
+
+	processed, err := s.ProcessNext()
+	if err != nil || !processed {
+		t.Fatalf("ProcessNext() = %v, %v; want true, nil", processed, err)
+	}
+	row := recipientsOf(t, s.app, sendout.Id)[0]
+	if row.GetString("status") != StatusSent || row.GetString("reason") != "" ||
+		row.GetDateTime("sent_at").IsZero() || row.GetString("user") != "" {
+		t.Fatalf("recipient = status %q reason %q sent_at %v user %q",
+			row.GetString("status"), row.GetString("reason"), row.GetDateTime("sent_at"), row.GetString("user"))
+	}
+}
+
+func TestProcessNextSkipsCancelledRow(t *testing.T) {
+	s, sent := newTestService(t, nil)
+	sendout := newTestSendout(t, s.app, testNow, newTestUser(t, s.app, "a@example.com", "active", true))
+	if err := Cancel(s.app, sendout, testNow); err != nil {
+		t.Fatalf("Cancel() error = %v", err)
+	}
+
+	processed, err := s.ProcessNext()
+	if err != nil || processed {
+		t.Fatalf("ProcessNext() = %v, %v; want false, nil", processed, err)
+	}
+	if len(*sent) != 0 {
+		t.Fatalf("sent %d messages, want 0", len(*sent))
+	}
+	row := recipientsOf(t, s.app, sendout.Id)[0]
+	if row.GetString("status") != StatusCancelled {
+		t.Fatalf("row status = %q, want cancelled", row.GetString("status"))
+	}
+}
