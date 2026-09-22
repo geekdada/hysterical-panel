@@ -112,7 +112,6 @@ body {
  * visually dense and heavier when they inherit it. */
 .font-mono {
   letter-spacing: 0;
-  font-weight: 600;
 }
 
 /* Headings sit a touch tighter, the way Inter reads in Linear. */
