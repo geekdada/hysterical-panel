@@ -23,11 +23,10 @@ func migratedApp(t *testing.T) core.App {
 	return app
 }
 
-// authStringsMigrationRunner scopes Down/Up to the user_auth_strings migration
-// so tests keep working when newer migrations are appended after it.
-func authStringsMigrationRunner(t *testing.T, app core.App) *core.MigrationsRunner {
+// migrationRunnerThrough scopes Down/Up to the target migration so tests keep
+// working when newer migrations are appended after it.
+func migrationRunnerThrough(t *testing.T, app core.App, target string) *core.MigrationsRunner {
 	t.Helper()
-	const target = "1730000023_create_user_auth_strings.go"
 	var list core.MigrationsList
 	for _, m := range core.AppMigrations.Items() {
 		list.Add(m)
@@ -37,6 +36,11 @@ func authStringsMigrationRunner(t *testing.T, app core.App) *core.MigrationsRunn
 	}
 	t.Fatalf("migration %s not registered", target)
 	return nil
+}
+
+func authStringsMigrationRunner(t *testing.T, app core.App) *core.MigrationsRunner {
+	t.Helper()
+	return migrationRunnerThrough(t, app, "1730000023_create_user_auth_strings.go")
 }
 
 func TestUserAuthStringsMigrationBackfillsAndRollsBackCurrentCredential(t *testing.T) {

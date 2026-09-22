@@ -101,17 +101,12 @@ func (h *Handlers) updateSubscriptionType(e *core.RequestEvent) error {
 					continue
 				}
 				index, _ := subscriptions.WindowAt(grant.GetDateTime("starts_at").Time(), now, record.GetInt("reset_days"))
-				used := int64(0)
-				if grant.GetInt("window_index") == index {
-					used = int64(grant.GetInt("used_bytes"))
-				}
-				grant.Set("window_index", index)
-				grant.Set("used_bytes", used)
-				grant.Set("extra_bytes", 0)
+				used, _ := subscriptions.WindowUsage(grant, index)
+				subscriptions.SetWindow(grant, index, used, 0)
 				if err := app.Save(grant); err != nil {
 					return err
 				}
-				if used >= *in.AllowanceBytes {
+				if used.Total() >= *in.AllowanceBytes {
 					kicks = append(kicks, grant.GetString("user"))
 				}
 			}
@@ -155,7 +150,13 @@ func grantView(app core.App, grant *core.Record, now time.Time) (UserSubscriptio
 	}
 	start := grant.GetDateTime("starts_at").Time()
 	end := grant.GetDateTime("ends_at").Time()
-	out := UserSubscription{ID: grant.Id, SubscriptionType: typ.Id, TypeName: typ.GetString("name"), StartsAt: grant.GetString("starts_at"), EndsAt: grant.GetString("ends_at"), TerminatedAt: grant.GetString("terminated_at"), AllowanceBytes: int64(typ.GetInt("allowance_bytes"))}
+	grantUsage := subscriptions.GrantUsage(grant)
+	out := UserSubscription{
+		ID: grant.Id, SubscriptionType: typ.Id, TypeName: typ.GetString("name"),
+		StartsAt: grant.GetString("starts_at"), EndsAt: grant.GetString("ends_at"), TerminatedAt: grant.GetString("terminated_at"),
+		AllowanceBytes: int64(typ.GetInt("allowance_bytes")),
+		GrantTxBytes:   grantUsage.Tx, GrantRxBytes: grantUsage.Rx,
+	}
 	switch {
 	case !grant.GetDateTime("terminated_at").IsZero():
 		out.Status = "terminated"
@@ -166,10 +167,9 @@ func grantView(app core.App, grant *core.Record, now time.Time) (UserSubscriptio
 	default:
 		out.Status = "current"
 		index, _ := subscriptions.WindowAt(start, now, typ.GetInt("reset_days"))
-		if grant.GetInt("window_index") == index {
-			out.UsedBytes = int64(grant.GetInt("used_bytes"))
-			out.AllowanceBytes += int64(grant.GetInt("extra_bytes"))
-		}
+		used, extra := subscriptions.WindowUsage(grant, index)
+		out.UsedTxBytes, out.UsedRxBytes, out.UsedBytes = used.Tx, used.Rx, used.Total()
+		out.AllowanceBytes += extra
 		windowEnd := start.Add(time.Duration(index+1) * time.Duration(typ.GetInt("reset_days")) * 24 * time.Hour)
 		if windowEnd.After(end) {
 			windowEnd = end
@@ -292,14 +292,11 @@ func (h *Handlers) topUpSubscription(e *core.RequestEvent) error {
 		if state == nil || state.Grant.Id != grant.Id {
 			return apis.NewBadRequestError("only a current subscription can be topped up", nil)
 		}
-		base := int64(state.Type.GetInt("allowance_bytes"))
-		extra := state.Allowance - base
-		if in.AllowanceBytes > math.MaxInt64-extra {
+		// Bound the effective allowance, not only the top-up total, so Current can still read the grant.
+		if in.AllowanceBytes > math.MaxInt64-state.Allowance {
 			return apis.NewBadRequestError("allowance overflow", nil)
 		}
-		grant.Set("window_index", state.Window)
-		grant.Set("used_bytes", state.Used)
-		grant.Set("extra_bytes", extra+in.AllowanceBytes)
+		subscriptions.SetWindow(grant, state.Window, state.Used, state.Extra+in.AllowanceBytes)
 		if err := app.Save(grant); err != nil {
 			return err
 		}

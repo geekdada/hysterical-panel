@@ -40,6 +40,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"PanelUser":                         PanelUser{},
 		"UserDetail":                        UserDetail{},
 		"RecentConnection":                  RecentConnection{},
+		"UserListItem":                      UserListItem{},
 		"UserListResponse":                  UserListResponse{},
 		"UserStatsResponse":                 UserStatsResponse{},
 		"UserCreateRequest":                 UserCreateRequest{},
@@ -107,10 +108,16 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	if s, ok := schemas["Node"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "health", []any{"ok", "error", "never"})
 	}
-	for _, name := range []string{"PanelUser", "UserDetail"} {
+	for _, name := range []string{"PanelUser", "UserDetail", "UserListItem"} {
 		if s, ok := schemas[name]; ok && s.Value != nil {
 			setEnum(s.Value.Properties, "role", []any{"admin", "user"})
 			setEnum(s.Value.Properties, "status", []any{"active", "disabled"})
+		}
+	}
+	// Inlined list rows would lose the role/status enums set above.
+	if s, ok := schemas["UserListResponse"]; ok && s.Value != nil {
+		if items := s.Value.Properties["items"]; items != nil && items.Value != nil {
+			items.Value.Items = &openapi3.SchemaRef{Ref: "#/components/schemas/UserListItem"}
 		}
 	}
 	for name, fields := range map[string][]string{
@@ -118,7 +125,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"SubscriptionTypeCreateRequest": {"name", "allowance_bytes", "reset_days"},
 		"SubscriptionGrantRequest":      {"subscription_type"},
 		"SubscriptionTopUpRequest":      {"allowance_bytes"},
-		"UserSubscription":              {"id", "subscription_type", "type_name", "status", "starts_at", "ends_at", "terminated_at", "window_ends_at", "allowance_bytes", "used_bytes", "remaining_bytes", "over_allowance"},
+		"UserSubscription":              {"id", "subscription_type", "type_name", "status", "starts_at", "ends_at", "terminated_at", "window_ends_at", "allowance_bytes", "used_bytes", "used_tx_bytes", "used_rx_bytes", "remaining_bytes", "over_allowance", "grant_tx_bytes", "grant_rx_bytes"},
 	} {
 		if s := schemas[name]; s != nil && s.Value != nil {
 			s.Value.Required = append(s.Value.Required, fields...)

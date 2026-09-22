@@ -167,7 +167,7 @@ func TestRecordTrafficConsumesSubscriptionAndKicksOnExhaustion(t *testing.T) {
 		t.Fatal(err)
 	}
 	state, err := subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Used != 120 || state.Remaining != -20 || kicks != 1 {
+	if err != nil || state == nil || state.Used != (subscriptions.Usage{Tx: 70, Rx: 50}) || state.Remaining != -20 || kicks != 1 {
 		t.Fatalf("usage = %v, kicks = %d, err = %v", state, kicks, err)
 	}
 	assertCollectorUserTotals(t, app, user.Id, 70, 50)
@@ -200,7 +200,10 @@ func TestLateCounterPollAndResetSettleInCurrentSubscriptionWindow(t *testing.T) 
 	grant.Set("starts_at", start)
 	grant.Set("ends_at", start.Add(360*24*time.Hour))
 	grant.Set("window_index", 0)
-	grant.Set("used_bytes", 90)
+	grant.Set("used_tx_bytes", 60)
+	grant.Set("used_rx_bytes", 30)
+	grant.Set("grant_tx_bytes", 60)
+	grant.Set("grant_rx_bytes", 30)
 	if err := app.Save(grant); err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +213,7 @@ func TestLateCounterPollAndResetSettleInCurrentSubscriptionWindow(t *testing.T) 
 		t.Fatal(err)
 	}
 	state, err := subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Window != 1 || state.Used != 30 {
+	if err != nil || state == nil || state.Window != 1 || state.Used != (subscriptions.Usage{Tx: 20, Rx: 10}) {
 		t.Fatalf("late poll state = %v, err = %v", state, err)
 	}
 	// A node counter reset contributes its new value, not a negative delta.
@@ -218,8 +221,11 @@ func TestLateCounterPollAndResetSettleInCurrentSubscriptionWindow(t *testing.T) 
 		t.Fatal(err)
 	}
 	state, err = subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Used != 35 {
+	if err != nil || state == nil || state.Used != (subscriptions.Usage{Tx: 22, Rx: 13}) {
 		t.Fatalf("counter reset state = %v, err = %v", state, err)
+	}
+	if got := subscriptions.GrantUsage(state.Grant); got != (subscriptions.Usage{Tx: 82, Rx: 43}) {
+		t.Fatalf("grant usage = %+v; want 82/43 across both windows", got)
 	}
 	assertCollectorUserTotals(t, app, user.Id, 22, 13)
 }

@@ -371,13 +371,19 @@ func publicUser(u *core.Record, authString string, lookup ipMetadataLookup, igno
 // is needed directly (e.g. the registration auth response).
 func panelUser(u *core.Record, authString string, lookup ipMetadataLookup, ignored map[string]struct{}) PanelUser {
 	return PanelUser{
+		UserProfile: userProfile(u, authString, lookup, ignored),
+		UsedTx:      int64(u.GetInt("used_tx")),
+		UsedRx:      int64(u.GetInt("used_rx")),
+	}
+}
+
+func userProfile(u *core.Record, authString string, lookup ipMetadataLookup, ignored map[string]struct{}) UserProfile {
+	return UserProfile{
 		ID:                   u.Id,
 		Email:                u.GetString("email"),
 		Role:                 u.GetString("role"),
 		AuthString:           authString,
 		SubscriptionRequired: u.GetBool("subscription_required"),
-		UsedTx:               int64(u.GetInt("used_tx")),
-		UsedRx:               int64(u.GetInt("used_rx")),
 		Status:               u.GetString("status"),
 		Created:              u.GetString("created"),
 		LastConnectedAt:      u.GetString("last_connected_at"),

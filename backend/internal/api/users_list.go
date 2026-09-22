@@ -3,6 +3,7 @@ package api
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
@@ -23,10 +24,6 @@ var (
 		"-role":              {},
 		"status":             {},
 		"-status":            {},
-		"used_tx":            {},
-		"-used_tx":           {},
-		"used_rx":            {},
-		"-used_rx":           {},
 		"last_connected_at":  {},
 		"-last_connected_at": {},
 	}
@@ -166,7 +163,12 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("failed to list users", err)
 	}
 
-	items := make([]PanelUser, 0, len(users))
+	subscriptionsByUser, err := currentSubscriptionsByUser(h.app, users, time.Now().UTC())
+	if err != nil {
+		return apis.NewBadRequestError("failed to load subscriptions", err)
+	}
+
+	items := make([]UserListItem, 0, len(users))
 	ignored := h.loadIgnoredConnectionIPSet()
 	resolver, err := authstrings.LoadResolver(h.app)
 	if err != nil {
@@ -177,7 +179,10 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 		if err != nil {
 			return apis.NewBadRequestError("failed to load auth string", err)
 		}
-		items = append(items, panelUser(u, authString, h.ipLookup, ignored))
+		items = append(items, UserListItem{
+			UserProfile:         userProfile(u, authString, h.ipLookup, ignored),
+			CurrentSubscription: subscriptionsByUser[u.Id],
+		})
 	}
 
 	return ok(e, UserListResponse{
@@ -186,6 +191,38 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 		Page:    q.Page,
 		PerPage: q.PerPage,
 	})
+}
+
+// currentSubscriptionsByUser loads the page's grants in one query and keeps
+// the one covering now for each User.
+func currentSubscriptionsByUser(app core.App, users []*core.Record, now time.Time) (map[string]*UserSubscription, error) {
+	out := make(map[string]*UserSubscription, len(users))
+	if len(users) == 0 {
+		return out, nil
+	}
+	ids := make([]any, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.Id)
+	}
+	var grants []*core.Record
+	err := app.RecordQuery("user_subscriptions").
+		AndWhere(dbx.In("user", ids...)).
+		AndWhere(dbx.HashExp{"terminated_at": ""}).
+		All(&grants)
+	if err != nil {
+		return nil, err
+	}
+	for _, grant := range grants {
+		if now.Before(grant.GetDateTime("starts_at").Time()) || !now.Before(grant.GetDateTime("ends_at").Time()) {
+			continue
+		}
+		view, err := grantView(app, grant, now)
+		if err != nil {
+			return nil, err
+		}
+		out[grant.GetString("user")] = &view
+	}
+	return out, nil
 }
 
 func (h *Handlers) getUserStats(e *core.RequestEvent) error {

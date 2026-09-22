@@ -1,6 +1,7 @@
 package subscriptions_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -36,7 +37,9 @@ func TestWindowAtExactThirtyDayBoundaries(t *testing.T) {
 	}
 }
 
-func TestGrantAllowanceResetsAtWindowBoundary(t *testing.T) {
+// newGrantFixture creates a metered User with one grant of a new Type.
+func newGrantFixture(t *testing.T, allowance int64, resetDays int, start time.Time) (core.App, *core.Record, *core.Record) {
+	t.Helper()
 	app := core.NewBaseApp(core.BaseAppConfig{DataDir: t.TempDir()})
 	t.Cleanup(func() { _ = app.ResetBootstrapState() })
 	if err := app.Bootstrap(); err != nil {
@@ -58,15 +61,14 @@ func TestGrantAllowanceResetsAtWindowBoundary(t *testing.T) {
 	}
 	types, _ := app.FindCollectionByNameOrId("subscription_types")
 	typ := core.NewRecord(types)
-	typ.Set("name", "Monthly")
-	typ.Set("allowance_bytes", 100)
-	typ.Set("reset_days", 30)
+	typ.Set("name", "Fixture")
+	typ.Set("allowance_bytes", allowance)
+	typ.Set("reset_days", resetDays)
 	if err := app.Save(typ); err != nil {
 		t.Fatal(err)
 	}
 	grants, _ := app.FindCollectionByNameOrId("user_subscriptions")
 	grant := core.NewRecord(grants)
-	start := time.Date(2026, 9, 20, 15, 37, 0, 0, time.UTC)
 	grant.Set("user", user.Id)
 	grant.Set("subscription_type", typ.Id)
 	grant.Set("starts_at", start)
@@ -74,8 +76,14 @@ func TestGrantAllowanceResetsAtWindowBoundary(t *testing.T) {
 	if err := app.Save(grant); err != nil {
 		t.Fatal(err)
 	}
+	return app, user, grant
+}
 
-	if exhausted, err := subscriptions.AddUsage(app, user.Id, start.Add(time.Hour), 120); err != nil || !exhausted {
+func TestGrantAllowanceResetsAtWindowBoundary(t *testing.T) {
+	start := time.Date(2026, 9, 20, 15, 37, 0, 0, time.UTC)
+	app, user, _ := newGrantFixture(t, 100, 30, start)
+
+	if exhausted, err := subscriptions.AddUsage(app, user.Id, start.Add(time.Hour), 80, 40); err != nil || !exhausted {
 		t.Fatalf("first poll exhausted = %t, err = %v", exhausted, err)
 	}
 	state, err := subscriptions.Current(app, user.Id, start.Add(2*time.Hour))
@@ -90,12 +98,12 @@ func TestGrantAllowanceResetsAtWindowBoundary(t *testing.T) {
 	if err != nil || !allowed {
 		t.Fatalf("next window access = %t, err = %v", allowed, err)
 	}
-	if exhausted, err := subscriptions.AddUsage(app, user.Id, start.Add(30*24*time.Hour), 7); err != nil || exhausted {
+	if exhausted, err := subscriptions.AddUsage(app, user.Id, start.Add(30*24*time.Hour), 3, 4); err != nil || exhausted {
 		t.Fatalf("next window poll exhausted = %t, err = %v", exhausted, err)
 	}
 	state, err = subscriptions.Current(app, user.Id, start.Add(30*24*time.Hour))
-	if err != nil || state == nil || state.Used != 7 || state.Remaining != 93 {
-		t.Fatalf("next window state = %v, err = %v", state, err)
+	if err != nil || state == nil || state.Used != (subscriptions.Usage{Tx: 3, Rx: 4}) || state.Remaining != 93 {
+		t.Fatalf("next window state = %+v, err = %v", state, err)
 	}
 	allowed, err = subscriptions.Allowed(app, user, start.Add(360*24*time.Hour))
 	if err != nil || allowed {
@@ -103,53 +111,68 @@ func TestGrantAllowanceResetsAtWindowBoundary(t *testing.T) {
 	}
 }
 
-func TestSubscriptionUsagePreservesInt64BytePrecision(t *testing.T) {
-	app := core.NewBaseApp(core.BaseAppConfig{DataDir: t.TempDir()})
-	t.Cleanup(func() { _ = app.ResetBootstrapState() })
-	if err := app.Bootstrap(); err != nil {
+func TestGrantUsageAccumulatesAcrossWindows(t *testing.T) {
+	start := time.Date(2026, 9, 20, 15, 37, 0, 0, time.UTC)
+	app, user, grant := newGrantFixture(t, 100, 30, start)
+
+	for i, at := range []time.Time{start, start.Add(30 * 24 * time.Hour), start.Add(95 * 24 * time.Hour)} {
+		if _, err := subscriptions.AddUsage(app, user.Id, at, int64(10*(i+1)), int64(i+1)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stored, err := app.FindRecordById("user_subscriptions", grant.Id)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := app.RunAllMigrations(); err != nil {
-		t.Fatal(err)
+	if got := subscriptions.GrantUsage(stored); got != (subscriptions.Usage{Tx: 60, Rx: 6}) {
+		t.Fatalf("grant usage = %+v; want 60/6", got)
 	}
-	users, _ := app.FindCollectionByNameOrId("users")
-	user := core.NewRecord(users)
-	user.SetEmail("exact-allowance@example.com")
-	user.SetPassword("password12345")
-	user.Set("role", "user")
-	user.Set("status", "active")
-	user.SetVerified(true)
-	user.Set("subscription_required", true)
-	if err := app.Save(user); err != nil {
-		t.Fatal(err)
+	used, _ := subscriptions.WindowUsage(stored, 3)
+	if used != (subscriptions.Usage{Tx: 30, Rx: 3}) {
+		t.Fatalf("window 3 usage = %+v; want 30/3", used)
 	}
-	types, _ := app.FindCollectionByNameOrId("subscription_types")
-	typ := core.NewRecord(types)
-	typ.Set("name", "Exact")
-	typ.Set("allowance_bytes", int64(1<<53)+3)
-	typ.Set("reset_days", 360)
-	if err := app.Save(typ); err != nil {
-		t.Fatal(err)
+	if used, extra := subscriptions.WindowUsage(stored, 4); used != (subscriptions.Usage{}) || extra != 0 {
+		t.Fatalf("unwritten window 4 = %+v extra %d; want empty", used, extra)
 	}
-	grants, _ := app.FindCollectionByNameOrId("user_subscriptions")
-	grant := core.NewRecord(grants)
+}
+
+func TestAddUsageRejectsDirectionSumOverflow(t *testing.T) {
 	start := time.Now().UTC().Truncate(time.Millisecond)
-	grant.Set("user", user.Id)
-	grant.Set("subscription_type", typ.Id)
-	grant.Set("starts_at", start)
-	grant.Set("ends_at", start.Add(360*24*time.Hour))
-	if err := app.Save(grant); err != nil {
+	app, user, grant := newGrantFixture(t, math.MaxInt64, 360, start)
+
+	if _, err := subscriptions.AddUsage(app, user.Id, start, math.MaxInt64-1, 0); err != nil {
 		t.Fatal(err)
 	}
-	if exhausted, err := subscriptions.AddUsage(app, user.Id, start, 1<<53); err != nil || exhausted {
+	if _, err := subscriptions.AddUsage(app, user.Id, start, 0, 2); err == nil {
+		t.Fatal("usage whose tx+rx overflows int64 was accepted")
+	}
+	stored, err := app.FindRecordById("user_subscriptions", grant.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := subscriptions.GrantUsage(stored); got != (subscriptions.Usage{Tx: math.MaxInt64 - 1}) {
+		t.Fatalf("grant usage after rejected poll = %+v", got)
+	}
+}
+
+func TestSubscriptionUsagePreservesInt64BytePrecision(t *testing.T) {
+	start := time.Now().UTC().Truncate(time.Millisecond)
+	app, user, grant := newGrantFixture(t, int64(1<<53)+3, 360, start)
+
+	if exhausted, err := subscriptions.AddUsage(app, user.Id, start, 1<<53, 1); err != nil || exhausted {
 		t.Fatalf("large usage = %t, err = %v", exhausted, err)
 	}
 	state, err := subscriptions.Current(app, user.Id, start)
-	if err != nil || state == nil || state.Used != 1<<53 || state.Remaining != 3 {
-		t.Fatalf("large usage state = %v, err = %v", state, err)
+	if err != nil || state == nil || state.Used.Tx != 1<<53 || state.Remaining != 2 {
+		t.Fatalf("large usage state = %+v, err = %v", state, err)
 	}
 	stored, err := app.FindRecordById("user_subscriptions", grant.Id)
-	if err != nil || stored.GetString("used_bytes") != "9007199254740992" {
-		t.Fatalf("stored usage = %v, err = %v", stored, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for field, want := range map[string]string{"used_tx_bytes": "9007199254740992", "used_rx_bytes": "1", "grant_tx_bytes": "9007199254740992", "grant_rx_bytes": "1"} {
+		if got := stored.GetString(field); got != want {
+			t.Fatalf("stored %s = %q; want %q", field, got, want)
+		}
 	}
 }

@@ -191,19 +191,25 @@ type AlertSummaryResponse struct {
 
 // ── User ──────────────────────────────────────────────────────────────────────
 
-// PanelUser is the public representation returned by user endpoints.
-type PanelUser struct {
+// UserProfile is the part of a User shared by every user response.
+type UserProfile struct {
 	ID                   string             `json:"id"`
 	Email                string             `json:"email"`
 	Role                 string             `json:"role"` // "admin" | "user"
 	AuthString           string             `json:"auth_string"`
 	SubscriptionRequired bool               `json:"subscription_required"`
-	UsedTx               int64              `json:"used_tx"`
-	UsedRx               int64              `json:"used_rx"`
 	Status               string             `json:"status"` // "active" | "disabled"
 	Created              string             `json:"created"`
 	LastConnectedAt      string             `json:"last_connected_at"`
 	RecentConnections    []RecentConnection `json:"recent_connections"`
+}
+
+// PanelUser is the public representation returned by user endpoints, with
+// lifetime User Traffic totals.
+type PanelUser struct {
+	UserProfile
+	UsedTx int64 `json:"used_tx"`
+	UsedRx int64 `json:"used_rx"`
 }
 
 // UserDetail is returned by GET /users/{id}. OnlineDevices is the sum of the
@@ -221,12 +227,20 @@ type RecentConnection struct {
 	IPMeta     *IPMeta `json:"ip_meta,omitempty"`
 }
 
+// UserListItem is one row of GET /users. It shows current window usage
+// instead of lifetime totals. CurrentSubscription is null when the User has
+// no grant covering now, including legacy exempt Users.
+type UserListItem struct {
+	UserProfile
+	CurrentSubscription *UserSubscription `json:"current_subscription"`
+}
+
 // UserListResponse is the paginated response for GET /users.
 type UserListResponse struct {
-	Items   []PanelUser `json:"items"`
-	Total   int64       `json:"total"`
-	Page    int         `json:"page"`
-	PerPage int         `json:"per_page"`
+	Items   []UserListItem `json:"items"`
+	Total   int64          `json:"total"`
+	Page    int            `json:"page"`
+	PerPage int            `json:"per_page"`
 }
 
 // UserStatsResponse is the aggregate user count for GET /users/stats.
@@ -286,6 +300,9 @@ type SubscriptionTopUpRequest struct {
 	AllowanceBytes int64 `json:"allowance_bytes"`
 }
 
+// UserSubscription is one grant. The used_* fields cover the current
+// Allowance Window and are zero unless the grant is current; grant_* fields
+// cover every window of the grant.
 type UserSubscription struct {
 	ID               string `json:"id"`
 	SubscriptionType string `json:"subscription_type"`
@@ -297,8 +314,12 @@ type UserSubscription struct {
 	WindowEndsAt     string `json:"window_ends_at"`
 	AllowanceBytes   int64  `json:"allowance_bytes"`
 	UsedBytes        int64  `json:"used_bytes"`
+	UsedTxBytes      int64  `json:"used_tx_bytes"`
+	UsedRxBytes      int64  `json:"used_rx_bytes"`
 	RemainingBytes   int64  `json:"remaining_bytes"`
 	OverAllowance    bool   `json:"over_allowance"`
+	GrantTxBytes     int64  `json:"grant_tx_bytes"`
+	GrantRxBytes     int64  `json:"grant_rx_bytes"`
 }
 
 // ── Registration ───────────────────────────────────────────────────────────────

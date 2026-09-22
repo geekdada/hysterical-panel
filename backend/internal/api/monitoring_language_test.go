@@ -28,10 +28,8 @@ func TestMonitoringLanguageMigrationSchema(t *testing.T) {
 
 func TestMonitoringLanguageMigrationBackfillsEnglishAndRollsBack(t *testing.T) {
 	app := newMigratedTestApp(t)
-	runner := core.NewMigrationsRunner(app, core.AppMigrations)
-	// Subscription, remark, online-device projection and Auth String history
-	// migrations follow notification language, so roll all five back first.
-	if reverted, err := runner.Down(5); err != nil || len(reverted) != 5 {
+	runner := notificationLanguageMigrationRunner(t, app)
+	if reverted, err := runner.Down(1); err != nil || len(reverted) != 1 {
 		t.Fatalf("revert notification language migration: reverted=%v err=%v", reverted, err)
 	}
 
@@ -56,7 +54,7 @@ func TestMonitoringLanguageMigrationBackfillsEnglishAndRollsBack(t *testing.T) {
 		t.Fatalf("backfilled alert language = %q, want en", got)
 	}
 
-	if _, err := runner.Down(5); err != nil {
+	if _, err := runner.Down(1); err != nil {
 		t.Fatalf("rollback notification language migration: %v", err)
 	}
 	monitors, _ := app.FindCollectionByNameOrId("monitors")
@@ -64,6 +62,22 @@ func TestMonitoringLanguageMigrationBackfillsEnglishAndRollsBack(t *testing.T) {
 	if monitors.Fields.GetByName("notification_language") != nil || alerts.Fields.GetByName("notification_language_snapshot") != nil {
 		t.Fatal("rollback left notification language fields behind")
 	}
+}
+
+// notificationLanguageMigrationRunner scopes Down/Up to the notification
+// language migration so later migrations do not shift the revert count.
+func notificationLanguageMigrationRunner(t *testing.T, app core.App) *core.MigrationsRunner {
+	t.Helper()
+	const target = "1730000021_add_monitor_notification_language.go"
+	var list core.MigrationsList
+	for _, m := range core.AppMigrations.Items() {
+		list.Add(m)
+		if m.File == target {
+			return core.NewMigrationsRunner(app, list)
+		}
+	}
+	t.Fatalf("migration %s not registered", target)
+	return nil
 }
 
 func TestMonitorAPIStoresValidatesAndReturnsNotificationLanguage(t *testing.T) {

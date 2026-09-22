@@ -179,7 +179,7 @@ func TestTypeEditReplacesCurrentTopUpsWithoutChangingUsed(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := subscriptions.AddUsage(app, user.Id, time.Now().UTC(), 120); err != nil {
+	if _, err := subscriptions.AddUsage(app, user.Id, time.Now().UTC(), 70, 50); err != nil {
 		t.Fatal(err)
 	}
 	state, err := subscriptions.Current(app, user.Id, time.Now().UTC())
@@ -192,8 +192,8 @@ func TestTypeEditReplacesCurrentTopUpsWithoutChangingUsed(t *testing.T) {
 		t.Fatal(err)
 	}
 	state, err = subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Allowance != 200 || state.Used != 120 {
-		t.Fatalf("after edit = %v, err = %v; want allowance 200 used 120", state, err)
+	if err != nil || state == nil || state.Allowance != 200 || state.Used != (subscriptions.Usage{Tx: 70, Rx: 50}) {
+		t.Fatalf("after edit = %v, err = %v; want allowance 200 used 70/50", state, err)
 	}
 	topUp, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+grants[0].Id+"/top-up", map[string]any{"allowance_bytes": 200})
 	topUp.Request.SetPathValue("id", user.Id)
@@ -202,8 +202,11 @@ func TestTypeEditReplacesCurrentTopUpsWithoutChangingUsed(t *testing.T) {
 		t.Fatal(err)
 	}
 	state, err = subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Allowance != 400 || state.Used != 120 {
-		t.Fatalf("after new top-up = %v, err = %v; want allowance 400 used 120", state, err)
+	if err != nil || state == nil || state.Allowance != 400 || state.Used != (subscriptions.Usage{Tx: 70, Rx: 50}) {
+		t.Fatalf("after new top-up = %v, err = %v; want allowance 400 used 70/50", state, err)
+	}
+	if got := subscriptions.GrantUsage(state.Grant); got != (subscriptions.Usage{Tx: 70, Rx: 50}) {
+		t.Fatalf("grant usage after edit and top-ups = %+v; want 70/50", got)
 	}
 	unchanged, _ := jsonRequestEvent(t, app, http.MethodPatch, "/api/panel/subscription-types/"+types[0].Id, map[string]any{"name": "Renamed", "allowance_bytes": 200})
 	unchanged.Request.SetPathValue("id", types[0].Id)
@@ -246,7 +249,7 @@ func TestTopUpAddsRequestedBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	state, err := subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Allowance != 140 || state.Used != 0 {
+	if err != nil || state == nil || state.Allowance != 140 || state.Used.Total() != 0 {
 		t.Fatalf("after top-up = %v, err = %v; want allowance 140", state, err)
 	}
 	if err := topUp(0); err == nil {
@@ -261,7 +264,7 @@ func TestTopUpAddsRequestedBytes(t *testing.T) {
 	}
 }
 
-func TestTerminatedSubscriptionExposesActualEndTime(t *testing.T) {
+func TestTerminatedSubscriptionExposesActualEndTimeAndGrantUsage(t *testing.T) {
 	app := newMigratedTestApp(t)
 	user := newUsersTestRecord(t, app, "terminated-grant@example.com", "TerminatedGrantKey")
 	types, _ := app.FindCollectionByNameOrId("subscription_types")
@@ -280,11 +283,18 @@ func TestTerminatedSubscriptionExposesActualEndTime(t *testing.T) {
 	grant.Set("starts_at", start)
 	grant.Set("ends_at", start.Add(360*24*time.Hour))
 	grant.Set("terminated_at", time.Now().UTC())
+	subscriptions.SetWindow(grant, 0, subscriptions.Usage{Tx: 40, Rx: 5}, 0)
+	grant.Set("grant_tx_bytes", 40)
+	grant.Set("grant_rx_bytes", 5)
 	if err := app.Save(grant); err != nil {
 		t.Fatal(err)
 	}
 	view, err := grantView(app, grant, time.Now().UTC())
 	if err != nil || view.Status != "terminated" || view.TerminatedAt == "" {
 		t.Fatalf("terminated grant view = %+v, err = %v", view, err)
+	}
+	// History shows Grant Usage; window usage belongs to current grants only.
+	if view.UsedBytes != 0 || view.UsedTxBytes != 0 || view.UsedRxBytes != 0 || view.GrantTxBytes != 40 || view.GrantRxBytes != 5 {
+		t.Fatalf("terminated grant usage = %+v", view)
 	}
 }

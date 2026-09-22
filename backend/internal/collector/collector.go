@@ -199,7 +199,7 @@ func (c *Collector) recordTraffic(node *core.Record, traffic map[string]hysteria
 				return err
 			}
 			if user.GetBool("subscription_required") {
-				exhausted, err = subscriptions.AddUsage(app, user.Id, now, dtx+drx)
+				exhausted, err = subscriptions.AddUsage(app, user.Id, now, dtx, drx)
 				if err != nil {
 					return err
 				}
