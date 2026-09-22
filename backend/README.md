@@ -11,7 +11,7 @@
 - **online_device_counts** — 每个 User/Node 的最新正数在线客户端实例投影；不保留历史。User 总数只汇总 Enabled Node 且跨 Node 不去重，Node 总数包含未知 Node Client ID。
 - **subscription_types / user_subscriptions** — 管理员定义额度与 30/360 天重置周期，授予 360 天订阅；节点鉴权要求当前窗口仍有额度。升级前的用户在首次授予前豁免，新用户（包括 admin）须由管理员授予。详见 [`docs/subscriptions.md`](../docs/subscriptions.md)。
 
-另有两个辅助 collection：**`invitations`**（通用邀请码：`code` 唯一、`max_uses`/`expires_at`/`revoked`/`used_count`）与单例 **`app_settings`**（注册开关 `invitations_enabled` / `open_registration` / `require_invite_for_open`，默认全关）。
+另有两个辅助 collection：**`invitations`**（通用邀请码：`code` 唯一、`max_uses`/`expires_at`/`revoked`/`used_count`）与单例 **`app_settings`**（注册开关 `invitations_enabled` / `open_registration` / `require_invite_for_open`，默认全关；`email_sendout_rate_per_minute`，1–600，默认 30）。
 
 所有 enabled 节点默认对所有用户生效（`nodesForUser()` 是唯一选择点，将来加用户组只改这里）。
 
@@ -94,7 +94,7 @@ docker run --rm \
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |
 | GET | `/users/{id}/live` | 实时 streams 诊断（admin；活跃流、域名榜、客户端连接维度） |
 | GET | `/settings` | 读取注册/邀请开关 |
-| PATCH | `/settings` | 改开关（层级校验：`invitations_enabled=true` 需 `open_registration=true`；`require_invite_for_open=true` 需 `invitations_enabled=true`，否则 400） |
+| PATCH | `/settings` | 改开关（层级校验：`invitations_enabled=true` 需 `open_registration=true`；`require_invite_for_open=true` 需 `invitations_enabled=true`，否则 400）；也改 `email_sendout_rate_per_minute`（1–600） |
 | GET/POST | `/notification-channels` | 管理员列出非秘密 Channel 元数据 / 新建单 URL Channel（默认 disabled） |
 | PATCH/DELETE | `/notification-channels/{id}` | 修改名称、启停或替换 URL / 永久删除 Channel |
 | POST | `/notification-channels/{id}/test` | 发送固定测试消息（禁用 Channel 也可；结果只返回安全状态） |
@@ -126,7 +126,7 @@ docker run --rm \
 
 ### Email Sendout
 
-邮件 HTML 与纯文本由前端 `@react-email/editor` 生成（含固定模板外框），后端只校验大小并原样存储、原样发送，没有后端模板（ADR 0008）。创建时在同一事务里为每个可用 User 写一行 `email_sendout_recipients`；「全部」按创建瞬间展开。进程内单 worker 按 `queued_at` FIFO 逐封发送，间隔 `60s / app_settings.email_sendout_rate_per_minute`（1–600，默认 30）。每行只尝试一次：发送前重查资格（不可用 → `skipped`），用 User 当时的邮箱；SMTP 失败或未启用 → `failed`。进程重启时遗留的 `sending` 行转 `failed`（`interrupted`），不会自动重发。取消只影响 `pending` 行；重发只影响 `failed` 行。历史永久保留。
+邮件 HTML 与纯文本由前端 `@react-email/editor` 生成（含固定模板外框），后端只校验大小并原样存储、原样发送，没有后端模板（ADR 0008）。创建时在同一事务里为每个可用 User 写一行 `email_sendout_recipients`；「全部」按创建瞬间展开。进程内单 worker 按 `queued_at` FIFO 逐封发送，间隔 `60s / app_settings.email_sendout_rate_per_minute`（1–600，默认 30）。每行只尝试一次：发送前重查资格（不可用 → `skipped`），用 User 当时的邮箱；SMTP 失败或未启用 → `failed`。进程重启时遗留的 `sending` 行转 `failed`（`interrupted`），不会自动重发。取消只影响 `pending` 行；重发只影响 `failed` 行。历史永久保留。若数据库在一行被 claim 后、或在写最终状态时失败，该行会停留在 `sending`，只在下次重启时才被标记为 `failed`（`interrupted`）。PocketBase 的 SMTP client 没有发送超时，一个接受连接后卡住不响应的 relay 会阻塞这个单一 worker 直到重启。
 
 **时间**：数据库存储与 API 中的 datetime 一律 **UTC**（流量按 UTC 小时/日分桶）。前端自行换算为本地时区展示；查询 `traffic/series` 时 `from`/`to` 也传 UTC。
 

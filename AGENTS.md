@@ -136,7 +136,7 @@ hysterical-panel/
 │           ├── users_list.go   分页 / 排序 / 筛选的用户列表 + /users/stats
 │           ├── recent_connections.go 用户最近连接 IP 的派生与脱敏序列化
 │           ├── passkeys.go     WebAuthn 注册 / 登录 / 列举 / 删除（go-webauthn）
-│           ├── settings.go     app_settings 读写（注册开关 + management API token）
+│           ├── settings.go     app_settings 读写（注册开关 + management API token + email sendout 发送速率）
 │           ├── management_api.go 公开 /api/mgmt/* + requireMgmtToken（未启用 404）
 │           ├── database.go     GET /database/stats + POST /database/prune（30 天留存裁剪）
 │           ├── invitations.go  邀请码 CRUD + inviteValid
@@ -330,7 +330,7 @@ hysterical-panel/
 - 新增或写入 datetime 字段时默认 **UTC**；勿用 `time.Now()` 无 `.UTC()` 落库。
 - 改动后端后至少跑 `go build ./...` 和 `go vet ./...`，确保零告警；改了接口契约要 `make openapi` + 前端 `pnpm api:sync`。
 - 验证启动：带 `PANEL_MASTER_KEY` 跑 `serve`，确认 collection 建出、未授权访问 `/api/panel/*` 返回 401。
-- 已有测试覆盖 `internal/config`、`internal/ipmeta`，及 `internal/api` 的 live 聚合 / register / kick / database / users_list / recent_connections / auth_string_anytls_hash；继续补测优先 `collector.delta`（reset 边界）和 live 聚合逻辑。
+- 已有测试覆盖 `internal/config`、`internal/ipmeta`、`internal/sendouts`（queue/worker），及 `internal/api` 的 live 聚合 / register / kick / database / users_list / recent_connections / auth_string_anytls_hash / email_sendouts；继续补测优先 `collector.delta`（reset 边界）和 live 聚合逻辑。
 - **改前端可见文案务必 `messages/en.json` 与 `messages/zh-cn.json` 同步加键**，并 `pnpm i18n:check`；新增组件不要硬编码文案。
 - 字段名、collection 名、API 契约一旦定下前端会依赖，改动需同步更新 `dto.go` / OpenAPI / README 并通知前端。
 
