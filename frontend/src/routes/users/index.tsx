@@ -48,6 +48,8 @@ import {
 import * as m from "~/paraglide/messages.js";
 
 type PanelUser = components["schemas"]["PanelUser"];
+type UserListItem = components["schemas"]["UserListItem"];
+type CurrentSubscription = NonNullable<UserListItem["current_subscription"]>;
 
 export const Route = createFileRoute("/users/")({
   validateSearch: parseUsersListSearch,
@@ -92,7 +94,7 @@ function UsersPage() {
     onSuccess: invalidateUsers,
   });
 
-  function handleToggleStatus(user: PanelUser) {
+  function handleToggleStatus(user: UserListItem) {
     if (!user.id) return;
     const next = (user.status ?? "active") === "active" ? "disabled" : "active";
     toggleMutation.mutate({ id: user.id, status: next });
@@ -110,7 +112,7 @@ function UsersPage() {
     : "";
 
   const list = usersQuery.data;
-  const users = (list?.items ?? []) as PanelUser[];
+  const users = list?.items ?? [];
   const total = list?.total ?? 0;
   const pageCount = total > 0 ? Math.ceil(total / listSearch.per_page) : 0;
   const listError = usersQuery.error ? queryErrorMessage(usersQuery.error) : "";
@@ -194,10 +196,10 @@ function UsersTable({
   now: number | null;
   pageCount: number;
   total: number;
-  users: PanelUser[];
+  users: UserListItem[];
   currentUserId?: string;
   togglingId: string | null;
-  onToggleStatus: (user: PanelUser) => void;
+  onToggleStatus: (user: UserListItem) => void;
 }) {
   const routerNavigate = useNavigate({ from: Route.fullPath });
   const updateSearch: typeof routerNavigate = (options) =>
@@ -208,12 +210,11 @@ function UsersTable({
     () => [{ id: sortColumnId(listSearch.sort), desc: isSortDesc(listSearch.sort) }],
     [listSearch.sort]
   );
-  const columns = useMemo<ColumnDef<PanelUser>[]>(
+  const columns = useMemo<ColumnDef<UserListItem>[]>(
     () => [
       { accessorFn: (user) => user.email ?? "", id: "email", sortDescFirst: false },
       { accessorFn: (user) => user.role ?? "user", id: "role", sortDescFirst: false },
-      { accessorFn: (user) => user.used_tx ?? 0, id: "used_tx", sortDescFirst: false },
-      { accessorFn: (user) => user.used_rx ?? 0, id: "used_rx", sortDescFirst: false },
+      { id: "subscription", enableSorting: false },
       {
         accessorFn: (user) => user.last_connected_at ?? "",
         id: "last_connected_at",
@@ -293,12 +294,9 @@ function UsersTable({
             <tr className="border-b border-border bg-surface-secondary text-left">
               <SortableTh column={table.getColumn("email")!}>{m.common_email()}</SortableTh>
               <SortableTh column={table.getColumn("role")!}>{m.common_role()}</SortableTh>
-              <SortableTh column={table.getColumn("used_tx")!} align="right" className="text-right">
-                {m.common_th_tx()}
-              </SortableTh>
-              <SortableTh column={table.getColumn("used_rx")!} align="right" className="text-right">
-                {m.common_th_rx()}
-              </SortableTh>
+              <Th className="text-right">{m.users_th_subscription()}</Th>
+              <Th className="text-right">{m.common_th_tx()}</Th>
+              <Th className="text-right">{m.common_th_rx()}</Th>
               <SortableTh
                 column={table.getColumn("last_connected_at")!}
                 align="right"
@@ -342,10 +340,13 @@ function UsersTable({
                       <span className="text-xs capitalize text-muted">{user.role ?? "user"}</span>
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <span className="text-muted">↑</span> {formatBytes(user.used_tx ?? 0)}
+                      <SubscriptionUsage subscription={user.current_subscription} />
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <span className="text-muted">↓</span> {formatBytes(user.used_rx ?? 0)}
+                      <WindowBytes arrow="↑" bytes={user.current_subscription?.used_tx_bytes} />
+                    </Td>
+                    <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                      <WindowBytes arrow="↓" bytes={user.current_subscription?.used_rx_bytes} />
                     </Td>
                     <Td className="whitespace-nowrap text-right text-xs text-muted">
                       <span
@@ -553,5 +554,24 @@ function CreateUserModal({
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>
+  );
+}
+
+function SubscriptionUsage({ subscription }: { subscription?: CurrentSubscription | null }) {
+  if (!subscription) return <span className="text-muted">{m.common_em_dash()}</span>;
+  return (
+    <span className={subscription.over_allowance ? "text-danger" : undefined}>
+      {formatBytes(subscription.used_bytes ?? 0)} <span className="text-muted">/</span>{" "}
+      {formatBytes(subscription.allowance_bytes ?? 0)}
+    </span>
+  );
+}
+
+function WindowBytes({ arrow, bytes }: { arrow: string; bytes?: number }) {
+  if (bytes == null) return <span className="text-muted">{m.common_em_dash()}</span>;
+  return (
+    <>
+      <span className="text-muted">{arrow}</span> {formatBytes(bytes)}
+    </>
   );
 }

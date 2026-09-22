@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, FieldError, Label, Modal, NumberField } from "@heroui/react";
+import { Button, Disclosure, FieldError, Label, Modal, NumberField } from "@heroui/react";
 import {
   grantSubscription,
   queryErrorMessage,
@@ -79,6 +79,9 @@ export function SubscriptionSection({
   const grants = grantsQuery.data ?? [];
   const active = grants.find((item) => item.status === "current");
   const queued = grants.find((item) => item.status === "queued");
+  const history = grants.filter(
+    (item) => item.status === "expired" || item.status === "terminated"
+  );
   const availableTypes = (typesQuery.data ?? []).filter((item) => !item.hidden);
   const canGrant = isAdmin && !queued && availableTypes.length > 0;
   const loadError = [grantsQuery.error, isAdmin ? typesQuery.error : null]
@@ -180,6 +183,13 @@ export function SubscriptionSection({
                 />
               ))}
             </div>
+            {history.length > 0 && (
+              <GrantHistory
+                items={history}
+                timeZone={tz}
+                bordered={rows.length > 0 || unavailable}
+              />
+            )}
           </>
         )}
       </Section>
@@ -280,6 +290,9 @@ function GrantRow({
             <span className="font-mono text-[13px] tabular-nums">
               {formatBytes(item.used_bytes)}
             </span>
+            <p className="mt-0.5 text-xs text-muted">
+              <DirectionUsage tx={item.used_tx_bytes} rx={item.used_rx_bytes} />
+            </p>
           </Meter>
           <Meter label={m.subscription_remaining()}>
             <span className="inline-flex items-baseline gap-2">
@@ -299,6 +312,70 @@ function GrantRow({
         </div>
       )}
     </div>
+  );
+}
+
+function DirectionUsage({ tx, rx }: { tx: number; rx: number }) {
+  return (
+    <span className="font-mono tabular-nums">
+      {m.common_th_tx()} {formatBytes(tx)} · {m.common_th_rx()} {formatBytes(rx)}
+    </span>
+  );
+}
+
+// Past grants show Grant Usage: window usage only covers the last window written.
+function GrantHistory({
+  items,
+  timeZone,
+  bordered,
+}: {
+  items: UserSubscription[];
+  timeZone: string;
+  bordered: boolean;
+}) {
+  return (
+    <Disclosure className={cn(bordered && "border-t border-border")}>
+      <Disclosure.Heading>
+        <Disclosure.Trigger className="flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-medium text-muted transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
+          <span>
+            {m.subscription_history()} <span className="tabular-nums">{items.length}</span>
+          </span>
+          <Disclosure.Indicator />
+        </Disclosure.Trigger>
+      </Disclosure.Heading>
+      <Disclosure.Content>
+        <div className="divide-y divide-border border-t border-border">
+          {items.map((item) => {
+            const terminated = item.status === "terminated";
+            const endedAt = terminated ? item.terminated_at : item.ends_at;
+            return (
+              <div
+                key={item.id}
+                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-medium text-foreground">
+                    {item.type_name}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {terminated ? m.subscription_terminated() : m.subscription_expired()}
+                    {" · "}
+                    {m.subscription_starts()}{" "}
+                    {formatLocaleDateTime(Date.parse(item.starts_at), undefined, timeZone)}
+                    {" · "}
+                    {m.subscription_ends()}{" "}
+                    {formatLocaleDateTime(Date.parse(endedAt), undefined, timeZone)}
+                  </p>
+                </div>
+                <p className="shrink-0 text-xs text-muted">
+                  <DirectionUsage tx={item.grant_tx_bytes} rx={item.grant_rx_bytes} />
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </Disclosure.Content>
+    </Disclosure>
   );
 }
 
