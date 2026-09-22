@@ -736,3 +736,35 @@ type EmailSendout struct {
 	Created        string             `json:"created"`
 	CancelledAt    *string            `json:"cancelled_at,omitempty"`
 }
+
+// EmailSendoutDetail adds the stored content to a Sendout.
+type EmailSendoutDetail struct {
+	EmailSendout
+	HTML string `json:"html"`
+	Text string `json:"text"`
+}
+
+// EmailSendoutRecipient is one Sendout Recipient. Email is the address of the
+// latest delivery attempt (or of creation, if none yet). UserID is empty once
+// the User is deleted.
+type EmailSendoutRecipient struct {
+	ID            string  `json:"id"`
+	UserID        string  `json:"user_id"`
+	Email         string  `json:"email"`
+	Status        string  `json:"status"`
+	Reason        *string `json:"reason,omitempty"`
+	Attempts      int     `json:"attempts"`
+	QueuedAt      string  `json:"queued_at"`
+	LastAttemptAt string  `json:"last_attempt_at"`
+	SentAt        string  `json:"sent_at"`
+}
+
+// EmailSendoutResendRequest selects failed recipients to requeue; an empty
+// list means every failed recipient of the Sendout.
+type EmailSendoutResendRequest struct {
+	RecipientIDs []string `json:"recipient_ids,omitempty"`
+}
+
+type EmailSendoutResendResponse struct {
+	Requeued int64 `json:"requeued"`
+}

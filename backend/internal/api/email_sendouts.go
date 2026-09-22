@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
@@ -191,4 +193,129 @@ func publicEmailSendout(rec *core.Record, counts sendouts.Counts) EmailSendout {
 		Created:        rec.GetString("created"),
 		CancelledAt:    cancelledAt,
 	}
+}
+
+func (h *Handlers) findEmailSendout(id string) (*core.Record, error) {
+	rec, err := h.app.FindRecordById(sendouts.SendoutsCollection, id)
+	if err != nil {
+		return nil, apis.NewNotFoundError("email sendout not found", err)
+	}
+	return rec, nil
+}
+
+func (h *Handlers) listEmailSendouts(e *core.RequestEvent) error {
+	records, err := h.app.FindRecordsByFilter(sendouts.SendoutsCollection, "", "-created", 0, 0)
+	if err != nil {
+		return apis.NewBadRequestError("failed to list email sendouts", err)
+	}
+	counts, err := sendouts.CountRecipients(h.app, "")
+	if err != nil {
+		return apis.NewBadRequestError("failed to count recipients", err)
+	}
+	out := make([]EmailSendout, 0, len(records))
+	for _, rec := range records {
+		out = append(out, publicEmailSendout(rec, counts[rec.Id]))
+	}
+	return ok(e, out)
+}
+
+func (h *Handlers) getEmailSendout(e *core.RequestEvent) error {
+	rec, err := h.findEmailSendout(e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	counts, err := sendouts.CountRecipients(h.app, rec.Id)
+	if err != nil {
+		return apis.NewBadRequestError("failed to count recipients", err)
+	}
+	return ok(e, EmailSendoutDetail{
+		EmailSendout: publicEmailSendout(rec, counts[rec.Id]),
+		HTML:         rec.GetString("html"),
+		Text:         rec.GetString("text"),
+	})
+}
+
+func (h *Handlers) listEmailSendoutRecipients(e *core.RequestEvent) error {
+	rec, err := h.findEmailSendout(e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	filter, params := "sendout = {:id}", dbx.Params{"id": rec.Id}
+	if status := e.Request.URL.Query().Get("status"); status != "" {
+		if !slices.Contains(sendouts.RecipientStatuses, status) {
+			return apis.NewBadRequestError("unknown recipient status", nil)
+		}
+		filter += " && status = {:status}"
+		params["status"] = status
+	}
+	rows, err := h.app.FindRecordsByFilter(sendouts.RecipientsCollection, filter, "email", 0, 0, params)
+	if err != nil {
+		return apis.NewBadRequestError("failed to list recipients", err)
+	}
+	out := make([]EmailSendoutRecipient, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, publicSendoutRecipient(row))
+	}
+	return ok(e, out)
+}
+
+func publicSendoutRecipient(row *core.Record) EmailSendoutRecipient {
+	var reason *string
+	if value := row.GetString("reason"); value != "" {
+		reason = &value
+	}
+	return EmailSendoutRecipient{
+		ID:            row.Id,
+		UserID:        row.GetString("user"),
+		Email:         row.GetString("email"),
+		Status:        row.GetString("status"),
+		Reason:        reason,
+		Attempts:      row.GetInt("attempts"),
+		QueuedAt:      row.GetString("queued_at"),
+		LastAttemptAt: row.GetString("last_attempt_at"),
+		SentAt:        row.GetString("sent_at"),
+	}
+}
+
+func (h *Handlers) cancelEmailSendout(e *core.RequestEvent) error {
+	rec, err := h.findEmailSendout(e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	if err := sendouts.Cancel(h.app, rec, time.Now().UTC()); err != nil {
+		return sendoutStateError(err, "cancel")
+	}
+	return h.respondEmailSendout(e, rec)
+}
+
+func (h *Handlers) resendEmailSendout(e *core.RequestEvent) error {
+	rec, err := h.findEmailSendout(e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	var in EmailSendoutResendRequest
+	if err := e.BindBody(&in); err != nil {
+		return apis.NewBadRequestError("invalid body", err)
+	}
+	if !h.smtpEnabled() {
+		return errSMTPUnavailable()
+	}
+	requeued, err := sendouts.Requeue(h.app, rec, in.RecipientIDs, time.Now().UTC())
+	if err != nil {
+		return sendoutStateError(err, "resend")
+	}
+	if requeued > 0 {
+		h.sendoutQueue.Notify()
+	}
+	return ok(e, EmailSendoutResendResponse{Requeued: requeued})
+}
+
+func sendoutStateError(err error, action string) error {
+	switch {
+	case errors.Is(err, sendouts.ErrCancelled):
+		return apis.NewBadRequestError("email sendout is cancelled", nil)
+	case errors.Is(err, sendouts.ErrNothingToCancel):
+		return apis.NewBadRequestError("email sendout has no pending recipients", nil)
+	}
+	return apis.NewBadRequestError("failed to "+action+" email sendout", err)
 }

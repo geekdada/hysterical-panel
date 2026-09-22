@@ -124,6 +124,11 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/email-sendouts/context", h.emailSendoutContext).Bind(adminOnly)
 	g.GET("/email-sendouts/eligible-recipients", h.listEmailSendoutCandidates).Bind(adminOnly)
 	g.POST("/email-sendouts", h.createEmailSendout).Bind(adminOnly)
+	g.GET("/email-sendouts", h.listEmailSendouts).Bind(adminOnly)
+	g.GET("/email-sendouts/{id}", h.getEmailSendout).Bind(adminOnly)
+	g.GET("/email-sendouts/{id}/recipients", h.listEmailSendoutRecipients).Bind(adminOnly)
+	g.POST("/email-sendouts/{id}/cancel", h.cancelEmailSendout).Bind(adminOnly)
+	g.POST("/email-sendouts/{id}/resend", h.resendEmailSendout).Bind(adminOnly)
 
 	// users
 	g.GET("/subscription-types", h.listSubscriptionTypes).Bind(adminOnly)

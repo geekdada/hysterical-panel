@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
@@ -236,5 +237,88 @@ func TestEmailSendoutComposerEndpoints(t *testing.T) {
 	var candidates []EmailSendoutRecipientCandidate
 	if err := json.Unmarshal(response.Body.Bytes(), &candidates); err != nil || len(candidates) != 1 || candidates[0].Email != "ops@example.com" {
 		t.Fatalf("candidates = %+v (%v), want only ops@example.com", candidates, err)
+	}
+}
+
+func TestEmailSendoutHistoryCancelAndResend(t *testing.T) {
+	h, notifier, admin := newSendoutTestHandlers(t)
+	user := newSendoutTestUser(t, h.app, "user@example.com", "active", true)
+	draft, err := validateEmailSendout(validSendoutRequest())
+	if err != nil {
+		t.Fatalf("validateEmailSendout() error = %v", err)
+	}
+	rec, err := sendouts.Create(h.app, draft, []*core.Record{admin, user}, admin, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sendouts.Create() error = %v", err)
+	}
+	failed, err := h.app.FindFirstRecordByData(sendouts.RecipientsCollection, "email", "user@example.com")
+	if err != nil {
+		t.Fatalf("find recipient: %v", err)
+	}
+	failed.Set("status", sendouts.StatusFailed)
+	failed.Set("reason", sendouts.ReasonDeliveryFailed)
+	if err := h.app.Save(failed); err != nil {
+		t.Fatalf("fail recipient: %v", err)
+	}
+	base := "/api/panel/email-sendouts/" + rec.Id
+
+	e, response := sendoutEvent(t, h.app, http.MethodGet, "/api/panel/email-sendouts", "", nil, admin)
+	if err := h.listEmailSendouts(e); err != nil {
+		t.Fatalf("listEmailSendouts() error = %v", err)
+	}
+	var list []EmailSendout
+	if err := json.Unmarshal(response.Body.Bytes(), &list); err != nil || len(list) != 1 || list[0].Counts.Failed != 1 || list[0].Counts.Pending != 1 {
+		t.Fatalf("list = %+v (%v)", list, err)
+	}
+
+	e, response = sendoutEvent(t, h.app, http.MethodGet, base, rec.Id, nil, admin)
+	if err := h.getEmailSendout(e); err != nil {
+		t.Fatalf("getEmailSendout() error = %v", err)
+	}
+	var detail EmailSendoutDetail
+	if err := json.Unmarshal(response.Body.Bytes(), &detail); err != nil || detail.HTML != draft.HTML || detail.Text != draft.Text {
+		t.Fatalf("detail = %+v (%v), want stored content", detail, err)
+	}
+
+	e, response = sendoutEvent(t, h.app, http.MethodGet, base+"/recipients?status=failed", rec.Id, nil, admin)
+	if err := h.listEmailSendoutRecipients(e); err != nil {
+		t.Fatalf("listEmailSendoutRecipients() error = %v", err)
+	}
+	var rows []EmailSendoutRecipient
+	if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != 1 || rows[0].Reason == nil || *rows[0].Reason != sendouts.ReasonDeliveryFailed {
+		t.Fatalf("failed recipients = %+v (%v)", rows, err)
+	}
+	e, _ = sendoutEvent(t, h.app, http.MethodGet, base+"/recipients?status=bogus", rec.Id, nil, admin)
+	if err := h.listEmailSendoutRecipients(e); err == nil || sendoutAPIStatus(t, err) != http.StatusBadRequest {
+		t.Fatalf("unknown status filter error = %v, want 400", err)
+	}
+
+	e, response = sendoutEvent(t, h.app, http.MethodPost, base+"/resend", rec.Id, EmailSendoutResendRequest{}, admin)
+	if err := h.resendEmailSendout(e); err != nil {
+		t.Fatalf("resendEmailSendout() error = %v", err)
+	}
+	var resent EmailSendoutResendResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &resent); err != nil || resent.Requeued != 1 || notifier.calls != 1 {
+		t.Fatalf("resend = %+v (%v), notified %d; want 1 requeued and 1 wake-up", resent, err, notifier.calls)
+	}
+
+	e, response = sendoutEvent(t, h.app, http.MethodPost, base+"/cancel", rec.Id, nil, admin)
+	if err := h.cancelEmailSendout(e); err != nil {
+		t.Fatalf("cancelEmailSendout() error = %v", err)
+	}
+	var cancelled EmailSendout
+	if err := json.Unmarshal(response.Body.Bytes(), &cancelled); err != nil || cancelled.Status != "cancelled" || cancelled.Counts.Cancelled != 2 || cancelled.CancelledAt == nil {
+		t.Fatalf("cancelled = %+v (%v)", cancelled, err)
+	}
+	for _, call := range []func(*core.RequestEvent) error{h.cancelEmailSendout, h.resendEmailSendout} {
+		e, _ = sendoutEvent(t, h.app, http.MethodPost, base, rec.Id, nil, admin)
+		if err := call(e); err == nil || sendoutAPIStatus(t, err) != http.StatusBadRequest {
+			t.Fatalf("action on cancelled sendout error = %v, want 400", err)
+		}
+	}
+
+	e, _ = sendoutEvent(t, h.app, http.MethodGet, "/api/panel/email-sendouts/missing", "missing", nil, admin)
+	if err := h.getEmailSendout(e); err == nil || sendoutAPIStatus(t, err) != http.StatusNotFound {
+		t.Fatalf("missing sendout error = %v, want 404", err)
 	}
 }
