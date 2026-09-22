@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
+	"hysterical-panel/internal/sendouts"
 	"hysterical-panel/internal/token"
 )
 
@@ -15,21 +16,23 @@ import (
 // in the app_settings collection. See registrationDecision for how the three
 // flags combine to govern self-service registration.
 type settings struct {
-	InvitationsEnabled     bool
-	OpenRegistration       bool
-	RequireInviteForOpen   bool
-	ManagementAPIEnabled   bool
-	ManagementAPITokenHash string
+	InvitationsEnabled        bool
+	OpenRegistration          bool
+	RequireInviteForOpen      bool
+	ManagementAPIEnabled      bool
+	ManagementAPITokenHash    string
+	EmailSendoutRatePerMinute int
 }
 
 // settingsFromRecord reads the feature flags off an app_settings record.
 func settingsFromRecord(rec *core.Record) settings {
 	return settings{
-		InvitationsEnabled:     rec.GetBool("invitations_enabled"),
-		OpenRegistration:       rec.GetBool("open_registration"),
-		RequireInviteForOpen:   rec.GetBool("require_invite_for_open"),
-		ManagementAPIEnabled:   rec.GetBool("management_api_enabled"),
-		ManagementAPITokenHash: rec.GetString("management_api_token_hash"),
+		InvitationsEnabled:        rec.GetBool("invitations_enabled"),
+		OpenRegistration:          rec.GetBool("open_registration"),
+		RequireInviteForOpen:      rec.GetBool("require_invite_for_open"),
+		ManagementAPIEnabled:      rec.GetBool("management_api_enabled"),
+		ManagementAPITokenHash:    rec.GetString("management_api_token_hash"),
+		EmailSendoutRatePerMinute: rec.GetInt("email_sendout_rate_per_minute"),
 	}
 }
 
@@ -61,6 +64,7 @@ func (h *Handlers) settingsRecord() (*core.Record, error) {
 	rec.Set("invitations_enabled", false)
 	rec.Set("open_registration", false)
 	rec.Set("require_invite_for_open", false)
+	rec.Set("email_sendout_rate_per_minute", sendouts.DefaultRatePerMinute)
 	if err := h.app.Save(rec); err != nil {
 		return nil, err
 	}
@@ -69,11 +73,12 @@ func (h *Handlers) settingsRecord() (*core.Record, error) {
 
 func settingsResponse(s settings) SettingsResponse {
 	return SettingsResponse{
-		InvitationsEnabled:    s.InvitationsEnabled,
-		OpenRegistration:      s.OpenRegistration,
-		RequireInviteForOpen:  s.RequireInviteForOpen,
-		ManagementAPIEnabled:  s.ManagementAPIEnabled,
-		ManagementAPITokenSet: s.ManagementAPITokenHash != "",
+		InvitationsEnabled:        s.InvitationsEnabled,
+		OpenRegistration:          s.OpenRegistration,
+		RequireInviteForOpen:      s.RequireInviteForOpen,
+		ManagementAPIEnabled:      s.ManagementAPIEnabled,
+		ManagementAPITokenSet:     s.ManagementAPITokenHash != "",
+		EmailSendoutRatePerMinute: sendouts.NormalizeRate(s.EmailSendoutRatePerMinute),
 	}
 }
 
@@ -108,6 +113,13 @@ func (h *Handlers) updateSettings(e *core.RequestEvent) error {
 	}
 	if rec.GetBool("require_invite_for_open") && !rec.GetBool("invitations_enabled") {
 		return apis.NewBadRequestError("require_invite_for_open requires invitations_enabled", nil)
+	}
+	if in.EmailSendoutRatePerMinute != nil {
+		rate := *in.EmailSendoutRatePerMinute
+		if rate < sendouts.MinRatePerMinute || rate > sendouts.MaxRatePerMinute {
+			return apis.NewBadRequestError("email_sendout_rate_per_minute must be between 1 and 600", nil)
+		}
+		rec.Set("email_sendout_rate_per_minute", rate)
 	}
 	// Management API: enabling auto-generates a token if none exists yet. The
 	// plaintext token is returned exactly once in the response.

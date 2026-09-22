@@ -405,17 +405,19 @@ type SettingsResponse struct {
 	// ManagementAPIToken carries the plaintext token exactly once, only when a
 	// token was just generated or rotated in this response. It is never
 	// populated by a plain GET.
-	ManagementAPIToken string `json:"management_api_token,omitempty"`
+	ManagementAPIToken        string `json:"management_api_token,omitempty"`
+	EmailSendoutRatePerMinute int    `json:"email_sendout_rate_per_minute"`
 }
 
 // SettingsUpdateRequest is the body for PATCH /settings (all fields optional).
 // The Management API token is always server-generated; use the dedicated
 // rotate endpoint to replace it.
 type SettingsUpdateRequest struct {
-	InvitationsEnabled   *bool `json:"invitations_enabled,omitempty"`
-	OpenRegistration     *bool `json:"open_registration,omitempty"`
-	RequireInviteForOpen *bool `json:"require_invite_for_open,omitempty"`
-	ManagementAPIEnabled *bool `json:"management_api_enabled,omitempty"`
+	InvitationsEnabled        *bool `json:"invitations_enabled,omitempty"`
+	OpenRegistration          *bool `json:"open_registration,omitempty"`
+	RequireInviteForOpen      *bool `json:"require_invite_for_open,omitempty"`
+	ManagementAPIEnabled      *bool `json:"management_api_enabled,omitempty"`
+	EmailSendoutRatePerMinute *int  `json:"email_sendout_rate_per_minute,omitempty"`
 }
 
 // ManagementAPITokenResponse is returned by POST /management-api/rotate.
