@@ -79,7 +79,7 @@ docker run --rm \
 | DELETE | `/nodes/{id}` | 删除 |
 | POST | `/nodes/{id}/test` | 立即验证连通性 |
 | GET | `/traffic` | 全局流量汇总（admin）；必填 `from` / `to`（UTC 日桶，含首尾，与 series 同格式） |
-| GET | `/users` | 分页列表；`?page=1&per_page=25&search=&sort=created`（search 对 email/role/status 子串匹配，auth_string 仅完整相等）→ `{ items, total, page, per_page }`；每个 item 附 `current_subscription`（覆盖当前时刻的授予，无则 `null`），不含终身 `used_tx` / `used_rx`，也不能按其排序 |
+| GET | `/users` | 分页列表；`?page=1&per_page=25&search=&sort=created`（search 对 email/role/status 子串匹配，auth_string 仅完整相等）→ `{ items, total, page, per_page }`；每个 item 附 `current_subscription`（覆盖当前时刻的授予，无则 `null`），终身 `used_tx` / `used_rx` 只对未授予过订阅的旧豁免用户返回（其余为 `null`）。`sort=[-]subscription_used|subscription_tx|subscription_rx` 按当前窗口用量排序，无当前订阅的用户无论升降序都排在最后（按创建时间） |
 | GET | `/users/stats` | 用户总数与 active 数 `{ total, active }` |
 | POST | `/users` | 新建（email+password+auth_string） |
 | GET | `/users/{id}` | 详情（admin 或本人） |

@@ -18,6 +18,12 @@ const ALLOWED_SORTS = new Set([
   "-status",
   "last_connected_at",
   "-last_connected_at",
+  "subscription_used",
+  "-subscription_used",
+  "subscription_tx",
+  "-subscription_tx",
+  "subscription_rx",
+  "-subscription_rx",
 ]);
 
 export function clampUsersListPage(raw: unknown): number {

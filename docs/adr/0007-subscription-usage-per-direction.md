@@ -10,6 +10,6 @@ Each grant also keeps Grant Usage, the tx and rx summed over every window of the
 
 ## Consequences
 
-- The user list replaces lifetime User Traffic (`used_tx`/`used_rx`) with current window usage in three columns: used / allowance, tx, rx. Lifetime totals remain on the user detail endpoint and the Management API. The list no longer sorts by usage. Sorting by window usage would need a join and window arithmetic in SQL, so we left it out.
+- The user list replaces lifetime User Traffic (`used_tx`/`used_rx`) with current window usage in three columns: used / allowance, tx, rx. A Legacy Unmetered User has no window, so their row shows the exemption marker and their lifetime tx and rx; the list returns `used_tx`/`used_rx` only for those rows. Lifetime totals remain on the user detail endpoint and the Management API. The list no longer sorts by lifetime usage. It sorts by current window used, tx or rx instead, computing the current window in SQL. Users without a current grant, including Legacy Unmetered Users, follow in either direction ordered by creation, because their row has no window to rank.
 - The API keeps `used_bytes` as the server-computed sum, so clients do not add the two directions themselves.
 - A new migration replaces `used_bytes` with `used_tx_bytes`, `used_rx_bytes`, `grant_tx_bytes` and `grant_rx_bytes`. The feature had not launched, so the migration discards existing window usage.

@@ -7,7 +7,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Input, Label, Modal, TextField, Tooltip } from "@heroui/react";
+import { Button, Chip, Input, Label, Modal, TextField, Tooltip } from "@heroui/react";
 import { CircleInfo } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
@@ -214,7 +214,10 @@ function UsersTable({
     () => [
       { accessorFn: (user) => user.email ?? "", id: "email", sortDescFirst: false },
       { accessorFn: (user) => user.role ?? "user", id: "role", sortDescFirst: false },
-      { id: "subscription", enableSorting: false },
+      // The server ranks Users with a current grant by window usage; the rest follow.
+      { accessorFn: (user) => user.current_subscription?.used_bytes, id: "subscription_used" },
+      { accessorFn: (user) => user.current_subscription?.used_tx_bytes, id: "subscription_tx" },
+      { accessorFn: (user) => user.current_subscription?.used_rx_bytes, id: "subscription_rx" },
       {
         accessorFn: (user) => user.last_connected_at ?? "",
         id: "last_connected_at",
@@ -294,9 +297,27 @@ function UsersTable({
             <tr className="border-b border-border bg-surface-secondary text-left">
               <SortableTh column={table.getColumn("email")!}>{m.common_email()}</SortableTh>
               <SortableTh column={table.getColumn("role")!}>{m.common_role()}</SortableTh>
-              <Th className="text-right">{m.users_th_subscription()}</Th>
-              <Th className="text-right">{m.common_th_tx()}</Th>
-              <Th className="text-right">{m.common_th_rx()}</Th>
+              <SortableTh
+                column={table.getColumn("subscription_used")!}
+                align="right"
+                className="text-right"
+              >
+                {m.users_th_subscription()}
+              </SortableTh>
+              <SortableTh
+                column={table.getColumn("subscription_tx")!}
+                align="right"
+                className="text-right"
+              >
+                {m.common_th_tx()}
+              </SortableTh>
+              <SortableTh
+                column={table.getColumn("subscription_rx")!}
+                align="right"
+                className="text-right"
+              >
+                {m.common_th_rx()}
+              </SortableTh>
               <SortableTh
                 column={table.getColumn("last_connected_at")!}
                 align="right"
@@ -316,6 +337,8 @@ function UsersTable({
                 const user = row.original;
                 const active = (user.status ?? "active") === "active";
                 const isSelf = Boolean(currentUserId && user.id === currentUserId);
+                // Legacy Unmetered Users have no Allowance Window, so show lifetime Traffic.
+                const legacy = !user.subscription_required;
                 return (
                   <tr
                     key={user.id}
@@ -340,13 +363,25 @@ function UsersTable({
                       <span className="text-xs capitalize text-muted">{user.role ?? "user"}</span>
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <SubscriptionUsage subscription={user.current_subscription} />
+                      {legacy ? (
+                        <Chip size="sm" variant="soft" className="font-sans">
+                          {m.subscription_legacy()}
+                        </Chip>
+                      ) : (
+                        <SubscriptionUsage subscription={user.current_subscription} />
+                      )}
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <WindowBytes arrow="↑" bytes={user.current_subscription?.used_tx_bytes} />
+                      <UsageBytes
+                        arrow="↑"
+                        bytes={legacy ? user.used_tx : user.current_subscription?.used_tx_bytes}
+                      />
                     </Td>
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
-                      <WindowBytes arrow="↓" bytes={user.current_subscription?.used_rx_bytes} />
+                      <UsageBytes
+                        arrow="↓"
+                        bytes={legacy ? user.used_rx : user.current_subscription?.used_rx_bytes}
+                      />
                     </Td>
                     <Td className="whitespace-nowrap text-right text-xs text-muted">
                       <span
@@ -567,7 +602,7 @@ function SubscriptionUsage({ subscription }: { subscription?: CurrentSubscriptio
   );
 }
 
-function WindowBytes({ arrow, bytes }: { arrow: string; bytes?: number }) {
+function UsageBytes({ arrow, bytes }: { arrow: string; bytes?: number | null }) {
   if (bytes == null) return <span className="text-muted">{m.common_em_dash()}</span>;
   return (
     <>

@@ -227,12 +227,15 @@ type RecentConnection struct {
 	IPMeta     *IPMeta `json:"ip_meta,omitempty"`
 }
 
-// UserListItem is one row of GET /users. It shows current window usage
-// instead of lifetime totals. CurrentSubscription is null when the User has
-// no grant covering now, including legacy exempt Users.
+// UserListItem is one row of GET /users. CurrentSubscription is null when the
+// User has no grant covering now, including legacy exempt Users. UsedTx and
+// UsedRx are lifetime totals, set only for legacy exempt Users; metered Users
+// show current window usage through CurrentSubscription instead.
 type UserListItem struct {
 	UserProfile
 	CurrentSubscription *UserSubscription `json:"current_subscription"`
+	UsedTx              *int64            `json:"used_tx"`
+	UsedRx              *int64            `json:"used_rx"`
 }
 
 // UserListResponse is the paginated response for GET /users.

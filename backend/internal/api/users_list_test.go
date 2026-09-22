@@ -63,6 +63,8 @@ func TestNormalizeUserListSort(t *testing.T) {
 		// Lifetime usage is not part of list rows, so it cannot order them.
 		{"used_tx", "created"},
 		{"-used_rx", "created"},
+		{"-subscription_used", "-subscription_used"},
+		{"subscription_rx", "subscription_rx"},
 	}
 	for _, c := range cases {
 		if got := normalizeUserListSort(c.raw); got != c.want {
@@ -168,8 +170,26 @@ func TestCurrentSubscriptionsByUserKeepsOnlyGrantCoveringNow(t *testing.T) {
 	}
 }
 
-func TestUserListItemOmitsLifetimeTraffic(t *testing.T) {
-	raw, err := json.Marshal(UserListItem{})
+func TestUserListItemShowsLifetimeTrafficOnlyForLegacyUsers(t *testing.T) {
+	app := newMigratedTestApp(t)
+	legacy := newUsersTestRecord(t, app, "legacy-list@example.com", "LegacyListKey")
+	metered := newUsersTestRecord(t, app, "metered-list@example.com", "MeteredListKey")
+	for _, u := range []*core.Record{legacy, metered} {
+		u.Set("used_tx", 700)
+		u.Set("used_rx", 300)
+	}
+	legacy.Set("subscription_required", false)
+	metered.Set("subscription_required", true)
+
+	item := userListItem(legacy, UserProfile{}, nil)
+	if item.UsedTx == nil || *item.UsedTx != 700 || item.UsedRx == nil || *item.UsedRx != 300 {
+		t.Fatalf("legacy row usage = %v/%v; want 700/300", item.UsedTx, item.UsedRx)
+	}
+	item = userListItem(metered, UserProfile{}, nil)
+	if item.UsedTx != nil || item.UsedRx != nil {
+		t.Fatalf("metered row exposes lifetime usage %v/%v", *item.UsedTx, *item.UsedRx)
+	}
+	raw, err := json.Marshal(item)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,12 +197,82 @@ func TestUserListItemOmitsLifetimeTraffic(t *testing.T) {
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"used_tx", "used_rx"} {
-		if _, ok := fields[name]; ok {
-			t.Fatalf("list row exposes lifetime %s", name)
+	if fields["used_tx"] != nil || fields["used_rx"] != nil {
+		t.Fatalf("metered row JSON = %s; want null lifetime usage", raw)
+	}
+}
+
+func TestFindUsersBySubscriptionUsageRanksOnlyCurrentGrants(t *testing.T) {
+	app := newMigratedTestApp(t)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	day := 24 * time.Hour
+	types, _ := app.FindCollectionByNameOrId("subscription_types")
+	typ := core.NewRecord(types)
+	typ.Set("name", "Monthly")
+	typ.Set("allowance_bytes", 1000)
+	typ.Set("reset_days", 30)
+	if err := app.Save(typ); err != nil {
+		t.Fatal(err)
+	}
+	grants, _ := app.FindCollectionByNameOrId("user_subscriptions")
+	grantWith := func(user *core.Record, start time.Time, window int, tx, rx int64) {
+		grant := core.NewRecord(grants)
+		grant.Set("user", user.Id)
+		grant.Set("subscription_type", typ.Id)
+		grant.Set("starts_at", start)
+		grant.Set("ends_at", start.Add(360*day))
+		subscriptions.SetWindow(grant, window, subscriptions.Usage{Tx: tx, Rx: rx}, 0)
+		if err := app.Save(grant); err != nil {
+			t.Fatal(err)
 		}
 	}
-	if _, ok := fields["current_subscription"]; !ok {
-		t.Fatal("list row lost current_subscription")
+	legacy := newUsersTestRecord(t, app, "legacy-sort@example.com", "LegacySortKey")
+	heavyRx := newUsersTestRecord(t, app, "heavy-rx@example.com", "HeavyRxKey")
+	heavyTx := newUsersTestRecord(t, app, "heavy-tx@example.com", "HeavyTxKey")
+	staleWindow := newUsersTestRecord(t, app, "stale-window@example.com", "StaleWindowKey")
+	expired := newUsersTestRecord(t, app, "expired-sort@example.com", "ExpiredSortKey")
+	grantWith(heavyRx, now.Add(-day), 0, 10, 50)
+	grantWith(heavyTx, now.Add(-day), 0, 40, 5)
+	// Usage stored for window 0 of a grant now in window 1 counts as empty.
+	grantWith(staleWindow, now.Add(-31*day), 0, 900, 900)
+	grantWith(expired, now.Add(-400*day), 11, 800, 800)
+
+	unsubscribed := map[string]bool{legacy.Id: true, expired.Id: true}
+	for _, tt := range []struct {
+		column string
+		desc   bool
+		want   []*core.Record
+	}{
+		{"used", true, []*core.Record{heavyRx, heavyTx, staleWindow}},
+		{"used", false, []*core.Record{staleWindow, heavyTx, heavyRx}},
+		{"tx", true, []*core.Record{heavyTx, heavyRx, staleWindow}},
+		{"rx", false, []*core.Record{staleWindow, heavyTx, heavyRx}},
+	} {
+		got, err := findUsersBySubscriptionUsage(app, "", nil, tt.column, tt.desc, 25, 0, now)
+		if err != nil {
+			t.Fatalf("%s desc=%t: %v", tt.column, tt.desc, err)
+		}
+		if len(got) != 5 {
+			t.Fatalf("%s desc=%t returned %d users; want 5", tt.column, tt.desc, len(got))
+		}
+		for i, want := range tt.want {
+			if got[i].Id != want.Id {
+				t.Fatalf("%s desc=%t position %d = %s; want %s", tt.column, tt.desc, i, got[i].GetString("email"), want.GetString("email"))
+			}
+		}
+		for _, user := range got[3:] {
+			if !unsubscribed[user.Id] {
+				t.Fatalf("%s desc=%t placed %s after unsubscribed users", tt.column, tt.desc, user.GetString("email"))
+			}
+		}
+	}
+
+	filter, params := buildUserListFilter("heavy", "")
+	got, err := findUsersBySubscriptionUsage(app, filter, params, "used", true, 1, 1, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Id != heavyTx.Id {
+		t.Fatalf("filtered second page = %v; want heavy-tx only", got)
 	}
 }

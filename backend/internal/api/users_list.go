@@ -9,6 +9,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/search"
+	"github.com/pocketbase/pocketbase/tools/types"
 
 	"hysterical-panel/internal/authstrings"
 )
@@ -26,8 +27,38 @@ var (
 		"-status":            {},
 		"last_connected_at":  {},
 		"-last_connected_at": {},
+		"subscription_used":  {},
+		"-subscription_used": {},
+		"subscription_tx":    {},
+		"-subscription_tx":   {},
+		"subscription_rx":    {},
+		"-subscription_rx":   {},
+	}
+	// Columns of the current window usage subquery, keyed by sort field.
+	subscriptionUsageSortColumns = map[string]string{
+		"subscription_used": "used",
+		"subscription_tx":   "tx",
+		"subscription_rx":   "rx",
 	}
 )
+
+// currentWindowUsageSQL yields one row per User with a grant covering
+// {:usage_now}, holding that grant's current window usage. It mirrors
+// subscriptions.WindowUsage: a stored window other than the current one
+// counts as empty. Dates share PocketBase's UTC text format, so they compare
+// as strings.
+const currentWindowUsageSQL = `(
+	SELECT user, MAX(tx) AS tx, MAX(rx) AS rx, MAX(tx + rx) AS used FROM (
+		SELECT g.user AS user,
+			CASE WHEN g.window_index = CAST((julianday({:usage_now}) - julianday(g.starts_at)) / t.reset_days AS INTEGER)
+				THEN CAST(g.used_tx_bytes AS INTEGER) ELSE 0 END AS tx,
+			CASE WHEN g.window_index = CAST((julianday({:usage_now}) - julianday(g.starts_at)) / t.reset_days AS INTEGER)
+				THEN CAST(g.used_rx_bytes AS INTEGER) ELSE 0 END AS rx
+		FROM user_subscriptions g
+		JOIN subscription_types t ON t.id = g.subscription_type
+		WHERE g.terminated_at = '' AND g.starts_at <= {:usage_now} AND g.ends_at > {:usage_now}
+	) GROUP BY user
+) usage`
 
 type userListQuery struct {
 	Page    int
@@ -158,12 +189,18 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 	}
 
 	offset := (q.Page - 1) * q.PerPage
-	users, err := h.app.FindRecordsByFilter("users", filter, q.Sort, q.PerPage, offset, params)
+	now := time.Now().UTC()
+	var users []*core.Record
+	if column, ok := subscriptionUsageSortColumns[strings.TrimPrefix(q.Sort, "-")]; ok {
+		users, err = findUsersBySubscriptionUsage(h.app, filter, params, column, strings.HasPrefix(q.Sort, "-"), q.PerPage, offset, now)
+	} else {
+		users, err = h.app.FindRecordsByFilter("users", filter, q.Sort, q.PerPage, offset, params)
+	}
 	if err != nil {
 		return apis.NewBadRequestError("failed to list users", err)
 	}
 
-	subscriptionsByUser, err := currentSubscriptionsByUser(h.app, users, time.Now().UTC())
+	subscriptionsByUser, err := currentSubscriptionsByUser(h.app, users, now)
 	if err != nil {
 		return apis.NewBadRequestError("failed to load subscriptions", err)
 	}
@@ -179,10 +216,7 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 		if err != nil {
 			return apis.NewBadRequestError("failed to load auth string", err)
 		}
-		items = append(items, UserListItem{
-			UserProfile:         userProfile(u, authString, h.ipLookup, ignored),
-			CurrentSubscription: subscriptionsByUser[u.Id],
-		})
+		items = append(items, userListItem(u, userProfile(u, authString, h.ipLookup, ignored), subscriptionsByUser[u.Id]))
 	}
 
 	return ok(e, UserListResponse{
@@ -191,6 +225,53 @@ func (h *Handlers) listUsers(e *core.RequestEvent) error {
 		Page:    q.Page,
 		PerPage: q.PerPage,
 	})
+}
+
+// findUsersBySubscriptionUsage orders Users with a current grant by that
+// grant's window usage. Users without one follow in both directions, ordered
+// by creation, so the sort only ranks subscribed Users.
+func findUsersBySubscriptionUsage(app core.App, filter string, params dbx.Params, column string, desc bool, limit, offset int, now time.Time) ([]*core.Record, error) {
+	coll, err := app.FindCollectionByNameOrId("users")
+	if err != nil {
+		return nil, err
+	}
+	direction := "ASC"
+	if desc {
+		direction = "DESC"
+	}
+	query := app.RecordQuery(coll).
+		LeftJoin(currentWindowUsageSQL, dbx.NewExp("[[usage.user]] = [[users.id]]")).
+		AndBind(dbx.Params{"usage_now": now.Format(types.DefaultDateLayout)}).
+		OrderBy("([[usage.user]] IS NULL) ASC", "([[usage."+column+"]]) "+direction, "users.created ASC", "users.id ASC").
+		Limit(int64(limit)).
+		Offset(int64(offset))
+	if filter != "" {
+		resolver := core.NewRecordFieldResolver(app, coll, nil, true)
+		expr, err := search.FilterData(filter).BuildExpr(resolver, params)
+		if err != nil {
+			return nil, err
+		}
+		query.AndWhere(expr)
+		if err := resolver.UpdateQuery(query); err != nil {
+			return nil, err
+		}
+	}
+	var users []*core.Record
+	if err := query.All(&users); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+// userListItem exposes lifetime Traffic only for Legacy Unmetered Users,
+// who have no Allowance Window to show instead.
+func userListItem(u *core.Record, profile UserProfile, current *UserSubscription) UserListItem {
+	item := UserListItem{UserProfile: profile, CurrentSubscription: current}
+	if !u.GetBool("subscription_required") {
+		tx, rx := int64(u.GetInt("used_tx")), int64(u.GetInt("used_rx"))
+		item.UsedTx, item.UsedRx = &tx, &rx
+	}
+	return item
 }
 
 // currentSubscriptionsByUser loads the page's grants in one query and keeps
