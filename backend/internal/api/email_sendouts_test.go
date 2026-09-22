@@ -270,6 +270,9 @@ func TestEmailSendoutHistoryCancelAndResend(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &list); err != nil || len(list) != 1 || list[0].Counts.Failed != 1 || list[0].Counts.Pending != 1 {
 		t.Fatalf("list = %+v (%v)", list, err)
 	}
+	if item := list[0]; item.Subject != draft.Subject || item.Language != draft.Language || item.Audience != draft.Audience || item.Status != "sending" || item.Created == "" {
+		t.Fatalf("list item = %+v, want subject/language/audience/status/created from the trimmed select", item)
+	}
 
 	e, response = sendoutEvent(t, h.app, http.MethodGet, base, rec.Id, nil, admin)
 	if err := h.getEmailSendout(e); err != nil {
@@ -285,8 +288,9 @@ func TestEmailSendoutHistoryCancelAndResend(t *testing.T) {
 		t.Fatalf("listEmailSendoutRecipients() error = %v", err)
 	}
 	var rows []EmailSendoutRecipient
-	if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != 1 || rows[0].Reason == nil || *rows[0].Reason != sendouts.ReasonDeliveryFailed {
-		t.Fatalf("failed recipients = %+v (%v)", rows, err)
+	if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != 1 || rows[0].Reason == nil || *rows[0].Reason != sendouts.ReasonDeliveryFailed ||
+		rows[0].LastAttemptAt != nil || rows[0].SentAt != nil {
+		t.Fatalf("failed recipients = %+v (%v), want nil last_attempt_at/sent_at before a delivery attempt", rows, err)
 	}
 	e, _ = sendoutEvent(t, h.app, http.MethodGet, base+"/recipients?status=bogus", rec.Id, nil, admin)
 	if err := h.listEmailSendoutRecipients(e); err == nil || sendoutAPIStatus(t, err) != http.StatusBadRequest {

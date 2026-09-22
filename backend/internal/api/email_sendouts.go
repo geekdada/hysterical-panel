@@ -203,8 +203,14 @@ func (h *Handlers) findEmailSendout(id string) (*core.Record, error) {
 	return rec, nil
 }
 
+// listEmailSendouts covers publicEmailSendout's fields only, so a history
+// page never pulls every Sendout's stored html/text/content off disk.
 func (h *Handlers) listEmailSendouts(e *core.RequestEvent) error {
-	records, err := h.app.FindRecordsByFilter(sendouts.SendoutsCollection, "", "-created", 0, 0)
+	var records []*core.Record
+	err := h.app.RecordQuery(sendouts.SendoutsCollection).
+		Select("id", "subject", "language", "audience", "created_by_email", "cancelled_at", "created").
+		OrderBy("created DESC").
+		All(&records)
 	if err != nil {
 		return apis.NewBadRequestError("failed to list email sendouts", err)
 	}
@@ -264,6 +270,14 @@ func publicSendoutRecipient(row *core.Record) EmailSendoutRecipient {
 	if value := row.GetString("reason"); value != "" {
 		reason = &value
 	}
+	var lastAttemptAt *string
+	if value := row.GetString("last_attempt_at"); value != "" {
+		lastAttemptAt = &value
+	}
+	var sentAt *string
+	if value := row.GetString("sent_at"); value != "" {
+		sentAt = &value
+	}
 	return EmailSendoutRecipient{
 		ID:            row.Id,
 		UserID:        row.GetString("user"),
@@ -272,8 +286,8 @@ func publicSendoutRecipient(row *core.Record) EmailSendoutRecipient {
 		Reason:        reason,
 		Attempts:      row.GetInt("attempts"),
 		QueuedAt:      row.GetString("queued_at"),
-		LastAttemptAt: row.GetString("last_attempt_at"),
-		SentAt:        row.GetString("sent_at"),
+		LastAttemptAt: lastAttemptAt,
+		SentAt:        sentAt,
 	}
 }
 
