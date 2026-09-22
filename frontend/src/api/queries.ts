@@ -423,6 +423,19 @@ export function topUpSubscription(
   );
 }
 
+export function rescheduleSubscription(
+  id: string,
+  subscriptionId: string,
+  startsAt: string
+): Promise<UserSubscription[]> {
+  return apiRequest<UserSubscription[]>(
+    apiClient.POST("/api/panel/users/{id}/subscriptions/{subscriptionId}/reschedule", {
+      params: { path: { id, subscriptionId } },
+      body: { starts_at: startsAt },
+    })
+  );
+}
+
 export function terminateSubscription(id: string, subscriptionId: string): Promise<void> {
   return apiRequest<void>(
     apiClient.DELETE("/api/panel/users/{id}/subscriptions/{subscriptionId}", {

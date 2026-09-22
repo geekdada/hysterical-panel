@@ -303,6 +303,12 @@ type SubscriptionTopUpRequest struct {
 	AllowanceBytes int64 `json:"allowance_bytes"`
 }
 
+// SubscriptionRescheduleRequest moves the current subscription to StartsAt,
+// a UTC datetime that is not in the future.
+type SubscriptionRescheduleRequest struct {
+	StartsAt string `json:"starts_at"`
+}
+
 // UserSubscription is one grant. The used_* fields cover the current
 // Allowance Window and are zero unless the grant is current; grant_* fields
 // cover every window of the grant.

@@ -68,6 +68,10 @@ _Avoid_: tariff, product, price plan, tier
 A Subscription Type granted to a User for a particular 360-day interval. A User may have one current and at most one queued User Subscription; a queued grant starts at its scheduled time and never starts early because the current grant is exhausted or terminated.
 _Avoid_: purchase, payment, User Status, Role
 
+**Subscription Reschedule**:
+An administrator's move of the current User Subscription's whole 360-day interval to a new start that is not in the future, keeping it current and after any earlier grant that expired on its own; it may overlap terminated grants. A queued User Subscription moves by the same amount, so the two stay back to back. Duration, used Traffic and top-ups in the current Allowance Window are unchanged.
+_Avoid_: extend, renew, move start, shift
+
 **Subscription Required**:
 The User's permanent node-access policy once their first subscription is granted. New Users require a subscription from creation; preexisting Users retain a legacy exemption until their first grant, after which expiry or cancellation cannot restore it.
 _Avoid_: migrated to metered, User Status, Verified

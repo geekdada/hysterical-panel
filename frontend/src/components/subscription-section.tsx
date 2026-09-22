@@ -5,6 +5,7 @@ import {
   grantSubscription,
   queryErrorMessage,
   queryKeys,
+  rescheduleSubscription,
   subscriptionTypesQueryOptions,
   terminateSubscription,
   topUpSubscription,
@@ -12,9 +13,11 @@ import {
   type SubscriptionType,
   type UserSubscription,
 } from "~/api/queries";
+import { RescheduleModal } from "~/components/subscription-reschedule-modal";
 import { DestructiveConfirmModal, Section, SelectField } from "~/components/ui";
 import { formatBytes, formatLocaleDateTime } from "~/lib/format";
 import { cn } from "~/lib/cn";
+import { previousGrantEnd } from "~/lib/subscription-reschedule";
 import { useActiveTimeZone } from "~/lib/use-timezone";
 import * as m from "~/paraglide/messages.js";
 
@@ -50,6 +53,10 @@ export function SubscriptionSection({
   const [gibTouched, setGibTouched] = useState(false);
   const [topUpFieldKey, setTopUpFieldKey] = useState(0);
   const [toTerminate, setToTerminate] = useState<UserSubscription | null>(null);
+  // Kept after close so the modal can animate out with its content.
+  const [toReschedule, setToReschedule] = useState<UserSubscription | null>(null);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleKey, setRescheduleKey] = useState(0);
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.userSubscriptions(userId) });
     void queryClient.invalidateQueries({ queryKey: ["panel", "users", userId, "overview"] });
@@ -66,6 +73,14 @@ export function SubscriptionSection({
       topUpSubscription(userId, input.id, input.allowanceBytes),
     onSuccess: () => {
       setToTopUp(null);
+      refresh();
+    },
+  });
+  const reschedule = useMutation({
+    mutationFn: (input: { id: string; startsAt: string }) =>
+      rescheduleSubscription(userId, input.id, input.startsAt),
+    onSuccess: () => {
+      setRescheduleOpen(false);
       refresh();
     },
   });
@@ -176,6 +191,12 @@ export function SubscriptionSection({
                   isAdmin={isAdmin}
                   timeZone={tz}
                   onTopUp={() => openTopUp(item)}
+                  onReschedule={() => {
+                    reschedule.reset();
+                    setToReschedule(item);
+                    setRescheduleKey((key) => key + 1);
+                    setRescheduleOpen(true);
+                  }}
                   onTerminate={() => {
                     terminate.reset();
                     setToTerminate(item);
@@ -213,6 +234,29 @@ export function SubscriptionSection({
           if (toTopUp) topUp.mutate({ id: toTopUp.id, allowanceBytes: bytes });
         }}
       />
+      {toReschedule && (
+        <RescheduleModal
+          key={rescheduleKey}
+          isOpen={rescheduleOpen}
+          item={toReschedule}
+          queued={queued}
+          previousEnd={previousGrantEnd(grants, toReschedule)}
+          timeZone={tz}
+          pending={reschedule.isPending}
+          error={
+            reschedule.error
+              ? queryErrorMessage(reschedule.error, m.subscription_action_error())
+              : ""
+          }
+          onOpenChange={(open) => {
+            if (!open) {
+              setRescheduleOpen(false);
+              reschedule.reset();
+            }
+          }}
+          onConfirm={(startsAt) => reschedule.mutate({ id: toReschedule.id, startsAt })}
+        />
+      )}
       <DestructiveConfirmModal
         isOpen={toTerminate !== null}
         title={m.subscription_terminate()}
@@ -242,12 +286,14 @@ function GrantRow({
   isAdmin,
   timeZone,
   onTopUp,
+  onReschedule,
   onTerminate,
 }: {
   item: UserSubscription;
   isAdmin: boolean;
   timeZone: string;
   onTopUp: () => void;
+  onReschedule: () => void;
   onTerminate: () => void;
 }) {
   const current = item.status === "current";
@@ -269,9 +315,14 @@ function GrantRow({
         {isAdmin && (
           <div className="flex shrink-0 items-center gap-3">
             {current && (
-              <Button size="sm" variant="secondary" onPress={onTopUp}>
-                {m.subscription_topup()}
-              </Button>
+              <>
+                <Button size="sm" variant="secondary" onPress={onTopUp}>
+                  {m.subscription_topup()}
+                </Button>
+                <Button size="sm" variant="secondary" onPress={onReschedule}>
+                  {m.subscription_reschedule()}
+                </Button>
+              </>
             )}
             <Button size="sm" variant="danger-soft" onPress={onTerminate}>
               {m.subscription_terminate()}

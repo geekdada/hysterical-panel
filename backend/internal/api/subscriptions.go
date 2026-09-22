@@ -1,12 +1,14 @@
 package api
 
 import (
+	"errors"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 
 	"hysterical-panel/internal/subscriptions"
 )
@@ -186,17 +188,58 @@ func (h *Handlers) listUserSubscriptions(e *core.RequestEvent) error {
 	if _, err := h.app.FindRecordById("users", userID); err != nil {
 		return apis.NewNotFoundError("user not found", err)
 	}
-	records, err := h.app.FindRecordsByFilter("user_subscriptions", "user = {:u}", "-starts_at", 0, 0, map[string]any{"u": userID})
+	out, err := userSubscriptionViews(h.app, userID, time.Now().UTC())
 	if err != nil {
 		return err
 	}
+	return ok(e, out)
+}
+
+func userSubscriptionViews(app core.App, userID string, now time.Time) ([]UserSubscription, error) {
+	records, err := app.FindRecordsByFilter("user_subscriptions", "user = {:u}", "-starts_at", 0, 0, map[string]any{"u": userID})
+	if err != nil {
+		return nil, err
+	}
 	out := make([]UserSubscription, 0, len(records))
 	for _, record := range records {
-		item, err := grantView(h.app, record, time.Now().UTC())
+		item, err := grantView(app, record, now)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (h *Handlers) rescheduleSubscription(e *core.RequestEvent) error {
+	var in SubscriptionRescheduleRequest
+	if err := e.BindBody(&in); err != nil {
+		return apis.NewBadRequestError("invalid body", err)
+	}
+	start, err := types.ParseDateTime(in.StartsAt)
+	if err != nil || start.IsZero() {
+		return apis.NewBadRequestError("starts_at must be a datetime", err)
+	}
+	userID := e.Request.PathValue("id")
+	now := time.Now().UTC()
+	err = h.app.RunInTransaction(func(app core.App) error {
+		grant, err := app.FindRecordById("user_subscriptions", e.Request.PathValue("subscriptionId"))
+		if err != nil || grant.GetString("user") != userID {
+			return apis.NewNotFoundError("subscription not found", err)
+		}
+		return subscriptions.Reschedule(app, userID, grant.Id, start.Time().UTC().Truncate(time.Millisecond), now)
+	})
+	for _, rule := range []error{subscriptions.ErrRescheduleNotCurrent, subscriptions.ErrRescheduleFuture, subscriptions.ErrRescheduleEnded, subscriptions.ErrRescheduleOverlap} {
+		if errors.Is(err, rule) {
+			return apis.NewBadRequestError(rule.Error(), nil)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	out, err := userSubscriptionViews(h.app, userID, now)
+	if err != nil {
+		return err
 	}
 	return ok(e, out)
 }

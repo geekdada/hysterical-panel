@@ -1,13 +1,18 @@
 package api
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/pocketbase/pocketbase/tools/types"
 	"hysterical-panel/internal/subscriptions"
 )
 
@@ -296,5 +301,60 @@ func TestTerminatedSubscriptionExposesActualEndTimeAndGrantUsage(t *testing.T) {
 	// History shows Grant Usage; window usage belongs to current grants only.
 	if view.UsedBytes != 0 || view.UsedTxBytes != 0 || view.UsedRxBytes != 0 || view.GrantTxBytes != 40 || view.GrantRxBytes != 5 {
 		t.Fatalf("terminated grant usage = %+v", view)
+	}
+}
+
+func TestRescheduleSubscriptionEndpoint(t *testing.T) {
+	app := newMigratedTestApp(t)
+	user := newUsersTestRecord(t, app, "reschedule@example.com", "RescheduleKey")
+	h := &Handlers{app: app}
+	typeEvent, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/subscription-types", map[string]any{"name": "Starter", "allowance_bytes": 100, "reset_days": 30})
+	if err := h.createSubscriptionType(typeEvent); err != nil {
+		t.Fatal(err)
+	}
+	typeRecords, _ := app.FindRecordsByFilter("subscription_types", "", "", 1, 0)
+	for i := 0; i < 2; i++ {
+		grantEvent, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions", map[string]any{"subscription_type": typeRecords[0].Id})
+		grantEvent.Request.SetPathValue("id", user.Id)
+		if err := h.grantSubscription(grantEvent); err != nil {
+			t.Fatal(err)
+		}
+	}
+	current, err := subscriptions.Current(app, user.Id, time.Now().UTC())
+	if err != nil || current == nil {
+		t.Fatalf("current grant = %v, err = %v", current, err)
+	}
+	reschedule := func(startsAt string) (*httptest.ResponseRecorder, error) {
+		event, response := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+current.Grant.Id+"/reschedule", map[string]any{"starts_at": startsAt})
+		event.Request.SetPathValue("id", user.Id)
+		event.Request.SetPathValue("subscriptionId", current.Grant.Id)
+		return response, h.rescheduleSubscription(event)
+	}
+
+	newStart := time.Now().UTC().Truncate(time.Millisecond).Add(-5 * 24 * time.Hour)
+	response, err := reschedule(newStart.Format(time.RFC3339Nano))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var views []UserSubscription
+	if err := json.Unmarshal(response.Body.Bytes(), &views); err != nil {
+		t.Fatal(err)
+	}
+	if len(views) != 2 || views[0].Status != "queued" || views[1].Status != "current" {
+		t.Fatalf("views after reschedule = %+v", views)
+	}
+	if got := views[1].StartsAt; got != newStart.Format(types.DefaultDateLayout) {
+		t.Fatalf("current starts_at = %s; want %s", got, newStart.Format(types.DefaultDateLayout))
+	}
+	if views[0].StartsAt != views[1].EndsAt {
+		t.Fatalf("queued starts %s, current ends %s; want back to back", views[0].StartsAt, views[1].EndsAt)
+	}
+
+	for _, startsAt := range []string{"", "not a date", time.Now().UTC().Add(time.Hour).Format(time.RFC3339)} {
+		_, err := reschedule(startsAt)
+		var apiErr *router.ApiError
+		if !errors.As(err, &apiErr) || apiErr.Status != http.StatusBadRequest {
+			t.Fatalf("starts_at %q: err = %v; want 400", startsAt, err)
+		}
 	}
 }

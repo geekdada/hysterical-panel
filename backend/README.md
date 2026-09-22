@@ -88,6 +88,7 @@ docker run --rm \
 | GET | `/users/{id}/subscriptions` | 授予记录；当前授予附本窗口用量 `used_bytes` = `used_tx_bytes` + `used_rx_bytes`，每份授予附整期用量 `grant_tx_bytes` / `grant_rx_bytes`（admin 或本人） |
 | POST | `/users/{id}/subscriptions` | 管理员授予一份订阅，当前已有一份时排队到其到期时间 |
 | POST / DELETE | `/users/{id}/subscriptions/{subscriptionId}/top-up`、`/users/{id}/subscriptions/{subscriptionId}` | 管理员给当前窗口增加 `allowance_bytes` 字节，或终止当前/排队订阅 |
+| POST | `/users/{id}/subscriptions/{subscriptionId}/reschedule` | 管理员改期当前订阅：`{ starts_at }`（UTC，不晚于 now，改期后仍覆盖 now，不早于上一份自然到期订阅的 `ends_at`，可与已终止的订阅重叠），排队订阅同步平移；本窗口用量与加额随之保留；返回全部授予记录 |
 | PATCH/DELETE | `/users/{id}` | 改/删 |
 | GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |

@@ -50,6 +50,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"SubscriptionTypeUpdateRequest":     SubscriptionTypeUpdateRequest{},
 		"SubscriptionGrantRequest":          SubscriptionGrantRequest{},
 		"SubscriptionTopUpRequest":          SubscriptionTopUpRequest{},
+		"SubscriptionRescheduleRequest":     SubscriptionRescheduleRequest{},
 		"UserSubscription":                  UserSubscription{},
 		"Passkey":                           Passkey{},
 		"PasskeyOptionsResponse":            PasskeyOptionsResponse{},
@@ -125,6 +126,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"SubscriptionTypeCreateRequest": {"name", "allowance_bytes", "reset_days"},
 		"SubscriptionGrantRequest":      {"subscription_type"},
 		"SubscriptionTopUpRequest":      {"allowance_bytes"},
+		"SubscriptionRescheduleRequest": {"starts_at"},
 		"UserSubscription":              {"id", "subscription_type", "type_name", "status", "starts_at", "ends_at", "terminated_at", "window_ends_at", "allowance_bytes", "used_bytes", "used_tx_bytes", "used_rx_bytes", "remaining_bytes", "over_allowance", "grant_tx_bytes", "grant_rx_bytes"},
 	} {
 		if s := schemas[name]; s != nil && s.Value != nil {
@@ -1584,6 +1586,12 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	t.Paths.Set("/api/panel/users/{id}/subscriptions/{subscriptionId}/top-up", &openapi3.PathItem{
 		Parameters: openapi3.Parameters{idParam("User ID"), subscriptionIdParam},
 		Post:       subOp("topUpSubscription", "Add bytes to the current subscription window", "UserSubscription", "SubscriptionTopUpRequest"),
+	})
+	reschedule := subOp("rescheduleSubscription", "Move the current subscription, and a queued one with it, to a new start", "UserSubscription", "SubscriptionRescheduleRequest")
+	reschedule.Responses.Set("200", &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Subscriptions after the reschedule"), Content: content(arrayRef("UserSubscription"))}})
+	t.Paths.Set("/api/panel/users/{id}/subscriptions/{subscriptionId}/reschedule", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID"), subscriptionIdParam},
+		Post:       reschedule,
 	})
 
 	return t, nil

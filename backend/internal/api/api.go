@@ -126,6 +126,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/users/{id}/subscriptions", h.listUserSubscriptions).Bind(adminOrSelf)
 	g.POST("/users/{id}/subscriptions", h.grantSubscription).Bind(adminOnly)
 	g.POST("/users/{id}/subscriptions/{subscriptionId}/top-up", h.topUpSubscription).Bind(adminOnly)
+	g.POST("/users/{id}/subscriptions/{subscriptionId}/reschedule", h.rescheduleSubscription).Bind(adminOnly)
 	g.DELETE("/users/{id}/subscriptions/{subscriptionId}", h.terminateSubscription).Bind(adminOnly)
 	g.GET("/users", h.listUsers).Bind(adminOnly)
 	g.GET("/users/stats", h.getUserStats).Bind(adminOnly)

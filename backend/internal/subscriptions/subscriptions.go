@@ -1,6 +1,7 @@
 package subscriptions
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -147,4 +148,71 @@ func AddUsage(app core.App, userID string, at time.Time, tx, rx int64) (bool, er
 		return false, err
 	}
 	return state.Remaining > 0 && state.Allowance-used.Total() <= 0, nil
+}
+
+var (
+	ErrRescheduleNotCurrent = errors.New("only the current subscription can be rescheduled")
+	ErrRescheduleFuture     = errors.New("a rescheduled subscription cannot start in the future")
+	ErrRescheduleEnded      = errors.New("a rescheduled subscription must still be current")
+	ErrRescheduleOverlap    = errors.New("a rescheduled subscription cannot start before the previous one expired")
+)
+
+// Reschedule moves the current grant's whole interval so it starts at start,
+// and moves a queued grant by the same amount so the two stay back to back.
+// Window usage and top-ups follow to the window that covers now, so access
+// does not change. The caller must run this in a transaction.
+func Reschedule(app core.App, userID, grantID string, start, now time.Time) error {
+	state, err := Current(app, userID, now)
+	if err != nil {
+		return err
+	}
+	if state == nil || state.Grant.Id != grantID {
+		return ErrRescheduleNotCurrent
+	}
+	if start.After(now) {
+		return ErrRescheduleFuture
+	}
+	index, ok := WindowAt(start, now, state.Type.GetInt("reset_days"))
+	if !ok {
+		return ErrRescheduleEnded
+	}
+	grants, err := app.FindRecordsByFilter("user_subscriptions", "user = {:user} && id != {:id}", "", 0, 0, map[string]any{"user": userID, "id": grantID})
+	if err != nil {
+		return err
+	}
+	oldStart := state.Grant.GetDateTime("starts_at").Time()
+	shift := start.Sub(oldStart)
+	var queued []*core.Record
+	for _, grant := range grants {
+		from := grant.GetDateTime("starts_at").Time()
+		if from.After(now) && grant.GetDateTime("terminated_at").IsZero() {
+			queued = append(queued, grant)
+			continue
+		}
+		// Terminated grants were ended by an admin, often to replace a
+		// mistaken grant, so the rescheduled grant may overlap them.
+		if !from.Before(oldStart) || !grant.GetDateTime("terminated_at").IsZero() {
+			continue
+		}
+		if start.Before(grant.GetDateTime("ends_at").Time()) {
+			return ErrRescheduleOverlap
+		}
+	}
+	SetWindow(state.Grant, index, state.Used, state.Extra)
+	moveGrant(state.Grant, shift)
+	if err := app.Save(state.Grant); err != nil {
+		return err
+	}
+	for _, grant := range queued {
+		moveGrant(grant, shift)
+		if err := app.Save(grant); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func moveGrant(grant *core.Record, shift time.Duration) {
+	grant.Set("starts_at", grant.GetDateTime("starts_at").Time().Add(shift))
+	grant.Set("ends_at", grant.GetDateTime("ends_at").Time().Add(shift))
 }

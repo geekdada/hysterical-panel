@@ -1,6 +1,7 @@
 package subscriptions_test
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -174,5 +175,135 @@ func TestSubscriptionUsagePreservesInt64BytePrecision(t *testing.T) {
 		if got := stored.GetString(field); got != want {
 			t.Fatalf("stored %s = %q; want %q", field, got, want)
 		}
+	}
+}
+
+func addGrant(t *testing.T, app core.App, user *core.Record, typeID string, start, terminated time.Time) *core.Record {
+	t.Helper()
+	grants, _ := app.FindCollectionByNameOrId("user_subscriptions")
+	grant := core.NewRecord(grants)
+	grant.Set("user", user.Id)
+	grant.Set("subscription_type", typeID)
+	grant.Set("starts_at", start)
+	grant.Set("ends_at", start.Add(360*24*time.Hour))
+	if !terminated.IsZero() {
+		grant.Set("terminated_at", terminated)
+	}
+	if err := app.Save(grant); err != nil {
+		t.Fatal(err)
+	}
+	return grant
+}
+
+func reloadGrant(t *testing.T, app core.App, id string) *core.Record {
+	t.Helper()
+	grant, err := app.FindRecordById("user_subscriptions", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return grant
+}
+
+func TestRescheduleMovesQueuedGrantAndKeepsWindowUsage(t *testing.T) {
+	day := 24 * time.Hour
+	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
+	start := now.Add(-10 * day)
+	app, user, current := newGrantFixture(t, 100, 30, start)
+	queued := addGrant(t, app, user, current.GetString("subscription_type"), start.Add(360*day), time.Time{})
+	if _, err := subscriptions.AddUsage(app, user.Id, now, 30, 10); err != nil {
+		t.Fatal(err)
+	}
+	current = reloadGrant(t, app, current.Id)
+	subscriptions.SetWindow(current, 0, subscriptions.Usage{Tx: 30, Rx: 10}, 25)
+	if err := app.Save(current); err != nil {
+		t.Fatal(err)
+	}
+
+	// 35 days earlier puts now in window 1 of the rescheduled grant.
+	newStart := start.Add(-35 * day)
+	if err := subscriptions.Reschedule(app, user.Id, current.Id, newStart, now); err != nil {
+		t.Fatal(err)
+	}
+	state, err := subscriptions.Current(app, user.Id, now)
+	if err != nil || state == nil {
+		t.Fatalf("current after reschedule = %v, err = %v", state, err)
+	}
+	if !state.Grant.GetDateTime("starts_at").Time().Equal(newStart) || !state.Grant.GetDateTime("ends_at").Time().Equal(newStart.Add(360*day)) {
+		t.Fatalf("rescheduled interval = %s..%s", state.Grant.GetString("starts_at"), state.Grant.GetString("ends_at"))
+	}
+	if state.Window != 1 || state.Used != (subscriptions.Usage{Tx: 30, Rx: 10}) || state.Allowance != 125 {
+		t.Fatalf("rescheduled window = %d used %+v allowance %d; want window 1, 30/10, 125", state.Window, state.Used, state.Allowance)
+	}
+	if got := subscriptions.GrantUsage(state.Grant); got != (subscriptions.Usage{Tx: 30, Rx: 10}) {
+		t.Fatalf("grant usage = %+v; want 30/10", got)
+	}
+	queued = reloadGrant(t, app, queued.Id)
+	if !queued.GetDateTime("starts_at").Time().Equal(newStart.Add(360 * day)) {
+		t.Fatalf("queued start = %s; want back to back with rescheduled grant", queued.GetString("starts_at"))
+	}
+}
+
+func TestRescheduleRejectsStartsOutsideCurrentCoverage(t *testing.T) {
+	day := 24 * time.Hour
+	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
+	start := now.Add(-10 * day)
+	app, user, current := newGrantFixture(t, 100, 30, start)
+	queued := addGrant(t, app, user, current.GetString("subscription_type"), start.Add(360*day), time.Time{})
+
+	for _, tt := range []struct {
+		name    string
+		grantID string
+		start   time.Time
+		want    error
+	}{
+		{"future start", current.Id, now.Add(time.Millisecond), subscriptions.ErrRescheduleFuture},
+		{"ends at now", current.Id, now.Add(-360 * day), subscriptions.ErrRescheduleEnded},
+		{"queued grant", queued.Id, now, subscriptions.ErrRescheduleNotCurrent},
+	} {
+		if err := subscriptions.Reschedule(app, user.Id, tt.grantID, tt.start, now); !errors.Is(err, tt.want) {
+			t.Fatalf("%s: err = %v; want %v", tt.name, err, tt.want)
+		}
+	}
+	if err := subscriptions.Reschedule(app, user.Id, current.Id, now, now); err != nil {
+		t.Fatalf("start at now: %v", err)
+	}
+	if err := subscriptions.Reschedule(app, user.Id, current.Id, now.Add(-360*day+time.Millisecond), now); err != nil {
+		t.Fatalf("start just inside coverage: %v", err)
+	}
+}
+
+func TestRescheduleCannotOverlapPreviousExpiredGrant(t *testing.T) {
+	day := 24 * time.Hour
+	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
+	previousStart := now.Add(-400 * day)
+	app, user, previous := newGrantFixture(t, 100, 30, previousStart)
+	typeID := previous.GetString("subscription_type")
+	previousEnd := previousStart.Add(360 * day)
+	current := addGrant(t, app, user, typeID, now.Add(-day), time.Time{})
+
+	if err := subscriptions.Reschedule(app, user.Id, current.Id, previousEnd.Add(-time.Millisecond), now); !errors.Is(err, subscriptions.ErrRescheduleOverlap) {
+		t.Fatalf("overlap with expired grant err = %v", err)
+	}
+	if err := subscriptions.Reschedule(app, user.Id, current.Id, previousEnd, now); err != nil {
+		t.Fatalf("start at previous expiry: %v", err)
+	}
+}
+
+func TestRescheduleMayOverlapTerminatedGrants(t *testing.T) {
+	day := 24 * time.Hour
+	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
+	// Granted by mistake 20 days ago and terminated yesterday.
+	app, user, mistaken := newGrantFixture(t, 100, 30, now.Add(-20*day))
+	mistaken.Set("terminated_at", now.Add(-day))
+	if err := app.Save(mistaken); err != nil {
+		t.Fatal(err)
+	}
+	typeID := mistaken.GetString("subscription_type")
+	// Cancelled while queued, so it never covered any time.
+	addGrant(t, app, user, typeID, now.Add(-10*day), now.Add(-15*day))
+	current := addGrant(t, app, user, typeID, now.Add(-time.Hour), time.Time{})
+
+	if err := subscriptions.Reschedule(app, user.Id, current.Id, now.Add(-30*day), now); err != nil {
+		t.Fatalf("start before terminated grants: %v", err)
 	}
 }
