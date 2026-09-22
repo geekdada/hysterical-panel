@@ -77,6 +77,15 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"SettingsResponse":                  SettingsResponse{},
 		"SettingsUpdateRequest":             SettingsUpdateRequest{},
 		"ManagementAPITokenResponse":        ManagementAPITokenResponse{},
+		"EmailSendoutContextResponse":       EmailSendoutContextResponse{},
+		"EmailSendoutRecipientCandidate":    EmailSendoutRecipientCandidate{},
+		"EmailSendoutCreateRequest":         EmailSendoutCreateRequest{},
+		"EmailSendoutCounts":                EmailSendoutCounts{},
+		"EmailSendout":                      EmailSendout{},
+		"EmailSendoutDetail":                EmailSendoutDetail{},
+		"EmailSendoutRecipient":             EmailSendoutRecipient{},
+		"EmailSendoutResendRequest":         EmailSendoutResendRequest{},
+		"EmailSendoutResendResponse":        EmailSendoutResendResponse{},
 	}
 
 	// Generate each schema with its own generator to avoid shared internal
@@ -122,12 +131,21 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		}
 	}
 	for name, fields := range map[string][]string{
-		"SubscriptionType":              {"id", "name", "allowance_bytes", "reset_days", "hidden", "assigned"},
-		"SubscriptionTypeCreateRequest": {"name", "allowance_bytes", "reset_days"},
-		"SubscriptionGrantRequest":      {"subscription_type"},
-		"SubscriptionTopUpRequest":      {"allowance_bytes"},
-		"SubscriptionRescheduleRequest": {"starts_at"},
-		"UserSubscription":              {"id", "subscription_type", "type_name", "status", "starts_at", "ends_at", "terminated_at", "window_ends_at", "allowance_bytes", "used_bytes", "used_tx_bytes", "used_rx_bytes", "remaining_bytes", "over_allowance", "grant_tx_bytes", "grant_rx_bytes"},
+		"SubscriptionType":               {"id", "name", "allowance_bytes", "reset_days", "hidden", "assigned"},
+		"SubscriptionTypeCreateRequest":  {"name", "allowance_bytes", "reset_days"},
+		"SubscriptionGrantRequest":       {"subscription_type"},
+		"SubscriptionTopUpRequest":       {"allowance_bytes"},
+		"SubscriptionRescheduleRequest":  {"starts_at"},
+		"UserSubscription":               {"id", "subscription_type", "type_name", "status", "starts_at", "ends_at", "terminated_at", "window_ends_at", "allowance_bytes", "used_bytes", "used_tx_bytes", "used_rx_bytes", "remaining_bytes", "over_allowance", "grant_tx_bytes", "grant_rx_bytes"},
+		"EmailSendoutContextResponse":    {"app_name", "frontend_url", "smtp_enabled", "eligible_recipient_count", "rate_per_minute"},
+		"EmailSendoutRecipientCandidate": {"id", "email"},
+		"EmailSendoutCreateRequest":      {"subject", "language", "audience", "html", "text", "content"},
+		"EmailSendoutCounts":             {"total", "pending", "sent", "failed", "skipped", "cancelled"},
+		"EmailSendout":                   {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created"},
+		"EmailSendoutDetail":             {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created", "html", "text"},
+		"EmailSendoutRecipient":          {"id", "user_id", "email", "status", "attempts", "queued_at", "last_attempt_at", "sent_at"},
+		"EmailSendoutResendResponse":     {"requeued"},
+		"SettingsResponse":               {"email_sendout_rate_per_minute"},
 	} {
 		if s := schemas[name]; s != nil && s.Value != nil {
 			s.Value.Required = append(s.Value.Required, fields...)
@@ -176,6 +194,22 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		setEnum(s.Value.Properties, "severity", []any{"warning", "critical"})
 		setEnum(s.Value.Properties, "monitor_kind", []any{"offline", "high_traffic"})
 		setEnum(s.Value.Properties, "resolution_reason", []any{"condition_cleared", "monitor_disabled", "monitor_deleted", "node_disabled", "node_removed_from_scope", "monitor_reconfigured"})
+	}
+	for _, name := range []string{"EmailSendout", "EmailSendoutDetail", "EmailSendoutCreateRequest"} {
+		if s, ok := schemas[name]; ok && s.Value != nil {
+			setEnum(s.Value.Properties, "language", []any{"en", "zh-cn"})
+			setEnum(s.Value.Properties, "audience", []any{"single", "all"})
+		}
+	}
+	for _, name := range []string{"EmailSendout", "EmailSendoutDetail"} {
+		if s, ok := schemas[name]; ok && s.Value != nil {
+			setEnum(s.Value.Properties, "status", []any{"sending", "completed", "cancelled"})
+			s.Value.Properties["counts"] = &openapi3.SchemaRef{Ref: "#/components/schemas/EmailSendoutCounts"}
+		}
+	}
+	if s, ok := schemas["EmailSendoutRecipient"]; ok && s.Value != nil {
+		setEnum(s.Value.Properties, "status", []any{"pending", "sending", "sent", "failed", "skipped", "cancelled"})
+		setEnum(s.Value.Properties, "reason", []any{"delivery_failed", "smtp_disabled", "interrupted", "user_ineligible", "user_deleted"})
 	}
 	// ── doc skeleton ──────────────────────────────────────────────────────
 	t := &openapi3.T{
@@ -1593,6 +1627,63 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Parameters: openapi3.Parameters{idParam("User ID"), subscriptionIdParam},
 		Post:       reschedule,
 	})
+
+	// ── /email-sendouts ────────────────────────────────────────────────────
+	smtpUnavailable := errRef(503, "SMTP is not configured")
+	sendoutOp := func(id, summary string, response *openapi3.SchemaRef, body string) *openapi3.Operation {
+		op := &openapi3.Operation{
+			OperationID: id, Summary: summary, Tags: []string{"email sendouts"},
+			Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{
+				Description: ptr(summary), Content: content(response),
+			}})),
+		}
+		if body != "" {
+			op.RequestBody = &openapi3.RequestBodyRef{Value: openapi3.NewRequestBody().WithRequired(true).WithJSONSchemaRef(ref(body))}
+			op.Responses.Set("400", badRequest)
+		}
+		withAuth(op)
+		return op
+	}
+	sendoutQueryParam := func(name, desc string) *openapi3.ParameterRef {
+		return &openapi3.ParameterRef{Value: &openapi3.Parameter{
+			Name: name, In: "query", Description: desc,
+			Schema: &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
+		}}
+	}
+	sendoutIDParams := openapi3.Parameters{idParam("Email Sendout ID")}
+
+	createSendout := sendoutOp("createEmailSendout", "Queue an Email Sendout", ref("EmailSendout"), "EmailSendoutCreateRequest")
+	createSendout.Responses.Set("503", smtpUnavailable)
+	t.Paths.Set("/api/panel/email-sendouts", &openapi3.PathItem{
+		Get:  sendoutOp("listEmailSendouts", "List Email Sendouts, newest first", arrayRef("EmailSendout"), ""),
+		Post: createSendout,
+	})
+	t.Paths.Set("/api/panel/email-sendouts/context", &openapi3.PathItem{
+		Get: sendoutOp("getEmailSendoutContext", "Get the template inputs, SMTP availability and audience size", ref("EmailSendoutContextResponse"), ""),
+	})
+	candidates := sendoutOp("listEmailSendoutCandidates", "Search active and verified Users by email", arrayRef("EmailSendoutRecipientCandidate"), "")
+	candidates.Parameters = openapi3.Parameters{sendoutQueryParam("search", "Email substring")}
+	t.Paths.Set("/api/panel/email-sendouts/eligible-recipients", &openapi3.PathItem{Get: candidates})
+
+	getSendout := sendoutOp("getEmailSendout", "Get an Email Sendout with its content", ref("EmailSendoutDetail"), "")
+	getSendout.Responses.Set("404", notFound)
+	t.Paths.Set("/api/panel/email-sendouts/{id}", &openapi3.PathItem{Parameters: sendoutIDParams, Get: getSendout})
+
+	recipients := sendoutOp("listEmailSendoutRecipients", "List a Sendout's recipients by email", arrayRef("EmailSendoutRecipient"), "")
+	recipients.Parameters = openapi3.Parameters{sendoutQueryParam("status", "Only recipients in this status")}
+	recipients.Responses.Set("400", badRequest)
+	recipients.Responses.Set("404", notFound)
+	t.Paths.Set("/api/panel/email-sendouts/{id}/recipients", &openapi3.PathItem{Parameters: sendoutIDParams, Get: recipients})
+
+	cancelSendout := sendoutOp("cancelEmailSendout", "Cancel a Sendout's pending recipients", ref("EmailSendout"), "")
+	cancelSendout.Responses.Set("400", badRequest)
+	cancelSendout.Responses.Set("404", notFound)
+	t.Paths.Set("/api/panel/email-sendouts/{id}/cancel", &openapi3.PathItem{Parameters: sendoutIDParams, Post: cancelSendout})
+
+	resendSendout := sendoutOp("resendEmailSendout", "Requeue failed recipients at the tail of the queue", ref("EmailSendoutResendResponse"), "EmailSendoutResendRequest")
+	resendSendout.Responses.Set("404", notFound)
+	resendSendout.Responses.Set("503", smtpUnavailable)
+	t.Paths.Set("/api/panel/email-sendouts/{id}/resend", &openapi3.PathItem{Parameters: sendoutIDParams, Post: resendSendout})
 
 	return t, nil
 }

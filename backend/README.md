@@ -1,7 +1,7 @@
 # Hysterical Panel (backend)
 
 轻量级 Hysteria 2 管理面板后端，基于 PocketBase（作为 Go 框架二次开发）。
-只负责节点接口信息保存、自主轮询采集流量与最新在线设备数、用户管理、订阅门禁与实时诊断。不部署节点、不处理支付或账单。管理员可配置 Monitor 驱动 Alert 生命周期及一次性自动 Notification，也可管理加密的 Notification Channel；不提供重试队列、提醒、确认或审计日志。
+只负责节点接口信息保存、自主轮询采集流量与最新在线设备数、用户管理、订阅门禁与实时诊断。不部署节点、不处理支付或账单。管理员可配置 Monitor 驱动 Alert 生命周期及一次性自动 Notification，也可管理加密的 Notification Channel；不提供重试队列、提醒、确认或审计日志。管理员可经 PocketBase SMTP 发送 Email Sendout（事务邮件，不可退订），由持久化队列按速率逐封投递、只发一次、失败可手动重发。
 
 ## 模型
 
@@ -105,6 +105,14 @@ docker run --rm \
 | GET | `/ignored-connection-ips` | 全局忽略的客户端 IP 列表（用于最近连接统计） |
 | POST | `/ignored-connection-ips` | 忽略一个 IP（body `{ "ip": "1.2.3.4" }`；已存在则幂等返回） |
 | DELETE | `/ignored-connection-ips/{id}` | 取消忽略 |
+| GET | `/email-sendouts/context` | 写信页所需：`app_name`、`frontend_url`、`smtp_enabled`、可用 User 数、发送速率 |
+| GET | `/email-sendouts/eligible-recipients?search=` | 按邮箱子串查可用 User（`status=active && verified=true`），最多 20 条 |
+| GET | `/email-sendouts` | Email Sendout 列表（新到旧，含各状态计数与推导出的 `status`） |
+| POST | `/email-sendouts` | 创建 Sendout 并入队（SMTP 未启用 503） |
+| GET | `/email-sendouts/{id}` | Sendout 详情，含原样存储的 `html` / `text` |
+| GET | `/email-sendouts/{id}/recipients?status=` | Sendout Recipient 列表 |
+| POST | `/email-sendouts/{id}/cancel` | 取消尚未发出的收件人 |
+| POST | `/email-sendouts/{id}/resend` | 把失败的收件人重新排到队尾（body `{ "recipient_ids": [] }`，空 = 全部失败项；SMTP 未启用 503） |
 
 所有返回 node 的接口都已剥除 `api_secret`。
 
@@ -115,6 +123,10 @@ docker run --rm \
 服务白名单与 [Beszel 通知指南](https://beszel.dev/zh/guide/notifications/) 对齐：Generic、Bark、Discord、Gotify、Google Chat、IFTTT、Join、Lark、Mattermost、Matrix、MQTT、ntfy、OpsGenie、Pushbullet、Pushover、Rocket.Chat、Signal、Slack、Teams、Telegram、Twilio、WeCom、Zulip。依赖固定为 `github.com/nicholas-fedor/shoutrrr v0.16.1`；自托管私网目标允许。测试超时或投递失败只记录 `timed_out` / `delivery_failed`，绝不回显 URL、凭据、headers、response body 或原始 provider error。
 
 已保存 URL 的 reveal 需要当前 admin 已注册 passkey，并针对该 Channel 完成一枚新鲜、5 分钟有效、用后即焚的 WebAuthn assertion。其 session 使用可复用的 `sensitive_field_reveal` kind，并以隐藏 `scope=<channel id>` 绑定目标；断言只可 reveal 该一条 URL。未配置 passkey 时 admin 仍可替换、测试、启停和删除 Channel。
+
+### Email Sendout
+
+邮件 HTML 与纯文本由前端 `@react-email/editor` 生成（含固定模板外框），后端只校验大小并原样存储、原样发送，没有后端模板（ADR 0008）。创建时在同一事务里为每个可用 User 写一行 `email_sendout_recipients`；「全部」按创建瞬间展开。进程内单 worker 按 `queued_at` FIFO 逐封发送，间隔 `60s / app_settings.email_sendout_rate_per_minute`（1–600，默认 30）。每行只尝试一次：发送前重查资格（不可用 → `skipped`），用 User 当时的邮箱；SMTP 失败或未启用 → `failed`。进程重启时遗留的 `sending` 行转 `failed`（`interrupted`），不会自动重发。取消只影响 `pending` 行；重发只影响 `failed` 行。历史永久保留。
 
 **时间**：数据库存储与 API 中的 datetime 一律 **UTC**（流量按 UTC 小时/日分桶）。前端自行换算为本地时区展示；查询 `traffic/series` 时 `from`/`to` 也传 UTC。
 

@@ -18,6 +18,7 @@
 - 用户管理（分页/排序/筛选列表）+ 实时诊断面板。
 - 作为 Hysteria 2 / anytls 节点的 `auth.type: http` 回调端点，按 `auth_string`（anytls 按其 hash）鉴权客户端连接。
 - 面板登录支持密码 + passkey（WebAuthn）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
+- 可选的 Email Sendout：admin 在面板里写事务邮件，经 PocketBase SMTP 发给一个或全部可用 User；持久化队列、只发一次、失败手动重发，见 ADR-0008。
 - **不做**：支付/账单、节点部署。订阅仅作为节点访问与流量额度门禁，见 `docs/subscriptions.md`。Monitoring 通过通用 Observation 支持 offline / high-traffic Monitor、Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
 
 ## 常用命令
@@ -115,7 +116,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..26）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..27）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -126,6 +127,7 @@ hysterical-panel/
 │       ├── ipmeta/             IP 字面量 → ASN/国家（MMDB）+ test
 │       ├── collector/          counter-to-delta 采集核心
 │       ├── onlinedevices/      最新在线设备投影的共享持久化操作
+│       ├── sendouts/           Email Sendout 队列（创建/取消/重发/计数）+ 单 worker 限速投递
 │       └── api/                /api/panel 路由（+ /api/mgmt、公开回调）
 │           ├── api.go          路由注册 + 4 个鉴权守卫（含 verified / active 门禁）+ 脱敏辅助 + nodesForUser
 │           ├── config.go       公开 GET /api/panel/config（静态字段 + 实时注册开关 + passkeys 标志）
@@ -140,6 +142,7 @@ hysterical-panel/
 │           ├── invitations.go  邀请码 CRUD + inviteValid
 │           ├── ignored_connection_ips.go 全局忽略 IP CRUD
 │           ├── notification_channels.go 通知 Channel CRUD / 测试 / passkey URL reveal
+│           ├── email_sendouts.go Email Sendout 接口（校验、收件人展开、历史、取消/重发）
 │           ├── register.go     公开自助注册 + registrationDecision + auth_string 生成
 │           ├── mailer.go       邀请信 / 验证信（PocketBase SMTP，含 link 兜底）
 │           ├── traffic_panel.go admin 全局用量看板（GET /traffic、/traffic/series、/nodes/traffic/summary）
@@ -213,7 +216,9 @@ hysterical-panel/
 `passkey_credentials`：每个已注册 passkey 一行。`user` (relation→users)、`credential_id`、`user_handle`、`rp_id`、`name`、`credential` (json, **`Hidden`，私有凭据**)、`transports`、`sign_count`、`backup_eligible`/`backup_state`/`clone_warning` (bool)、`last_used_at`。
 `passkey_sessions`：WebAuthn challenge 暂存（`login` / `registration` / 可复用的敏感字段 reveal `sensitive_field_reveal` 三种 `kind`）。`challenge_id`、`user` (relation)、隐藏的 `scope`（reveal 绑定目标记录）、`session_data` (json, **`Hidden`**)、`expires_at`（TTL 5min）、`consumed_at`（用后即焚）。
 
-`app_settings`（单例，迁移时 seed 一条全 false 记录）：`invitations_enabled`、`open_registration`、`require_invite_for_open` (bool)；`management_api_enabled` (bool) + `management_api_token_hash` (text, 仅存 token 的 sha256 hex，**绝不存明文**)。运行期可变，注册与 `/config` 实时读。
+`email_sendouts` / `email_sendout_recipients`：Email Sendout 与每个收件人一行。Sendout 保存浏览器生成、原样发送的 `html` / `text` 与 editor JSON `content`、`language`、`audience`（`single`/`all`）、`created_by` + `created_by_email` 快照、`cancelled_at`；状态不落库，由 Recipient 计数推导。Recipient 的 `status` 为 `pending`/`sending`/`sent`/`failed`/`skipped`/`cancelled`，`reason` 为安全错误码，`email` 记录最近一次投递的地址；User 删除后 `user` 置空而行保留。历史永久保留。
+
+`app_settings`（单例，迁移时 seed 一条全 false 记录）：`invitations_enabled`、`open_registration`、`require_invite_for_open` (bool)；`management_api_enabled` (bool) + `management_api_token_hash` (text, 仅存 token 的 sha256 hex，**绝不存明文**)；`email_sendout_rate_per_minute`（1–600，默认 30）。运行期可变，注册与 `/config` 实时读。
 
 > 字节一律 int64，禁止 float。
 
@@ -257,6 +262,7 @@ hysterical-panel/
 - `GET|PATCH /settings`、`POST /management-api/rotate`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验注册开关层级（`invitations_enabled` 依赖 `open_registration`；`require_invite_for_open` 依赖 `invitations_enabled`），并在首次置 `management_api_enabled=true` 时生成明文 token 回显一次（见决策 #10）；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段会静默 cancel 旧 Alert 并立即重评估。
+- Email Sendout 接口 `GET /email-sendouts/context`、`GET /email-sendouts/eligible-recipients`、`GET|POST /email-sendouts`、`GET /email-sendouts/{id}`、`GET /email-sendouts/{id}/recipients`、`POST /email-sendouts/{id}/cancel|resend` 均仅 admin、进 OpenAPI。创建与重发在 SMTP 未启用时 503；worker 语义见 backend/README.md 与 ADR-0008。
 - `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口。
 - `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时 streams 诊断核心：并发拉可见节点的 `/dump/streams`（5s 超时），把稳定 `user.id` 与全部历史 Auth String 统一归属后，聚合出 `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按客户端连接分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** 在线设备数来自 Collector 的最新 `/online` 投影，不属于 live 响应。Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
 

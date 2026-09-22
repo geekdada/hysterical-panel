@@ -322,3 +322,34 @@ func TestEmailSendoutHistoryCancelAndResend(t *testing.T) {
 		t.Fatalf("missing sendout error = %v, want 404", err)
 	}
 }
+
+func TestOpenAPIDescribesEmailSendouts(t *testing.T) {
+	spec, err := BuildOpenAPISpec()
+	if err != nil {
+		t.Fatalf("BuildOpenAPISpec: %v", err)
+	}
+	for _, path := range []string{
+		"/api/panel/email-sendouts",
+		"/api/panel/email-sendouts/context",
+		"/api/panel/email-sendouts/eligible-recipients",
+		"/api/panel/email-sendouts/{id}",
+		"/api/panel/email-sendouts/{id}/recipients",
+		"/api/panel/email-sendouts/{id}/cancel",
+		"/api/panel/email-sendouts/{id}/resend",
+	} {
+		if spec.Paths.Find(path) == nil {
+			t.Errorf("OpenAPI is missing %s", path)
+		}
+	}
+	if spec.Paths.Find("/api/panel/email-sendouts").Post.Responses.Value("503") == nil {
+		t.Error("createEmailSendout must document 503")
+	}
+	status := spec.Components.Schemas["EmailSendoutRecipient"].Value.Properties["status"].Value.Enum
+	if len(status) != len(sendouts.RecipientStatuses) {
+		t.Errorf("recipient status enum = %v, want %v", status, sendouts.RecipientStatuses)
+	}
+	rate := spec.Components.Schemas["SettingsResponse"].Value.Properties["email_sendout_rate_per_minute"]
+	if rate == nil {
+		t.Error("SettingsResponse is missing email_sendout_rate_per_minute")
+	}
+}
