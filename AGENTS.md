@@ -115,7 +115,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..23）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..26）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -177,7 +177,7 @@ hysterical-panel/
 - `verified` (PocketBase 内置 auth 字段) — 账号可用的附加门禁；admin 建号与邀请注册者恒 true，仅开放无码注册者初始 false
 - `subscription_required` (bool) — 存量用户迁移时为 false，首次授予订阅后永久为 true；新用户默认 true。`used_tx`、`used_rx` (number, int64) 仍为用户终身累计流量
 - `subscription_types` — 额度（字节）、固定 30/360 天重置周期、隐藏状态；已授予过的类型不可删除或修改重置周期
-- `user_subscriptions` — 360 天的用户授予记录、当前窗口的使用量与手动加额；具体门禁与排队规则见 `docs/subscriptions.md`
+- `user_subscriptions` — 360 天的用户授予记录、当前窗口按 tx / rx 分开的使用量与手动加额，以及跨窗口不清零的整期 tx / rx 用量（Grant Usage）；门禁只看 tx+rx 总和，见 `docs/subscriptions.md` 与 ADR-0007
 - `last_connected_at` (date)、`recent_connections` (json) — Hysteria 鉴权成功后更新；`recent_connections` 只保留最近 10 个唯一客户端 IP（不含端口），MMDB ASN / 国家等信息在 API 序列化时临时补充，不落库
 
 `user_auth_strings`：

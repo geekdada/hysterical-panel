@@ -79,13 +79,13 @@ docker run --rm \
 | DELETE | `/nodes/{id}` | 删除 |
 | POST | `/nodes/{id}/test` | 立即验证连通性 |
 | GET | `/traffic` | 全局流量汇总（admin）；必填 `from` / `to`（UTC 日桶，含首尾，与 series 同格式） |
-| GET | `/users` | 分页列表；`?page=1&per_page=25&search=&sort=created`（search 对 email/role/status 子串匹配，auth_string 仅完整相等）→ `{ items, total, page, per_page }` |
+| GET | `/users` | 分页列表；`?page=1&per_page=25&search=&sort=created`（search 对 email/role/status 子串匹配，auth_string 仅完整相等）→ `{ items, total, page, per_page }`；每个 item 附 `current_subscription`（覆盖当前时刻的授予，无则 `null`），不含终身 `used_tx` / `used_rx`，也不能按其排序 |
 | GET | `/users/stats` | 用户总数与 active 数 `{ total, active }` |
 | POST | `/users` | 新建（email+password+auth_string） |
 | GET | `/users/{id}` | 详情（admin 或本人） |
 | GET | `/subscription-types` | 管理员列出订阅类型 |
 | POST / PATCH / DELETE | `/subscription-types`、`/subscription-types/{id}` | 管理员创建、修改、删除尚未授予的类型；已授予过的类型只可隐藏或修改额度 |
-| GET | `/users/{id}/subscriptions` | 授予记录和当前窗口用量（admin 或本人） |
+| GET | `/users/{id}/subscriptions` | 授予记录；当前授予附本窗口用量 `used_bytes` = `used_tx_bytes` + `used_rx_bytes`，每份授予附整期用量 `grant_tx_bytes` / `grant_rx_bytes`（admin 或本人） |
 | POST | `/users/{id}/subscriptions` | 管理员授予一份订阅，当前已有一份时排队到其到期时间 |
 | POST / DELETE | `/users/{id}/subscriptions/{subscriptionId}/top-up`、`/users/{id}/subscriptions/{subscriptionId}` | 管理员给当前窗口增加 `allowance_bytes` 字节，或终止当前/排队订阅 |
 | PATCH/DELETE | `/users/{id}` | 改/删 |

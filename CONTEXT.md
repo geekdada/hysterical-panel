@@ -80,6 +80,10 @@ _Avoid_: unlimited Subscription Type, free subscription
 One 30-day or 360-day portion of a User Subscription in which tx and rx Traffic across Nodes share the Subscription Type's allowance. Windows run from the grant's exact UTC start time; unused allowance does not carry forward, and delayed Collector polls may leave a negative remaining allowance after settlement.
 _Avoid_: calendar month, billing cycle, User lifetime Traffic
 
+**Grant Usage**:
+The tx and rx Traffic counted against one User Subscription across all of its Allowance Windows. Window rollover, Allowance Top-ups and Subscription Type allowance edits do not reset it.
+_Avoid_: lifetime Traffic, window usage, total usage
+
 **Allowance Top-up**:
 An administrator's addition of one current Subscription Type allowance to the current Allowance Window without changing Traffic already used. Repeated additions accumulate until the window ends or an edit to the Type's allowance replaces that window's effective allowance.
 _Avoid_: reset used Traffic, clear counters, renew subscription
