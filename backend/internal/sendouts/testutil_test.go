@@ -2,6 +2,7 @@ package sendouts
 
 import (
 	"testing"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -63,6 +64,26 @@ func reload(t *testing.T, app core.App, collection, id string) *core.Record {
 	rec, err := app.FindRecordById(collection, id)
 	if err != nil {
 		t.Fatalf("reload %s/%s: %v", collection, id, err)
+	}
+	return rec
+}
+
+func testDraft() Draft {
+	return Draft{
+		Subject:  "Scheduled maintenance",
+		Language: "en",
+		Audience: AudienceAll,
+		HTML:     "<!DOCTYPE html><html><body><p>Maintenance tonight.</p></body></html>",
+		Text:     "Maintenance tonight.",
+		Content:  map[string]any{"type": "doc"},
+	}
+}
+
+func newTestSendout(t *testing.T, app core.App, queuedAt time.Time, users ...*core.Record) *core.Record {
+	t.Helper()
+	rec, err := Create(app, testDraft(), users, nil, queuedAt)
+	if err != nil {
+		t.Fatalf("create sendout: %v", err)
 	}
 	return rec
 }
