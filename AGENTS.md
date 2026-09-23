@@ -166,7 +166,7 @@ hysterical-panel/
     └── src/
         ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
         ├── routes/             文件式路由（index / login / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / invitations / nodes / users）
-        ├── components/         traffic.tsx / traffic-range-picker.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx
+        ├── components/         traffic.tsx / traffic-range-picker.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx
         ├── emails/             Email Sendout 编辑器（@react-email/editor）+ 固定服务邮件外框（serializerPlugin.BaseTemplate）
         ├── paraglide/          Paraglide 编译产物（生成，gitignore，勿手改）
         ├── lib/                展示与工具 helper（format / theme / locale / timezone / cn / use-* hooks 等）
