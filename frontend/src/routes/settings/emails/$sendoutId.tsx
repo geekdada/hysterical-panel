@@ -89,8 +89,8 @@ function SendoutDetailPage() {
     },
   });
 
-  // Opening or closing a dialog clears earlier errors, so one failure is not
-  // shown both in the dialog and above the table.
+  // Opening or closing a dialog clears earlier errors. While a dialog is open,
+  // it shows the error itself and the alert above the table stays hidden.
   const toggleConfirm = (next: "cancel" | "resend" | null) => {
     if (!cancelMutation.isPending) cancelMutation.reset();
     if (!resendMutation.isPending) resendMutation.reset();
@@ -187,7 +187,11 @@ function SendoutDetailPage() {
             }
           >
             <ErrorAlert
-              message={resendMutation.error ? queryErrorMessage(resendMutation.error) : ""}
+              message={
+                confirm === null && resendMutation.error
+                  ? queryErrorMessage(resendMutation.error)
+                  : ""
+              }
               className="m-3"
             />
             {recipientsQuery.isPending ? (
