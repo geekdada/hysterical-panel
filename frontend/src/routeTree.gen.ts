@@ -30,6 +30,10 @@ import { Route as SettingsManagementApiRouteImport } from './routes/settings/man
 import { Route as SettingsDatabaseRouteImport } from './routes/settings/database'
 import { Route as NodesNewRouteImport } from './routes/nodes/new'
 import { Route as NodesNodeIdRouteImport } from './routes/nodes/$nodeId'
+import { Route as SettingsEmailsRouteRouteImport } from './routes/settings/emails/route'
+import { Route as SettingsEmailsIndexRouteImport } from './routes/settings/emails/index'
+import { Route as SettingsEmailsNewRouteImport } from './routes/settings/emails/new'
+import { Route as SettingsEmailsSendoutIdRouteImport } from './routes/settings/emails/$sendoutId'
 
 const VerifyRoute = VerifyRouteImport.update({
   id: '/verify',
@@ -136,6 +140,26 @@ const NodesNodeIdRoute = NodesNodeIdRouteImport.update({
   path: '/$nodeId',
   getParentRoute: () => NodesRouteRoute,
 } as any)
+const SettingsEmailsRouteRoute = SettingsEmailsRouteRouteImport.update({
+  id: '/emails',
+  path: '/emails',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsEmailsIndexRoute = SettingsEmailsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsEmailsRouteRoute,
+} as any)
+const SettingsEmailsNewRoute = SettingsEmailsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => SettingsEmailsRouteRoute,
+} as any)
+const SettingsEmailsSendoutIdRoute = SettingsEmailsSendoutIdRouteImport.update({
+  id: '/$sendoutId',
+  path: '/$sendoutId',
+  getParentRoute: () => SettingsEmailsRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -149,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify': typeof VerifyRoute
+  '/settings/emails': typeof SettingsEmailsRouteRouteWithChildren
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
   '/settings/database': typeof SettingsDatabaseRoute
@@ -159,6 +184,9 @@ export interface FileRoutesByFullPath {
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
+  '/settings/emails/$sendoutId': typeof SettingsEmailsSendoutIdRoute
+  '/settings/emails/new': typeof SettingsEmailsNewRoute
+  '/settings/emails/': typeof SettingsEmailsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -180,6 +208,9 @@ export interface FileRoutesByTo {
   '/users/$userId': typeof UsersUserIdRoute
   '/settings': typeof SettingsIndexRoute
   '/users': typeof UsersIndexRoute
+  '/settings/emails/$sendoutId': typeof SettingsEmailsSendoutIdRoute
+  '/settings/emails/new': typeof SettingsEmailsNewRoute
+  '/settings/emails': typeof SettingsEmailsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -194,6 +225,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify': typeof VerifyRoute
+  '/settings/emails': typeof SettingsEmailsRouteRouteWithChildren
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
   '/settings/database': typeof SettingsDatabaseRoute
@@ -204,6 +236,9 @@ export interface FileRoutesById {
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
+  '/settings/emails/$sendoutId': typeof SettingsEmailsSendoutIdRoute
+  '/settings/emails/new': typeof SettingsEmailsNewRoute
+  '/settings/emails/': typeof SettingsEmailsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -219,6 +254,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/verify'
+    | '/settings/emails'
     | '/nodes/$nodeId'
     | '/nodes/new'
     | '/settings/database'
@@ -229,6 +265,9 @@ export interface FileRouteTypes {
     | '/users/$userId'
     | '/settings/'
     | '/users/'
+    | '/settings/emails/$sendoutId'
+    | '/settings/emails/new'
+    | '/settings/emails/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -250,6 +289,9 @@ export interface FileRouteTypes {
     | '/users/$userId'
     | '/settings'
     | '/users'
+    | '/settings/emails/$sendoutId'
+    | '/settings/emails/new'
+    | '/settings/emails'
   id:
     | '__root__'
     | '/'
@@ -263,6 +305,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/verify'
+    | '/settings/emails'
     | '/nodes/$nodeId'
     | '/nodes/new'
     | '/settings/database'
@@ -273,6 +316,9 @@ export interface FileRouteTypes {
     | '/users/$userId'
     | '/settings/'
     | '/users/'
+    | '/settings/emails/$sendoutId'
+    | '/settings/emails/new'
+    | '/settings/emails/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -438,6 +484,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NodesNodeIdRouteImport
       parentRoute: typeof NodesRouteRoute
     }
+    '/settings/emails': {
+      id: '/settings/emails'
+      path: '/emails'
+      fullPath: '/settings/emails'
+      preLoaderRoute: typeof SettingsEmailsRouteRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/emails/': {
+      id: '/settings/emails/'
+      path: '/'
+      fullPath: '/settings/emails/'
+      preLoaderRoute: typeof SettingsEmailsIndexRouteImport
+      parentRoute: typeof SettingsEmailsRouteRoute
+    }
+    '/settings/emails/new': {
+      id: '/settings/emails/new'
+      path: '/new'
+      fullPath: '/settings/emails/new'
+      preLoaderRoute: typeof SettingsEmailsNewRouteImport
+      parentRoute: typeof SettingsEmailsRouteRoute
+    }
+    '/settings/emails/$sendoutId': {
+      id: '/settings/emails/$sendoutId'
+      path: '/$sendoutId'
+      fullPath: '/settings/emails/$sendoutId'
+      preLoaderRoute: typeof SettingsEmailsSendoutIdRouteImport
+      parentRoute: typeof SettingsEmailsRouteRoute
+    }
   }
 }
 
@@ -455,7 +529,23 @@ const NodesRouteRouteWithChildren = NodesRouteRoute._addFileChildren(
   NodesRouteRouteChildren,
 )
 
+interface SettingsEmailsRouteRouteChildren {
+  SettingsEmailsSendoutIdRoute: typeof SettingsEmailsSendoutIdRoute
+  SettingsEmailsNewRoute: typeof SettingsEmailsNewRoute
+  SettingsEmailsIndexRoute: typeof SettingsEmailsIndexRoute
+}
+
+const SettingsEmailsRouteRouteChildren: SettingsEmailsRouteRouteChildren = {
+  SettingsEmailsSendoutIdRoute: SettingsEmailsSendoutIdRoute,
+  SettingsEmailsNewRoute: SettingsEmailsNewRoute,
+  SettingsEmailsIndexRoute: SettingsEmailsIndexRoute,
+}
+
+const SettingsEmailsRouteRouteWithChildren =
+  SettingsEmailsRouteRoute._addFileChildren(SettingsEmailsRouteRouteChildren)
+
 interface SettingsRouteRouteChildren {
+  SettingsEmailsRouteRoute: typeof SettingsEmailsRouteRouteWithChildren
   SettingsDatabaseRoute: typeof SettingsDatabaseRoute
   SettingsManagementApiRoute: typeof SettingsManagementApiRoute
   SettingsMonitoringRoute: typeof SettingsMonitoringRoute
@@ -465,6 +555,7 @@ interface SettingsRouteRouteChildren {
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsEmailsRouteRoute: SettingsEmailsRouteRouteWithChildren,
   SettingsDatabaseRoute: SettingsDatabaseRoute,
   SettingsManagementApiRoute: SettingsManagementApiRoute,
   SettingsMonitoringRoute: SettingsMonitoringRoute,

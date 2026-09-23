@@ -2,7 +2,16 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Label, ListBox, Select } from "@heroui/react";
-import { Bell, Calendar, ChevronRight, Code, Database, Pulse, Xmark } from "@gravity-ui/icons";
+import {
+  Bell,
+  Calendar,
+  ChevronRight,
+  Code,
+  Database,
+  Envelope,
+  Pulse,
+  Xmark,
+} from "@gravity-ui/icons";
 import {
   deletePasskey,
   isPasskeySoftError,
@@ -213,6 +222,30 @@ function SettingsPage() {
                 {m.subscriptions_title()}
               </span>
               <span className="block text-xs text-muted">{m.subscriptions_description()}</span>
+            </span>
+            <ChevronRight
+              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+              aria-hidden
+            />
+          </Link>
+
+          <div className="mt-8 mb-5">
+            <h1 className="text-base font-semibold tracking-tight">{m.settings_email()}</h1>
+            <p className="mt-0.5 text-[13px] text-muted">{m.settings_email_desc()}</p>
+          </div>
+
+          <Link
+            to="/settings/emails"
+            className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+              <Envelope className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-foreground">
+                {m.email_sendouts_title()}
+              </span>
+              <span className="block text-xs text-muted">{m.email_sendouts_desc()}</span>
             </span>
             <ChevronRight
               className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
