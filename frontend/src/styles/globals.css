@@ -214,6 +214,10 @@ html[data-theme] {
   outline: none;
   color: #18181b;
 }
+/* The basic theme fixes .node-container at 600px, wider than the canvas. */
+.sendout-canvas .tiptap.ProseMirror[data-editor-theme-scope] .node-container {
+  width: auto;
+}
 .sendout-canvas-brand {
   margin: 0 0 24px;
   font-size: 14px;
