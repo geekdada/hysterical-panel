@@ -27,6 +27,7 @@
     "@inlang/paraglide-js": "^2.20.2",
     "@internationalized/date": "^3.12.2",
     "@react-aria/i18n": "^3.13.1",
+    "@react-email/editor": "1.7.8",
     "@simplewebauthn/browser": "^13.3.0",
     "@tanstack/react-form": "^1.33.0",
     "@tanstack/react-query": "^5.101.2",
@@ -35,11 +36,14 @@
     "@tanstack/react-router-ssr-query": "^1.167.1",
     "@tanstack/react-start": "^1.168.26",
     "@tanstack/react-table": "^8.21.3",
+    "@tiptap/extension-placeholder": "^3.31.3",
+    "@tiptap/react": "^3.31.3",
     "cnfast": "^0.0.6",
     "nitro": "3.0.260522-beta",
     "openapi-fetch": "^0.17.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-email": "6.9.5",
     "recharts": "^3.9.0"
   },
   "devDependencies": {

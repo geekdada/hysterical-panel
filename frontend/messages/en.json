@@ -729,5 +729,18 @@
   "monitoring_load_error": "Couldn't load monitoring data.",
   "monitoring_save_error": "Couldn't save the monitor.",
   "monitoring_delete_error": "Couldn't delete the monitor.",
-  "monitoring_node_alerts": "Active alerts"
+  "monitoring_node_alerts": "Active alerts",
+  "error_email_sendouts_load": "Could not load email sendouts.",
+  "error_email_sendout_create": "Could not queue the email.",
+  "error_email_sendout_create_network": "Could not reach the server to queue the email.",
+  "error_email_sendout_cancel": "Could not cancel the sendout.",
+  "error_email_sendout_resend": "Could not requeue the failed recipients.",
+  "error_email_smtp_unavailable": "Email is unavailable because SMTP is not configured in PocketBase.",
+  "error_email_no_recipients": "No users are active and verified.",
+  "error_email_recipient_ineligible": "The recipient must be an active, verified user.",
+  "error_email_sendout_cancelled": "This sendout is cancelled.",
+  "error_email_nothing_to_cancel": "This sendout has no pending recipients left.",
+  "error_email_subject_invalid": "The subject must be 1 to 200 characters on a single line.",
+  "error_email_content_too_large": "The email is too large to send.",
+  "error_email_rate_invalid": "The rate must be between 1 and 600 emails per minute."
 }

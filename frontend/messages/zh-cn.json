@@ -729,5 +729,18 @@
   "monitoring_load_error": "无法加载监控数据。",
   "monitoring_save_error": "无法保存监控项。",
   "monitoring_delete_error": "无法删除监控项。",
-  "monitoring_node_alerts": "当前告警"
+  "monitoring_node_alerts": "当前告警",
+  "error_email_sendouts_load": "无法加载邮件发送记录。",
+  "error_email_sendout_create": "邮件未能加入发送队列。",
+  "error_email_sendout_create_network": "无法连接服务器，邮件未能加入发送队列。",
+  "error_email_sendout_cancel": "无法取消这次发送。",
+  "error_email_sendout_resend": "无法重新发送失败的收件人。",
+  "error_email_smtp_unavailable": "PocketBase 未配置 SMTP，暂时无法发送邮件。",
+  "error_email_no_recipients": "没有启用且已验证的用户。",
+  "error_email_recipient_ineligible": "收件人必须是启用且已验证的用户。",
+  "error_email_sendout_cancelled": "这次发送已取消。",
+  "error_email_nothing_to_cancel": "这次发送已没有待发送的收件人。",
+  "error_email_subject_invalid": "主题需为 1 到 200 个字符，且不能换行。",
+  "error_email_content_too_large": "邮件内容过大，无法发送。",
+  "error_email_rate_invalid": "发送速率需在每分钟 1 到 600 封之间。"
 }

@@ -68,6 +68,14 @@ type SubscriptionType = components["schemas"]["SubscriptionType"];
 type SubscriptionTypeCreateRequest = components["schemas"]["SubscriptionTypeCreateRequest"];
 type SubscriptionTypeUpdateRequest = components["schemas"]["SubscriptionTypeUpdateRequest"];
 type UserSubscription = components["schemas"]["UserSubscription"];
+type EmailSendout = components["schemas"]["EmailSendout"];
+type EmailSendoutDetail = components["schemas"]["EmailSendoutDetail"];
+type EmailSendoutRecipient = components["schemas"]["EmailSendoutRecipient"];
+type EmailSendoutCandidate = components["schemas"]["EmailSendoutRecipientCandidate"];
+type EmailSendoutContext = components["schemas"]["EmailSendoutContextResponse"];
+type EmailSendoutCreateRequest = components["schemas"]["EmailSendoutCreateRequest"];
+type EmailSendoutResendResponse = components["schemas"]["EmailSendoutResendResponse"];
+type RecipientStatus = NonNullable<EmailSendoutRecipient["status"]>;
 
 export type {
   Invitation,
@@ -92,6 +100,14 @@ export type {
   SubscriptionTypeCreateRequest,
   SubscriptionTypeUpdateRequest,
   UserSubscription,
+  EmailSendout,
+  EmailSendoutDetail,
+  EmailSendoutRecipient,
+  EmailSendoutCandidate,
+  EmailSendoutContext,
+  EmailSendoutCreateRequest,
+  EmailSendoutResendResponse,
+  RecipientStatus,
 };
 
 export const REFRESH_MS = 20_000;
@@ -180,6 +196,13 @@ export const queryKeys = {
   invitations: () => [...queryKeys.all, "invitations"] as const,
   ignoredConnectionIPs: () => [...queryKeys.all, "ignored-connection-ips"] as const,
   notificationChannels: () => [...queryKeys.all, "notification-channels"] as const,
+  emailSendouts: () => [...queryKeys.all, "email-sendouts"] as const,
+  emailSendoutContext: () => [...queryKeys.emailSendouts(), "context"] as const,
+  emailSendoutCandidates: (search: string) =>
+    [...queryKeys.emailSendouts(), "candidates", search] as const,
+  emailSendout: (id: string) => [...queryKeys.emailSendouts(), id] as const,
+  emailSendoutRecipients: (id: string, status: RecipientStatus | "") =>
+    [...queryKeys.emailSendouts(), id, "recipients", status] as const,
   monitors: () => [...queryKeys.all, "monitors"] as const,
   alertsBase: () => [...queryKeys.all, "alerts"] as const,
   alerts: (query?: AlertsQuery) =>
@@ -840,6 +863,76 @@ export async function revealNotificationChannelURL(
       },
     }),
     m.error_notification_channel_reveal()
+  );
+}
+
+export function fetchEmailSendoutContext(): Promise<EmailSendoutContext> {
+  return apiRequest<EmailSendoutContext>(
+    apiClient.GET("/api/panel/email-sendouts/context"),
+    m.error_email_sendouts_load()
+  );
+}
+
+export function fetchEmailSendoutCandidates(search: string): Promise<EmailSendoutCandidate[]> {
+  return apiRequest<EmailSendoutCandidate[]>(
+    apiClient.GET("/api/panel/email-sendouts/eligible-recipients", {
+      params: { query: { search } },
+    }),
+    m.error_email_sendouts_load()
+  );
+}
+
+export function fetchEmailSendouts(): Promise<EmailSendout[]> {
+  return apiRequest<EmailSendout[]>(
+    apiClient.GET("/api/panel/email-sendouts"),
+    m.error_email_sendouts_load()
+  );
+}
+
+export function fetchEmailSendout(id: string): Promise<EmailSendoutDetail> {
+  return apiRequest<EmailSendoutDetail>(
+    apiClient.GET("/api/panel/email-sendouts/{id}", { params: { path: { id } } }),
+    m.error_email_sendouts_load()
+  );
+}
+
+export function fetchEmailSendoutRecipients(
+  id: string,
+  status: RecipientStatus | ""
+): Promise<EmailSendoutRecipient[]> {
+  return apiRequest<EmailSendoutRecipient[]>(
+    apiClient.GET("/api/panel/email-sendouts/{id}/recipients", {
+      params: { path: { id }, query: status ? { status } : {} },
+    }),
+    m.error_email_sendouts_load()
+  );
+}
+
+export function createEmailSendout(body: EmailSendoutCreateRequest): Promise<EmailSendout> {
+  return apiRequest<EmailSendout>(
+    apiClient.POST("/api/panel/email-sendouts", { body }),
+    m.error_email_sendout_create(),
+    m.error_email_sendout_create_network()
+  );
+}
+
+export function cancelEmailSendout(id: string): Promise<EmailSendout> {
+  return apiRequest<EmailSendout>(
+    apiClient.POST("/api/panel/email-sendouts/{id}/cancel", { params: { path: { id } } }),
+    m.error_email_sendout_cancel()
+  );
+}
+
+export function resendEmailSendout(
+  id: string,
+  recipientIds: string[]
+): Promise<EmailSendoutResendResponse> {
+  return apiRequest<EmailSendoutResendResponse>(
+    apiClient.POST("/api/panel/email-sendouts/{id}/resend", {
+      params: { path: { id } },
+      body: { recipient_ids: recipientIds },
+    }),
+    m.error_email_sendout_resend()
   );
 }
 
