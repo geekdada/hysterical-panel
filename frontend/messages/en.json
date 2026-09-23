@@ -770,7 +770,7 @@
   "email_sendouts_title": "Email sendouts",
   "email_sendouts_desc": "Transactional email sent through the PocketBase SMTP settings. Recipients cannot unsubscribe.",
   "email_sendouts_new": "New sendout",
-  "email_sendouts_smtp_off": "SMTP is not configured in PocketBase, so new sendouts are disabled. Configure it under Settings, Mail settings in the PocketBase dashboard.",
+  "email_sendouts_smtp_off": "SMTP is not configured in PocketBase, so new sendouts are disabled. Configure it in the PocketBase dashboard under Settings, Mail settings.",
   "email_sendouts_history": "History",
   "email_sendouts_empty_title": "No sendouts yet",
   "email_sendouts_empty_hint": "Sendouts you queue appear here with their delivery progress.",

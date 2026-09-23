@@ -43,6 +43,10 @@ export const Route = createFileRoute("/settings/emails/")({
         queryKey: queryKeys.emailSendouts(),
         queryFn: fetchEmailSendouts,
       }),
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.settings(),
+        queryFn: fetchSettings,
+      }),
     ]);
   },
   component: EmailSendoutsPage,
@@ -63,7 +67,8 @@ function EmailSendoutsPage() {
   });
   const smtpEnabled = contextQuery.data?.smtp_enabled ?? false;
   const sendouts = sendoutsQuery.data ?? [];
-  const loadError = sendoutsQuery.error ? queryErrorMessage(sendoutsQuery.error) : "";
+  const loadFailure = sendoutsQuery.error ?? contextQuery.error;
+  const loadError = loadFailure ? queryErrorMessage(loadFailure) : "";
 
   return (
     <PageShell headerLeft={<BrandLink />} headerRight={auth ? <UserMenu auth={auth} /> : undefined}>
@@ -171,11 +176,26 @@ function SendoutRow({ sendout, now }: { sendout: EmailSendout; now: number | nul
 }
 
 function RateSection() {
-  const queryClient = useQueryClient();
   const settingsQuery = useQuery({ queryKey: queryKeys.settings(), queryFn: fetchSettings });
-  const saved = settingsQuery.data?.email_sendout_rate_per_minute ?? 30;
+  const saved = settingsQuery.data?.email_sendout_rate_per_minute;
+
+  return (
+    <Section className="mt-0 mb-6" title={m.email_sendouts_rate()}>
+      {saved !== undefined ? (
+        <RateForm saved={saved} />
+      ) : settingsQuery.error ? (
+        <ErrorAlert message={queryErrorMessage(settingsQuery.error)} className="m-4" />
+      ) : (
+        <RateFormSkeleton />
+      )}
+      <p className="px-4 pb-4 text-xs text-muted">{m.email_sendouts_rate_hint()}</p>
+    </Section>
+  );
+}
+
+function RateForm({ saved }: { saved: number }) {
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState<number | null>(null);
-  const value = draft ?? saved;
   const mutation = useMutation({
     mutationFn: (rate: number) => updateSettings({ email_sendout_rate_per_minute: rate }),
     onSuccess: (data) => {
@@ -186,13 +206,13 @@ function RateSection() {
   });
 
   return (
-    <Section className="mt-0 mb-6" title={m.email_sendouts_rate()}>
+    <>
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
         <NumberField
           className="w-40"
           minValue={1}
           maxValue={600}
-          value={value}
+          value={draft ?? saved}
           onChange={(next) => setDraft(Number.isFinite(next) ? next : null)}
         >
           <Label>{m.email_sendouts_rate_label()}</Label>
@@ -215,11 +235,22 @@ function RateSection() {
           <span className="text-xs text-muted">{m.email_sendouts_rate_saved()}</span>
         ) : null}
       </div>
-      <p className="px-4 pb-4 text-xs text-muted">{m.email_sendouts_rate_hint()}</p>
       <ErrorAlert
         message={mutation.error ? queryErrorMessage(mutation.error) : ""}
         className="mx-4 mb-4"
       />
-    </Section>
+    </>
+  );
+}
+
+function RateFormSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end" aria-hidden>
+      <div className="flex w-40 flex-col gap-1.5">
+        <div className="h-4 w-28 animate-pulse rounded bg-surface-secondary" />
+        <div className="h-9 animate-pulse rounded-lg bg-surface-secondary" />
+      </div>
+      <div className="h-8 w-20 animate-pulse rounded-full bg-surface-secondary" />
+    </div>
   );
 }
