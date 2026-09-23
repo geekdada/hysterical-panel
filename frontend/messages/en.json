@@ -832,7 +832,7 @@
   "email_detail_resend_failed": "Resend failed ({count})",
   "email_detail_resend_one": "Resend",
   "email_detail_resend_title": "Resend failed recipients",
-  "email_detail_resend_confirm": "{count} failed recipients go back to the end of the queue and are sent once more.",
+  "email_detail_resend_confirm": "Failed recipients: {count}. They go back to the end of the queue and are sent once more.",
   "email_detail_resending": "Requeueing",
   "email_detail_cancel": "Cancel sendout",
   "email_detail_cancel_title": "Cancel this sendout",

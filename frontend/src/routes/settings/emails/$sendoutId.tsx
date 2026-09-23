@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
@@ -9,6 +9,7 @@ import {
   queryErrorMessage,
   queryKeys,
   resendEmailSendout,
+  type EmailSendoutDetail,
   type EmailSendoutRecipient,
   type RecipientStatus,
 } from "~/api/queries";
@@ -75,18 +76,8 @@ function SendoutDetailPage() {
   const tz = useActiveTimeZone();
   const [statusFilter, setStatusFilter] = useState<RecipientStatus | "">("");
   const [confirm, setConfirm] = useState<"cancel" | "resend" | null>(null);
-
-  const sendoutQuery = useQuery({
-    queryKey: queryKeys.emailSendout(sendoutId),
-    queryFn: () => fetchEmailSendout(sendoutId),
-    refetchInterval: (query) => (query.state.data?.status === "sending" ? LIVE_REFRESH_MS : false),
-  });
+  const { sendoutQuery, recipientsQuery } = useLiveSendout(sendoutId, statusFilter);
   const sending = sendoutQuery.data?.status === "sending";
-  const recipientsQuery = useQuery({
-    queryKey: queryKeys.emailSendoutRecipients(sendoutId, statusFilter),
-    queryFn: () => fetchEmailSendoutRecipients(sendoutId, statusFilter),
-    refetchInterval: sending ? LIVE_REFRESH_MS : false,
-  });
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: queryKeys.emailSendouts() });
   const cancelMutation = useMutation({
@@ -103,6 +94,14 @@ function SendoutDetailPage() {
       refresh();
     },
   });
+
+  // Opening or closing a dialog clears earlier errors, so one failure is not
+  // shown both in the dialog and above the table.
+  const toggleConfirm = (next: "cancel" | "resend" | null) => {
+    if (!cancelMutation.isPending) cancelMutation.reset();
+    if (!resendMutation.isPending) resendMutation.reset();
+    setConfirm(next);
+  };
 
   const sendout = sendoutQuery.data;
   const counts = sendout?.counts;
@@ -153,12 +152,12 @@ function SendoutDetailPage() {
             </div>
             <div className="flex shrink-0 gap-2">
               {!cancelled && failed > 0 ? (
-                <Button size="sm" variant="secondary" onPress={() => setConfirm("resend")}>
+                <Button size="sm" variant="secondary" onPress={() => toggleConfirm("resend")}>
                   {m.email_detail_resend_failed({ count: String(failed) })}
                 </Button>
               ) : null}
               {sending ? (
-                <Button size="sm" variant="secondary" onPress={() => setConfirm("cancel")}>
+                <Button size="sm" variant="secondary" onPress={() => toggleConfirm("cancel")}>
                   {m.email_detail_cancel()}
                 </Button>
               ) : null}
@@ -245,7 +244,7 @@ function SendoutDetailPage() {
         pendingLabel={m.email_detail_cancelling()}
         pending={cancelMutation.isPending}
         error={cancelMutation.error ? queryErrorMessage(cancelMutation.error) : ""}
-        onOpenChange={(open) => !open && setConfirm(null)}
+        onOpenChange={(open) => !open && toggleConfirm(null)}
         onConfirm={() => cancelMutation.mutate()}
       />
       <DestructiveConfirmModal
@@ -257,11 +256,45 @@ function SendoutDetailPage() {
         pendingLabel={m.email_detail_resending()}
         pending={resendMutation.isPending}
         error={resendMutation.error ? queryErrorMessage(resendMutation.error) : ""}
-        onOpenChange={(open) => !open && setConfirm(null)}
+        onOpenChange={(open) => !open && toggleConfirm(null)}
         onConfirm={() => resendMutation.mutate([])}
       />
     </PageShell>
   );
+}
+
+function hasPendingRecipients(sendout: EmailSendoutDetail | undefined): boolean {
+  return (sendout?.counts?.pending ?? 0) > 0;
+}
+
+// Polls while any recipient is pending or sending, not while the status is
+// `sending`: a cancelled Sendout can still have a row in flight. The two polls
+// run on separate timers, so the last change can land between them; both are
+// refetched once when polling stops.
+function useLiveSendout(sendoutId: string, statusFilter: RecipientStatus | "") {
+  const queryClient = useQueryClient();
+  const sendoutQuery = useQuery({
+    queryKey: queryKeys.emailSendout(sendoutId),
+    queryFn: () => fetchEmailSendout(sendoutId),
+    refetchInterval: (query) => (hasPendingRecipients(query.state.data) ? LIVE_REFRESH_MS : false),
+  });
+  const live = hasPendingRecipients(sendoutQuery.data);
+  const recipientsQuery = useQuery({
+    queryKey: queryKeys.emailSendoutRecipients(sendoutId, statusFilter),
+    queryFn: () => fetchEmailSendoutRecipients(sendoutId, statusFilter),
+    refetchInterval: live ? LIVE_REFRESH_MS : false,
+  });
+
+  const wasLive = useRef(live);
+  useEffect(() => {
+    if (wasLive.current && !live) {
+      // Prefix match: the detail and every filter's recipient list.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.emailSendout(sendoutId) });
+    }
+    wasLive.current = live;
+  }, [live, queryClient, sendoutId]);
+
+  return { sendoutQuery, recipientsQuery };
 }
 
 function RecipientRow({
