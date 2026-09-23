@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, Label, NumberField } from "@heroui/react";
 import { Plus } from "@gravity-ui/icons";
 import {
@@ -46,6 +46,7 @@ export const Route = createFileRoute("/settings/emails/")({
 function EmailSendoutsPage() {
   const { auth } = Route.useRouteContext();
   const now = useHydratedNow();
+  const navigate = useNavigate();
   const contextQuery = useQuery(emailSendoutContextQueryOptions());
   const sendoutsQuery = useQuery({
     ...emailSendoutsQueryOptions(),
@@ -64,20 +65,16 @@ function EmailSendoutsPage() {
           <h1 className="text-base font-semibold tracking-tight">{m.email_sendouts_title()}</h1>
           <p className="mt-0.5 max-w-2xl text-[13px] text-muted">{m.email_sendouts_desc()}</p>
         </div>
-        {smtpEnabled ? (
-          <Link
-            to="/settings/emails/new"
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-accent-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            <Plus className="size-3.5" aria-hidden />
-            {m.email_sendouts_new()}
-          </Link>
-        ) : (
-          <Button size="sm" variant="primary" isDisabled>
-            <Plus className="size-3.5" aria-hidden />
-            {m.email_sendouts_new()}
-          </Button>
-        )}
+        <Button
+          size="sm"
+          variant="primary"
+          className="shrink-0"
+          isDisabled={!smtpEnabled}
+          onPress={() => navigate({ to: "/settings/emails/new" })}
+        >
+          <Plus className="size-3.5" aria-hidden />
+          {m.email_sendouts_new()}
+        </Button>
       </div>
 
       {contextQuery.data && !smtpEnabled ? (
