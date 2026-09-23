@@ -9,6 +9,7 @@ import {
   Code,
   Database,
   Envelope,
+  Gear,
   Pulse,
   Xmark,
 } from "@gravity-ui/icons";
@@ -121,8 +122,8 @@ function SettingsPage() {
       {isAdmin && (
         <>
           <div className="mt-8 mb-5">
-            <h1 className="text-base font-semibold tracking-tight">{m.settings_registration()}</h1>
-            <p className="mt-0.5 text-[13px] text-muted">{m.settings_registration_desc()}</p>
+            <h1 className="text-base font-semibold tracking-tight">{m.settings_users()}</h1>
+            <p className="mt-0.5 text-[13px] text-muted">{m.settings_users_desc()}</p>
           </div>
 
           <ErrorAlert message={loadError} className="mb-4" />
@@ -158,6 +159,25 @@ function SettingsPage() {
           {settings?.open_registration && !settings.require_invite_for_open && (
             <p className="mt-3 text-xs text-muted">{m.settings_smtp_note()}</p>
           )}
+
+          <Link
+            to="/settings/subscriptions"
+            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+              <Calendar className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-foreground">
+                {m.settings_subscriptions_manage()}
+              </span>
+              <span className="block text-xs text-muted">{m.subscriptions_description()}</span>
+            </span>
+            <ChevronRight
+              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+              aria-hidden
+            />
+          </Link>
 
           <IgnoredConnectionIPsSection />
 
@@ -210,18 +230,20 @@ function SettingsPage() {
             />
           </Link>
 
+          <div className="mt-8 mb-5">
+            <h1 className="text-base font-semibold tracking-tight">{m.settings_email()}</h1>
+            <p className="mt-0.5 text-[13px] text-muted">{m.settings_email_desc()}</p>
+          </div>
+
           <Link
-            to="/settings/subscriptions"
-            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            to="/settings/emails/new"
+            className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <Calendar className="size-4" aria-hidden />
+              <Envelope className="size-4" aria-hidden />
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-foreground">
-                {m.subscriptions_title()}
-              </span>
-              <span className="block text-xs text-muted">{m.subscriptions_description()}</span>
+            <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
+              {m.settings_email_new()}
             </span>
             <ChevronRight
               className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
@@ -229,23 +251,15 @@ function SettingsPage() {
             />
           </Link>
 
-          <div className="mt-8 mb-5">
-            <h1 className="text-base font-semibold tracking-tight">{m.settings_email()}</h1>
-            <p className="mt-0.5 text-[13px] text-muted">{m.settings_email_desc()}</p>
-          </div>
-
           <Link
             to="/settings/emails"
-            className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <Envelope className="size-4" aria-hidden />
+              <Gear className="size-4" aria-hidden />
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-foreground">
-                {m.email_sendouts_title()}
-              </span>
-              <span className="block text-xs text-muted">{m.email_sendouts_desc()}</span>
+            <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
+              {m.settings_email_manage()}
             </span>
             <ChevronRight
               className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
