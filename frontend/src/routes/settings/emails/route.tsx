@@ -6,7 +6,7 @@ import * as m from "~/paraglide/messages.js";
 export const Route = createFileRoute("/settings/emails")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
   staticData: breadcrumbStaticData({
-    label: () => m.email_sendouts_title(),
+    label: () => m.settings_email_manage(),
     href: "/settings/emails",
   }),
   component: EmailsLayout,

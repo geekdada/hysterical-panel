@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Label, NumberField } from "@heroui/react";
-import { Plus } from "@gravity-ui/icons";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { Button, Description, Label, NumberField } from "@heroui/react";
 import {
   emailSendoutContextQueryOptions,
   emailSendoutsQueryOptions,
@@ -46,7 +45,6 @@ export const Route = createFileRoute("/settings/emails/")({
 function EmailSendoutsPage() {
   const { auth } = Route.useRouteContext();
   const now = useHydratedNow();
-  const navigate = useNavigate();
   const contextQuery = useQuery(emailSendoutContextQueryOptions());
   const sendoutsQuery = useQuery({
     ...emailSendoutsQueryOptions(),
@@ -60,22 +58,7 @@ function EmailSendoutsPage() {
 
   return (
     <PageShell headerLeft={<BrandLink />} headerRight={auth ? <UserMenu auth={auth} /> : undefined}>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-base font-semibold tracking-tight">{m.email_sendouts_title()}</h1>
-          <p className="mt-0.5 max-w-2xl text-[13px] text-muted">{m.email_sendouts_desc()}</p>
-        </div>
-        <Button
-          size="sm"
-          variant="primary"
-          className="shrink-0"
-          isDisabled={!smtpEnabled}
-          onPress={() => navigate({ to: "/settings/emails/new" })}
-        >
-          <Plus className="size-3.5" aria-hidden />
-          {m.email_sendouts_new()}
-        </Button>
-      </div>
+      <h1 className="mb-6 text-base font-semibold tracking-tight">{m.settings_email_manage()}</h1>
 
       {contextQuery.data && !smtpEnabled ? (
         <div className="mb-4 rounded-lg border bg-surface-secondary px-4 py-3 text-[13px] text-muted">
@@ -124,12 +107,14 @@ function EmailSendoutsPage() {
 function SendoutRow({ sendout, now }: { sendout: EmailSendout; now: number | null }) {
   const counts = sendout.counts;
   return (
-    <tr className="hover:bg-surface-secondary">
+    // The link's ::after overlay stretches over the positioned row, so the whole
+    // row is one click target while the subject stays the accessible link name.
+    <tr className="relative cursor-pointer transition-colors duration-150 hover:bg-surface-secondary has-[a:focus-visible]:bg-surface-secondary">
       <Td>
         <Link
           to="/settings/emails/$sendoutId"
           params={{ sendoutId: sendout.id ?? "" }}
-          className="font-medium text-foreground hover:underline"
+          className="font-medium text-foreground after:absolute after:inset-0 focus-visible:underline focus-visible:outline-none"
         >
           {sendout.subject}
         </Link>
@@ -172,7 +157,6 @@ function RateSection() {
       ) : (
         <RateFormSkeleton />
       )}
-      <p className="px-4 pb-4 text-xs text-muted">{m.email_sendouts_rate_hint()}</p>
     </Section>
   );
 }
@@ -189,52 +173,66 @@ function RateForm({ saved }: { saved: number }) {
     },
   });
 
+  const dirty = draft !== null && draft !== saved;
+
   return (
-    <>
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (dirty && !mutation.isPending) mutation.mutate(draft);
+      }}
+    >
+      <div className="p-4">
         <NumberField
-          className="w-40"
           minValue={1}
           maxValue={600}
           value={draft ?? saved}
           onChange={(next) => setDraft(Number.isFinite(next) ? next : null)}
         >
           <Label>{m.email_sendouts_rate_label()}</Label>
-          <NumberField.Group>
+          <NumberField.Group className="w-40">
             <NumberField.DecrementButton />
             <NumberField.Input />
             <NumberField.IncrementButton />
           </NumberField.Group>
+          <Description>{m.email_sendouts_rate_hint()}</Description>
         </NumberField>
-        <Button
-          size="sm"
-          variant="secondary"
-          isPending={mutation.isPending}
-          isDisabled={mutation.isPending || draft === null || draft === saved}
-          onPress={() => draft !== null && mutation.mutate(draft)}
-        >
-          {m.email_sendouts_rate_save()}
-        </Button>
-        {mutation.isSuccess && draft === null ? (
-          <span className="text-xs text-muted">{m.email_sendouts_rate_saved()}</span>
-        ) : null}
       </div>
       <ErrorAlert
         message={mutation.error ? queryErrorMessage(mutation.error) : ""}
         className="mx-4 mb-4"
       />
-    </>
+      <div className="flex items-center justify-end gap-3 border-t border-separator px-4 py-3">
+        {mutation.isSuccess && draft === null ? (
+          <span className="text-xs text-muted" role="status">
+            {m.email_sendouts_rate_saved()}
+          </span>
+        ) : null}
+        <Button
+          type="submit"
+          size="sm"
+          variant="primary"
+          isPending={mutation.isPending}
+          isDisabled={mutation.isPending || !dirty}
+        >
+          {m.email_sendouts_rate_save()}
+        </Button>
+      </div>
+    </form>
   );
 }
 
 function RateFormSkeleton() {
   return (
-    <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end" aria-hidden>
-      <div className="flex w-40 flex-col gap-1.5">
+    <div aria-hidden>
+      <div className="flex flex-col gap-1.5 p-4">
         <div className="h-4 w-28 animate-pulse rounded bg-surface-secondary" />
-        <div className="h-9 animate-pulse rounded-lg bg-surface-secondary" />
+        <div className="h-9 w-40 animate-pulse rounded-lg bg-surface-secondary" />
+        <div className="h-3 w-72 max-w-full animate-pulse rounded bg-surface-secondary" />
       </div>
-      <div className="h-8 w-20 animate-pulse rounded-full bg-surface-secondary" />
+      <div className="flex justify-end border-t border-separator px-4 py-3">
+        <div className="h-8 w-16 animate-pulse rounded-full bg-surface-secondary" />
+      </div>
     </div>
   );
 }
