@@ -4,11 +4,11 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Label, NumberField } from "@heroui/react";
 import { Plus } from "@gravity-ui/icons";
 import {
-  fetchEmailSendoutContext,
-  fetchEmailSendouts,
-  fetchSettings,
+  emailSendoutContextQueryOptions,
+  emailSendoutsQueryOptions,
   queryErrorMessage,
   queryKeys,
+  settingsQueryOptions,
   updateSettings,
   type EmailSendout,
 } from "~/api/queries";
@@ -35,18 +35,9 @@ export const Route = createFileRoute("/settings/emails/")({
   loader: ({ context }) => {
     markResponsePrivate();
     return Promise.allSettled([
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.emailSendoutContext(),
-        queryFn: fetchEmailSendoutContext,
-      }),
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.emailSendouts(),
-        queryFn: fetchEmailSendouts,
-      }),
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.settings(),
-        queryFn: fetchSettings,
-      }),
+      context.queryClient.ensureQueryData(emailSendoutContextQueryOptions()),
+      context.queryClient.ensureQueryData(emailSendoutsQueryOptions()),
+      context.queryClient.ensureQueryData(settingsQueryOptions()),
     ]);
   },
   component: EmailSendoutsPage,
@@ -55,13 +46,9 @@ export const Route = createFileRoute("/settings/emails/")({
 function EmailSendoutsPage() {
   const { auth } = Route.useRouteContext();
   const now = useHydratedNow();
-  const contextQuery = useQuery({
-    queryKey: queryKeys.emailSendoutContext(),
-    queryFn: fetchEmailSendoutContext,
-  });
+  const contextQuery = useQuery(emailSendoutContextQueryOptions());
   const sendoutsQuery = useQuery({
-    queryKey: queryKeys.emailSendouts(),
-    queryFn: fetchEmailSendouts,
+    ...emailSendoutsQueryOptions(),
     refetchInterval: (query) =>
       query.state.data?.some((s) => s.status === "sending") ? LIVE_REFRESH_MS : false,
   });
@@ -176,7 +163,7 @@ function SendoutRow({ sendout, now }: { sendout: EmailSendout; now: number | nul
 }
 
 function RateSection() {
-  const settingsQuery = useQuery({ queryKey: queryKeys.settings(), queryFn: fetchSettings });
+  const settingsQuery = useQuery(settingsQueryOptions());
   const saved = settingsQuery.data?.email_sendout_rate_per_minute;
 
   return (

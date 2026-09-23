@@ -4,8 +4,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Button } from "@heroui/react";
 import {
   cancelEmailSendout,
-  fetchEmailSendout,
-  fetchEmailSendoutRecipients,
+  emailSendoutQueryOptions,
+  emailSendoutRecipientsQueryOptions,
   queryErrorMessage,
   queryKeys,
   resendEmailSendout,
@@ -55,14 +55,8 @@ export const Route = createFileRoute("/settings/emails/$sendoutId")({
   loader: ({ context, params }) => {
     markResponsePrivate();
     return Promise.allSettled([
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.emailSendout(params.sendoutId),
-        queryFn: () => fetchEmailSendout(params.sendoutId),
-      }),
-      context.queryClient.ensureQueryData({
-        queryKey: queryKeys.emailSendoutRecipients(params.sendoutId, ""),
-        queryFn: () => fetchEmailSendoutRecipients(params.sendoutId, ""),
-      }),
+      context.queryClient.ensureQueryData(emailSendoutQueryOptions(params.sendoutId)),
+      context.queryClient.ensureQueryData(emailSendoutRecipientsQueryOptions(params.sendoutId, "")),
     ]);
   },
   component: SendoutDetailPage,
@@ -274,14 +268,12 @@ function hasPendingRecipients(sendout: EmailSendoutDetail | undefined): boolean 
 function useLiveSendout(sendoutId: string, statusFilter: RecipientStatus | "") {
   const queryClient = useQueryClient();
   const sendoutQuery = useQuery({
-    queryKey: queryKeys.emailSendout(sendoutId),
-    queryFn: () => fetchEmailSendout(sendoutId),
+    ...emailSendoutQueryOptions(sendoutId),
     refetchInterval: (query) => (hasPendingRecipients(query.state.data) ? LIVE_REFRESH_MS : false),
   });
   const live = hasPendingRecipients(sendoutQuery.data);
   const recipientsQuery = useQuery({
-    queryKey: queryKeys.emailSendoutRecipients(sendoutId, statusFilter),
-    queryFn: () => fetchEmailSendoutRecipients(sendoutId, statusFilter),
+    ...emailSendoutRecipientsQueryOptions(sendoutId, statusFilter),
     refetchInterval: live ? LIVE_REFRESH_MS : false,
   });
 

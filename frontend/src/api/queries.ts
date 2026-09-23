@@ -908,6 +908,42 @@ export function fetchEmailSendoutRecipients(
   );
 }
 
+export function emailSendoutContextQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.emailSendoutContext(),
+    queryFn: fetchEmailSendoutContext,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function emailSendoutsQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.emailSendouts(),
+    queryFn: fetchEmailSendouts,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function emailSendoutQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: queryKeys.emailSendout(id),
+    queryFn: () => fetchEmailSendout(id),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function emailSendoutRecipientsQueryOptions(id: string, status: RecipientStatus | "") {
+  return queryOptions({
+    queryKey: queryKeys.emailSendoutRecipients(id, status),
+    queryFn: () => fetchEmailSendoutRecipients(id, status),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
 export function createEmailSendout(body: EmailSendoutCreateRequest): Promise<EmailSendout> {
   return apiRequest<EmailSendout>(
     apiClient.POST("/api/panel/email-sendouts", { body }),

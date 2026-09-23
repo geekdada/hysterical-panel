@@ -15,8 +15,8 @@ import {
 } from "@heroui/react";
 import {
   createEmailSendout,
+  emailSendoutContextQueryOptions,
   fetchEmailSendoutCandidates,
-  fetchEmailSendoutContext,
   queryErrorMessage,
   queryKeys,
 } from "~/api/queries";
@@ -43,10 +43,7 @@ export const Route = createFileRoute("/settings/emails/new")({
   staticData: breadcrumbStaticData({ label: () => m.email_compose_title() }),
   loader: ({ context }) => {
     markResponsePrivate();
-    return context.queryClient.ensureQueryData({
-      queryKey: queryKeys.emailSendoutContext(),
-      queryFn: fetchEmailSendoutContext,
-    });
+    return context.queryClient.ensureQueryData(emailSendoutContextQueryOptions());
   },
   component: ComposeSendoutPage,
 });
@@ -58,10 +55,7 @@ function ComposeSendoutPage() {
   const queryClient = useQueryClient();
   const editorRef = useRef<SendoutEditorHandle>(null);
   const sendingRef = useRef(false);
-  const contextQuery = useQuery({
-    queryKey: queryKeys.emailSendoutContext(),
-    queryFn: fetchEmailSendoutContext,
-  });
+  const contextQuery = useQuery(emailSendoutContextQueryOptions());
 
   const [subject, setSubject] = useState("");
   const [language, setLanguage] = useState<SendoutLanguage>(
