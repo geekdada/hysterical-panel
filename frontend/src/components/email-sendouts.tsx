@@ -50,7 +50,9 @@ export function SendoutStatusChip({ status }: { status: string | undefined }) {
       ? m.email_status_sending()
       : status === "completed"
         ? m.email_status_completed()
-        : m.email_status_cancelled();
+        : status === "cancelled"
+          ? m.email_status_cancelled()
+          : m.common_unknown();
   return (
     <Chip size="sm" variant="soft" color={tone}>
       {label}
