@@ -36,6 +36,7 @@ export type SendoutEditorHandle = { compose: () => Promise<ComposedSendout> };
 
 // Only the blocks agreed for v1 stay enabled; images, columns, code and
 // tables are out of scope, and the Inspector sidebar is never mounted.
+// Headings are limited to H1-H3 separately, in the StarterKit call.
 const DISABLED_BLOCKS = {
   CodeBlockPrism: false,
   Code: false,
@@ -53,29 +54,60 @@ const DISABLED_BLOCKS = {
   Section: false,
 } as const;
 
+// The node selector's Quote and Code entries point at disabled blocks.
+const OMITTED_NODE_TYPES = ["Quote", "Code"];
+
+// The library groups slash items by their English `category` and prints it as
+// the group heading, so each item gets a localized category.
 function slashCommands() {
+  const textCategory = m.email_editor_cat_text();
+  const layoutCategory = m.email_editor_cat_layout();
   return [
-    { ...TEXT, title: m.email_editor_cmd_text(), description: m.email_editor_cmd_text_desc() },
-    { ...H1, title: m.email_editor_cmd_h1(), description: m.email_editor_cmd_h1_desc() },
-    { ...H2, title: m.email_editor_cmd_h2(), description: m.email_editor_cmd_h2_desc() },
-    { ...H3, title: m.email_editor_cmd_h3(), description: m.email_editor_cmd_h3_desc() },
+    {
+      ...TEXT,
+      category: textCategory,
+      title: m.email_editor_cmd_text(),
+      description: m.email_editor_cmd_text_desc(),
+    },
+    {
+      ...H1,
+      category: textCategory,
+      title: m.email_editor_cmd_h1(),
+      description: m.email_editor_cmd_h1_desc(),
+    },
+    {
+      ...H2,
+      category: textCategory,
+      title: m.email_editor_cmd_h2(),
+      description: m.email_editor_cmd_h2_desc(),
+    },
+    {
+      ...H3,
+      category: textCategory,
+      title: m.email_editor_cmd_h3(),
+      description: m.email_editor_cmd_h3_desc(),
+    },
     {
       ...BULLET_LIST,
+      category: textCategory,
       title: m.email_editor_cmd_bullets(),
       description: m.email_editor_cmd_bullets_desc(),
     },
     {
       ...NUMBERED_LIST,
+      category: textCategory,
       title: m.email_editor_cmd_numbers(),
       description: m.email_editor_cmd_numbers_desc(),
     },
     {
       ...BUTTON,
+      category: layoutCategory,
       title: m.email_editor_cmd_button(),
       description: m.email_editor_cmd_button_desc(),
     },
     {
       ...DIVIDER,
+      category: layoutCategory,
       title: m.email_editor_cmd_divider(),
       description: m.email_editor_cmd_divider_desc(),
     },
@@ -95,7 +127,7 @@ export function SendoutEditor({
   frameRef.current = frame;
   const extensions = useMemo(
     () => [
-      StarterKit.configure(DISABLED_BLOCKS),
+      StarterKit.configure({ ...DISABLED_BLOCKS, Heading: { levels: [1, 2, 3] } }),
       Placeholder.configure({
         placeholder: () => m.email_editor_placeholder(),
         includeChildren: true,
@@ -163,7 +195,7 @@ function TextBubbleMenu() {
       }}
     >
       <BubbleMenuNodeSelector
-        omit={["Quote", "Code"]}
+        omit={OMITTED_NODE_TYPES}
         open={nodeOpen}
         onOpenChange={(open) => {
           setNodeOpen(open);

@@ -762,5 +762,7 @@
   "email_editor_cmd_button_desc": "按钮样式的链接",
   "email_editor_cmd_divider": "分隔线",
   "email_editor_cmd_divider_desc": "水平分隔线",
-  "email_editor_not_ready": "编辑器仍在加载。"
+  "email_editor_not_ready": "编辑器仍在加载。",
+  "email_editor_cat_text": "文本",
+  "email_editor_cat_layout": "布局"
 }

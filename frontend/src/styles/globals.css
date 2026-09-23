@@ -197,7 +197,8 @@ html[data-theme] {
 }
 
 /* The composer canvas always shows the email as recipients see it: light,
-   whatever the panel theme is. */
+   whatever the panel theme is. Its literal colors mirror
+   src/emails/service-email-frame.tsx; change both together. */
 .sendout-canvas {
   color-scheme: light;
   background: #ffffff;

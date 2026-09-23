@@ -762,5 +762,7 @@
   "email_editor_cmd_button_desc": "Link styled as a button",
   "email_editor_cmd_divider": "Divider",
   "email_editor_cmd_divider_desc": "Horizontal rule",
-  "email_editor_not_ready": "The editor is still loading."
+  "email_editor_not_ready": "The editor is still loading.",
+  "email_editor_cat_text": "Text",
+  "email_editor_cat_layout": "Layout"
 }
