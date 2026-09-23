@@ -165,8 +165,9 @@ hysterical-panel/
     ├── scripts/                i18n-check.mjs（校验翻译完整）等
     └── src/
         ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
-        ├── routes/             文件式路由（index / login / register / verify / forgot-password / reset-password / analytics / settings / invitations / nodes / users）
+        ├── routes/             文件式路由（index / login / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / invitations / nodes / users）
         ├── components/         traffic.tsx / traffic-range-picker.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx
+        ├── emails/             Email Sendout 编辑器（@react-email/editor）+ 固定服务邮件外框（serializerPlugin.BaseTemplate）
         ├── paraglide/          Paraglide 编译产物（生成，gitignore，勿手改）
         ├── lib/                展示与工具 helper（format / theme / locale / timezone / cn / use-* hooks 等）
         └── styles/globals.css  设计 token（覆盖 HeroUI v3 默认）
@@ -293,6 +294,7 @@ hysterical-panel/
 - **类型化 API**：`src/api/client.ts` 用 `openapi-fetch` + 生成的 `schema.d.ts`（`paths`）。不要手写请求/响应类型；改后端契约后跑 `pnpm api:sync`。
 - **数据获取走 TanStack Query**：query/mutation 集中在 `src/api/queries.ts`，`query-provider.tsx` 挂 client。组件别直接调 `client.ts`，复用既有 hooks。
 - **i18n 走 Paraglide**：UI 文案全部来自 `~/paraglide/messages.js`（如 `m.theme_light()`），源在 `messages/{en,zh-cn}.json`。**新增文案必须两个 locale 同步加键**，否则 `pnpm i18n:check` / CI 失败；locale 由 `locale-toggle.tsx` 切换。不要在组件里硬编码可见文案。
+- **Email Sendout 编辑器**：`src/emails/` 用 `@react-email/editor`（TipTap）在浏览器里生成最终邮件 HTML/text（自定义 `serializerPlugin.BaseTemplate` 套固定外框，en/zh-cn 文案走 Paraglide 的 `{ locale }` 参数），后端原样存储发送（ADR-0008）。编辑器只在客户端加载（`lazy` + `useMounted`），画布恒为浅色，浮层菜单的 `--re-*` 变量在 `globals.css` 映射到面板 token。邮件 HTML 只在 `sandbox=""` 的 iframe 中展示。
 - **鉴权**：登录直接打 PocketBase 内置 `/api/collections/users/auth-with-password`（`src/api/auth.ts`），token+record 存 cookie；`client.ts` 的 middleware **每请求**从 cookie 读 token 塞 `Authorization`（无共享模块状态，防跨请求泄漏）。SSR 安全靠 `createIsomorphicFn`：服务端读 request cookie、客户端读 document.cookie。
 - **路由守卫**：`src/api/guards.ts`，在路由 `beforeLoad` 里用，与后端守卫对齐（非 admin 访问 admin 页 → 跳自己的账号页）。
 - 路径别名 `~/*` → `src/*`；`VITE_API_BASE_URL` 指向后端（dev 默认 `http://localhost:8090`，见 `.env.local`）；`__APP_VERSION__` 由 vite 从根 `VERSION` 注入。
