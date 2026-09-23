@@ -16,10 +16,7 @@ const API_ERROR_MAP: Record<string, () => string> = {
   "node not found": () => m.error_node_not_found(),
   "invitation not found": () => m.error_invitation_not_found(),
   "invalid login credentials": () => m.error_invalid_login_credentials(),
-  "invalid login credentials.": () => m.error_invalid_login_credentials(),
-  "failed to authenticate.": () => m.error_failed_to_authenticate(),
   "failed to authenticate": () => m.error_failed_to_authenticate(),
-  "the email is invalid or already in use.": () => m.error_email_invalid_or_taken(),
   "the email is invalid or already in use": () => m.error_email_invalid_or_taken(),
   "not found": () => m.error_not_found(),
   "email sendouts are unavailable: smtp is not configured": () => m.error_email_smtp_unavailable(),
@@ -38,6 +35,7 @@ const API_ERROR_MAP: Record<string, () => string> = {
 export function localizeApiError(message: string): string {
   const trimmed = message.trim();
   if (!trimmed) return trimmed;
-  const mapped = API_ERROR_MAP[trimmed.toLowerCase()];
+  // PocketBase capitalises API error messages and appends a period.
+  const mapped = API_ERROR_MAP[trimmed.toLowerCase().replace(/\.$/, "")];
   return mapped ? mapped() : trimmed;
 }
