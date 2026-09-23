@@ -92,7 +92,7 @@ function EmailSendoutsPage() {
       <Section title={m.email_sendouts_history()}>
         {sendoutsQuery.isPending ? (
           <TableSkeleton />
-        ) : sendouts.length === 0 ? (
+        ) : sendoutsQuery.error && sendouts.length === 0 ? null : sendouts.length === 0 ? (
           <PanelMessage>
             <span className="block font-medium text-foreground">
               {m.email_sendouts_empty_title()}
