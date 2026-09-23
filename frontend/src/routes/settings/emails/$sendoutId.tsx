@@ -115,34 +115,24 @@ function SendoutDetailPage() {
 
       {sendout ? (
         <>
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-base font-semibold tracking-tight">
-                  {sendout.subject}
-                </h1>
+                <h1 className="truncate text-lg font-semibold tracking-tight">{sendout.subject}</h1>
                 <SendoutStatusChip status={sendout.status} />
               </div>
-              <p className="mt-1 text-[13px] text-muted">
-                {m.email_detail_meta({
-                  language: languageLabel(sendout.language ?? ""),
-                  audience: audienceLabel(sendout.audience ?? ""),
-                  email: sendout.created_by_email || m.common_unknown(),
-                  created: Number.isNaN(created)
+              <SendoutMeta
+                items={[
+                  languageLabel(sendout.language ?? ""),
+                  audienceLabel(sendout.audience ?? ""),
+                  m.email_detail_created_by({
+                    email: sendout.created_by_email || m.common_unknown(),
+                  }),
+                  Number.isNaN(created)
                     ? m.common_em_dash()
                     : formatLocaleDateTime(created, undefined, tz),
-                })}
-              </p>
-              <p className="mt-1 text-[13px] tabular-nums text-foreground">
-                {m.email_detail_counts({
-                  total: String(counts?.total ?? 0),
-                  sent: String(counts?.sent ?? 0),
-                  failed: String(failed),
-                  skipped: String(counts?.skipped ?? 0),
-                  pending: String(counts?.pending ?? 0),
-                  cancelled: String(counts?.cancelled ?? 0),
-                })}
-              </p>
+                ]}
+              />
             </div>
             <div className="flex shrink-0 gap-2">
               {!cancelled && failed > 0 ? (
@@ -158,7 +148,9 @@ function SendoutDetailPage() {
             </div>
           </div>
 
-          <Section className="mt-0" title={m.email_detail_preview()}>
+          <RecipientCountsRail counts={sendout.counts} />
+
+          <Section title={m.email_detail_preview()}>
             <iframe
               title={m.email_detail_preview()}
               sandbox=""
@@ -260,6 +252,55 @@ function SendoutDetailPage() {
         onConfirm={() => resendMutation.mutate([])}
       />
     </PageShell>
+  );
+}
+
+// Items wrap as whole units, so a narrow viewport never splits a name or a timestamp.
+function SendoutMeta({ items }: { items: string[] }) {
+  return (
+    <ul className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted">
+      {items.map((item, index) => (
+        <li key={index} className="flex items-center gap-x-2 whitespace-nowrap">
+          {index > 0 ? <span aria-hidden="true">·</span> : null}
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const COUNTED_STATUSES = ["sent", "failed", "skipped", "pending", "cancelled"] as const;
+
+// Zeros recede so the nonzero buckets carry the reading; failures stay red.
+function countTone(status: (typeof COUNTED_STATUSES)[number], value: number): string {
+  if (value === 0) return "text-muted";
+  return status === "failed" ? "text-danger" : "text-foreground";
+}
+
+function RecipientCountsRail({ counts }: { counts: EmailSendoutDetail["counts"] }) {
+  const cells = [
+    { key: "total", label: m.common_total(), value: counts.total, tone: "text-foreground" },
+    ...COUNTED_STATUSES.map((status) => {
+      const value = counts[status];
+      return {
+        key: status,
+        label: recipientStatusLabel(status),
+        value,
+        tone: countTone(status, value),
+      };
+    }),
+  ];
+  return (
+    <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-6">
+      {cells.map((cell) => (
+        <div key={cell.key} className="bg-surface px-4 py-3">
+          <dt className="text-[11px] font-medium uppercase tracking-wider text-muted">
+            {cell.label}
+          </dt>
+          <dd className={`mt-1 font-mono text-[15px] tabular-nums ${cell.tone}`}>{cell.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
