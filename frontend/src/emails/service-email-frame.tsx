@@ -8,6 +8,7 @@ export type ServiceEmailFrameProps = {
   language: SendoutLanguage;
   appName: string;
   frontendUrl: string;
+  showPanelLink: boolean;
 };
 
 // Email clients drop stylesheets and ignore the panel theme, so the frame
@@ -31,6 +32,7 @@ export function ServiceEmailFrame({
   language,
   appName,
   frontendUrl,
+  showPanelLink,
   bodyStyle,
   children,
 }: ServiceEmailFrameProps & { bodyStyle?: CSSProperties; children: ReactNode }) {
@@ -48,7 +50,7 @@ export function ServiceEmailFrame({
           <Section>{children}</Section>
           <Hr style={styles.rule} />
           <Text style={styles.footer}>{m.email_frame_notice({ app: appName }, options)}</Text>
-          {frontendUrl ? (
+          {showPanelLink && frontendUrl ? (
             <Link href={frontendUrl} style={styles.link}>
               {m.email_frame_open_panel({}, options)}
             </Link>

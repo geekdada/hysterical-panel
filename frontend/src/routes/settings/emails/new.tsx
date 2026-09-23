@@ -1,6 +1,7 @@
-import { Suspense, lazy, useDeferredValue, useRef, useState } from "react";
+import { Suspense, lazy, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useForm } from "@tanstack/react-form";
 import {
   Button,
   ComboBox,
@@ -21,12 +22,13 @@ import {
   queryKeys,
 } from "~/api/queries";
 import { markResponsePrivate } from "~/api/ssr";
-import { BrandLink, ErrorAlert, PageShell, SelectField } from "~/components/ui";
+import { BrandLink, ErrorAlert, LabeledSwitch, PageShell, SelectField } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
 import { languageLabel } from "~/components/email-sendouts";
 import type { ComposedSendout, SendoutEditorHandle } from "~/emails/sendout-editor";
 import type { SendoutLanguage } from "~/emails/service-email-frame";
 import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
+import { useDebouncedValue } from "~/lib/use-debounced-value";
 import { useMounted } from "~/lib/use-mounted";
 import * as m from "~/paraglide/messages.js";
 import { getLocale } from "~/paraglide/runtime.js";
@@ -38,6 +40,23 @@ const SendoutEditor = lazy(() =>
 );
 
 type Audience = "all" | "single";
+
+const RECIPIENT_SEARCH_DEBOUNCE_MS = 300;
+
+type Recipient = { id: string; email: string };
+
+type ComposeValues = {
+  subject: string;
+  language: SendoutLanguage;
+  audience: Audience;
+  recipientSearch: string;
+  recipient: Recipient | null;
+  bodyEmpty: boolean;
+  showPanelLink: boolean;
+};
+
+// The review keeps the values it was composed with, so the send matches it.
+type Review = { composed: ComposedSendout; values: ComposeValues };
 
 export const Route = createFileRoute("/settings/emails/new")({
   staticData: breadcrumbStaticData({ label: () => m.email_compose_title() }),
@@ -57,22 +76,11 @@ function ComposeSendoutPage() {
   const sendingRef = useRef(false);
   const contextQuery = useQuery(emailSendoutContextQueryOptions());
 
-  const [subject, setSubject] = useState("");
-  const [language, setLanguage] = useState<SendoutLanguage>(
-    getLocale() === "zh-cn" ? "zh-cn" : "en"
-  );
-  const [audience, setAudience] = useState<Audience>("all");
-  const [recipientSearch, setRecipientSearch] = useState("");
-  const [recipient, setRecipient] = useState<{ id: string; email: string } | null>(null);
-  const [empty, setEmpty] = useState(true);
-  const [review, setReview] = useState<ComposedSendout | null>(null);
-  const [composeError, setComposeError] = useState("");
-
-  const deferredSearch = useDeferredValue(recipientSearch.trim());
-  const candidatesQuery = useQuery({
-    queryKey: queryKeys.emailSendoutCandidates(deferredSearch),
-    queryFn: () => fetchEmailSendoutCandidates(deferredSearch),
-    enabled: audience === "single",
+  const composeMutation = useMutation({
+    mutationFn: async (values: ComposeValues): Promise<Review | null> => {
+      const composed = await editorRef.current?.compose();
+      return composed ? { composed, values } : null;
+    },
   });
 
   const createMutation = useMutation({
@@ -89,26 +97,36 @@ function ComposeSendoutPage() {
     },
   });
 
-  const context = contextQuery.data;
-  const frame = {
-    language,
-    appName: context?.app_name ?? "",
-    frontendUrl: context?.frontend_url ?? "",
+  const defaultValues: ComposeValues = {
+    subject: "",
+    language: getLocale() === "zh-cn" ? "zh-cn" : "en",
+    audience: "all",
+    recipientSearch: "",
+    recipient: null,
+    bodyEmpty: true,
+    showPanelLink: true,
   };
-  const canReview = subject.trim() !== "" && !empty && (audience === "all" || recipient !== null);
+  const form = useForm({
+    defaultValues,
+    onSubmit: async ({ value }) => {
+      createMutation.reset();
+      try {
+        await composeMutation.mutateAsync(value);
+      } catch {
+        // The mutation owns rendering the compose error.
+      }
+    },
+  });
 
-  async function openReview() {
-    createMutation.reset();
-    setComposeError("");
-    try {
-      const composed = await editorRef.current?.compose();
-      // Refetch so the review shows the current recipient count.
-      await contextQuery.refetch();
-      if (composed) setReview(composed);
-    } catch (error) {
-      setComposeError(error instanceof Error ? error.message : String(error));
-    }
-  }
+  const context = contextQuery.data;
+  const appName = context?.app_name ?? "";
+  const frontendUrl = context?.frontend_url ?? "";
+  const review = composeMutation.data ?? null;
+  const composeError = composeMutation.error
+    ? composeMutation.error instanceof Error
+      ? composeMutation.error.message
+      : String(composeMutation.error)
+    : "";
 
   // Send the exact bytes shown in the review, never a fresh composition.
   // isPending only updates on the next render, so a fast double click would
@@ -116,14 +134,15 @@ function ComposeSendoutPage() {
   function send() {
     if (!review || sendingRef.current) return;
     sendingRef.current = true;
+    const { composed, values } = review;
     createMutation.mutate({
-      subject: subject.trim(),
-      language,
-      audience,
-      user_id: audience === "single" ? recipient?.id : undefined,
-      html: review.html,
-      text: review.text,
-      content: review.content,
+      subject: values.subject.trim(),
+      language: values.language,
+      audience: values.audience,
+      user_id: values.audience === "single" ? values.recipient?.id : undefined,
+      html: composed.html,
+      text: composed.text,
+      content: composed.content,
     });
   }
 
@@ -140,134 +159,174 @@ function ComposeSendoutPage() {
           {m.email_sendouts_smtp_off()}
         </div>
       ) : (
+        // Not a <form>: some editor toolbar buttons omit type="button" and
+        // would submit it.
         <div className="flex flex-col gap-5">
-          <TextField value={subject} onChange={setSubject} isRequired maxLength={200}>
-            <Label>{m.email_compose_subject()}</Label>
-            <Input autoComplete="off" data-1p-ignore data-lpignore="true" />
-          </TextField>
+          <form.Field name="subject">
+            {(field) => (
+              <TextField
+                name="subject"
+                value={field.state.value}
+                onChange={field.handleChange}
+                onBlur={field.handleBlur}
+                isRequired
+                maxLength={200}
+              >
+                <Label>{m.email_compose_subject()}</Label>
+                <Input autoComplete="off" data-1p-ignore data-lpignore="true" />
+              </TextField>
+            )}
+          </form.Field>
 
-          <SelectField
-            label={m.email_compose_language()}
-            value={language}
-            onChange={(value) => setLanguage(value === "zh-cn" ? "zh-cn" : "en")}
-            options={[
-              { value: "en", label: languageLabel("en") },
-              { value: "zh-cn", label: languageLabel("zh-cn") },
-            ]}
-            description={m.email_compose_language_hint()}
-          />
+          <form.Field name="language">
+            {(field) => (
+              <SelectField
+                label={m.email_compose_language()}
+                value={field.state.value}
+                onChange={(value) => field.handleChange(value === "zh-cn" ? "zh-cn" : "en")}
+                options={[
+                  { value: "en", label: languageLabel("en") },
+                  { value: "zh-cn", label: languageLabel("zh-cn") },
+                ]}
+                description={m.email_compose_language_hint()}
+              />
+            )}
+          </form.Field>
 
-          <RadioGroup
-            name="audience"
-            value={audience}
-            onChange={(value) => setAudience(value === "single" ? "single" : "all")}
-          >
-            <Label>{m.email_compose_audience()}</Label>
-            <Radio value="all">
-              <Radio.Content>
-                <Radio.Control>
-                  <Radio.Indicator />
-                </Radio.Control>
-                {m.email_compose_audience_all_count({
-                  count: String(context?.eligible_recipient_count ?? 0),
-                })}
-              </Radio.Content>
-            </Radio>
-            <Radio value="single">
-              <Radio.Content>
-                <Radio.Control>
-                  <Radio.Indicator />
-                </Radio.Control>
-                {m.email_audience_single()}
-              </Radio.Content>
-            </Radio>
-          </RadioGroup>
+          <form.Field name="audience">
+            {(field) => (
+              <RadioGroup
+                name="audience"
+                value={field.state.value}
+                onChange={(value) => field.handleChange(value === "single" ? "single" : "all")}
+              >
+                <Label>{m.email_compose_audience()}</Label>
+                <Radio value="all">
+                  <Radio.Content>
+                    <Radio.Control>
+                      <Radio.Indicator />
+                    </Radio.Control>
+                    {m.email_compose_audience_all_count({
+                      count: String(context?.eligible_recipient_count ?? 0),
+                    })}
+                  </Radio.Content>
+                </Radio>
+                <Radio value="single">
+                  <Radio.Content>
+                    <Radio.Control>
+                      <Radio.Indicator />
+                    </Radio.Control>
+                    {m.email_audience_single()}
+                  </Radio.Content>
+                </Radio>
+              </RadioGroup>
+            )}
+          </form.Field>
 
-          {audience === "single" ? (
-            <ComboBox
-              allowsEmptyCollection
-              inputValue={recipientSearch}
-              onInputChange={setRecipientSearch}
-              selectedKey={recipient?.id ?? null}
-              onSelectionChange={(key: Key | null) => {
-                const match = (candidatesQuery.data ?? []).find((c) => c.id === key);
-                setRecipient(match?.id ? { id: match.id, email: match.email ?? "" } : null);
-                // With both inputValue and selectedKey controlled, React Aria
-                // leaves the input text to us, so show the chosen email.
-                if (match?.email) setRecipientSearch(match.email);
-              }}
-            >
-              <Label>{m.email_compose_recipient()}</Label>
-              <ComboBox.InputGroup>
-                <Input placeholder={m.email_compose_recipient_placeholder()} />
-                <ComboBox.Trigger />
-              </ComboBox.InputGroup>
-              <ComboBox.Popover>
-                <ListBox
-                  renderEmptyState={() => (
-                    <p className="px-3 py-2 text-xs text-muted">
-                      {m.email_compose_recipient_empty()}
-                    </p>
+          <form.Subscribe selector={(s) => s.values.audience}>
+            {(audience) =>
+              audience === "single" ? (
+                <form.Field name="recipientSearch">
+                  {(searchField) => (
+                    <form.Field name="recipient">
+                      {(recipientField) => (
+                        <RecipientComboBox
+                          search={searchField.state.value}
+                          onSearchChange={searchField.handleChange}
+                          selectedId={recipientField.state.value?.id ?? null}
+                          onSelect={recipientField.handleChange}
+                        />
+                      )}
+                    </form.Field>
                   )}
-                >
-                  {(candidatesQuery.data ?? []).map((candidate) => (
-                    <ListBox.Item key={candidate.id} id={candidate.id} textValue={candidate.email}>
-                      {candidate.email}
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </ComboBox.Popover>
-            </ComboBox>
-          ) : null}
+                </form.Field>
+              ) : null
+            }
+          </form.Subscribe>
 
           <div>
-            <p className="mb-2 text-xs text-muted">
-              {m.email_compose_app_name_hint({ app: frame.appName })}
-            </p>
             <div className="rounded-lg border bg-surface-secondary p-4">
               {mounted && context ? (
                 <Suspense fallback={<div className="h-72 animate-pulse rounded-lg bg-surface" />}>
-                  <SendoutEditor ref={editorRef} frame={frame} onEmptyChange={setEmpty} />
+                  <form.Subscribe
+                    selector={(s) => ({
+                      language: s.values.language,
+                      showPanelLink: s.values.showPanelLink,
+                    })}
+                  >
+                    {({ language, showPanelLink }) => (
+                      <form.Field name="bodyEmpty">
+                        {(field) => (
+                          <SendoutEditor
+                            ref={editorRef}
+                            frame={{ language, appName, frontendUrl, showPanelLink }}
+                            onEmptyChange={field.handleChange}
+                          />
+                        )}
+                      </form.Field>
+                    )}
+                  </form.Subscribe>
                 </Suspense>
               ) : (
                 <div className="h-72 animate-pulse rounded-lg bg-surface" />
               )}
             </div>
+            <p className="mt-2 text-xs text-muted">{m.email_compose_app_name_hint()}</p>
           </div>
+
+          {/* The frame omits the link without a frontend URL, so the switch would do nothing. */}
+          {frontendUrl ? (
+            <form.Field name="showPanelLink">
+              {(field) => (
+                <LabeledSwitch
+                  label={m.email_compose_panel_link()}
+                  isSelected={field.state.value}
+                  onChange={field.handleChange}
+                />
+              )}
+            </form.Field>
+          ) : null}
 
           <ErrorAlert message={composeError} />
           <div className="flex justify-end">
-            <Button variant="primary" isDisabled={!canReview} onPress={() => void openReview()}>
-              {m.email_compose_review()}
-            </Button>
+            <form.Subscribe
+              selector={(s) => ({
+                reviewable: canReview(s.values),
+                isSubmitting: s.isSubmitting,
+              })}
+            >
+              {({ reviewable, isSubmitting }) => (
+                <Button
+                  variant="primary"
+                  isDisabled={!reviewable || isSubmitting}
+                  onPress={() => void form.handleSubmit()}
+                >
+                  {m.email_compose_review()}
+                </Button>
+              )}
+            </form.Subscribe>
           </div>
         </div>
       )}
 
       <Modal.Backdrop
         isOpen={review !== null}
-        onOpenChange={(open) => !open && !createMutation.isPending && setReview(null)}
+        onOpenChange={(open) => !open && !createMutation.isPending && composeMutation.reset()}
       >
         <Modal.Container size="lg" placement="auto">
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>{m.email_compose_review_title()}</Modal.Heading>
-              <p className="mt-1.5 text-sm text-muted">
-                {audience === "all"
-                  ? m.email_compose_review_to_all({
-                      count: String(context?.eligible_recipient_count ?? 0),
-                    })
-                  : m.email_compose_review_to_one({ email: recipient?.email ?? "" })}
-              </p>
             </Modal.Header>
             <Modal.Body>
-              <p className="mb-2 text-[13px] font-medium text-foreground">{subject.trim()}</p>
+              <p className="mb-2 text-[13px] font-medium text-foreground">
+                {m.email_compose_review_subject({ subject: review?.values.subject.trim() ?? "" })}
+              </p>
               <iframe
                 title={m.email_compose_review_title()}
                 sandbox=""
-                srcDoc={review?.html ?? ""}
+                srcDoc={review?.composed.html ?? ""}
                 className="h-[28rem] w-full rounded-lg border bg-white"
               />
               <ErrorAlert
@@ -287,7 +346,7 @@ function ComposeSendoutPage() {
                 size="sm"
                 variant="secondary"
                 isDisabled={createMutation.isPending}
-                onPress={() => setReview(null)}
+                onPress={() => composeMutation.reset()}
               >
                 {m.common_cancel()}
               </Button>
@@ -305,5 +364,68 @@ function ComposeSendoutPage() {
         </Modal.Container>
       </Modal.Backdrop>
     </PageShell>
+  );
+}
+
+function RecipientComboBox({
+  search,
+  onSearchChange,
+  selectedId,
+  onSelect,
+}: {
+  search: string;
+  onSearchChange: (search: string) => void;
+  selectedId: string | null;
+  onSelect: (recipient: Recipient | null) => void;
+}) {
+  const debouncedSearch = useDebouncedValue(search.trim(), RECIPIENT_SEARCH_DEBOUNCE_MS);
+  const candidatesQuery = useQuery({
+    queryKey: queryKeys.emailSendoutCandidates(debouncedSearch),
+    queryFn: () => fetchEmailSendoutCandidates(debouncedSearch),
+  });
+  const candidates = candidatesQuery.data ?? [];
+
+  return (
+    <ComboBox
+      allowsEmptyCollection
+      inputValue={search}
+      onInputChange={onSearchChange}
+      selectedKey={selectedId}
+      onSelectionChange={(key: Key | null) => {
+        const match = candidates.find((c) => c.id === key);
+        onSelect(match?.id ? { id: match.id, email: match.email ?? "" } : null);
+        // With both inputValue and selectedKey controlled, React Aria
+        // leaves the input text to us, so show the chosen email.
+        if (match?.email) onSearchChange(match.email);
+      }}
+    >
+      <Label>{m.email_compose_recipient()}</Label>
+      <ComboBox.InputGroup>
+        <Input placeholder={m.email_compose_recipient_placeholder()} />
+        <ComboBox.Trigger />
+      </ComboBox.InputGroup>
+      <ComboBox.Popover>
+        <ListBox
+          renderEmptyState={() => (
+            <p className="px-3 py-2 text-xs text-muted">{m.email_compose_recipient_empty()}</p>
+          )}
+        >
+          {candidates.map((candidate) => (
+            <ListBox.Item key={candidate.id} id={candidate.id} textValue={candidate.email}>
+              {candidate.email}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </ComboBox.Popover>
+    </ComboBox>
+  );
+}
+
+function canReview(values: ComposeValues): boolean {
+  return (
+    values.subject.trim() !== "" &&
+    !values.bodyEmpty &&
+    (values.audience === "all" || values.recipient !== null)
   );
 }
