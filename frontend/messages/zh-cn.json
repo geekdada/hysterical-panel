@@ -802,5 +802,21 @@
   "email_reason_smtp_disabled": "当时未配置 SMTP",
   "email_reason_interrupted": "因重启中断",
   "email_reason_user_ineligible": "用户已不再启用或未验证",
-  "email_reason_user_deleted": "用户已被删除"
+  "email_reason_user_deleted": "用户已被删除",
+  "email_compose_title": "新建发送",
+  "email_compose_subject": "主题",
+  "email_compose_language": "语言",
+  "email_compose_language_hint": "决定固定页眉页脚使用的语言。",
+  "email_compose_audience": "收件人",
+  "email_compose_audience_all_count": "所有启用且已验证的用户（{count} 位）",
+  "email_compose_recipient": "用户",
+  "email_compose_recipient_placeholder": "按邮箱搜索",
+  "email_compose_recipient_empty": "没有匹配的启用且已验证用户。",
+  "email_compose_app_name_hint": "页眉显示 PocketBase 设置中的 Application name：{app}",
+  "email_compose_review": "检查并发送",
+  "email_compose_review_title": "检查邮件",
+  "email_compose_review_to_all": "这封邮件将发送给 {count} 位用户，发出后无法撤回。",
+  "email_compose_review_to_one": "这封邮件将发送给 {email}，发出后无法撤回。",
+  "email_compose_send": "发送",
+  "email_compose_sending": "正在加入队列"
 }

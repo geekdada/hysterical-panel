@@ -802,5 +802,21 @@
   "email_reason_smtp_disabled": "SMTP was not configured",
   "email_reason_interrupted": "Interrupted by a restart",
   "email_reason_user_ineligible": "User no longer active and verified",
-  "email_reason_user_deleted": "User was deleted"
+  "email_reason_user_deleted": "User was deleted",
+  "email_compose_title": "New sendout",
+  "email_compose_subject": "Subject",
+  "email_compose_language": "Language",
+  "email_compose_language_hint": "Sets the language of the fixed header and footer.",
+  "email_compose_audience": "Recipients",
+  "email_compose_audience_all_count": "All active and verified users ({count})",
+  "email_compose_recipient": "User",
+  "email_compose_recipient_placeholder": "Search by email",
+  "email_compose_recipient_empty": "No active and verified user matches.",
+  "email_compose_app_name_hint": "The header shows the Application name from PocketBase settings: {app}",
+  "email_compose_review": "Review and send",
+  "email_compose_review_title": "Review the email",
+  "email_compose_review_to_all": "This email goes to {count} users. It cannot be unsent.",
+  "email_compose_review_to_one": "This email goes to {email}. It cannot be unsent.",
+  "email_compose_send": "Send",
+  "email_compose_sending": "Queueing"
 }
