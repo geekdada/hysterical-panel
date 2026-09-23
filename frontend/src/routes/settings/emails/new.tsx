@@ -98,9 +98,12 @@ function ComposeSendoutPage() {
   const canReview = subject.trim() !== "" && !empty && (audience === "all" || recipient !== null);
 
   async function openReview() {
+    createMutation.reset();
     setComposeError("");
     try {
       const composed = await editorRef.current?.compose();
+      // Refetch so the review shows the current recipient count.
+      await contextQuery.refetch();
       if (composed) setReview(composed);
     } catch (error) {
       setComposeError(error instanceof Error ? error.message : String(error));

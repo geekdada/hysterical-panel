@@ -815,7 +815,7 @@
   "email_compose_app_name_hint": "The header shows the Application name from PocketBase settings: {app}",
   "email_compose_review": "Review and send",
   "email_compose_review_title": "Review the email",
-  "email_compose_review_to_all": "This email goes to {count} users. It cannot be unsent.",
+  "email_compose_review_to_all": "Recipients: {count} active and verified users. It cannot be unsent.",
   "email_compose_review_to_one": "This email goes to {email}. It cannot be unsent.",
   "email_compose_send": "Send",
   "email_compose_sending": "Queueing",
