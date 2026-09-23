@@ -192,6 +192,8 @@ function SendoutDetailPage() {
             />
             {recipientsQuery.isPending ? (
               <TableSkeleton />
+            ) : recipientsQuery.error && !recipientsQuery.data ? (
+              <ErrorAlert message={queryErrorMessage(recipientsQuery.error)} className="m-3" />
             ) : recipients.length === 0 ? (
               <PanelMessage>{m.email_detail_no_recipients()}</PanelMessage>
             ) : (
