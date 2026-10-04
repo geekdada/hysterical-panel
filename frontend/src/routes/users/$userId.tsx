@@ -971,7 +971,7 @@ function TrafficSection({
   const totalRx = points.reduce((sum, p) => sum + (p.rx ?? 0), 0);
   const byNode = [...(summary?.by_node ?? [])]
     .sort((a, b) => (b.tx ?? 0) + (b.rx ?? 0) - ((a.tx ?? 0) + (a.rx ?? 0)))
-    .slice(0, 8);
+    .slice(0, 10);
 
   return (
     <Section

@@ -422,7 +422,7 @@ function TrafficSection({
   const granularity = granularityForLocalRange(trafficRange);
   const totalTx = points.reduce((sum, p) => sum + (p.tx ?? 0), 0);
   const totalRx = points.reduce((sum, p) => sum + (p.rx ?? 0), 0);
-  const byUser = (summary?.by_user ?? []).slice(0, 8);
+  const byUser = (summary?.by_user ?? []).slice(0, 10);
 
   return (
     <Section
