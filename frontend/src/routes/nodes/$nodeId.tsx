@@ -8,6 +8,7 @@ import {
   deleteNode,
   fetchNodeLive,
   isNotFoundError,
+  nodeCurrentSpeedQueryOptions,
   nodeOverviewQueryOptions,
   nodeAlertsQueryOptions,
   queryErrorMessage,
@@ -18,6 +19,7 @@ import {
 import { markResponsePrivate } from "~/api/ssr";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
+import { CurrentSpeedSection } from "~/components/current-speed";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
@@ -229,6 +231,8 @@ function NodeDetailPage() {
             now={now}
           />
 
+          {node && <NodeCurrentSpeedSection nodeId={nodeId} />}
+
           <TrafficSection
             loading={loading && !series}
             trafficRange={trafficRange}
@@ -300,6 +304,40 @@ function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number |
         ))}
       </div>
     </Section>
+  );
+}
+
+function NodeCurrentSpeedSection({ nodeId }: { nodeId: string }) {
+  const speedQuery = useQuery(nodeCurrentSpeedQueryOptions(nodeId));
+  const speed = speedQuery.data ?? null;
+  const rows = (speed?.top_users ?? []).map((u, i) => ({
+    id: u.user?.id || String(i),
+    label: u.user?.id ? (
+      <Link
+        to="/users/$userId"
+        params={{ userId: u.user.id }}
+        className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      >
+        {u.user?.email || m.common_unknown()}
+      </Link>
+    ) : (
+      <span className="block max-w-[280px] truncate font-medium">
+        {u.user?.email || m.common_unknown()}
+      </span>
+    ),
+    tx: u.tx ?? 0,
+    rx: u.rx ?? 0,
+  }));
+
+  return (
+    <CurrentSpeedSection
+      hint={m.current_speed_top_users_hint()}
+      nameHeader={m.current_speed_th_user()}
+      total={speed?.total ?? null}
+      rows={rows}
+      loading={speedQuery.isPending}
+      error={speedQuery.error ? queryErrorMessage(speedQuery.error) : ""}
+    />
   );
 }
 

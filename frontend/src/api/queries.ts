@@ -39,6 +39,8 @@ type NotificationChannelTestResponse = components["schemas"]["NotificationChanne
 type NotificationChannelRevealResponse = components["schemas"]["NotificationChannelRevealResponse"];
 type PasskeyOptionsResponse = components["schemas"]["PasskeyOptionsResponse"];
 type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
+type NodeCurrentSpeed = components["schemas"]["NodeCurrentSpeedResponse"];
+type UserCurrentSpeed = components["schemas"]["UserCurrentSpeedResponse"];
 type PanelConfig = components["schemas"]["PanelConfigResponse"];
 type PanelNodeTraffic = components["schemas"]["PanelNodeTrafficResponse"];
 type PanelTraffic = components["schemas"]["PanelTrafficResponse"];
@@ -221,6 +223,8 @@ export const queryKeys = {
   userSubscriptions: (userId: string) =>
     [...queryKeys.all, "users", userId, "subscriptions"] as const,
   nodeLive: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "live"] as const,
+  nodeCurrentSpeed: (nodeId: string) =>
+    [...queryKeys.all, "nodes", nodeId, "current-speed"] as const,
   nodeOverview: (nodeId: string, range: TrafficRangeQuery | null) =>
     [
       ...queryKeys.all,
@@ -232,6 +236,8 @@ export const queryKeys = {
       range?.to ?? "",
     ] as const,
   userLive: (userId: string) => [...queryKeys.all, "users", userId, "live"] as const,
+  userCurrentSpeed: (userId: string) =>
+    [...queryKeys.all, "users", userId, "current-speed"] as const,
   userOverview: (userId: string, range: TrafficRangeQuery | null) =>
     [
       ...queryKeys.all,
@@ -635,6 +641,36 @@ export function userOverviewQueryOptions(userId: string, range: TrafficRangeQuer
   return queryOptions({
     queryKey: queryKeys.userOverview(userId, range),
     queryFn: () => fetchUserOverview(userId, range),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
+export function nodeCurrentSpeedQueryOptions(nodeId: string) {
+  return queryOptions({
+    queryKey: queryKeys.nodeCurrentSpeed(nodeId),
+    queryFn: () =>
+      apiRequest<NodeCurrentSpeed | null>(
+        apiClient.GET("/api/panel/nodes/{id}/current-speed", {
+          params: { path: { id: nodeId } },
+        })
+      ),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
+export function userCurrentSpeedQueryOptions(userId: string) {
+  return queryOptions({
+    queryKey: queryKeys.userCurrentSpeed(userId),
+    queryFn: () =>
+      apiRequest<UserCurrentSpeed | null>(
+        apiClient.GET("/api/panel/users/{id}/current-speed", {
+          params: { path: { id: userId } },
+        })
+      ),
     enabled: canQueryPanelApi(),
     staleTime: REFRESH_MS,
     refetchInterval: REFRESH_MS,

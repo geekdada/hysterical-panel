@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
-import { Check, Copy } from "@gravity-ui/icons";
+import { Check, CircleInfo, Copy } from "@gravity-ui/icons";
 import {
   Button,
   Card,
@@ -14,6 +14,7 @@ import {
   Modal,
   Select,
   Switch,
+  Tooltip,
 } from "@heroui/react";
 import { BreadcrumbTitleProvider, BreadcrumbBar } from "~/components/breadcrumbs";
 import { cn } from "~/lib/cn";
@@ -93,12 +94,14 @@ export function AuthShell({ children }: { children: ReactNode }) {
 
 export function Section({
   title,
+  hint,
   meta,
   action,
   className,
   children,
 }: {
   title: string;
+  hint?: string;
   meta?: ReactNode;
   action?: ReactNode;
   className?: string;
@@ -108,7 +111,25 @@ export function Section({
     <section className={cn("mt-6", className)}>
       <div className="mb-2 flex flex-col gap-2 px-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <h2 className="shrink-0 text-[13px] font-semibold text-foreground">{title}</h2>
+          <div className="flex shrink-0 items-center gap-1">
+            <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
+            {hint && (
+              <Tooltip delay={0}>
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="ghost"
+                  aria-label={hint}
+                  className="size-6 min-w-0 text-muted"
+                >
+                  <CircleInfo className="size-3.5" aria-hidden />
+                </Button>
+                <Tooltip.Content className="max-w-xs">
+                  <p>{hint}</p>
+                </Tooltip.Content>
+              </Tooltip>
+            )}
+          </div>
           {meta && <span className="min-w-0 truncate text-xs tabular-nums text-muted">{meta}</span>}
         </div>
         {action && <div className="min-w-0 w-full sm:w-auto">{action}</div>}

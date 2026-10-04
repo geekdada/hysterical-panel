@@ -25,6 +25,7 @@ import {
   toTrafficRangeQuery,
   updateUser,
   updateUserStatus,
+  userCurrentSpeedQueryOptions,
   userOverviewQueryOptions,
   userSubscriptionsQueryOptions,
 } from "~/api/queries";
@@ -32,6 +33,7 @@ import { markResponsePrivate } from "~/api/ssr";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
 import { SubscriptionSection } from "~/components/subscription-section";
+import { CurrentSpeedSection } from "~/components/current-speed";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
@@ -194,6 +196,8 @@ function AccountDetailPage() {
             summary={summary}
             isAdmin={isAdmin}
           />
+
+          <UserCurrentSpeedSection userId={userId} isAdmin={isAdmin} />
 
           {user && (
             <RecentConnectionsSection
@@ -1045,6 +1049,40 @@ function TrafficSection({
         </div>
       )}
     </Section>
+  );
+}
+
+function UserCurrentSpeedSection({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
+  const speedQuery = useQuery(userCurrentSpeedQueryOptions(userId));
+  const speed = speedQuery.data ?? null;
+  const rows = (speed?.by_node ?? []).map((n, i) => ({
+    id: n.node?.id || String(i),
+    label:
+      isAdmin && n.node?.id ? (
+        <Link
+          to="/nodes/$nodeId"
+          params={{ nodeId: n.node.id }}
+          className="block max-w-[280px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        >
+          {n.node?.name || m.common_unknown()}
+        </Link>
+      ) : (
+        <span className="block max-w-[280px] truncate font-medium">
+          {n.node?.name || m.common_unknown()}
+        </span>
+      ),
+    tx: n.tx ?? 0,
+    rx: n.rx ?? 0,
+  }));
+
+  return (
+    <CurrentSpeedSection
+      nameHeader={m.current_speed_th_node()}
+      total={speed?.total ?? null}
+      rows={rows}
+      loading={speedQuery.isPending}
+      error={speedQuery.error ? queryErrorMessage(speedQuery.error) : ""}
+    />
   );
 }
 
