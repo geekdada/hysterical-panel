@@ -78,6 +78,7 @@ docker run --rm \
 | PATCH | `/nodes/{id}` | 修改（secret 缺省=不变，传空=报错） |
 | DELETE | `/nodes/{id}` | 删除 |
 | POST | `/nodes/{id}/test` | 立即验证连通性 |
+| GET | `/nodes/{id}/current-speed` | 节点当前速度与速度最高的 10 个用户（只列非零项，按 tx+rx 降序） |
 | GET | `/traffic` | 全局流量汇总（admin）；必填 `from` / `to`（UTC 日桶，含首尾，与 series 同格式） |
 | GET | `/users` | 分页列表；`?page=1&per_page=25&search=&sort=created`（search 对 email/role/status 子串匹配，auth_string 仅完整相等）→ `{ items, total, page, per_page }`；每个 item 附 `current_subscription`（覆盖当前时刻的授予，无则 `null`），终身 `used_tx` / `used_rx` 只对未授予过订阅的旧豁免用户返回（其余为 `null`）。`sort=[-]subscription_used|subscription_tx|subscription_rx` 按当前窗口用量排序，无当前订阅的用户无论升降序都排在最后（按创建时间） |
 | GET | `/users/stats` | 用户总数与 active 数 `{ total, active }` |
@@ -93,6 +94,7 @@ docker run --rm \
 | GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |
 | GET | `/users/{id}/live` | 实时 streams 诊断（admin；活跃流、域名榜、客户端连接维度） |
+| GET | `/users/{id}/current-speed` | 当前速度（最近一个采集周期的平均 B/s），按可见节点拆分，只列非零项（admin 或本人） |
 | GET | `/settings` | 读取注册/邀请开关 |
 | PATCH | `/settings` | 改开关（层级校验：`invitations_enabled=true` 需 `open_registration=true`；`require_invite_for_open=true` 需 `invitations_enabled=true`，否则 400）；也改 `email_sendout_rate_per_minute`（1–600） |
 | GET/POST | `/notification-channels` | 管理员列出非秘密 Channel 元数据 / 新建单 URL Channel（默认 disabled） |

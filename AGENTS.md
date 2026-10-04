@@ -116,7 +116,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..27）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..28）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -127,6 +127,7 @@ hysterical-panel/
 │       ├── ipmeta/             IP 字面量 → ASN/国家（MMDB）+ test
 │       ├── collector/          counter-to-delta 采集核心
 │       ├── onlinedevices/      最新在线设备投影的共享持久化操作
+│       ├── currentspeed/       User×Node Current Speed 的按节点清零
 │       ├── sendouts/           Email Sendout 队列（创建/取消/重发/计数）+ 单 worker 限速投递
 │       └── api/                /api/panel 路由（+ /api/mgmt、公开回调）
 │           ├── api.go          路由注册 + 4 个鉴权守卫（含 verified / active 门禁）+ 脱敏辅助 + nodesForUser
@@ -148,6 +149,7 @@ hysterical-panel/
 │           ├── traffic_panel.go admin 全局用量看板（GET /traffic、/traffic/series、/nodes/traffic/summary）
 │           ├── traffic.go      用户用量 summary / series
 │           ├── node_traffic.go 节点维度用量 summary / series
+│           ├── current_speed.go User×Node 当前速度（GET /users/{id}/current-speed、/nodes/{id}/current-speed）
 │           ├── live.go         用户实时诊断（重点）
 │           ├── node_live.go    节点维度实时诊断
 │           ├── node_client_auth.go 节点 HTTP 鉴权共用契约（handleNodeClientAuth）
@@ -166,7 +168,7 @@ hysterical-panel/
     └── src/
         ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
         ├── routes/             文件式路由（index / login / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / invitations / nodes / users）
-        ├── components/         traffic.tsx / traffic-range-picker.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx
+        ├── components/         traffic.tsx / traffic-range-picker.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx
         ├── emails/             Email Sendout 编辑器（@react-email/editor）+ 固定服务邮件外框（serializerPlugin.BaseTemplate）
         ├── paraglide/          Paraglide 编译产物（生成，gitignore，勿手改）
         ├── lib/                展示与工具 helper（format / theme / locale / timezone / cn / use-* hooks 等）
@@ -196,11 +198,11 @@ hysterical-panel/
 - `name`、`api_url` (url)、`api_secret` (text, **AES-GCM 加密存储**)
 - `poll_interval` (number, 秒, 默认 30)、`enabled` (bool)
 - `last_polled_at` (date)、`last_error` (text) — 用于 health 判断
-- `current_tx_speed`、`current_rx_speed` (number, int64, B/s) — 采集器每轮按相邻两次 counter 差除以间隔算出的瞬时速率，禁用/删除/采集失败置 0
+- `current_tx_speed`、`current_rx_speed` (number, int64, B/s) — Current Speed：采集器每轮把该 Node 上各 User 的 `traffic_cursor` 速度加总得出，禁用/删除/采集失败置 0
 - `online_devices` (number, int64)、`online_devices_observed_at` (date) — 最近一次成功 `/online` 的 Node 总数与观测时间；总数包含无法映射到现有用户的 auth string，首次成功前 API 返回 `null`，禁用/删除时置 0
 - `deleted_at` (date) — **软删除**：`DELETE /nodes/{id}` 只写此字段，不真删；`nodesForUser` 与采集器都用 `deleted_at = '' && enabled = true` 过滤，保留历史流量归属
 
-`traffic_cursor` (user+node 唯一)：`last_tx`、`last_rx` —— counter-to-delta 的游标
+`traffic_cursor` (user+node 唯一)：`last_tx`、`last_rx` —— counter-to-delta 的游标；`current_tx_speed`、`current_rx_speed` (int64, B/s) —— 该 User 在该 Node 上的 Current Speed，等于本轮已计量增量除以距上次成功采集的秒数。非 active User、本轮 `/traffic` 未出现或事务失败的 User 置 0；Node 采集失败、禁用、软删除时按 Node 整体清零（`internal/currentspeed`）
 `traffic_hourly` / `traffic_daily` (user+node+bucket 唯一)：`bucket` (date, **UTC**)、`tx`、`rx`
 `online_device_counts` (user+node 唯一)：仅保存最近一次成功 `/online` 中可映射到现有用户的正数计数；每轮按 Node 整体替换，不保留历史。用户详情只汇总 Enabled Node，同一物理设备连接多个 Node 时会重复计数。
 
@@ -260,6 +262,7 @@ hysterical-panel/
 - `GET /database/stats`、`POST /database/prune`（仅 admin，`database.go`）：查看库体量并按 **30 天 UTC 留存**裁剪 `traffic_hourly`/`traffic_daily` 历史。
 - passkey：`GET /users/{id}/passkeys`、`DELETE /users/{id}/passkeys/{passkeyId}`（`requireActiveAdminOrSelf`）；注册 `POST /users/{id}/passkeys/registration/{options,finish}`（`requireActiveSelf`）。详见核心决策 #9。
 - 节点维度接口 `GET /nodes/{id}/traffic/summary|series`、`GET /nodes/{id}/live` 是**单节点跨用户**视角，仅 admin。
+- Current Speed：`GET /users/{id}/current-speed`（admin 或本人）返回该 User 在各可见 Node 上非零的速度与合计；`GET /nodes/{id}/current-speed`（admin）返回 Node 自身速度与速度最高的 10 个 User。两者直接读 `traffic_cursor`，不请求节点，与 Live 无关。
 - `GET|PATCH /settings`、`POST /management-api/rotate`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验注册开关层级（`invitations_enabled` 依赖 `open_registration`；`require_invite_for_open` 依赖 `invitations_enabled`），并在首次置 `management_api_enabled=true` 时生成明文 token 回显一次（见决策 #10）；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段会静默 cancel 旧 Alert 并立即重评估。

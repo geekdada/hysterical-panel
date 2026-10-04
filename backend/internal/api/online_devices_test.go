@@ -81,8 +81,8 @@ func TestSaveNodeClearsOnlineDeviceProjection(t *testing.T) {
 	node.Set("online_devices", 0)
 	node.Set("online_devices_observed_at", time.Now().UTC())
 
-	if err := (&Handlers{app: app}).saveNodeClearingOnlineProjection(node); err != nil {
-		t.Fatalf("saveNodeClearingOnlineProjection: %v", err)
+	if err := (&Handlers{app: app}).saveNodeClearingProjections(node); err != nil {
+		t.Fatalf("saveNodeClearingProjections: %v", err)
 	}
 	counts, err := app.FindRecordsByFilter(
 		"online_device_counts",

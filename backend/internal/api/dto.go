@@ -523,6 +523,20 @@ type NodeTrafficSummaryResponse struct {
 	ByUser []UserTraffic `json:"by_user"`
 }
 
+// UserCurrentSpeedResponse is returned by GET /users/{id}/current-speed.
+// Values are bytes per second over the most recent Collector interval.
+type UserCurrentSpeedResponse struct {
+	Total  ByteCount     `json:"total"`
+	ByNode []NodeTraffic `json:"by_node"`
+}
+
+// NodeCurrentSpeedResponse is returned by GET /nodes/{id}/current-speed.
+// Values are bytes per second over the most recent Collector interval.
+type NodeCurrentSpeedResponse struct {
+	Total    ByteCount     `json:"total"`
+	TopUsers []UserTraffic `json:"top_users"`
+}
+
 // TrafficSeriesResponse is returned by GET /users/{id}/traffic/series.
 type TrafficSeriesResponse struct {
 	Granularity string        `json:"granularity"` // "hourly" | "daily"

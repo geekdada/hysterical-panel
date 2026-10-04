@@ -7,6 +7,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
+	"hysterical-panel/internal/currentspeed"
 	"hysterical-panel/internal/hysteria"
 	"hysterical-panel/internal/onlinedevices"
 	"hysterical-panel/internal/token"
@@ -152,9 +153,9 @@ func (h *Handlers) updateNode(e *core.RequestEvent) error {
 			n.Set("online_devices_observed_at", time.Now().UTC())
 		}
 	}
-	clearOnline := in.Enabled != nil && !*in.Enabled
-	if clearOnline {
-		err = h.saveNodeClearingOnlineProjection(n)
+	clearProjections := in.Enabled != nil && !*in.Enabled
+	if clearProjections {
+		err = h.saveNodeClearingProjections(n)
 	} else {
 		err = h.app.Save(n)
 	}
@@ -181,7 +182,7 @@ func (h *Handlers) deleteNode(e *core.RequestEvent) error {
 	n.Set("current_rx_speed", 0)
 	n.Set("online_devices", 0)
 	n.Set("online_devices_observed_at", time.Now().UTC())
-	if err := h.saveNodeClearingOnlineProjection(n); err != nil {
+	if err := h.saveNodeClearingProjections(n); err != nil {
 		return apis.NewBadRequestError("failed to delete node", err)
 	}
 	if h.monitoring != nil {
@@ -192,9 +193,12 @@ func (h *Handlers) deleteNode(e *core.RequestEvent) error {
 	return ok(e, map[string]any{"deleted": true})
 }
 
-func (h *Handlers) saveNodeClearingOnlineProjection(node *core.Record) error {
+func (h *Handlers) saveNodeClearingProjections(node *core.Record) error {
 	return h.app.RunInTransaction(func(txApp core.App) error {
 		if err := onlinedevices.DeleteNodeCounts(txApp, node.Id); err != nil {
+			return err
+		}
+		if err := currentspeed.ResetNode(txApp, node.Id); err != nil {
 			return err
 		}
 		return txApp.Save(node)

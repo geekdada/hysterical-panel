@@ -523,3 +523,125 @@ func onlineCountRecordsForNode(t *testing.T, app core.App, nodeID string) []*cor
 	}
 	return records
 }
+
+func TestRecordTrafficStoresUserCurrentSpeedSummingToNodeSpeed(t *testing.T) {
+	app := newMigratedCollectorTestApp(t)
+	box, err := cryptobox.New("test-master-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := createCollectorTestUser(t, app, "first@example.com", "FirstSecret", "active")
+	second := createCollectorTestUser(t, app, "second@example.com", "SecondSecret", "active")
+	disabled := createCollectorTestUser(t, app, "disabled@example.com", "DisabledSecret", "disabled")
+	node := createCollectorTestNode(t, app, box, "http://127.0.0.1:9999")
+	c := New(app, box)
+
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{
+		first.Id:    {Tx: 100, Rx: 100},
+		second.Id:   {Tx: 100, Rx: 100},
+		disabled.Id: {Tx: 100, Rx: 100},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	node = backdateLastPoll(t, app, node.Id, 10*time.Second)
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{
+		first.Id:    {Tx: 1100, Rx: 2100},
+		second.Id:   {Tx: 600, Rx: 600},
+		disabled.Id: {Tx: 5100, Rx: 5100},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	assertCursorSpeed(t, app, first.Id, node.Id, 100, 200)
+	assertCursorSpeed(t, app, second.Id, node.Id, 50, 50)
+	assertCursorSpeed(t, app, disabled.Id, node.Id, 0, 0)
+	stored, err := app.FindRecordById("nodes", node.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tx, rx := stored.GetInt("current_tx_speed"), stored.GetInt("current_rx_speed"); tx != 150 || rx != 250 {
+		t.Fatalf("node speed = %d/%d, want sum of user speeds 150/250", tx, rx)
+	}
+}
+
+func TestRecordTrafficZeroesSpeedOfUsersMissingFromPoll(t *testing.T) {
+	app := newMigratedCollectorTestApp(t)
+	box, err := cryptobox.New("test-master-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := createCollectorTestUser(t, app, "gone@example.com", "GoneSecret", "active")
+	node := createCollectorTestNode(t, app, box, "http://127.0.0.1:9999")
+	c := New(app, box)
+
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{user.Id: {Tx: 0, Rx: 0}}); err != nil {
+		t.Fatal(err)
+	}
+	node = backdateLastPoll(t, app, node.Id, 10*time.Second)
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{user.Id: {Tx: 1000, Rx: 1000}}); err != nil {
+		t.Fatal(err)
+	}
+	assertCursorSpeed(t, app, user.Id, node.Id, 100, 100)
+
+	node = backdateLastPoll(t, app, node.Id, 10*time.Second)
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{}); err != nil {
+		t.Fatal(err)
+	}
+	assertCursorSpeed(t, app, user.Id, node.Id, 0, 0)
+}
+
+func TestRecordNodeErrorZeroesUserCurrentSpeed(t *testing.T) {
+	app := newMigratedCollectorTestApp(t)
+	box, err := cryptobox.New("test-master-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := createCollectorTestUser(t, app, "error@example.com", "ErrorSecret", "active")
+	node := createCollectorTestNode(t, app, box, "http://127.0.0.1:9999")
+	c := New(app, box)
+
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{user.Id: {Tx: 0, Rx: 0}}); err != nil {
+		t.Fatal(err)
+	}
+	node = backdateLastPoll(t, app, node.Id, 10*time.Second)
+	if err := c.recordTraffic(node, map[string]hysteria.TrafficEntry{user.Id: {Tx: 1000, Rx: 1000}}); err != nil {
+		t.Fatal(err)
+	}
+	node, err = app.FindRecordById("nodes", node.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.recordNodeError(node, "poll /traffic: unavailable")
+	assertCursorSpeed(t, app, user.Id, node.Id, 0, 0)
+}
+
+// backdateLastPoll moves the node's last successful poll into the past so the
+// next recordTraffic call sees a known interval.
+func backdateLastPoll(t *testing.T, app core.App, nodeID string, ago time.Duration) *core.Record {
+	t.Helper()
+	node, err := app.FindRecordById("nodes", nodeID)
+	if err != nil {
+		t.Fatalf("reload node: %v", err)
+	}
+	node.Set("last_polled_at", time.Now().UTC().Add(-ago))
+	if err := app.Save(node); err != nil {
+		t.Fatalf("backdate last poll: %v", err)
+	}
+	return node
+}
+
+func assertCursorSpeed(t *testing.T, app core.App, userID, nodeID string, wantTx, wantRx int64) {
+	t.Helper()
+	cursor, err := app.FindFirstRecordByFilter(
+		"traffic_cursor",
+		"user = {:u} && node = {:n}",
+		map[string]any{"u": userID, "n": nodeID},
+	)
+	if err != nil {
+		t.Fatalf("find cursor: %v", err)
+	}
+	tx, rx := int64(cursor.GetInt("current_tx_speed")), int64(cursor.GetInt("current_rx_speed"))
+	if tx != wantTx || rx != wantRx {
+		t.Fatalf("cursor speed = %d/%d, want %d/%d", tx, rx, wantTx, wantRx)
+	}
+}

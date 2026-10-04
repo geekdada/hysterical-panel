@@ -85,6 +85,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/nodes/{id}/traffic/summary", h.nodeTrafficSummary).Bind(adminOnly)
 	g.GET("/nodes/{id}/traffic/series", h.nodeTrafficSeries).Bind(adminOnly)
 	g.GET("/nodes/{id}/live", h.nodeLive).Bind(adminOnly)
+	g.GET("/nodes/{id}/current-speed", h.nodeCurrentSpeed).Bind(adminOnly)
 
 	// app settings (registration / invitation feature flags)
 	g.GET("/settings", h.getSettings).Bind(adminOnly)
@@ -155,6 +156,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	// traffic + live
 	g.GET("/users/{id}/traffic/summary", h.trafficSummary).Bind(adminOrSelf)
 	g.GET("/users/{id}/traffic/series", h.trafficSeries).Bind(adminOrSelf)
+	g.GET("/users/{id}/current-speed", h.userCurrentSpeed).Bind(adminOrSelf)
 	g.GET("/users/{id}/live", h.userLive).Bind(adminOnly)
 
 	// Public panel config — no auth required

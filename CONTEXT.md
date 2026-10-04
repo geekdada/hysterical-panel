@@ -97,8 +97,12 @@ The latest number of client instances reported by a Node for a Node Client ID. A
 _Avoid_: unique devices, physical devices, active streams, connections
 
 **Collector**:
-The background process that periodically reads each Enabled Node's traffic counters and online client-instance counts, recording Traffic deltas and the latest Online Device Count projection. Distinct from Live diagnostics, which are on-demand and not stored.
+The background process that periodically reads each Enabled Node's traffic counters and online client-instance counts, recording Traffic deltas, Current Speed and the latest Online Device Count projection. Distinct from Live diagnostics, which are on-demand and not stored.
 _Avoid_: scraper, syncer, meter, poller, importer
+
+**Current Speed**:
+Average tx/rx bytes per second over the Collector's most recent successful poll interval, for a Node or for one User on one Node. It is an interval average, not an instantaneous rate, and it is not Live. A User's Current Speed on a Node counts only Traffic that was counted, so a disabled User's speed is zero, and the User speeds on a Node add up to the Node's Current Speed. An unhealthy, disabled or Soft-deleted Node has zero Current Speed for itself and for every User on it.
+_Avoid_: realtime speed, bandwidth, instantaneous rate, throughput
 
 **Live**:
 An on-demand, uncached diagnostic snapshot of current streams for a User or a Node, pulled from Nodes at request time. Not Traffic or Online Device Count; not persisted.

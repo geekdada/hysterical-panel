@@ -17,6 +17,7 @@ import (
 
 	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/cryptobox"
+	"hysterical-panel/internal/currentspeed"
 	"hysterical-panel/internal/hysteria"
 	"hysterical-panel/internal/onlinedevices"
 	"hysterical-panel/internal/subscriptions"
@@ -136,12 +137,12 @@ func (c *Collector) pollNode(ctx context.Context, node *core.Record) error {
 }
 
 func (c *Collector) recordTraffic(node *core.Record, traffic map[string]hysteria.TrafficEntry) error {
-	previousPoll := node.GetDateTime("last_polled_at").Time()
-
 	now := time.Now().UTC()
+	interval := pollInterval{from: node.GetDateTime("last_polled_at").Time(), to: now}
 	bucketHour := now.Truncate(time.Hour)
 	bucketDay := now.Truncate(24 * time.Hour)
-	var nodeDtx, nodeDrx int64
+	var nodeDtx, nodeDrx, nodeTxSpeed, nodeRxSpeed int64
+	var speedingUserIDs []string
 
 	resolver, err := authstrings.LoadResolver(c.app)
 	if err != nil {
@@ -171,7 +172,7 @@ func (c *Collector) recordTraffic(node *core.Record, traffic map[string]hysteria
 	}
 
 	for _, counters := range byUser {
-		var dtx, drx int64
+		var d cursorDelta
 		var counted, exhausted bool
 		err := c.app.RunInTransaction(func(app core.App) error {
 			user, err := app.FindRecordById("users", counters.user.Id)
@@ -179,11 +180,12 @@ func (c *Collector) recordTraffic(node *core.Record, traffic map[string]hysteria
 				return err
 			}
 			// Advance the cursor during disabled periods without charging usage.
-			dtx, drx, err = c.applyDelta(app, user, node, counters.tx, counters.rx)
+			d, err = c.applyDelta(app, user, node, counters.tx, counters.rx, interval)
 			if err != nil {
 				return err
 			}
-			if user.GetString("status") != "active" || (dtx == 0 && drx == 0) {
+			dtx, drx := d.tx, d.rx
+			if !isCharged(user) || (dtx == 0 && drx == 0) {
 				return nil
 			}
 			if drx > math.MaxInt64-dtx {
@@ -212,8 +214,13 @@ func (c *Collector) recordTraffic(node *core.Record, traffic map[string]hysteria
 			continue
 		}
 		if counted {
-			nodeDtx += dtx
-			nodeDrx += drx
+			nodeDtx += d.tx
+			nodeDrx += d.rx
+		}
+		if d.txSpeed != 0 || d.rxSpeed != 0 {
+			nodeTxSpeed += d.txSpeed
+			nodeRxSpeed += d.rxSpeed
+			speedingUserIDs = append(speedingUserIDs, counters.user.Id)
 		}
 		if exhausted && c.onExhausted != nil {
 			c.onExhausted(counters.user.Id)
@@ -222,13 +229,17 @@ func (c *Collector) recordTraffic(node *core.Record, traffic map[string]hysteria
 
 	node.Set("last_polled_at", now)
 	node.Set("last_error", "")
-	node.Set("current_tx_speed", speedPerSecond(nodeDtx, previousPoll, now))
-	node.Set("current_rx_speed", speedPerSecond(nodeDrx, previousPoll, now))
+	// The Node's Current Speed is the sum of its Users' speeds so the two always agree.
+	node.Set("current_tx_speed", nodeTxSpeed)
+	node.Set("current_rx_speed", nodeRxSpeed)
 	elapsed := int64(0)
-	if !previousPoll.IsZero() {
-		elapsed = int64(now.Sub(previousPoll).Seconds())
+	if !interval.from.IsZero() {
+		elapsed = int64(now.Sub(interval.from).Seconds())
 	}
 	return c.app.RunInTransaction(func(txApp core.App) error {
+		if err := currentspeed.ResetNode(txApp, node.Id, speedingUserIDs...); err != nil {
+			return err
+		}
 		if elapsed > 0 {
 			if err := recordObservation(txApp, node, now, elapsed, nodeDtx, nodeDrx); err != nil {
 				return err
@@ -327,46 +338,74 @@ func recordObservation(app core.App, node *core.Record, observedAt time.Time, el
 	return app.Save(record)
 }
 
+// pollInterval spans the previous successful /traffic poll to the current one.
+type pollInterval struct {
+	from, to time.Time
+}
+
+func (p pollInterval) speed(deltaBytes int64) int64 {
+	return speedPerSecond(deltaBytes, p.from, p.to)
+}
+
+// cursorDelta is one (user,node) cursor advance and the resulting Current Speed.
+type cursorDelta struct {
+	tx, rx           int64
+	txSpeed, rxSpeed int64
+}
+
+// isCharged reports whether the user's Traffic counts toward usage and speed.
+func isCharged(user *core.Record) bool {
+	return user.GetString("status") == "active"
+}
+
 // applyDelta reads the cursor for (user,node), computes the delta with reset
-// handling, and writes the new cursor. Returns the delta to be accumulated.
-func (c *Collector) applyDelta(app core.App, user, node *core.Record, curTx, curRx int64) (int64, int64, error) {
-	cursor, err := app.FindFirstRecordByFilter(
-		"traffic_cursor",
-		"user = {:u} && node = {:n}",
-		map[string]any{"u": user.Id, "n": node.Id},
-	)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return 0, 0, err
+// handling, and writes the new cursor and Current Speed.
+func (c *Collector) applyDelta(app core.App, user, node *core.Record, curTx, curRx int64, interval pollInterval) (cursorDelta, error) {
+	cursor, err := findOrNewCursor(app, user.Id, node.Id)
+	if err != nil {
+		return cursorDelta{}, err
 	}
-	if err != nil || cursor == nil {
-		// first observation: treat the whole counter as the delta
-		coll, cerr := app.FindCollectionByNameOrId("traffic_cursor")
-		if cerr != nil {
-			return 0, 0, cerr
-		}
-		cursor = core.NewRecord(coll)
-		cursor.Set("user", user.Id)
-		cursor.Set("node", node.Id)
-		cursor.Set("last_tx", curTx)
-		cursor.Set("last_rx", curRx)
-		if serr := app.Save(cursor); serr != nil {
-			return 0, 0, serr
-		}
-		return curTx, curRx, nil
+	// A first observation treats the whole counter as the delta.
+	d := cursorDelta{tx: curTx, rx: curRx}
+	if !cursor.IsNew() {
+		d.tx = delta(curTx, int64(cursor.GetInt("last_tx")))
+		d.rx = delta(curRx, int64(cursor.GetInt("last_rx")))
 	}
-
-	lastTx := int64(cursor.GetInt("last_tx"))
-	lastRx := int64(cursor.GetInt("last_rx"))
-
-	dtx := delta(curTx, lastTx)
-	drx := delta(curRx, lastRx)
+	if isCharged(user) {
+		d.txSpeed = interval.speed(d.tx)
+		d.rxSpeed = interval.speed(d.rx)
+	}
 
 	cursor.Set("last_tx", curTx)
 	cursor.Set("last_rx", curRx)
+	cursor.Set("current_tx_speed", d.txSpeed)
+	cursor.Set("current_rx_speed", d.rxSpeed)
 	if err := app.Save(cursor); err != nil {
-		return 0, 0, err
+		return cursorDelta{}, err
 	}
-	return dtx, drx, nil
+	return d, nil
+}
+
+func findOrNewCursor(app core.App, userID, nodeID string) (*core.Record, error) {
+	cursor, err := app.FindFirstRecordByFilter(
+		"traffic_cursor",
+		"user = {:u} && node = {:n}",
+		map[string]any{"u": userID, "n": nodeID},
+	)
+	if err == nil {
+		return cursor, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	coll, err := app.FindCollectionByNameOrId("traffic_cursor")
+	if err != nil {
+		return nil, err
+	}
+	cursor = core.NewRecord(coll)
+	cursor.Set("user", userID)
+	cursor.Set("node", nodeID)
+	return cursor, nil
 }
 
 // delta handles the counter-reset case: if the current value dropped below the
@@ -387,7 +426,7 @@ func speedPerSecond(deltaBytes int64, from, to time.Time) int64 {
 	if seconds <= 0 {
 		return 0
 	}
-	return int64(float64(deltaBytes) / seconds)
+	return int64(math.Round(float64(deltaBytes) / seconds))
 }
 
 func (c *Collector) bumpUserTotals(app core.App, user *core.Record, dtx, drx int64) error {
@@ -430,7 +469,13 @@ func (c *Collector) recordNodeError(node *core.Record, msg string) {
 	node.Set("last_error", msg)
 	node.Set("current_tx_speed", 0)
 	node.Set("current_rx_speed", 0)
-	if err := c.app.Save(node); err != nil {
+	err := c.app.RunInTransaction(func(txApp core.App) error {
+		if err := currentspeed.ResetNode(txApp, node.Id); err != nil {
+			return err
+		}
+		return txApp.Save(node)
+	})
+	if err != nil {
 		log.Printf("[collector] record node error: %v", err)
 	}
 }

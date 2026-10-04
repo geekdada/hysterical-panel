@@ -61,6 +61,8 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"TrafficSummaryResponse":            TrafficSummaryResponse{},
 		"TrafficSeriesResponse":             TrafficSeriesResponse{},
 		"NodeTrafficSummaryResponse":        NodeTrafficSummaryResponse{},
+		"UserCurrentSpeedResponse":          UserCurrentSpeedResponse{},
+		"NodeCurrentSpeedResponse":          NodeCurrentSpeedResponse{},
 		"DatabaseStatsResponse":             DatabaseStatsResponse{},
 		"DatabasePruneResponse":             DatabasePruneResponse{},
 		"LiveResponse":                      LiveResponse{},
@@ -661,6 +663,27 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		}(),
 	})
 
+	// ── /nodes/{id}/current-speed ───────────────────────────────────────
+	t.Paths.Set("/api/panel/nodes/{id}/current-speed", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Node ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "nodeCurrentSpeed",
+				Summary:     "Get the node's Current Speed and its top 10 users by speed",
+				Tags:        []string{"traffic"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Node Current Speed in bytes per second"),
+						Content:     content(ref("NodeCurrentSpeedResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
 	// ── /nodes/{id}/traffic/series ────────────────────────────────────────
 	t.Paths.Set("/api/panel/nodes/{id}/traffic/series", &openapi3.PathItem{
 		Parameters: openapi3.Parameters{idParam("Node ID")},
@@ -1059,6 +1082,27 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 				})),
 			}
 			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /users/{id}/current-speed ───────────────────────────────────────
+	t.Paths.Set("/api/panel/users/{id}/current-speed", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "userCurrentSpeed",
+				Summary:     "Get the user's nonzero Current Speed on each enabled node (admin or self)",
+				Tags:        []string{"traffic"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("User Current Speed in bytes per second"),
+						Content:     content(ref("UserCurrentSpeedResponse")),
+					},
+				})),
+			}
 			op.Responses.Set("404", notFound)
 			withAuth(op)
 			return op
