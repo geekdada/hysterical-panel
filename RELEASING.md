@@ -11,6 +11,11 @@ git push origin master
 git push origin v1.2.3
 ```
 
+Run `scripts/release.sh` without a version to pick one from a menu. It prints
+the current `VERSION` and the latest `v*` tag, then offers the next patch,
+minor and major versions, or lets you type one. Bumping a prerelease such as
+`1.3.0-rc.1` finalizes it: patch and minor both give `1.3.0`.
+
 Pushing the `v1.2.3` tag triggers the `Release` workflow: it validates the
 version, builds and pushes the backend and frontend Docker images, then creates
 a **draft** GitHub Release for `v1.2.3` whose body lists the published image

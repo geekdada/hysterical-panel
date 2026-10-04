@@ -54,7 +54,7 @@
 
 ### release（仓库根）
 
-`scripts/release.sh <version>`（如 `1.2.3` 或 `v1.2.3-rc.1`）：写 `VERSION` + `frontend/package.json`、跑后端 test/vet/build 与前端 typecheck/build、commit 并打 tag。详见 `RELEASING.md`。
+`scripts/release.sh [version]`（如 `1.2.3` 或 `v1.2.3-rc.1`；不传则显示当前版本并交互选择 patch / minor / major 或手动输入）：写 `VERSION` + `frontend/package.json`、跑后端 test/vet/build 与前端 typecheck/build、commit 并打 tag。详见 `RELEASING.md`。
 
 ## 核心架构决策（不要推翻，除非需求方明确要求）
 
