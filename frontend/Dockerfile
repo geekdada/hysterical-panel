@@ -3,12 +3,14 @@ FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
-WORKDIR /app/frontend
+WORKDIR /app
 
-COPY VERSION /app/VERSION
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+COPY VERSION package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package.json ./frontend/
 RUN corepack enable && corepack install
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter hysterical-panel-frontend
+
+WORKDIR /app/frontend
 
 COPY frontend/ ./
 COPY backend/openapi.json /app/backend/

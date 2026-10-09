@@ -1,0 +1,13 @@
+{
+  "name": "hysterical-panel",
+  "private": true,
+  "scripts": {
+    "dev": "run-p --print-label dev:*",
+    "dev:backend": "make -C backend serve",
+    "dev:frontend": "pnpm --filter hysterical-panel-frontend dev"
+  },
+  "packageManager": "pnpm@12.6.0",
+  "devDependencies": {
+    "npm-run-all2": "^9.0.3"
+  }
+}

@@ -68,6 +68,5 @@
       "oxlint --fix"
     ],
     "*.{js,jsx,ts,tsx,json,jsonc}": "oxfmt --no-error-on-unmatched-pattern"
-  },
-  "packageManager": "pnpm@12.6.0"
+  }
 }

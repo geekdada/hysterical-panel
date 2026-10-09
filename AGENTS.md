@@ -23,6 +23,15 @@
 
 ## 常用命令
 
+### 仓库根（pnpm workspace）
+
+根目录是 pnpm workspace，`frontend` 是唯一的 package；`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`packageManager` 都在根目录。
+
+| 命令 | 说明 |
+|---|---|
+| `pnpm install` | 安装整个 workspace 的依赖（在 `frontend/` 下执行效果相同） |
+| `pnpm dev` | 用 `run-p`（npm-run-all2）同时启动后端 `make -C backend serve` 和前端 `vite dev`，输出带 `[dev:backend]` / `[dev:frontend]` 前缀 |
+
 ### backend（`cd backend`，命令需 `PANEL_MASTER_KEY` 在进程环境）
 
 | 命令 | 说明 |
@@ -107,6 +116,8 @@
 hysterical-panel/
 ├── AGENTS.md / CLAUDE.md       本文件（CLAUDE.md 是指向 AGENTS.md 的符号链接）
 ├── PRODUCT.md                  设计语言 + 产品定位唯一来源（曾在 frontend/，已移到根）
+├── package.json                pnpm workspace 根：全局脚本（`pnpm dev` 同时起前后端）
+├── pnpm-workspace.yaml / pnpm-lock.yaml  workspace 定义（packages: frontend）与唯一锁文件
 ├── VERSION                     全应用版本号（frontend/package.json 必须与之一致）
 ├── RELEASING.md                发布流程；scripts/release.sh 配套
 ├── .github/workflows/          release.yml：push `v*` tag 后构建并推 GHCR 镜像，再建 draft release
@@ -327,7 +338,7 @@ hysterical-panel/
 ### Docker / 发布
 
 - `backend/Dockerfile` 多阶段构建（`CGO_ENABLED=0`，alpine，非 root `panel` 用户），监听 `0.0.0.0:8090`，数据卷 `/app/pb_data`，把 `mmdb/` 拷进镜像。`PANEL_MASTER_KEY` 仍必填。
-- `frontend/Dockerfile` 多阶段构建（Go 生成 OpenAPI → pnpm build → Nitro `.output`，非 root `panel` 用户），监听 `0.0.0.0:3000`。构建上下文为仓库根目录；CI 默认空 `VITE_API_BASE_URL`（同域反代）。
+- `frontend/Dockerfile` 多阶段构建（Go 生成 OpenAPI → pnpm build → Nitro `.output`，非 root `panel` 用户），监听 `0.0.0.0:3000`。构建上下文为仓库根目录，按根目录的 workspace 锁文件 `--filter` 安装前端依赖；CI 默认空 `VITE_API_BASE_URL`（同域反代）。
 - 镜像**只在 push `v*.*.*` tag 后**由 `.github/workflows/release.yml` 构建并推 GHCR（`ghcr.io/<repo>-backend` / `-frontend`，多架构 amd64+arm64）；同一个 workflow 在两个镜像都推成功后**创建 draft release**（正文含各镜像 `docker pull` 命令），由人工 review 后手动发布。普通提交、PR 不触发；发布 draft 不会重新构建（镜像在 tag 落地时已推）。CI 会校验 `VERSION` == `frontend/package.json` version == tag。
 - 根目录 `docker-compose.yml` + `deploy/nginx/default.conf`：本地全栈（nginx 反代 `/api` 与 `/_/` 到后端，其余到前端）。
 
