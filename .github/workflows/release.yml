@@ -134,6 +134,13 @@ jobs:
         with:
           fetch-depth: 1
 
+      # Before QEMU so the binfmt, buildkit and base image pulls avoid the anonymous rate limit.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -181,6 +188,12 @@ jobs:
         with:
           name: backend-openapi-${{ needs.metadata.outputs.version }}
           path: backend
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
