@@ -464,7 +464,7 @@
   "user_manage_status_active_desc": "User can sign in and connect to nodes.",
   "user_manage_status_disabled_desc": "Blocks new sign-ins and client connections. Existing sessions are kicked.",
   "user_manage_reset_label": "Auth key",
-  "user_manage_reset_desc": "Generate a new Hysteria auth key. The old key stops working immediately.",
+  "user_manage_reset_desc": "Generate a new auth key. The old key stops working immediately.",
   "user_manage_reset_auth_key": "Reset auth key",
   "user_manage_reset_confirm_title": "Reset auth key",
   "user_manage_reset_confirm_body": "This replaces the current auth key. Connected clients must update their config.",

@@ -464,7 +464,7 @@
   "user_manage_status_active_desc": "用户可登录面板并连接节点。",
   "user_manage_status_disabled_desc": "阻止新登录与客户端连接。已建立会话会被断开。",
   "user_manage_reset_label": "认证密钥",
-  "user_manage_reset_desc": "生成新的 Hysteria 认证密钥。旧密钥会立即失效。",
+  "user_manage_reset_desc": "生成新的认证密钥。旧密钥会立即失效。",
   "user_manage_reset_auth_key": "重置认证密钥",
   "user_manage_reset_confirm_title": "重置认证密钥",
   "user_manage_reset_confirm_body": "这将替换当前的认证密钥。已连接的客户端需更新配置。",
