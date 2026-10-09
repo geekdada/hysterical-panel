@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
 import { Check, CircleInfo, Copy } from "@gravity-ui/icons";
 import {
+  Alert,
   Button,
   Card,
   Checkbox,
@@ -252,7 +253,12 @@ export function CheckboxListField({
       {description ? <Description>{description}</Description> : null}
 
       {options.length === 0 ? (
-        <p className="">{emptyLabel}</p>
+        <Alert status="warning" className="mt-1">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{emptyLabel}</Alert.Title>
+          </Alert.Content>
+        </Alert>
       ) : (
         <div className="mt-1 flex flex-col gap-4 border border-field-border border-solid rounded-lg px-4 py-3 max-h-40 overflow-y-auto">
           {options.map((option) => (
