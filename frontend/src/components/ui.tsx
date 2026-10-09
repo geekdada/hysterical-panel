@@ -290,7 +290,7 @@ export function Th({ children, className = "" }: { children?: ReactNode; classNa
   return (
     <th
       className={cn(
-        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted",
+        "whitespace-nowrap px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted",
         className
       )}
     >
@@ -317,7 +317,7 @@ export function SortableTh<TData>({
     <th
       aria-sort={ariaSort}
       className={cn(
-        "px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted",
+        "whitespace-nowrap px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted",
         className
       )}
     >
