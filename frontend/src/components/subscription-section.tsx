@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Disclosure, FieldError, Label, Modal, NumberField } from "@heroui/react";
+import { Button, Chip, Disclosure, FieldError, Label, Modal, NumberField } from "@heroui/react";
 import {
   grantSubscription,
   queryErrorMessage,
@@ -345,12 +345,14 @@ function GrantRow({
             </p>
           </Meter>
           <Meter label={m.subscription_remaining()}>
-            <span className="inline-flex items-baseline gap-2">
+            <span className="inline-flex items-center gap-2">
               <span className="font-mono text-[13px] tabular-nums">
                 {formatBytes(Math.max(0, item.remaining_bytes))}
               </span>
               {item.over_allowance && (
-                <span className="text-xs text-danger">{m.subscription_over()}</span>
+                <Chip size="sm" variant="soft" color="danger">
+                  {m.subscription_over()}
+                </Chip>
               )}
             </span>
           </Meter>
