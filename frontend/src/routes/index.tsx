@@ -373,18 +373,23 @@ function TrafficPeriodToggle({
   onChange: (p: TrafficPeriod) => void;
 }) {
   const opts: TrafficPeriod[] = ["today", "t-1", "7d"];
+  const selectedIndex = opts.indexOf(value);
   return (
-    <div className="inline-flex shrink-0 rounded-lg border p-0.5">
+    // Equal-width cells let the indicator slide with transform alone, no measuring.
+    <div className="relative inline-grid shrink-0 grid-cols-3 rounded-lg border p-0.5">
+      <span
+        aria-hidden
+        className="absolute inset-y-0.5 left-0.5 w-[calc((100%-0.25rem)/3)] rounded-sm bg-surface-secondary transition-transform duration-200 ease-[cubic-bezier(0.645,0.045,0.355,1)] motion-reduce:transition-none"
+        style={{ transform: `translateX(${selectedIndex * 100}%)` }}
+      />
       {opts.map((o) => (
         <button
           key={o}
           type="button"
           onClick={() => onChange(o)}
           className={cn(
-            "rounded-sm px-1.5 py-0.5 text-[10px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
-            value === o
-              ? "bg-surface-secondary text-foreground"
-              : "text-muted hover:text-foreground"
+            "relative cursor-pointer rounded-sm px-1.5 py-0.5 text-[10px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+            value === o ? "text-foreground" : "text-muted hover:text-foreground"
           )}
           aria-pressed={value === o}
         >
