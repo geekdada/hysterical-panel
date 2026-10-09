@@ -148,8 +148,7 @@ function MonitoringPage() {
     channelsQuery.error,
   ]
     .filter(Boolean)
-    .map((error) => queryErrorMessage(error, m.monitoring_load_error()))
-    .join(" ");
+    .map((error) => queryErrorMessage(error, m.monitoring_load_error()));
 
   return (
     <PageShell headerLeft={<BrandLink />} headerRight={auth ? <UserMenu auth={auth} /> : undefined}>
@@ -163,7 +162,7 @@ function MonitoringPage() {
           {m.monitoring_new()}
         </Button>
       </div>
-      <ErrorAlert message={loadError} icon className="mt-4" />
+      <ErrorAlert message={loadError} className="mt-4" />
 
       <Section
         title={m.monitoring_active()}

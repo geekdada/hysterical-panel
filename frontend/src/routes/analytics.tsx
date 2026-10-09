@@ -111,7 +111,7 @@ function AnalyticsPage() {
       }
     >
       {queryErrors.map((error) => (
-        <ErrorAlert key={error.key} message={error.message} icon className="mb-4" />
+        <ErrorAlert key={error.key} message={error.message} className="mb-4" />
       ))}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">

@@ -109,7 +109,6 @@ function SendoutDetailPage() {
       <SetBreadcrumbTitle title={sendout?.subject} />
       <ErrorAlert
         message={sendoutQuery.error ? queryErrorMessage(sendoutQuery.error) : ""}
-        icon
         className="mb-4"
       />
 

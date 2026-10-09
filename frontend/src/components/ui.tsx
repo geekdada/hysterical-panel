@@ -432,30 +432,31 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-// ErrorAlert renders a danger banner, or nothing when there is no message. The
-// caller supplies the margin (mb-4 / mt-4) via className — tailwind-merge does
-// not dedupe mt vs mb, so no margin is baked in.
+// ErrorAlert renders a danger Alert, or nothing when there is no message. Each
+// message gets its own line. Alert copy carries no trailing punctuation, and
+// server errors cannot be edited at the source, so it is dropped here. The
+// caller supplies the margin via className.
 export function ErrorAlert({
   message,
-  icon = false,
   className,
 }: {
-  message: string | null | undefined;
-  icon?: boolean;
+  message: string | string[] | null | undefined;
   className?: string;
 }) {
-  if (!message) return null;
+  const lines = (Array.isArray(message) ? message : [message]).flatMap((line) => {
+    const text = line?.trim().replace(/[.。]+$/u, "");
+    return text ? [text] : [];
+  });
+  if (lines.length === 0) return null;
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-lg border bg-danger-soft px-3 py-2 text-[13px] text-danger-soft-foreground",
-        className
-      )}
-      role="alert"
-    >
-      {icon && <Dot tone="error" />}
-      <span>{message}</span>
-    </div>
+    <Alert status="danger" className={className} role="alert">
+      <Alert.Indicator />
+      <Alert.Content>
+        {lines.map((line) => (
+          <Alert.Title key={line}>{line}</Alert.Title>
+        ))}
+      </Alert.Content>
+    </Alert>
   );
 }
 

@@ -65,7 +65,7 @@ function EmailSendoutsPage() {
           {m.email_sendouts_smtp_off()}
         </div>
       ) : null}
-      <ErrorAlert message={loadError} icon className="mb-4" />
+      <ErrorAlert message={loadError} className="mb-4" />
 
       <RateSection />
 

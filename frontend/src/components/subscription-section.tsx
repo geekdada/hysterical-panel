@@ -14,7 +14,7 @@ import {
   type UserSubscription,
 } from "~/api/queries";
 import { RescheduleModal } from "~/components/subscription-reschedule-modal";
-import { DestructiveConfirmModal, Section, SelectField } from "~/components/ui";
+import { DestructiveConfirmModal, ErrorAlert, Section, SelectField } from "~/components/ui";
 import { formatBytes, formatLocaleDateTime } from "~/lib/format";
 import { cn } from "~/lib/cn";
 import { previousGrantEnd } from "~/lib/subscription-reschedule";
@@ -101,8 +101,7 @@ export function SubscriptionSection({
   const canGrant = isAdmin && !queued && availableTypes.length > 0;
   const loadError = [grantsQuery.error, isAdmin ? typesQuery.error : null]
     .filter(Boolean)
-    .map((item) => queryErrorMessage(item, m.subscription_load_error()))
-    .join(" ");
+    .map((item) => queryErrorMessage(item, m.subscription_load_error()));
   const selectedId = selected || availableTypes[0]?.id || "";
 
   function openTopUp(item: UserSubscription) {
@@ -154,7 +153,7 @@ export function SubscriptionSection({
     return (
       <>
         <Section title={m.subscription_title()} action={grantButton}>
-          <LoadError message={loadError} />
+          <ErrorAlert message={loadError} className="m-3" />
           <p className="px-4 py-3 text-[13px] text-muted">{m.subscription_legacy()}</p>
         </Section>
         {grantModal}
@@ -168,7 +167,7 @@ export function SubscriptionSection({
   return (
     <>
       <Section title={m.subscription_title()} action={grantButton}>
-        <LoadError message={loadError} />
+        <ErrorAlert message={loadError} className="m-3" />
         {grantsQuery.isPending ? (
           <SubscriptionSkeleton />
         ) : (
@@ -627,18 +626,6 @@ function grantConfirm(name: string, legacy: boolean, willQueue: boolean) {
   if (legacy) return m.subscription_grant_confirm_legacy({ name });
   if (willQueue) return m.subscription_grant_confirm_queued({ name });
   return m.subscription_grant_confirm_now({ name });
-}
-
-function LoadError({ message }: { message: string }) {
-  if (!message) return null;
-  return (
-    <div
-      className="border-b border-border bg-danger-soft px-4 py-2 text-[13px] text-danger-soft-foreground"
-      role="alert"
-    >
-      {message}
-    </div>
-  );
 }
 
 function SubscriptionSkeleton() {

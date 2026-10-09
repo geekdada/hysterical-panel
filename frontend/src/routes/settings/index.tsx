@@ -409,14 +409,7 @@ function PasskeysSection({ userId }: { userId: string }) {
           </Button>
         </div>
 
-        {error && (
-          <div
-            className="border-t border-border bg-danger-soft px-5 py-2.5 text-[13px] text-danger-soft-foreground"
-            role="alert"
-          >
-            {error}
-          </div>
-        )}
+        <ErrorAlert message={error} className="mx-5 mb-3" />
 
         {loading ? (
           <PasskeysListSkeleton />

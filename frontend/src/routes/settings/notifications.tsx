@@ -190,7 +190,7 @@ function NotificationChannelsPage() {
         </a>
       </div>
 
-      <ErrorAlert message={loadError} icon className="mb-4" />
+      <ErrorAlert message={loadError} className="mb-4" />
 
       {showEnrollmentHint && (
         <div className="mb-4 rounded-lg border bg-surface-secondary px-4 py-3 text-[13px] text-muted">

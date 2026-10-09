@@ -165,7 +165,7 @@ function AccountDetailPage() {
         </div>
       }
     >
-      <ErrorAlert message={error} icon className="mb-4" />
+      <ErrorAlert message={error} className="mb-4" />
 
       {notFound ? (
         <Teaching
@@ -636,14 +636,7 @@ function ManageSection({
   return (
     <>
       <Section title={m.user_manage_title()}>
-        {error && (
-          <div
-            className="border-b border-border bg-danger-soft px-4 py-2 text-[13px] text-danger-soft-foreground"
-            role="alert"
-          >
-            {error}
-          </div>
-        )}
+        <ErrorAlert message={error} className="m-3 mb-0" />
         <div className="flex flex-col gap-4 p-4">
           <ManageRow
             label={m.user_manage_status_label()}
@@ -862,14 +855,7 @@ function PasskeysSection({ userId, isSelf }: { userId: string; isSelf: boolean }
         ) : undefined
       }
     >
-      {error && (
-        <div
-          className="border-b border-border bg-danger-soft px-3 py-2 text-[13px] text-danger-soft-foreground"
-          role="alert"
-        >
-          {error}
-        </div>
-      )}
+      <ErrorAlert message={error} className="m-3" />
       {loading ? (
         <TableSkeleton rows={2} />
       ) : rows.length === 0 ? (

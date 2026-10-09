@@ -114,7 +114,7 @@ function DatabasePage() {
         </div>
       }
     >
-      <ErrorAlert message={error} icon className="mb-4" />
+      <ErrorAlert message={error} className="mb-4" />
 
       <SummaryRail
         loading={loading}

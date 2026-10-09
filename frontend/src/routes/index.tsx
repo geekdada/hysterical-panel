@@ -239,7 +239,7 @@ function DashboardPage() {
       }
     >
       {queryErrors.map((error) => (
-        <ErrorAlert key={error.key} message={error.message} icon className="mb-4" />
+        <ErrorAlert key={error.key} message={error.message} className="mb-4" />
       ))}
 
       {(alertSummaryQuery.data?.total ?? 0) > 0 ? (

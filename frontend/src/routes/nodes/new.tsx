@@ -304,7 +304,7 @@ function AddNodePage() {
               )}
             </form.Field>
 
-            <ErrorAlert message={submitError} icon />
+            <ErrorAlert message={submitError} />
 
             <div className="flex items-center justify-end gap-2 border-t border-separator pt-4">
               <Button
