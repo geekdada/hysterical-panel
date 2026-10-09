@@ -32,6 +32,8 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"Monitor":                           Monitor{},
 		"OfflineMonitorConfig":              OfflineMonitorConfig{},
 		"HighTrafficMonitorConfig":          HighTrafficMonitorConfig{},
+		"LowAllowanceMonitorConfig":         LowAllowanceMonitorConfig{},
+		"ExpiringSubscriptionMonitorConfig": ExpiringSubscriptionMonitorConfig{},
 		"MonitorCreateRequest":              MonitorCreateRequest{},
 		"MonitorUpdateRequest":              MonitorUpdateRequest{},
 		"Alert":                             Alert{},
@@ -174,7 +176,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	}
 	for _, name := range []string{"Monitor", "MonitorCreateRequest", "MonitorUpdateRequest"} {
 		if s, ok := schemas[name]; ok && s.Value != nil {
-			setEnum(s.Value.Properties, "kind", []any{"offline", "high_traffic"})
+			setEnum(s.Value.Properties, "kind", []any{"offline", "high_traffic", "low_allowance", "expiring_subscription"})
 			setEnum(s.Value.Properties, "severity", []any{"warning", "critical"})
 			setEnum(s.Value.Properties, "notification_language", []any{"en", "zh-cn"})
 			setEnum(s.Value.Properties, "node_scope", []any{"all_enabled", "selected"})
@@ -185,7 +187,11 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			s.Value.Required = append(s.Value.Required, "notification_language")
 		}
 	}
-	configUnion := &openapi3.SchemaRef{Value: &openapi3.Schema{OneOf: openapi3.SchemaRefs{schemas["OfflineMonitorConfig"], schemas["HighTrafficMonitorConfig"]}}}
+	// User Monitors return null for node_scope; setEnum drops nullability.
+	if s, ok := schemas["Monitor"]; ok && s.Value != nil {
+		s.Value.Properties["node_scope"].Value.Nullable = true
+	}
+	configUnion := &openapi3.SchemaRef{Value: &openapi3.Schema{OneOf: openapi3.SchemaRefs{schemas["OfflineMonitorConfig"], schemas["HighTrafficMonitorConfig"], schemas["LowAllowanceMonitorConfig"], schemas["ExpiringSubscriptionMonitorConfig"]}}}
 	for _, name := range []string{"Monitor", "MonitorCreateRequest", "MonitorUpdateRequest"} {
 		if s, ok := schemas[name]; ok && s.Value != nil {
 			s.Value.Properties["config"] = configUnion
@@ -194,8 +200,8 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	if s, ok := schemas["Alert"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "status", []any{"firing", "resolved", "cancelled"})
 		setEnum(s.Value.Properties, "severity", []any{"warning", "critical"})
-		setEnum(s.Value.Properties, "monitor_kind", []any{"offline", "high_traffic"})
-		setEnum(s.Value.Properties, "resolution_reason", []any{"condition_cleared", "monitor_disabled", "monitor_deleted", "node_disabled", "node_removed_from_scope", "monitor_reconfigured"})
+		setEnum(s.Value.Properties, "monitor_kind", []any{"offline", "high_traffic", "low_allowance", "expiring_subscription"})
+		setEnum(s.Value.Properties, "resolution_reason", []any{"condition_cleared", "monitor_disabled", "monitor_deleted", "node_disabled", "node_removed_from_scope", "monitor_reconfigured", "user_unavailable", "user_deleted", "subscription_ended"})
 	}
 	for _, name := range []string{"EmailSendout", "EmailSendoutDetail", "EmailSendoutCreateRequest"} {
 		if s, ok := schemas[name]; ok && s.Value != nil {
@@ -1494,6 +1500,12 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	}()})
 	t.Paths.Set("/api/panel/nodes/{id}/alerts", &openapi3.PathItem{Parameters: openapi3.Parameters{idParam("Node ID")}, Get: func() *openapi3.Operation {
 		op := &openapi3.Operation{OperationID: "nodeAlerts", Summary: "List alerts for one node", Tags: []string{"monitoring", "nodes"}, Parameters: openapi3.Parameters{stringQueryParam("status", "Alert status", "firing", "resolved", "cancelled"), stringQueryParam("monitor_id", "Monitor ID"), stringQueryParam("severity", "Severity", "warning", "critical"), intQueryParam("page", "Page number"), intQueryParam("per_page", "Page size: 25, 50, or 100")}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("Node alerts"), Content: content(ref("AlertListResponse"))}}))}
+		op.Responses.Set("404", notFound)
+		withAuth(op)
+		return op
+	}()})
+	t.Paths.Set("/api/panel/users/{id}/alerts", &openapi3.PathItem{Parameters: openapi3.Parameters{idParam("User ID")}, Get: func() *openapi3.Operation {
+		op := &openapi3.Operation{OperationID: "userAlerts", Summary: "List alerts for one user", Tags: []string{"monitoring", "users"}, Parameters: openapi3.Parameters{stringQueryParam("status", "Alert status", "firing", "resolved", "cancelled"), stringQueryParam("monitor_id", "Monitor ID"), stringQueryParam("severity", "Severity", "warning", "critical"), intQueryParam("page", "Page number"), intQueryParam("per_page", "Page size: 25, 50, or 100")}, Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{Description: ptr("User alerts"), Content: content(ref("AlertListResponse"))}}))}
 		op.Responses.Set("404", notFound)
 		withAuth(op)
 		return op

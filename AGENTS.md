@@ -19,7 +19,7 @@
 - 作为 Hysteria 2 / anytls 节点的 `auth.type: http` 回调端点，按 `auth_string`（anytls 按其 hash）鉴权客户端连接。
 - 面板登录支持密码 + passkey（WebAuthn）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
 - 可选的 Email Sendout：admin 在面板里写事务邮件，经 PocketBase SMTP 发给一个或全部可用 User；持久化队列、只发一次、失败手动重发，见 ADR-0008。
-- **不做**：支付/账单、节点部署。订阅仅作为节点访问与流量额度门禁，见 `docs/subscriptions.md`。Monitoring 通过通用 Observation 支持 offline / high-traffic Monitor、Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
+- **不做**：支付/账单、节点部署。订阅仅作为节点访问与流量额度门禁，见 `docs/subscriptions.md`。Monitoring 支持基于 Observation 的 Node Monitor（offline / high-traffic）和基于订阅状态的 User Monitor（low allowance / expiring subscription，ADR-0009），共用 Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
 
 ## 常用命令
 
@@ -127,7 +127,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..28）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..29）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -225,7 +225,7 @@ hysterical-panel/
 
 `monitor_observations`：Collector 成功采集后写入的 Node 时间区间点（`observed_at`、`elapsed_seconds`、`tx_bytes`、`rx_bytes`），保留 25 小时。漏采不补零；首轮没有可靠 elapsed 时不写。
 
-`monitors` / `alerts` / `alert_deliveries`：Monitor 以 `kind + typed config JSON` 定义 offline / high-traffic 条件、1m–24h evaluation window、severity、Node scope 与可选 Channels。Alert 按 Monitor+Node 维护 `firing`→`resolved|cancelled` 生命周期，历史保留 30 天；Notification 异步、3 并发、每 Channel 只尝试一次，失败只存安全错误码。
+`monitors` / `alerts` / `alert_deliveries`：Monitor 以 `kind + typed config JSON` 定义条件、severity 与可选 Channels。Node Monitor（offline / high-traffic）另有 1m–24h evaluation window 与 Node scope，每 5s 评估；User Monitor（`low_allowance` 的 `threshold_percent` 1–99、`expiring_subscription` 的 `threshold_days` 1–90）没有这两个字段（API 返回 null），每 60s 评估所有 active、verified、有当前订阅的 User。Alert 按 Monitor+Node 或 Monitor+User 维护 `firing`→`resolved|cancelled` 生命周期，`node` / `user` 恰有其一；User Alert 存 `user_email_snapshot`，User 被删除时先以 `user_deleted` cancel 再由 PocketBase 清空引用，停用/未验证以 `user_unavailable`、无当前订阅以 `subscription_ended` 静默 cancel。历史保留 30 天；Notification 异步、3 并发、每 Channel 只尝试一次，失败只存安全错误码。
 
 `passkey_credentials`：每个已注册 passkey 一行。`user` (relation→users)、`credential_id`、`user_handle`、`rp_id`、`name`、`credential` (json, **`Hidden`，私有凭据**)、`transports`、`sign_count`、`backup_eligible`/`backup_state`/`clone_warning` (bool)、`last_used_at`。
 `passkey_sessions`：WebAuthn challenge 暂存（`login` / `registration` / 可复用的敏感字段 reveal `sensitive_field_reveal` 三种 `kind`）。`challenge_id`、`user` (relation)、隐藏的 `scope`（reveal 绑定目标记录）、`session_data` (json, **`Hidden`**)、`expires_at`（TTL 5min）、`consumed_at`（用后即焚）。
@@ -276,7 +276,7 @@ hysterical-panel/
 - Current Speed：`GET /users/{id}/current-speed`（admin 或本人）返回该 User 在各可见 Node 上非零的速度与合计；`GET /nodes/{id}/current-speed`（admin）返回 Node 自身速度与速度最高的 10 个 User。两者直接读 `traffic_cursor`，不请求节点，与 Live 无关。
 - `GET|PATCH /settings`、`POST /management-api/rotate`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验注册开关层级（`invitations_enabled` 依赖 `open_registration`；`require_invite_for_open` 依赖 `invitations_enabled`），并在首次置 `management_api_enabled=true` 时生成明文 token 回显一次（见决策 #10）；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
-- Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段会静默 cancel 旧 Alert 并立即重评估。
+- Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts`、`GET /users/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段（含 kind、阈值）会静默 cancel 旧 Alert 并立即重评估。User Monitor 请求传 `evaluation_window_seconds` / `node_scope` / 非空 `node_ids` 返回 400。
 - Email Sendout 接口 `GET /email-sendouts/context`、`GET /email-sendouts/eligible-recipients`、`GET|POST /email-sendouts`、`GET /email-sendouts/{id}`、`GET /email-sendouts/{id}/recipients`、`POST /email-sendouts/{id}/cancel|resend` 均仅 admin、进 OpenAPI。创建与重发在 SMTP 未启用时 503；worker 语义见 backend/README.md 与 ADR-0008。
 - `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口。
 - `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时 streams 诊断核心：并发拉可见节点的 `/dump/streams`（5s 超时），把稳定 `user.id` 与全部历史 Auth String 统一归属后，聚合出 `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按客户端连接分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** 在线设备数来自 Collector 的最新 `/online` 投影，不属于 live 响应。Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
@@ -347,7 +347,7 @@ hysterical-panel/
 - 新增或写入 datetime 字段时默认 **UTC**；勿用 `time.Now()` 无 `.UTC()` 落库。
 - 改动后端后至少跑 `go build ./...` 和 `go vet ./...`，确保零告警；改了接口契约要 `make openapi` + 前端 `pnpm api:sync`。
 - 验证启动：带 `PANEL_MASTER_KEY` 跑 `serve`，确认 collection 建出、未授权访问 `/api/panel/*` 返回 401。
-- 已有测试覆盖 `internal/config`、`internal/ipmeta`、`internal/sendouts`（queue/worker），及 `internal/api` 的 live 聚合 / register / kick / database / users_list / recent_connections / auth_string_anytls_hash / email_sendouts；继续补测优先 `collector.delta`（reset 边界）和 live 聚合逻辑。
+- 已有测试覆盖 `internal/config`、`internal/ipmeta`、`internal/sendouts`（queue/worker），及 `internal/api` 的 live 聚合 / register / kick / database / users_list / recent_connections / auth_string_anytls_hash / email_sendouts，以及 `internal/monitoring` 的 User Monitor 生命周期与通知文案；继续补测优先 `collector.delta`（reset 边界）和 live 聚合逻辑。
 - **改前端可见文案务必 `messages/en.json` 与 `messages/zh-cn.json` 同步加键**，并 `pnpm i18n:check`；新增组件不要硬编码文案。
 - 字段名、collection 名、API 契约一旦定下前端会依赖，改动需同步更新 `dto.go` / OpenAPI / README 并通知前端。
 

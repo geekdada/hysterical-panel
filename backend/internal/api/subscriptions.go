@@ -172,11 +172,7 @@ func grantView(app core.App, grant *core.Record, now time.Time) (UserSubscriptio
 		used, extra := subscriptions.WindowUsage(grant, index)
 		out.UsedTxBytes, out.UsedRxBytes, out.UsedBytes = used.Tx, used.Rx, used.Total()
 		out.AllowanceBytes += extra
-		windowEnd := start.Add(time.Duration(index+1) * time.Duration(typ.GetInt("reset_days")) * 24 * time.Hour)
-		if windowEnd.After(end) {
-			windowEnd = end
-		}
-		out.WindowEndsAt = windowEnd.UTC().Format(time.RFC3339)
+		out.WindowEndsAt = subscriptions.WindowEnd(start, end, index, typ.GetInt("reset_days")).UTC().Format(time.RFC3339)
 	}
 	out.RemainingBytes = out.AllowanceBytes - out.UsedBytes
 	out.OverAllowance = out.Status == "current" && out.RemainingBytes <= 0

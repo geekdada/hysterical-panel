@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 const grantDays = 360
@@ -17,6 +18,15 @@ func WindowAt(start, now time.Time, resetDays int) (int, bool) {
 		return 0, false
 	}
 	return int(now.Sub(start) / (time.Duration(resetDays) * 24 * time.Hour)), true
+}
+
+// WindowEnd returns the exclusive end of window index, capped at the grant end.
+func WindowEnd(start, end time.Time, index, resetDays int) time.Time {
+	windowEnd := start.Add(time.Duration(index+1) * time.Duration(resetDays) * 24 * time.Hour)
+	if windowEnd.After(end) {
+		return end
+	}
+	return windowEnd
 }
 
 // Usage is Traffic counted against a User Subscription, split by direction.
@@ -113,6 +123,21 @@ func Current(app core.App, userID string, at time.Time) (*State, error) {
 	}
 	allowance := base + extra
 	return &State{Grant: grant, Type: typ, Window: index, Used: used, Extra: extra, Allowance: allowance, Remaining: allowance - used.Total()}, nil
+}
+
+// WindowEndsAt is the exclusive end of the current Allowance Window.
+func (s *State) WindowEndsAt() time.Time {
+	return WindowEnd(s.Grant.GetDateTime("starts_at").Time(), s.Grant.GetDateTime("ends_at").Time(), s.Window, s.Type.GetInt("reset_days"))
+}
+
+// Queued returns the User's grant that starts after at and has not been
+// cancelled, or nil when no grant follows the current one.
+func Queued(app core.App, userID string, at time.Time) (*core.Record, error) {
+	grants, err := app.FindRecordsByFilter("user_subscriptions", "user = {:user} && terminated_at = '' && starts_at > {:at}", "starts_at", 1, 0, map[string]any{"user": userID, "at": at.UTC().Format(types.DefaultDateLayout)})
+	if err != nil || len(grants) == 0 {
+		return nil, err
+	}
+	return grants[0], nil
 }
 
 func Allowed(app core.App, user *core.Record, at time.Time) (bool, error) {

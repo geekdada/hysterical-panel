@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/monitoring"
 )
 
 type monitorLifecycle interface {
@@ -57,8 +60,11 @@ func (h *Handlers) createMonitor(e *core.RequestEvent) error {
 	if err := e.BindBody(&input); err != nil {
 		return apis.NewBadRequestError("invalid body", err)
 	}
-	if input.Name == nil || input.Kind == nil || input.NotificationLanguage == nil || input.EvaluationWindowSeconds == nil || input.NodeScope == nil || input.Config == nil {
-		return apis.NewBadRequestError("name, kind, notification_language, evaluation_window_seconds, node_scope and config are required", nil)
+	if input.Name == nil || input.Kind == nil || input.NotificationLanguage == nil || input.Config == nil {
+		return apis.NewBadRequestError("name, kind, notification_language and config are required", nil)
+	}
+	if !monitoring.IsUserKind(*input.Kind) && (input.EvaluationWindowSeconds == nil || input.NodeScope == nil) {
+		return apis.NewBadRequestError("evaluation_window_seconds and node_scope are required for node monitors", nil)
 	}
 	if input.Severity == nil {
 		severity := "warning"
@@ -75,6 +81,9 @@ func (h *Handlers) createMonitor(e *core.RequestEvent) error {
 	if input.Enabled == nil {
 		enabled := true
 		input.Enabled = &enabled
+	}
+	if err := normalizeMonitorScope(input, &input); err != nil {
+		return err
 	}
 	if err := h.validateMonitorInput(input, ""); err != nil {
 		return err
@@ -103,6 +112,9 @@ func (h *Handlers) updateMonitor(e *core.RequestEvent) error {
 	}
 	merged := monitorInputFromRecord(record)
 	mergeMonitorInput(&merged, input)
+	if err := normalizeMonitorScope(input, &merged); err != nil {
+		return err
+	}
 	if err := h.validateMonitorInput(merged, record.Id); err != nil {
 		return err
 	}
@@ -149,6 +161,20 @@ func (h *Handlers) findMonitor(id string) (*core.Record, error) {
 	return record, nil
 }
 
+// normalizeMonitorScope rejects Node scope fields sent for a User Monitor and
+// clears the ones a Monitor kept from an earlier Node kind.
+func normalizeMonitorScope(sent monitorInput, merged *monitorInput) error {
+	if !monitoring.IsUserKind(*merged.Kind) {
+		return nil
+	}
+	if sent.EvaluationWindowSeconds != nil || sent.NodeScope != nil || (sent.NodeIDs != nil && len(*sent.NodeIDs) != 0) {
+		return apis.NewBadRequestError("user monitors do not take evaluation_window_seconds, node_scope or node_ids", nil)
+	}
+	window, scope, nodes := 0, "", []string{}
+	merged.EvaluationWindowSeconds, merged.NodeScope, merged.NodeIDs = &window, &scope, &nodes
+	return nil
+}
+
 func (h *Handlers) validateMonitorInput(input monitorInput, exceptID string) error {
 	name := strings.TrimSpace(*input.Name)
 	if name == "" || len(name) > 128 {
@@ -163,7 +189,7 @@ func (h *Handlers) validateMonitorInput(input monitorInput, exceptID string) err
 	if existing, _ := h.app.FindFirstRecordByFilter("monitors", filter, params); existing != nil {
 		return apis.NewBadRequestError("monitor name is already in use", nil)
 	}
-	if *input.Kind != "offline" && *input.Kind != "high_traffic" {
+	if _, known := monitorConfigLimits[*input.Kind]; !known && *input.Kind != "offline" {
 		return apis.NewBadRequestError("invalid monitor kind", nil)
 	}
 	if *input.Severity != "warning" && *input.Severity != "critical" {
@@ -172,6 +198,20 @@ func (h *Handlers) validateMonitorInput(input monitorInput, exceptID string) err
 	if *input.NotificationLanguage != "en" && *input.NotificationLanguage != "zh-cn" {
 		return apis.NewBadRequestError("invalid monitor notification language", nil)
 	}
+	if !monitoring.IsUserKind(*input.Kind) {
+		if err := h.validateNodeScope(input); err != nil {
+			return err
+		}
+	}
+	for _, id := range *input.ChannelIDs {
+		if _, err := h.app.FindRecordById("notification_channels", id); err != nil {
+			return apis.NewBadRequestError("invalid channel_id", nil)
+		}
+	}
+	return validateMonitorConfig(*input.Kind, *input.Config)
+}
+
+func (h *Handlers) validateNodeScope(input monitorInput) error {
 	if *input.EvaluationWindowSeconds < 60 || *input.EvaluationWindowSeconds > 86400 {
 		return apis.NewBadRequestError("evaluation_window_seconds must be between 60 and 86400", nil)
 	}
@@ -190,23 +230,36 @@ func (h *Handlers) validateMonitorInput(input monitorInput, exceptID string) err
 			return apis.NewBadRequestError("invalid node_id", nil)
 		}
 	}
-	for _, id := range *input.ChannelIDs {
-		if _, err := h.app.FindRecordById("notification_channels", id); err != nil {
-			return apis.NewBadRequestError("invalid channel_id", nil)
-		}
-	}
-	if *input.Kind == "offline" {
-		if len(*input.Config) != 0 {
+	return nil
+}
+
+type monitorConfigLimit struct {
+	key      string
+	min, max int64
+}
+
+// monitorConfigLimits lists the single integer each configurable kind takes.
+// The offline kind takes an empty config.
+var monitorConfigLimits = map[string]monitorConfigLimit{
+	"high_traffic":                      {key: "threshold_bytes_per_second", min: 1, max: math.MaxInt64},
+	monitoring.KindLowAllowance:         {key: "threshold_percent", min: 1, max: 99},
+	monitoring.KindExpiringSubscription: {key: "threshold_days", min: 1, max: 90},
+}
+
+func validateMonitorConfig(kind string, config map[string]any) error {
+	limit, ok := monitorConfigLimits[kind]
+	if !ok {
+		if len(config) != 0 {
 			return apis.NewBadRequestError("offline config must be empty", nil)
 		}
-	} else {
-		if len(*input.Config) != 1 {
-			return apis.NewBadRequestError("high_traffic config requires threshold_bytes_per_second", nil)
+		return nil
+	}
+	value, ok := config[limit.key].(float64)
+	if len(config) != 1 || !ok || value != math.Trunc(value) || value < float64(limit.min) || value > float64(limit.max) {
+		if limit.max == math.MaxInt64 {
+			return apis.NewBadRequestError(fmt.Sprintf("%s config requires %s as a positive integer", kind, limit.key), nil)
 		}
-		threshold, ok := (*input.Config)["threshold_bytes_per_second"].(float64)
-		if !ok || threshold <= 0 || threshold != float64(int64(threshold)) {
-			return apis.NewBadRequestError("threshold_bytes_per_second must be a positive integer", nil)
-		}
+		return apis.NewBadRequestError(fmt.Sprintf("%s config requires %s as an integer between %d and %d", kind, limit.key, limit.min, limit.max), nil)
 	}
 	return nil
 }
@@ -270,21 +323,33 @@ func monitorEvaluationChanged(record *core.Record, input monitorInput) bool {
 }
 
 func publicMonitor(record *core.Record) Monitor {
-	return Monitor{ID: record.Id, Name: record.GetString("name"), Kind: record.GetString("kind"), Enabled: record.GetBool("enabled"), Severity: record.GetString("severity"), NotificationLanguage: record.GetString("notification_language"), EvaluationWindowSeconds: record.GetInt("evaluation_window_seconds"), NodeScope: record.GetString("node_scope"), NodeIDs: record.GetStringSlice("nodes"), ChannelIDs: record.GetStringSlice("channels"), Config: jsonMap(record.Get("config")), Created: record.GetString("created"), Updated: record.GetString("updated")}
+	result := Monitor{ID: record.Id, Name: record.GetString("name"), Kind: record.GetString("kind"), Enabled: record.GetBool("enabled"), Severity: record.GetString("severity"), NotificationLanguage: record.GetString("notification_language"), ChannelIDs: record.GetStringSlice("channels"), Config: jsonMap(record.Get("config")), Created: record.GetString("created"), Updated: record.GetString("updated")}
+	if !monitoring.IsUserKind(result.Kind) {
+		window, scope, nodes := record.GetInt("evaluation_window_seconds"), record.GetString("node_scope"), record.GetStringSlice("nodes")
+		result.EvaluationWindowSeconds, result.NodeScope, result.NodeIDs = &window, &scope, &nodes
+	}
+	return result
 }
 
 func (h *Handlers) listAlerts(e *core.RequestEvent) error {
-	return h.alertsResponse(e, "")
+	return h.alertsResponse(e, e.Request.URL.Query().Get("node_id"), "")
 }
 
 func (h *Handlers) nodeAlerts(e *core.RequestEvent) error {
 	if _, err := h.findActiveNode(e.Request.PathValue("id")); err != nil {
 		return err
 	}
-	return h.alertsResponse(e, e.Request.PathValue("id"))
+	return h.alertsResponse(e, e.Request.PathValue("id"), "")
 }
 
-func (h *Handlers) alertsResponse(e *core.RequestEvent, forcedNodeID string) error {
+func (h *Handlers) userAlerts(e *core.RequestEvent) error {
+	if _, err := h.app.FindRecordById("users", e.Request.PathValue("id")); err != nil {
+		return apis.NewNotFoundError("user not found", err)
+	}
+	return h.alertsResponse(e, "", e.Request.PathValue("id"))
+}
+
+func (h *Handlers) alertsResponse(e *core.RequestEvent, nodeID, userID string) error {
 	page, _ := strconv.Atoi(e.Request.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
@@ -312,13 +377,13 @@ func (h *Handlers) alertsResponse(e *core.RequestEvent, forcedNodeID string) err
 			historyOnly = status != "firing"
 		}
 	}
-	nodeID := forcedNodeID
-	if nodeID == "" {
-		nodeID = e.Request.URL.Query().Get("node_id")
-	}
 	if nodeID != "" {
 		filters = append(filters, "node = {:node_id}")
 		params["node_id"] = nodeID
+	}
+	if userID != "" {
+		filters = append(filters, "user = {:user_id}")
+		params["user_id"] = userID
 	}
 	all, err := h.app.FindRecordsByFilter("alerts", strings.Join(filters, " && "), "", 0, 0, params)
 	if err != nil {
@@ -387,10 +452,18 @@ func (h *Handlers) publicAlert(record *core.Record) Alert {
 	if end.IsZero() {
 		end = time.Now().UTC()
 	}
-	result := Alert{ID: record.Id, MonitorID: record.GetString("monitor"), Status: record.GetString("status"), Severity: record.GetString("severity_snapshot"), MonitorName: record.GetString("monitor_name_snapshot"), MonitorKind: record.GetString("monitor_kind_snapshot"), MonitorConfig: jsonMap(record.Get("monitor_config_snapshot")), EvaluationWindowSeconds: record.GetInt("evaluation_window_seconds_snapshot"), FiringValue: jsonMap(record.Get("firing_value")), RecoveryValue: jsonMap(record.Get("recovery_value")), StartedAt: record.GetString("started_at"), EndedAt: record.GetString("ended_at"), LastEvaluatedAt: record.GetString("last_evaluated_at"), ResolutionReason: record.GetString("resolution_reason"), DurationSeconds: int64(end.Sub(start).Seconds())}
+	result := Alert{ID: record.Id, MonitorID: record.GetString("monitor"), Status: record.GetString("status"), Severity: record.GetString("severity_snapshot"), MonitorName: record.GetString("monitor_name_snapshot"), MonitorKind: record.GetString("monitor_kind_snapshot"), MonitorConfig: jsonMap(record.Get("monitor_config_snapshot")), FiringValue: jsonMap(record.Get("firing_value")), RecoveryValue: jsonMap(record.Get("recovery_value")), StartedAt: record.GetString("started_at"), EndedAt: record.GetString("ended_at"), LastEvaluatedAt: record.GetString("last_evaluated_at"), ResolutionReason: record.GetString("resolution_reason"), DurationSeconds: int64(end.Sub(start).Seconds())}
 	result.DeliveryChannelCount = len(record.GetStringSlice("channel_ids_snapshot"))
-	node := h.nodeRefByID(record.GetString("node"))
-	result.Node = NodeRef{ID: fmt.Sprint(node["id"]), Name: fmt.Sprint(node["name"]), Deleted: node["deleted"] == true}
+	if monitoring.IsUserKind(result.MonitorKind) {
+		// PocketBase clears the reference when the User is deleted.
+		userID := record.GetString("user")
+		result.User = &AlertUser{ID: userID, Email: record.GetString("user_email_snapshot"), Deleted: userID == ""}
+	} else {
+		window := record.GetInt("evaluation_window_seconds_snapshot")
+		node := h.nodeRefByID(record.GetString("node"))
+		result.EvaluationWindowSeconds = &window
+		result.Node = &NodeRef{ID: fmt.Sprint(node["id"]), Name: fmt.Sprint(node["name"]), Deleted: node["deleted"] == true}
+	}
 	deliveries, _ := h.app.FindRecordsByFilter("alert_deliveries", "alert = {:a}", "", 0, 0, map[string]any{"a": record.Id})
 	for _, delivery := range deliveries {
 		switch delivery.GetString("status") {

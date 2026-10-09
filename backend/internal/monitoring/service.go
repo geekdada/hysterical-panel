@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	evaluationInterval   = 5 * time.Second
-	cleanupInterval      = time.Hour
-	observationRetention = 25 * time.Hour
-	alertRetention       = 30 * 24 * time.Hour
-	deliveryConcurrency  = 3
+	evaluationInterval     = 5 * time.Second
+	userEvaluationInterval = time.Minute
+	cleanupInterval        = time.Hour
+	observationRetention   = 25 * time.Hour
+	alertRetention         = 30 * 24 * time.Hour
+	deliveryConcurrency    = 3
 )
 
 type Delivery interface {
@@ -43,8 +44,10 @@ func New(app core.App, box *cryptobox.Box, delivery Delivery, frontendURL string
 func (s *Service) Start(ctx context.Context) {
 	go func() {
 		evalTicker := time.NewTicker(evaluationInterval)
+		userTicker := time.NewTicker(userEvaluationInterval)
 		cleanupTicker := time.NewTicker(cleanupInterval)
 		defer evalTicker.Stop()
+		defer userTicker.Stop()
 		defer cleanupTicker.Stop()
 		s.EvaluateNow(ctx)
 		for {
@@ -52,7 +55,9 @@ func (s *Service) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-evalTicker.C:
-				s.EvaluateNow(ctx)
+				s.evaluate(ctx, func(kind string) bool { return !IsUserKind(kind) }, false)
+			case <-userTicker.C:
+				s.evaluate(ctx, IsUserKind, true)
 			case <-cleanupTicker.C:
 				if err := s.cleanup(time.Now().UTC()); err != nil {
 					log.Printf("[monitoring] cleanup: %v", err)
@@ -62,10 +67,20 @@ func (s *Service) Start(ctx context.Context) {
 	}()
 }
 
-// EvaluateNow skips overlapping runs. Persisted firing alerts make restarts
-// idempotent: only a genuine state transition schedules a notification.
+// EvaluateNow evaluates every Monitor after a configuration change. It waits
+// for a running evaluation so the change is never skipped.
 func (s *Service) EvaluateNow(ctx context.Context) {
-	if !s.evalMu.TryLock() {
+	s.evaluate(ctx, func(string) bool { return true }, true)
+}
+
+// evaluate runs the Monitors whose kind matches include. Node Monitors run
+// often enough to skip an overlapping run; User Monitors run once a minute
+// and wait instead. Persisted firing alerts make restarts idempotent: only a
+// genuine state transition schedules a notification.
+func (s *Service) evaluate(ctx context.Context, include func(kind string) bool, wait bool) {
+	if wait {
+		s.evalMu.Lock()
+	} else if !s.evalMu.TryLock() {
 		return
 	}
 	defer s.evalMu.Unlock()
@@ -78,13 +93,23 @@ func (s *Service) EvaluateNow(ctx context.Context) {
 		return
 	}
 	for _, monitor := range monitors {
-		if err := s.evaluateMonitor(monitor, time.Now().UTC()); err != nil {
-			log.Printf("[monitoring] monitor %s: %v", monitor.Id, err)
+		if include(monitor.GetString("kind")) {
+			s.evaluateMonitor(monitor, time.Now().UTC())
 		}
 	}
 }
 
-func (s *Service) evaluateMonitor(monitor *core.Record, now time.Time) error {
+func (s *Service) evaluateMonitor(monitor *core.Record, now time.Time) {
+	evaluate := s.evaluateNodeMonitor
+	if IsUserKind(monitor.GetString("kind")) {
+		evaluate = s.evaluateUserMonitor
+	}
+	if err := evaluate(monitor, now); err != nil {
+		log.Printf("[monitoring] monitor %s: %v", monitor.Id, err)
+	}
+}
+
+func (s *Service) evaluateNodeMonitor(monitor *core.Record, now time.Time) error {
 	nodes, err := s.applicableNodes(monitor)
 	if err != nil {
 		return err
@@ -96,7 +121,7 @@ func (s *Service) evaluateMonitor(monitor *core.Record, now time.Time) error {
 			log.Printf("[monitoring] monitor=%s node=%s: %v", monitor.Id, node.Id, err)
 		}
 	}
-	firing, err := s.app.FindRecordsByFilter("alerts", "monitor = {:m} && status = 'firing'", "", 0, 0, map[string]any{"m": monitor.Id})
+	firing, err := s.app.FindRecordsByFilter("alerts", "monitor = {:m} && node != '' && status = 'firing'", "", 0, 0, map[string]any{"m": monitor.Id})
 	if err != nil {
 		return err
 	}
@@ -126,7 +151,8 @@ func (s *Service) applicableNodes(monitor *core.Record) ([]*core.Record, error) 
 }
 
 func (s *Service) evaluateNode(monitor, node *core.Record, now time.Time) error {
-	firing, err := s.findFiring(monitor.Id, node.Id)
+	subject := alertSubject{node: node}
+	firing, err := s.findFiring(monitor.Id, subject)
 	if err != nil {
 		return err
 	}
@@ -172,11 +198,15 @@ func (s *Service) evaluateNode(monitor, node *core.Record, now time.Time) error 
 		return fmt.Errorf("unsupported monitor kind %q", monitor.GetString("kind"))
 	}
 
+	return s.applyDecision(decision, monitor, subject, firing, value, now)
+}
+
+func (s *Service) applyDecision(decision Decision, monitor *core.Record, subject alertSubject, firing *core.Record, value map[string]any, now time.Time) error {
 	switch decision {
 	case DecisionFire:
-		return s.openAlert(monitor, node, value, now)
+		return s.openAlert(monitor, subject, value, now)
 	case DecisionResolve:
-		return s.resolveAlert(firing, node, value, now)
+		return s.resolveAlert(firing, subject.node, value, now)
 	default:
 		return s.touchAlert(firing, now)
 	}
@@ -195,21 +225,42 @@ func (s *Service) observations(nodeID string, cutoff time.Time) ([]Observation, 
 }
 
 func monitorThreshold(monitor *core.Record) (int64, error) {
-	var config struct {
-		Threshold int64 `json:"threshold_bytes_per_second"`
-	}
+	return configInt(monitor, "threshold_bytes_per_second")
+}
+
+// configInt reads one positive integer from a Monitor's typed config.
+func configInt(monitor *core.Record, key string) (int64, error) {
+	var config map[string]json.Number
 	raw, err := json.Marshal(monitor.Get("config"))
 	if err != nil {
 		return 0, err
 	}
-	if err := json.Unmarshal(raw, &config); err != nil || config.Threshold <= 0 {
-		return 0, fmt.Errorf("invalid high traffic config")
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return 0, fmt.Errorf("invalid %s config: %w", monitor.GetString("kind"), err)
 	}
-	return config.Threshold, nil
+	value, err := config[key].Int64()
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("invalid %s config: %s must be a positive integer", monitor.GetString("kind"), key)
+	}
+	return value, nil
 }
 
-func (s *Service) findFiring(monitorID, nodeID string) (*core.Record, error) {
-	record, err := s.app.FindFirstRecordByFilter("alerts", "monitor = {:m} && node = {:n} && status = 'firing'", map[string]any{"m": monitorID, "n": nodeID})
+// alertSubject is the Node or the User an Alert is about. Exactly one is set.
+type alertSubject struct {
+	node *core.Record
+	user *core.Record
+}
+
+func (s alertSubject) reference() (field, id string) {
+	if s.user != nil {
+		return "user", s.user.Id
+	}
+	return "node", s.node.Id
+}
+
+func (s *Service) findFiring(monitorID string, subject alertSubject) (*core.Record, error) {
+	field, id := subject.reference()
+	record, err := s.app.FindFirstRecordByFilter("alerts", "monitor = {:m} && "+field+" = {:id} && status = 'firing'", map[string]any{"m": monitorID, "id": id})
 	if err != nil {
 		return nil, nil
 	}
@@ -228,14 +279,18 @@ func (s *Service) enabledChannelIDs(monitor *core.Record) []string {
 	return result
 }
 
-func (s *Service) openAlert(monitor, node *core.Record, value map[string]any, now time.Time) error {
+func (s *Service) openAlert(monitor *core.Record, subject alertSubject, value map[string]any, now time.Time) error {
 	collection, err := s.app.FindCollectionByNameOrId("alerts")
 	if err != nil {
 		return err
 	}
 	alert := core.NewRecord(collection)
 	alert.Set("monitor", monitor.Id)
-	alert.Set("node", node.Id)
+	field, id := subject.reference()
+	alert.Set(field, id)
+	if subject.user != nil {
+		alert.Set("user_email_snapshot", subject.user.GetString("email"))
+	}
 	alert.Set("status", "firing")
 	alert.Set("severity_snapshot", monitor.GetString("severity"))
 	alert.Set("notification_language_snapshot", monitor.GetString("notification_language"))
@@ -250,7 +305,7 @@ func (s *Service) openAlert(monitor, node *core.Record, value map[string]any, no
 	if err := s.app.Save(alert); err != nil {
 		return err
 	}
-	s.scheduleDeliveries(alert, node, "firing", now)
+	s.scheduleDeliveries(alert, subject.node, "firing", now)
 	return nil
 }
 
@@ -279,11 +334,16 @@ func (s *Service) touchAlert(alert *core.Record, now time.Time) error {
 }
 
 func (s *Service) cancelAlert(alert *core.Record, reason string, now time.Time) error {
+	return cancelAlertIn(s.app, alert, reason, now)
+}
+
+// cancelAlertIn takes the app explicitly so hooks can cancel inside their transaction.
+func cancelAlertIn(app core.App, alert *core.Record, reason string, now time.Time) error {
 	alert.Set("status", "cancelled")
 	alert.Set("ended_at", now)
 	alert.Set("last_evaluated_at", now)
 	alert.Set("resolution_reason", reason)
-	return s.app.Save(alert)
+	return app.Save(alert)
 }
 
 func (s *Service) CancelMonitorAlerts(monitorID, reason string) error {

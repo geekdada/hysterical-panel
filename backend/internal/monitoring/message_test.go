@@ -126,10 +126,10 @@ func TestAlertSnapshotsNotificationLanguageForItsWholeLifecycle(t *testing.T) {
 	service := New(app, nil, nil, "https://panel.example")
 	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
 
-	if err := service.openAlert(monitor, node, map[string]any{"stale_seconds": 300}, now); err != nil {
+	if err := service.openAlert(monitor, alertSubject{node: node}, map[string]any{"stale_seconds": 300}, now); err != nil {
 		t.Fatalf("openAlert() error = %v", err)
 	}
-	first, err := service.findFiring(monitor.Id, node.Id)
+	first, err := service.findFiring(monitor.Id, alertSubject{node: node})
 	if err != nil || first == nil {
 		t.Fatalf("find first firing alert: alert=%v err=%v", first, err)
 	}
@@ -151,10 +151,10 @@ func TestAlertSnapshotsNotificationLanguageForItsWholeLifecycle(t *testing.T) {
 	if err := service.resolveAlert(first, node, map[string]any{"stale_seconds": 0}, now.Add(time.Minute)); err != nil {
 		t.Fatalf("resolveAlert() error = %v", err)
 	}
-	if err := service.openAlert(monitor, node, map[string]any{"stale_seconds": 300}, now.Add(2*time.Minute)); err != nil {
+	if err := service.openAlert(monitor, alertSubject{node: node}, map[string]any{"stale_seconds": 300}, now.Add(2*time.Minute)); err != nil {
 		t.Fatalf("open second alert: %v", err)
 	}
-	second, err := service.findFiring(monitor.Id, node.Id)
+	second, err := service.findFiring(monitor.Id, alertSubject{node: node})
 	if err != nil || second == nil {
 		t.Fatalf("find second firing alert: alert=%v err=%v", second, err)
 	}

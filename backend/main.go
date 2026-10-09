@@ -110,6 +110,7 @@ func main() {
 		}
 
 		monitorService := monitoring.New(app, box, notifications.New(), frontendURL)
+		monitorService.BindHooks()
 		sendoutService := sendouts.New(app)
 
 		// register custom panel routes

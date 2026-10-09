@@ -120,6 +120,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/alerts", h.listAlerts).Bind(adminOnly)
 	g.GET("/alerts/summary", h.alertSummary).Bind(adminOnly)
 	g.GET("/nodes/{id}/alerts", h.nodeAlerts).Bind(adminOnly)
+	g.GET("/users/{id}/alerts", h.userAlerts).Bind(adminOnly)
 
 	// email sendouts (transactional mail through PocketBase SMTP; ADR 0008)
 	g.GET("/email-sendouts/context", h.emailSendoutContext).Bind(adminOnly)

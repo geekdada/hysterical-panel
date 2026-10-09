@@ -36,3 +36,9 @@ Status: implemented. This document records the subscription behavior and impleme
 - Keep a window's usage and Node counter cursor consistent when a poll is committed. Today the Collector saves cursor, lifetime totals, and hourly/daily aggregates separately; adding an allowance must not turn a partial save into permanently missing subscription usage.
 - Check active access at Node Client Auth time, and schedule expiry and exhaustion Kicks without changing User Status. On restart, reconcile any grant whose end passed while the process was down.
 - Cover the 30-day and 360-day boundaries, clock-independent UTC arithmetic, a late cross-window poll, a counter reset, concurrent grants, repeated top-ups, Type edits after top-ups, and the migration exemption in tests.
+
+## Monitoring
+
+- Low Allowance and Expiring Subscription Monitors alert the admin about a User's current grant. They read the state described above directly, not Observations. See [ADR-0009](adr/0009-user-monitors-read-subscription-state.md).
+- Low Allowance compares the remaining amount with a share of the current window's allowance, top-ups included. A top-up or a new window can resolve it, and dropping below the share again opens a new Alert.
+- Expiring Subscription fires when the current grant ends within the configured days and no queued grant follows. Queuing a grant resolves it. Expiry or termination cancels it without a Notification.

@@ -100,6 +100,8 @@ type NotificationChannelRevealResponse struct {
 
 // ── Monitoring ──────────────────────────────────────────────────────────────
 
+// Monitor is a Node Monitor or a User Monitor. User Monitors return null for
+// the Node-only evaluation_window_seconds, node_scope and node_ids.
 type Monitor struct {
 	ID                      string         `json:"id"`
 	Name                    string         `json:"name"`
@@ -107,9 +109,9 @@ type Monitor struct {
 	Enabled                 bool           `json:"enabled"`
 	Severity                string         `json:"severity"`
 	NotificationLanguage    string         `json:"notification_language"`
-	EvaluationWindowSeconds int            `json:"evaluation_window_seconds"`
-	NodeScope               string         `json:"node_scope"`
-	NodeIDs                 []string       `json:"node_ids"`
+	EvaluationWindowSeconds *int           `json:"evaluation_window_seconds"`
+	NodeScope               *string        `json:"node_scope"`
+	NodeIDs                 *[]string      `json:"node_ids"`
 	ChannelIDs              []string       `json:"channel_ids"`
 	Config                  map[string]any `json:"config"`
 	Created                 string         `json:"created"`
@@ -122,15 +124,29 @@ type HighTrafficMonitorConfig struct {
 	ThresholdBytesPerSecond int64 `json:"threshold_bytes_per_second"`
 }
 
+// LowAllowanceMonitorConfig fires when the remaining amount is below
+// threshold_percent (1-99) of the window's allowance, top-ups included.
+type LowAllowanceMonitorConfig struct {
+	ThresholdPercent int64 `json:"threshold_percent"`
+}
+
+// ExpiringSubscriptionMonitorConfig fires when a User Subscription with no
+// queued successor ends within threshold_days (1-90).
+type ExpiringSubscriptionMonitorConfig struct {
+	ThresholdDays int64 `json:"threshold_days"`
+}
+
+// MonitorCreateRequest requires evaluation_window_seconds and node_scope for
+// Node Monitors and rejects them for User Monitors.
 type MonitorCreateRequest struct {
 	Name                    string         `json:"name"`
 	Kind                    string         `json:"kind"`
 	Enabled                 *bool          `json:"enabled,omitempty"`
 	Severity                string         `json:"severity"`
 	NotificationLanguage    string         `json:"notification_language"`
-	EvaluationWindowSeconds int            `json:"evaluation_window_seconds"`
-	NodeScope               string         `json:"node_scope"`
-	NodeIDs                 []string       `json:"node_ids"`
+	EvaluationWindowSeconds *int           `json:"evaluation_window_seconds,omitempty"`
+	NodeScope               *string        `json:"node_scope,omitempty"`
+	NodeIDs                 []string       `json:"node_ids,omitempty"`
 	ChannelIDs              []string       `json:"channel_ids"`
 	Config                  map[string]any `json:"config"`
 }
@@ -154,16 +170,27 @@ type AlertDeliverySummary struct {
 	Skipped   int `json:"skipped"`
 }
 
+// AlertUser is the User an Alert is about. Email is the snapshot taken when
+// the Alert fired. A deleted User has an empty id and deleted=true.
+type AlertUser struct {
+	ID      string `json:"id"`
+	Email   string `json:"email"`
+	Deleted bool   `json:"deleted"`
+}
+
+// Alert is about exactly one Node or one User, so exactly one of node and
+// user is present.
 type Alert struct {
 	ID                      string               `json:"id"`
 	MonitorID               string               `json:"monitor_id"`
-	Node                    NodeRef              `json:"node"`
+	Node                    *NodeRef             `json:"node,omitempty"`
+	User                    *AlertUser           `json:"user,omitempty"`
 	Status                  string               `json:"status"`
 	Severity                string               `json:"severity"`
 	MonitorName             string               `json:"monitor_name"`
 	MonitorKind             string               `json:"monitor_kind"`
 	MonitorConfig           map[string]any       `json:"monitor_config"`
-	EvaluationWindowSeconds int                  `json:"evaluation_window_seconds"`
+	EvaluationWindowSeconds *int                 `json:"evaluation_window_seconds"`
 	FiringValue             map[string]any       `json:"firing_value,omitempty"`
 	RecoveryValue           map[string]any       `json:"recovery_value,omitempty"`
 	StartedAt               string               `json:"started_at"`

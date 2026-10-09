@@ -1,7 +1,7 @@
 # Hysterical Panel (backend)
 
 轻量级 Hysteria 2 管理面板后端，基于 PocketBase（作为 Go 框架二次开发）。
-只负责节点接口信息保存、自主轮询采集流量与最新在线设备数、用户管理、订阅门禁与实时诊断。不部署节点、不处理支付或账单。管理员可配置 Monitor 驱动 Alert 生命周期及一次性自动 Notification，也可管理加密的 Notification Channel；不提供重试队列、提醒、确认或审计日志。管理员可经 PocketBase SMTP 发送 Email Sendout（事务邮件，不可退订），由持久化队列按速率逐封投递、只发一次、失败可手动重发。
+只负责节点接口信息保存、自主轮询采集流量与最新在线设备数、用户管理、订阅门禁与实时诊断。不部署节点、不处理支付或账单。管理员可配置 Monitor（节点离线 / 高流量，以及用户流量不足 / 订阅即将到期）驱动 Alert 生命周期及一次性自动 Notification，也可管理加密的 Notification Channel；不提供重试队列、提醒、确认或审计日志。管理员可经 PocketBase SMTP 发送 Email Sendout（事务邮件，不可退订），由持久化队列按速率逐封投递、只发一次、失败可手动重发。
 
 ## 模型
 
