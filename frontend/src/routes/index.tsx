@@ -8,7 +8,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { Button } from "@heroui/react";
+import { Alert, Button } from "@heroui/react";
 import type { components } from "~/api/schema";
 import {
   dashboardNodeTrafficQueryOptions,
@@ -28,7 +28,6 @@ import {
   PageShell,
   PanelMessage,
   Section,
-  SeverityBadge,
   SortableTh,
   TableSkeleton,
   Td,
@@ -243,23 +242,20 @@ function DashboardPage() {
       ))}
 
       {(alertSummaryQuery.data?.total ?? 0) > 0 ? (
-        <Link
-          to="/settings/monitoring"
-          className={`mb-4 flex items-center justify-between rounded-lg border px-3 py-2.5 no-underline ${
-            hasCriticalAlerts
-              ? "border-danger/40 bg-danger-soft text-danger-soft-foreground"
-              : "border-warning/40 bg-warning-soft text-warning-soft-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2 text-[13px] font-medium">
-            <SeverityBadge
-              severity={hasCriticalAlerts ? "critical" : "warning"}
-              label={hasCriticalAlerts ? m.monitoring_critical() : m.monitoring_warning()}
-            />
-            {m.monitoring_active_summary({ count: String(alertSummaryQuery.data?.total ?? 0) })}
-          </span>
-          <span className="text-xs text-muted">{m.nav_monitoring()} →</span>
-        </Link>
+        <Alert status={hasCriticalAlerts ? "danger" : "warning"} className="mb-4 items-center">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
+              {m.monitoring_active_summary({ count: String(alertSummaryQuery.data?.total ?? 0) })}
+            </Alert.Title>
+          </Alert.Content>
+          <Link
+            to="/settings/monitoring"
+            className="shrink-0 rounded-sm text-xs text-muted underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            {m.nav_monitoring()} →
+          </Link>
+        </Alert>
       ) : null}
 
       {/* Summary rail: one connected strip, not free-floating metric cards. */}
