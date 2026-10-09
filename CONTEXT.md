@@ -82,7 +82,7 @@ _Avoid_: unlimited Subscription Type, free subscription
 
 **Allowance Window**:
 One 30-day or 360-day portion of a User Subscription in which tx and rx Traffic across Nodes share the Subscription Type's allowance. Windows run from the grant's exact UTC start time; unused allowance does not carry forward, and delayed Collector polls may leave a negative remaining allowance after settlement.
-_Avoid_: calendar month, billing cycle, User lifetime Traffic
+_Avoid_: calendar month, billing cycle, cycle (it also gets used for a User Subscription), User lifetime Traffic
 
 **Grant Usage**:
 The tx and rx Traffic counted against one User Subscription across all of its Allowance Windows. Window rollover, Allowance Top-ups and Subscription Type allowance edits do not reset it.
@@ -157,11 +157,19 @@ A timestamped interval of Node monitoring data, expressed as observed bytes and 
 _Avoid_: sample (as the domain noun), metric row, Traffic bucket
 
 **Monitor**:
-An admin-configured condition evaluated over an Observation window for all Enabled Nodes or selected Nodes, with a severity and optional Notification Channels.
+An admin-configured condition with a severity and optional Notification Channels. A Node Monitor evaluates an Observation window for all Enabled Nodes or selected Nodes. A User Monitor evaluates the current User Subscription of every active, Verified User who has one.
 _Avoid_: Notification Rule, Alert Rule, health check
 
+**Low Allowance**:
+A User Monitor condition met when the current Allowance Window's remaining amount is below a configured share of that window's allowance, top-ups included. An exhausted window is still Low Allowance.
+_Avoid_: quota warning, exhausted (as the condition name)
+
+**Expiring Subscription**:
+A User Monitor condition met when the current User Subscription ends within a configured number of days and no queued User Subscription follows it.
+_Avoid_: last cycle, expiring window, renewal reminder
+
 **Alert**:
-One Monitor's lifecycle for one Node, from `firing` until it is `resolved` by healthy data or `cancelled` by Monitor, Node lifecycle, or scope changes.
+One Monitor's lifecycle for one Node or one User, from `firing` until it is `resolved` because the condition cleared, or `cancelled` by Monitor, Node, User or subscription lifecycle, or scope changes. Each firing transition is a new Alert, so a condition that clears and recurs produces two Alerts.
 _Avoid_: Monitor, Notification, incident (as the domain noun)
 
 **Notification**:

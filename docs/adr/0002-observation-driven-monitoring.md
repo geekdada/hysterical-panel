@@ -5,3 +5,5 @@ The Collector persists generic timestamped Observation intervals, while a separa
 ## Consequences
 
 Offline and high-traffic evaluation share scheduling, Alert history, and Notification delivery without sharing condition semantics. Observations are retained for 25 hours, resolved or cancelled Alerts for 30 days, and Notification delivery is best effort without retries or reminders.
+
+ADR-0009 limits this decision to Node Monitors. User Monitors read subscription state directly.
