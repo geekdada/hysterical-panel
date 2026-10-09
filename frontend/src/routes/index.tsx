@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   getCoreRowModel,
   getSortedRowModel,
@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { Alert, Button } from "@heroui/react";
+import { ChevronRight } from "@gravity-ui/icons";
 import type { components } from "~/api/schema";
 import {
   dashboardNodeTrafficQueryOptions,
@@ -138,7 +139,11 @@ function DashboardPage() {
   const trafficRangeQuery = dashboardTrafficRangeQuery(trafficPeriod, tz);
   const nodesQuery = useQuery(dashboardNodesQueryOptions());
   const userStatsQuery = useQuery(userStatsQueryOptions());
-  const trafficQuery = useQuery(dashboardTrafficQueryOptions(trafficRangeQuery));
+  const trafficQuery = useQuery({
+    ...dashboardTrafficQueryOptions(trafficRangeQuery),
+    // Switching period keeps the old totals on screen instead of flashing the skeleton.
+    placeholderData: keepPreviousData,
+  });
   const nodeTrafficSummaryQuery = useQuery(dashboardNodeTrafficQueryOptions(nodeTrafficQuery));
   const alertSummaryQuery = useQuery(alertSummaryQueryOptions());
 
@@ -211,10 +216,7 @@ function DashboardPage() {
   }, [nodeTrafficSummary]);
   const enabledNodes = nodes.filter((n) => n.enabled);
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
-  const errorNodes = enabledNodes.filter((n) => n.health === "error");
-  const activeUsers = userStats?.active ?? 0;
-  const healthyTone =
-    nodesError || errorNodes.length > 0 ? "error" : healthyNodes.length > 0 ? "ok" : "idle";
+  const disabledUserCount = (userStats?.total ?? 0) - (userStats?.active ?? 0);
   const hasCriticalAlerts = (alertSummaryQuery.data?.critical ?? 0) > 0;
   const totalTx = panelTraffic?.total?.tx ?? 0;
   const totalRx = panelTraffic?.total?.rx ?? 0;
@@ -259,30 +261,21 @@ function DashboardPage() {
       ) : null}
 
       {/* Summary rail: one connected strip, not free-floating metric cards. */}
-      <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
-        <Stat label={m.nav_nodes()} loading={nodesLoading} value={nodesError ? "—" : nodes.length}>
-          {nodesError ? (
-            <span className="text-danger">{m.common_unavailable()}</span>
-          ) : (
-            m.common_enabled_count({ count: String(enabledNodes.length) })
-          )}
-        </Stat>
+      <div className="flex flex-col divide-y divide-border overflow-hidden rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
         <Stat
-          label={m.nav_healthy()}
+          label={m.nav_nodes()}
           loading={nodesLoading}
-          value={nodesError ? "—" : healthyNodes.length}
-          dot={<Dot tone={healthyTone} />}
-        >
-          {nodesError ? (
-            <span className="text-danger">{m.common_unavailable()}</span>
-          ) : errorNodes.length > 0 ? (
-            <span className="text-danger">
-              {m.common_down_count({ count: String(errorNodes.length) })}
-            </span>
-          ) : enabledNodes.length > 0 ? (
-            m.common_of_enabled({ count: String(enabledNodes.length) })
-          ) : null}
-        </Stat>
+          value={
+            nodesError ? (
+              "—"
+            ) : (
+              <>
+                {healthyNodes.length}
+                <span className="font-normal text-muted">/{enabledNodes.length}</span>
+              </>
+            )
+          }
+        />
         <Stat
           label={m.nav_users_label()}
           loading={usersLoading}
@@ -292,13 +285,14 @@ function DashboardPage() {
         >
           {usersError ? (
             <span className="text-danger">{m.common_unavailable()}</span>
-          ) : (
-            m.common_active_count({ count: String(activeUsers) })
-          )}
+          ) : disabledUserCount > 0 ? (
+            m.common_disabled_count({ count: String(disabledUserCount) })
+          ) : null}
         </Stat>
         <Stat
           label={m.nav_traffic()}
           loading={trafficLoading}
+          refreshing={trafficQuery.isPlaceholderData}
           value={trafficError ? "—" : formatBytes(totalTx + totalRx)}
           headerAction={<TrafficPeriodToggle value={trafficPeriod} onChange={setTrafficPeriod} />}
         >
@@ -316,14 +310,6 @@ function DashboardPage() {
 
       <Section
         title={m.nav_nodes()}
-        meta={
-          !nodesLoading && !nodesError && nodes.length > 0
-            ? m.common_nodes_meta({
-                count: String(nodes.length),
-                enabled: String(enabledNodes.length),
-              })
-            : undefined
-        }
         action={
           isAdmin ? (
             <Button size="sm" variant="secondary" onPress={() => navigate({ to: "/nodes/new" })}>
@@ -404,7 +390,7 @@ function Stat({
   label,
   value,
   loading,
-  dot,
+  refreshing = false,
   children,
   headerAction,
   href,
@@ -413,61 +399,76 @@ function Stat({
   label: string;
   value: ReactNode;
   loading: boolean;
-  dot?: ReactNode;
+  refreshing?: boolean;
   children?: ReactNode;
   headerAction?: ReactNode;
   href?: string;
   linkSearch?: UsersListSearch;
 }) {
-  const valueContent = (
-    <span className="whitespace-nowrap text-xl font-semibold tabular-nums">{value}</span>
+  const header = (
+    <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</div>
   );
+  const body = loading ? (
+    <StatSkeleton wide={label === m.nav_traffic()} withDetail={Boolean(children)} />
+  ) : (
+    <div
+      className={cn(
+        "transition-opacity duration-150 motion-reduce:transition-none",
+        refreshing && "opacity-50"
+      )}
+    >
+      <div className="mt-0.5 flex items-baseline gap-2">
+        <span className="whitespace-nowrap text-xl font-semibold tabular-nums">{value}</span>
+      </div>
+      {children && (
+        <div className="mt-1 whitespace-nowrap text-xs tabular-nums text-muted">{children}</div>
+      )}
+    </div>
+  );
+
+  if (href) {
+    // The whole cell is the target so the drill-down reads as a row link, not a stray number.
+    return (
+      <Link
+        to={href}
+        search={linkSearch}
+        className="group relative flex-1 px-4 py-3 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
+      >
+        <ChevronRight
+          className="absolute top-3 right-4 size-4 text-muted transition-[color,transform] duration-150 ease-out group-hover:translate-x-0.5 group-hover:text-foreground"
+          aria-hidden
+        />
+        {header}
+        {body}
+      </Link>
+    );
+  }
 
   return (
     <div className="relative flex-1 px-4 py-3">
       {headerAction ? <div className="absolute top-3 right-4 z-10">{headerAction}</div> : null}
-      <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</div>
-      {loading ? (
-        <StatSkeleton withDot={Boolean(dot)} wide={label === m.nav_traffic()} />
-      ) : (
-        <>
-          <div className="mt-0.5 flex items-baseline gap-2">
-            {href ? (
-              <Link
-                to={href}
-                search={linkSearch}
-                className="rounded-sm transition-colors duration-150 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                {valueContent}
-              </Link>
-            ) : (
-              valueContent
-            )}
-            {dot}
-          </div>
-          {children && (
-            <div className="mt-1 whitespace-nowrap text-xs tabular-nums text-muted">{children}</div>
-          )}
-        </>
-      )}
+      {header}
+      {body}
     </div>
   );
 }
 
-function StatSkeleton({ withDot, wide }: { withDot: boolean; wide: boolean }) {
+// Row boxes match the text-xl (28px) value and text-xs (16px) detail lines exactly.
+function StatSkeleton({ wide, withDetail }: { wide: boolean; withDetail: boolean }) {
   return (
-    <div className="mt-1" aria-hidden>
-      <div className="flex h-6 items-center gap-2">
+    <div aria-hidden>
+      <div className="mt-0.5 flex h-7 items-center">
         <div
           className={`h-5 animate-pulse rounded bg-surface-secondary ${wide ? "w-20" : "w-9"}`}
         />
-        {withDot && <div className="size-2 animate-pulse rounded-full bg-surface-secondary" />}
       </div>
-      <div
-        className={`mt-1.5 h-3 animate-pulse rounded bg-surface-secondary ${
-          wide ? "w-28" : "w-16"
-        }`}
-      />
+      {withDetail && (
+        <div className="mt-1 flex h-4 items-center">
+          <div
+            className={`h-3 animate-pulse rounded bg-surface-secondary ${wide ? "w-28" : "w-16"}`}
+          />
+        </div>
+      )}
     </div>
   );
 }
