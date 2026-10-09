@@ -20,6 +20,7 @@ import { markResponsePrivate } from "~/api/ssr";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
 import { CurrentSpeedSection } from "~/components/current-speed";
+import { FiringAlertsSection } from "~/components/firing-alerts";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
@@ -34,7 +35,6 @@ import {
   PageShell,
   PanelMessage,
   Section,
-  SeverityBadge,
   TableSkeleton,
   Td,
   Teaching,
@@ -61,8 +61,6 @@ type TrafficSeries = components["schemas"]["TrafficSeriesResponse"];
 type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
 type NodeLive = components["schemas"]["NodeLiveResponse"];
 type NodeAPISecretReset = components["schemas"]["NodeAPISecretResetResponse"];
-type Alert = components["schemas"]["Alert"];
-type AlertItem = NonNullable<components["schemas"]["AlertListResponse"]["items"]>[number];
 
 export const Route = createFileRoute("/nodes/$nodeId")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -226,10 +224,7 @@ function NodeDetailPage() {
         <>
           <DetailRail node={node} loading={loading && !node} now={now} />
 
-          <NodeAlertsSection
-            alerts={(alertsQuery.data?.items ?? []).filter((alert) => alert.status === "firing")}
-            now={now}
-          />
+          <FiringAlertsSection alerts={alertsQuery.data?.items ?? []} now={now} />
 
           {node && <NodeCurrentSpeedSection nodeId={nodeId} />}
 
@@ -274,36 +269,6 @@ function NodeDetailPage() {
         </>
       )}
     </PageShell>
-  );
-}
-
-function NodeAlertsSection({ alerts, now }: { alerts: AlertItem[]; now: number | null }) {
-  if (alerts.length === 0) return null;
-  return (
-    <Section title={m.monitoring_node_alerts()} meta={String(alerts.length)}>
-      <div className="divide-y divide-separator">
-        {alerts.map((alert) => (
-          <Link
-            key={alert.id}
-            to="/settings/monitoring"
-            className="flex items-center gap-3 px-3 py-2.5 text-foreground no-underline hover:bg-surface-secondary"
-          >
-            <SeverityBadge
-              severity={alert.severity === "critical" ? "critical" : "warning"}
-              label={
-                alert.severity === "critical" ? m.monitoring_critical() : m.monitoring_warning()
-              }
-            />
-            <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-              {alert.monitor_name ?? m.monitoring_monitor()}
-            </span>
-            <span className="text-xs text-muted">
-              {alert.started_at ? relTimeFromISO(alert.started_at, now) : m.common_em_dash()}
-            </span>
-          </Link>
-        ))}
-      </div>
-    </Section>
   );
 }
 

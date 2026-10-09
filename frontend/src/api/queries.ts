@@ -218,6 +218,7 @@ export const queryKeys = {
     ] as const,
   alertSummary: () => [...queryKeys.alertsBase(), "summary"] as const,
   nodeAlerts: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "alerts"] as const,
+  userAlerts: (userId: string) => [...queryKeys.all, "users", userId, "alerts"] as const,
   settings: () => [...queryKeys.all, "settings"] as const,
   subscriptionTypes: () => [...queryKeys.all, "subscription-types"] as const,
   userSubscriptions: (userId: string) =>
@@ -1085,6 +1086,24 @@ export function nodeAlertsQueryOptions(nodeId: string) {
   return queryOptions({
     queryKey: queryKeys.nodeAlerts(nodeId),
     queryFn: () => fetchNodeAlerts(nodeId),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+  });
+}
+
+export function fetchUserAlerts(userId: string): Promise<AlertListResponse> {
+  return apiRequest<AlertListResponse>(
+    apiClient.GET("/api/panel/users/{id}/alerts", {
+      params: { path: { id: userId }, query: { status: "firing", per_page: 100 } },
+    })
+  );
+}
+
+export function userAlertsQueryOptions(userId: string) {
+  return queryOptions({
+    queryKey: queryKeys.userAlerts(userId),
+    queryFn: () => fetchUserAlerts(userId),
     enabled: canQueryPanelApi(),
     staleTime: REFRESH_MS,
     refetchInterval: REFRESH_MS,

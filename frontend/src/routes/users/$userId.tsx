@@ -25,6 +25,7 @@ import {
   toTrafficRangeQuery,
   updateUser,
   updateUserStatus,
+  userAlertsQueryOptions,
   userCurrentSpeedQueryOptions,
   userOverviewQueryOptions,
   userSubscriptionsQueryOptions,
@@ -34,6 +35,7 @@ import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
 import { SubscriptionSection } from "~/components/subscription-section";
 import { CurrentSpeedSection } from "~/components/current-speed";
+import { FiringAlertsSection } from "~/components/firing-alerts";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
@@ -89,10 +91,19 @@ export const Route = createFileRoute("/users/$userId")({
       context.queryClient.ensureQueryData(userOverviewQueryOptions(params.userId, range)),
       context.queryClient.ensureQueryData(userSubscriptionsQueryOptions(params.userId)),
       context.queryClient.ensureQueryData(panelConfigQueryOptions()),
+      context.auth?.user.role === "admin"
+        ? context.queryClient.ensureQueryData(userAlertsQueryOptions(params.userId))
+        : null,
     ]);
   },
   component: AccountDetailPage,
 });
+
+/** Admin-only: the User already sees their remaining allowance and end date. */
+function UserAlertsSection({ userId, now }: { userId: string; now: number | null }) {
+  const alertsQuery = useQuery(userAlertsQueryOptions(userId));
+  return <FiringAlertsSection alerts={alertsQuery.data?.items ?? []} now={now} />;
+}
 
 function AccountDetailPage() {
   const { userId } = Route.useParams();
@@ -179,6 +190,8 @@ function AccountDetailPage() {
       ) : (
         <>
           <AccountRail user={user} loading={loading && !user} now={now} />
+
+          {isAdmin && user && <UserAlertsSection userId={userId} now={now} />}
 
           {user && (
             <SubscriptionSection

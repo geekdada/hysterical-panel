@@ -75,6 +75,12 @@ export const Route = createFileRoute("/settings/monitoring")({
 });
 
 type AlertItem = NonNullable<AlertListResponse["items"]>[number];
+type MonitorKind = NonNullable<Monitor["kind"]>;
+
+/** User Monitors cover every subscribed User and have no Node scope or evaluation window. */
+function isUserMonitorKind(kind: string): kind is "low_allowance" | "expiring_subscription" {
+  return kind === "low_allowance" || kind === "expiring_subscription";
+}
 
 function MonitoringPage() {
   const { auth } = Route.useRouteContext();
@@ -201,13 +207,7 @@ function MonitoringPage() {
                       </span>
                     ) : null}
                   </div>
-                  <p className="text-xs text-muted">
-                    {kindLabel(monitor.kind ?? "offline")} ·{" "}
-                    {formatDuration(monitor.evaluation_window_seconds ?? 0)} ·{" "}
-                    {monitor.node_scope === "all_enabled"
-                      ? m.monitoring_scope_all()
-                      : m.monitoring_scope_selected()}
-                  </p>
+                  <p className="text-xs text-muted">{monitorSummary(monitor)}</p>
                 </div>
                 <Button
                   size="sm"
@@ -351,7 +351,7 @@ function AlertTable({
         <thead>
           <tr className="border-b border-border bg-surface-secondary">
             <Th className="min-w-[240px]">{m.monitoring_monitor()}</Th>
-            <Th>{m.monitoring_node()}</Th>
+            <Th>{m.monitoring_subject()}</Th>
             <Th>{m.monitoring_started()}</Th>
             <Th>{m.monitoring_duration()}</Th>
             <Th>{m.monitoring_delivery()}</Th>
@@ -387,17 +387,7 @@ function AlertTable({
                 </div>
               </Td>
               <Td>
-                {alert.node?.id ? (
-                  <Link
-                    to="/nodes/$nodeId"
-                    params={{ nodeId: alert.node.id }}
-                    className="block max-w-[180px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                  >
-                    {alert.node.name ?? alert.node.id}
-                  </Link>
-                ) : (
-                  m.common_em_dash()
-                )}
+                <AlertSubject alert={alert} />
               </Td>
               <Td className="whitespace-nowrap text-xs tabular-nums">
                 {alert.started_at ? (
@@ -421,6 +411,36 @@ function AlertTable({
       </table>
     </div>
   );
+}
+
+const subjectLinkClass =
+  "block max-w-[220px] truncate rounded-sm font-medium underline-offset-2 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+
+/** The Node or User an Alert is about. A deleted User keeps the email captured when it fired. */
+function AlertSubject({ alert }: { alert: AlertItem }) {
+  if (alert.user) {
+    if (alert.user.deleted || !alert.user.id) {
+      return (
+        <span className="block max-w-[220px] truncate text-muted">
+          {alert.user.email}
+          {m.monitoring_user_deleted_suffix()}
+        </span>
+      );
+    }
+    return (
+      <Link to="/users/$userId" params={{ userId: alert.user.id }} className={subjectLinkClass}>
+        {alert.user.email}
+      </Link>
+    );
+  }
+  if (alert.node?.id) {
+    return (
+      <Link to="/nodes/$nodeId" params={{ nodeId: alert.node.id }} className={subjectLinkClass}>
+        {alert.node.name ?? alert.node.id}
+      </Link>
+    );
+  }
+  return m.common_em_dash();
 }
 
 function formatAlertTimestamp(iso: string, timeZone: string): string {
@@ -464,6 +484,12 @@ function resolutionReasonLabel(reason: string): string {
       return m.monitoring_resolution_node_removed_from_scope();
     case "monitor_reconfigured":
       return m.monitoring_resolution_monitor_reconfigured();
+    case "user_unavailable":
+      return m.monitoring_resolution_user_unavailable();
+    case "user_deleted":
+      return m.monitoring_resolution_user_deleted();
+    case "subscription_ended":
+      return m.monitoring_resolution_subscription_ended();
     default:
       return reason;
   }
@@ -492,11 +518,14 @@ function MonitorModal({
   const form = useForm({
     defaultValues: {
       name: existing?.name ?? "",
-      kind: (existing?.kind ?? "offline") as "offline" | "high_traffic",
+      kind: (existing?.kind ?? "offline") as MonitorKind,
       severity: (existing?.severity ?? "warning") as "warning" | "critical",
       minutes: (existing?.evaluation_window_seconds ?? 300) / 60,
       // Threshold is edited in MB/s; stored in B/s.
-      threshold: monitorThreshold(existing?.config) / 1_000_000,
+      threshold:
+        configNumber(existing?.config, "threshold_bytes_per_second", 20_000_000) / 1_000_000,
+      percent: configNumber(existing?.config, "threshold_percent", 10),
+      days: configNumber(existing?.config, "threshold_days", 7),
       scope: (existing?.node_scope ?? "all_enabled") as "all_enabled" | "selected",
       nodeIDs: existing?.node_ids ?? [],
       channelIDs: existing?.channel_ids ?? [],
@@ -504,21 +533,31 @@ function MonitorModal({
       enabled: existing?.enabled ?? true,
     },
     onSubmit: ({ value: v }) => {
-      onSubmit({
+      const common = {
         name: v.name.trim(),
         kind: v.kind,
         severity: v.severity,
         enabled: v.enabled,
-        evaluation_window_seconds: Math.round(v.minutes * 60),
-        node_scope: v.scope,
-        node_ids: v.scope === "all_enabled" ? [] : v.nodeIDs,
         channel_ids: v.channelIDs,
         notification_language: v.notificationLanguage,
-        config:
-          v.kind === "offline"
-            ? {}
-            : { threshold_bytes_per_second: Math.round(v.threshold * 1_000_000) },
-      });
+      };
+      // User Monitors reject the Node-only fields, so they are left out entirely.
+      if (v.kind === "low_allowance") {
+        onSubmit({ ...common, config: { threshold_percent: v.percent } });
+      } else if (v.kind === "expiring_subscription") {
+        onSubmit({ ...common, config: { threshold_days: v.days } });
+      } else {
+        onSubmit({
+          ...common,
+          evaluation_window_seconds: Math.round(v.minutes * 60),
+          node_scope: v.scope,
+          node_ids: v.scope === "all_enabled" ? [] : v.nodeIDs,
+          config:
+            v.kind === "offline"
+              ? {}
+              : { threshold_bytes_per_second: Math.round(v.threshold * 1_000_000) },
+        });
+      }
     },
   });
 
@@ -538,9 +577,17 @@ function MonitorModal({
               <Modal.Heading>
                 {value === "new" ? m.monitoring_new() : m.monitoring_edit()}
               </Modal.Heading>
-              <p className="mt-1.5 text-sm leading-5 text-muted">
-                {value === "new" ? m.monitoring_new_hint() : m.monitoring_reconfigure_hint()}
-              </p>
+              <form.Subscribe selector={(s) => s.values.kind}>
+                {(kind) => (
+                  <p className="mt-1.5 text-sm leading-5 text-muted">
+                    {value !== "new"
+                      ? m.monitoring_reconfigure_hint()
+                      : isUserMonitorKind(kind)
+                        ? m.monitoring_user_scope_hint()
+                        : m.monitoring_new_hint()}
+                  </p>
+                )}
+              </form.Subscribe>
             </Modal.Header>
             <Modal.Body>
               <div className="flex flex-col gap-4">
@@ -584,10 +631,15 @@ function MonitorModal({
                       <SelectField
                         label={m.monitoring_kind()}
                         value={field.state.value}
-                        onChange={(v) => field.handleChange(v as "offline" | "high_traffic")}
+                        onChange={(v) => field.handleChange(v as MonitorKind)}
                         options={[
                           { value: "offline", label: m.monitoring_kind_offline() },
                           { value: "high_traffic", label: m.monitoring_kind_high_traffic() },
+                          { value: "low_allowance", label: m.monitoring_kind_low_allowance() },
+                          {
+                            value: "expiring_subscription",
+                            label: m.monitoring_kind_expiring_subscription(),
+                          },
                         ]}
                       />
                     )}
@@ -607,124 +659,191 @@ function MonitorModal({
                   </form.Field>
                 </div>
 
-                <div className="flex flex-col gap-4">
-                  <form.Field
-                    name="minutes"
-                    validators={{
-                      onChange: ({ value: v }) => {
-                        const seconds = Math.round(v * 60);
-                        return !Number.isFinite(v) || seconds < 60 || seconds > 86400
-                          ? m.monitoring_window_range()
-                          : undefined;
-                      },
-                    }}
-                  >
-                    {(field) => {
-                      const invalid =
-                        field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                      return (
-                        <NumberField
-                          className="w-full sm:w-44"
-                          value={field.state.value}
-                          onChange={field.handleChange}
-                          onBlur={field.handleBlur}
-                          minValue={1}
-                          maxValue={1440}
-                          step={1}
-                          isInvalid={invalid}
-                          isRequired
-                        >
-                          <Label>{m.monitoring_window_minutes()}</Label>
-                          <NumberField.Group>
-                            <NumberField.DecrementButton />
-                            <NumberField.Input />
-                            <NumberField.IncrementButton />
-                          </NumberField.Group>
-                          {invalid ? <FieldError>{m.monitoring_window_range()}</FieldError> : null}
-                        </NumberField>
-                      );
-                    }}
-                  </form.Field>
-                  {/* Threshold only applies to high-traffic monitors; unmounting it when
-                      the kind switches away clears its validation so canSubmit stays right. */}
-                  <form.Subscribe selector={(s) => s.values.kind}>
-                    {(kind) =>
-                      kind === "high_traffic" ? (
+                {/* Unmounting the fields of the other kind clears their validation, so
+                    canSubmit only reflects what this kind submits. */}
+                <form.Subscribe selector={(s) => s.values.kind}>
+                  {(kind) =>
+                    isUserMonitorKind(kind) ? (
+                      kind === "low_allowance" ? (
                         <form.Field
-                          name="threshold"
+                          name="percent"
                           validators={{
                             onChange: ({ value: v }) =>
-                              !(v > 0) ? m.monitoring_threshold_positive() : undefined,
+                              !Number.isInteger(v) || v < 1 || v > 99
+                                ? m.monitoring_threshold_percent_range()
+                                : undefined,
                           }}
                         >
-                          {(field) => {
-                            const invalid =
-                              field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                            return (
-                              <NumberField
-                                className="w-full sm:w-60"
-                                value={field.state.value}
-                                onChange={field.handleChange}
-                                onBlur={field.handleBlur}
-                                minValue={0.001}
-                                step={0.1}
-                                isInvalid={invalid}
-                                isRequired
-                              >
-                                <Label>{m.monitoring_threshold()}</Label>
-                                <NumberField.Group>
-                                  <NumberField.DecrementButton />
-                                  <NumberField.Input />
-                                  <NumberField.IncrementButton />
-                                </NumberField.Group>
-                                {invalid ? (
-                                  <FieldError>{m.monitoring_threshold_positive()}</FieldError>
-                                ) : null}
-                              </NumberField>
-                            );
-                          }}
+                          {(field) => (
+                            <IntegerThresholdField
+                              label={m.monitoring_threshold_percent()}
+                              error={m.monitoring_threshold_percent_range()}
+                              min={1}
+                              max={99}
+                              value={field.state.value}
+                              invalid={
+                                field.state.meta.isTouched && field.state.meta.errors.length > 0
+                              }
+                              onChange={field.handleChange}
+                              onBlur={field.handleBlur}
+                            />
+                          )}
                         </form.Field>
-                      ) : null
-                    }
-                  </form.Subscribe>
-                </div>
+                      ) : (
+                        <form.Field
+                          name="days"
+                          validators={{
+                            onChange: ({ value: v }) =>
+                              !Number.isInteger(v) || v < 1 || v > 90
+                                ? m.monitoring_threshold_days_range()
+                                : undefined,
+                          }}
+                        >
+                          {(field) => (
+                            <IntegerThresholdField
+                              label={m.monitoring_threshold_days()}
+                              error={m.monitoring_threshold_days_range()}
+                              min={1}
+                              max={90}
+                              value={field.state.value}
+                              invalid={
+                                field.state.meta.isTouched && field.state.meta.errors.length > 0
+                              }
+                              onChange={field.handleChange}
+                              onBlur={field.handleBlur}
+                            />
+                          )}
+                        </form.Field>
+                      )
+                    ) : (
+                      <>
+                        <div className="flex flex-col gap-4">
+                          <form.Field
+                            name="minutes"
+                            validators={{
+                              onChange: ({ value: v }) => {
+                                const seconds = Math.round(v * 60);
+                                return !Number.isFinite(v) || seconds < 60 || seconds > 86400
+                                  ? m.monitoring_window_range()
+                                  : undefined;
+                              },
+                            }}
+                          >
+                            {(field) => {
+                              const invalid =
+                                field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                              return (
+                                <NumberField
+                                  className="w-full sm:w-44"
+                                  value={field.state.value}
+                                  onChange={field.handleChange}
+                                  onBlur={field.handleBlur}
+                                  minValue={1}
+                                  maxValue={1440}
+                                  step={1}
+                                  isInvalid={invalid}
+                                  isRequired
+                                >
+                                  <Label>{m.monitoring_window_minutes()}</Label>
+                                  <NumberField.Group>
+                                    <NumberField.DecrementButton />
+                                    <NumberField.Input />
+                                    <NumberField.IncrementButton />
+                                  </NumberField.Group>
+                                  {invalid ? (
+                                    <FieldError>{m.monitoring_window_range()}</FieldError>
+                                  ) : null}
+                                </NumberField>
+                              );
+                            }}
+                          </form.Field>
+                          {/* Threshold only applies to high-traffic monitors; unmounting it when
+                      the kind switches away clears its validation so canSubmit stays right. */}
+                          <form.Subscribe selector={(s) => s.values.kind}>
+                            {(kind) =>
+                              kind === "high_traffic" ? (
+                                <form.Field
+                                  name="threshold"
+                                  validators={{
+                                    onChange: ({ value: v }) =>
+                                      !(v > 0) ? m.monitoring_threshold_positive() : undefined,
+                                  }}
+                                >
+                                  {(field) => {
+                                    const invalid =
+                                      field.state.meta.isTouched &&
+                                      field.state.meta.errors.length > 0;
+                                    return (
+                                      <NumberField
+                                        className="w-full sm:w-60"
+                                        value={field.state.value}
+                                        onChange={field.handleChange}
+                                        onBlur={field.handleBlur}
+                                        minValue={0.001}
+                                        step={0.1}
+                                        isInvalid={invalid}
+                                        isRequired
+                                      >
+                                        <Label>{m.monitoring_threshold()}</Label>
+                                        <NumberField.Group>
+                                          <NumberField.DecrementButton />
+                                          <NumberField.Input />
+                                          <NumberField.IncrementButton />
+                                        </NumberField.Group>
+                                        {invalid ? (
+                                          <FieldError>
+                                            {m.monitoring_threshold_positive()}
+                                          </FieldError>
+                                        ) : null}
+                                      </NumberField>
+                                    );
+                                  }}
+                                </form.Field>
+                              ) : null
+                            }
+                          </form.Subscribe>
+                        </div>
 
-                <form.Field name="scope">
-                  {(field) => (
-                    <SelectField
-                      label={m.monitoring_scope()}
-                      value={field.state.value}
-                      onChange={(v) => field.handleChange(v as "all_enabled" | "selected")}
-                      options={[
-                        { value: "all_enabled", label: m.monitoring_scope_all() },
-                        { value: "selected", label: m.monitoring_scope_selected() },
-                      ]}
-                    />
-                  )}
-                </form.Field>
-                <form.Subscribe selector={(s) => s.values.scope}>
-                  {(scope) =>
-                    scope === "selected" ? (
-                      <form.Field
-                        name="nodeIDs"
-                        validators={{
-                          onChange: ({ value: v }) =>
-                            v.length === 0 ? m.monitoring_nodes_required() : undefined,
-                        }}
-                      >
-                        {(field) => (
-                          <CheckboxListField
-                            label={m.monitoring_nodes()}
-                            values={field.state.value}
-                            onChange={field.handleChange}
-                            options={nodes}
-                            emptyLabel={m.monitoring_nodes_empty()}
-                            isInvalid={field.state.value.length === 0}
-                            errorMessage={m.monitoring_nodes_required()}
-                          />
-                        )}
-                      </form.Field>
-                    ) : null
+                        <form.Field name="scope">
+                          {(field) => (
+                            <SelectField
+                              label={m.monitoring_scope()}
+                              value={field.state.value}
+                              onChange={(v) => field.handleChange(v as "all_enabled" | "selected")}
+                              options={[
+                                { value: "all_enabled", label: m.monitoring_scope_all() },
+                                { value: "selected", label: m.monitoring_scope_selected() },
+                              ]}
+                            />
+                          )}
+                        </form.Field>
+                        <form.Subscribe selector={(s) => s.values.scope}>
+                          {(scope) =>
+                            scope === "selected" ? (
+                              <form.Field
+                                name="nodeIDs"
+                                validators={{
+                                  onChange: ({ value: v }) =>
+                                    v.length === 0 ? m.monitoring_nodes_required() : undefined,
+                                }}
+                              >
+                                {(field) => (
+                                  <CheckboxListField
+                                    label={m.monitoring_nodes()}
+                                    values={field.state.value}
+                                    onChange={field.handleChange}
+                                    options={nodes}
+                                    emptyLabel={m.monitoring_nodes_empty()}
+                                    isInvalid={field.state.value.length === 0}
+                                    errorMessage={m.monitoring_nodes_required()}
+                                  />
+                                )}
+                              </form.Field>
+                            ) : null
+                          }
+                        </form.Subscribe>
+                      </>
+                    )
                   }
                 </form.Subscribe>
 
@@ -800,8 +919,76 @@ function MonitorModal({
   );
 }
 
+function IntegerThresholdField({
+  label,
+  error,
+  min,
+  max,
+  value,
+  invalid,
+  onChange,
+  onBlur,
+}: {
+  label: string;
+  error: string;
+  min: number;
+  max: number;
+  value: number;
+  invalid: boolean;
+  onChange: (value: number) => void;
+  onBlur: () => void;
+}) {
+  return (
+    <NumberField
+      className="w-full sm:w-44"
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      minValue={min}
+      maxValue={max}
+      step={1}
+      isInvalid={invalid}
+      isRequired
+    >
+      <Label>{label}</Label>
+      <NumberField.Group>
+        <NumberField.DecrementButton />
+        <NumberField.Input />
+        <NumberField.IncrementButton />
+      </NumberField.Group>
+      {invalid ? <FieldError>{error}</FieldError> : null}
+    </NumberField>
+  );
+}
+
 function kindLabel(kind: string) {
-  return kind === "offline" ? m.monitoring_kind_offline() : m.monitoring_kind_high_traffic();
+  switch (kind) {
+    case "offline":
+      return m.monitoring_kind_offline();
+    case "low_allowance":
+      return m.monitoring_kind_low_allowance();
+    case "expiring_subscription":
+      return m.monitoring_kind_expiring_subscription();
+    default:
+      return m.monitoring_kind_high_traffic();
+  }
+}
+function monitorSummary(monitor: Monitor) {
+  const kind = monitor.kind ?? "offline";
+  if (isUserMonitorKind(kind)) {
+    const rule =
+      kind === "low_allowance"
+        ? m.monitoring_low_allowance_rule({
+            percent: String(configNumber(monitor.config, "threshold_percent", 0)),
+          })
+        : m.monitoring_expiring_rule({
+            days: String(configNumber(monitor.config, "threshold_days", 0)),
+          });
+    return `${kindLabel(kind)} · ${rule} · ${m.monitoring_user_scope()}`;
+  }
+  const scope =
+    monitor.node_scope === "all_enabled" ? m.monitoring_scope_all() : m.monitoring_scope_selected();
+  return `${kindLabel(kind)} · ${formatDuration(monitor.evaluation_window_seconds ?? 0)} · ${scope}`;
 }
 function statusLabel(status: string) {
   return status === "firing"
@@ -812,16 +999,28 @@ function statusLabel(status: string) {
 }
 function alertValue(alert: AlertItem | Alert) {
   const value = alert.status === "resolved" ? alert.recovery_value : alert.firing_value;
-  const speed = value?.average_bytes_per_second;
-  return typeof speed === "number"
-    ? formatBytesPerSecond(speed)
-    : kindLabel(alert.monitor_kind ?? "offline");
+  if (alert.monitor_kind === "low_allowance") {
+    const remaining = value?.remaining_bytes;
+    const allowance = value?.allowance_bytes;
+    if (typeof remaining === "number" && typeof allowance === "number" && allowance > 0) {
+      // Rounded down and clamped like the notification, so 9.9% never reads as 10%.
+      const percent = Math.max(0, Math.floor((remaining / allowance) * 100));
+      return m.monitoring_low_allowance_value({ percent: String(percent) });
+    }
+  } else if (alert.monitor_kind === "expiring_subscription") {
+    const seconds = value?.remaining_seconds;
+    if (typeof seconds === "number") {
+      return m.monitoring_expiring_value({ time: formatDuration(Math.max(0, seconds)) });
+    }
+  } else if (typeof value?.average_bytes_per_second === "number") {
+    return formatBytesPerSecond(value.average_bytes_per_second);
+  }
+  return kindLabel(alert.monitor_kind ?? "offline");
 }
-function monitorThreshold(config: unknown): number {
-  return config &&
-    typeof config === "object" &&
-    "threshold_bytes_per_second" in config &&
-    typeof config.threshold_bytes_per_second === "number"
-    ? config.threshold_bytes_per_second
-    : 20_000_000;
+function configNumber(config: unknown, key: string, fallback: number): number {
+  if (config && typeof config === "object" && key in config) {
+    const value = (config as Record<string, unknown>)[key];
+    if (typeof value === "number") return value;
+  }
+  return fallback;
 }
