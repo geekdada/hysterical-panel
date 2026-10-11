@@ -54,6 +54,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	}
 
 	h.bindAuthGate()
+	h.bindOAuth2LoginOnly()
 	h.bindUserCreateAuthString()
 
 	g := se.Router.Group("/api/panel")
@@ -170,6 +171,11 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	// Public passkey login endpoints — no auth required.
 	se.Router.POST("/api/panel/passkeys/login/options", h.passkeyLoginOptions)
 	se.Router.POST("/api/panel/passkeys/login/finish", h.passkeyLoginFinish)
+
+	// Public OAuth2 provider redirect_uri — no auth required. Kept out of
+	// openapi.go because providers call it, not the panel UI client.
+	se.Router.GET("/api/panel/oauth2-redirect", h.oauth2Redirect)
+	se.Router.POST("/api/panel/oauth2-redirect", h.oauth2Redirect)
 
 	// openapi schema — no auth required (contains no secrets)
 	se.Router.GET("/api/openapi.json", handleOpenAPISpec)
