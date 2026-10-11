@@ -708,6 +708,9 @@ type PanelConfigResponse struct {
 	FrontendURL     string `json:"frontend_url"`
 	PasskeysEnabled bool   `json:"passkeys_enabled"`
 	Version         string `json:"version"`
+	// AppName mirrors PocketBase Settings → Application Name. It is read live
+	// so a rename in /_/ reaches the panel without a restart.
+	AppName string `json:"app_name"`
 	// Registration flags are read live from app_settings (runtime-mutable) so
 	// the login/register pages can render the right entry points.
 	RegistrationOpen          bool `json:"registration_open"`
