@@ -230,7 +230,7 @@
   "settings_timezone_follow_system": "Follow system",
   "settings_passkeys_desc": "Sign in without a password using a passkey stored on this device.",
   "settings_social_logins_title": "Social sign-in",
-  "settings_social_logins_desc": "Accounts from other services that can sign in to this panel as you.",
+  "settings_social_logins_desc": "Sign in to this panel with your accounts from other services",
   "settings_social_logins_meta": "{count} linked",
   "settings_social_logins_empty": "No linked accounts. Signing in with a provider account that uses your panel email links it automatically.",
   "settings_social_logins_empty_title": "No linked accounts",
