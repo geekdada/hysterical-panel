@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@heroui/react";
+import { Button, Modal } from "@heroui/react";
+import { startOAuthLink, type OAuthProvider } from "~/api/auth";
 import {
   deleteUserOAuthLink,
   oauthProvidersQueryOptions,
@@ -16,6 +17,7 @@ import {
   TableSkeleton,
   Teaching,
 } from "~/components/ui";
+import { localizeApiError } from "~/lib/api-error";
 import { cn } from "~/lib/cn";
 import { relTimeFromISO } from "~/lib/format";
 import { useHydratedNow } from "~/lib/use-hydrated-now";
@@ -40,9 +42,12 @@ function useOAuthLinks(userId: string) {
   const providers = providersQuery.data ?? [];
   const links = linksQuery.data ?? [];
   const displayNames = new Map(providers.map((p) => [p.name, p.displayName]));
+  // PocketBase allows one link per provider for each user.
+  const linkedProviders = new Set(links.map((link) => link.provider));
 
   return {
     links,
+    linkableProviders: providers.filter((p) => !linkedProviders.has(p.name)),
     loading: providersQuery.isPending || linksQuery.isPending,
     hidden: providers.length === 0 && links.length === 0 && !linksQuery.error,
     listError: linksQuery.error ? queryErrorMessage(linksQuery.error) : "",
@@ -69,6 +74,7 @@ type OAuthLinksState = ReturnType<typeof useOAuthLinks>;
 /** Settings page section for the signed-in user's own links. */
 export function SocialLoginsSection({ userId }: { userId: string }) {
   const state = useOAuthLinks(userId);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
 
   if (state.loading) return <SocialLoginsSkeleton />;
   if (state.hidden) return null;
@@ -77,21 +83,34 @@ export function SocialLoginsSection({ userId }: { userId: string }) {
     <>
       <SocialLoginsHeader />
       <div className="overflow-hidden rounded-lg border bg-surface">
-        <div className="px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-5 py-3">
           <span className="text-[13px] text-muted">
             {m.settings_social_logins_meta({ count: String(state.links.length) })}
           </span>
+          {state.linkableProviders.length > 0 && (
+            <Button size="sm" variant="secondary" onPress={() => setLinkModalOpen(true)}>
+              {m.settings_social_logins_link()}
+            </Button>
+          )}
         </div>
         <ErrorAlert message={state.listError} className="mx-5 mb-3" />
         {state.links.length === 0 ? (
           <p className="border-t border-border px-5 py-4 text-[13px] text-muted">
-            {m.settings_social_logins_empty()}
+            {state.linkableProviders.length > 0
+              ? m.settings_social_logins_empty_linkable()
+              : m.settings_social_logins_empty()}
           </p>
         ) : (
           <OAuthLinkList state={state} className="border-t border-border" />
         )}
       </div>
       <UnlinkModal state={state} />
+      <LinkProviderModal
+        isOpen={linkModalOpen}
+        userId={userId}
+        providers={state.linkableProviders}
+        onClose={() => setLinkModalOpen(false)}
+      />
     </>
   );
 }
@@ -123,6 +142,58 @@ export function UserSocialLoginsSection({ userId, isSelf }: { userId: string; is
       )}
       <UnlinkModal state={state} />
     </Section>
+  );
+}
+
+function LinkProviderModal({
+  isOpen,
+  userId,
+  providers,
+  onClose,
+}: {
+  isOpen: boolean;
+  userId: string;
+  providers: OAuthProvider[];
+  onClose: () => void;
+}) {
+  const linkMutation = useMutation({
+    mutationFn: (providerName: string) => startOAuthLink(providerName, userId),
+  });
+  const pendingProvider = linkMutation.isPending ? linkMutation.variables : undefined;
+
+  function handleOpenChange(open: boolean) {
+    if (open) return;
+    linkMutation.reset();
+    onClose();
+  }
+
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={handleOpenChange}>
+      <Modal.Container size="sm" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{m.settings_social_logins_link()}</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="flex flex-col gap-2">
+            {providers.map((provider) => (
+              <Button
+                key={provider.name}
+                variant="secondary"
+                fullWidth
+                isDisabled={pendingProvider !== undefined}
+                onPress={() => linkMutation.mutate(provider.name)}
+              >
+                {pendingProvider === provider.name ? m.auth_redirecting() : provider.displayName}
+              </Button>
+            ))}
+            <ErrorAlert
+              message={linkMutation.error ? localizeApiError(linkMutation.error.message) : ""}
+            />
+          </Modal.Body>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }
 

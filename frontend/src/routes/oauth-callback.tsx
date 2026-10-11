@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Card } from "@heroui/react";
-import { completeOAuthLogin } from "~/api/auth";
+import { completeOAuth, takePendingOAuth, type OAuthIntent } from "~/api/auth";
 import { AuthBrandMark, AuthShell } from "~/components/ui";
 import { localizeApiError } from "~/lib/api-error";
 import { useAppName } from "~/lib/use-app-name";
@@ -22,32 +22,68 @@ export const Route = createFileRoute("/oauth-callback")({
   component: OAuthCallbackPage,
 });
 
-function initialError({ code, state, error }: OAuthCallbackSearch): string {
-  if (error) return m.auth_oauth_provider_denied();
-  if (!code || !state) return m.auth_oauth_state_mismatch();
-  return "";
-}
+const COPY: Record<
+  OAuthIntent,
+  {
+    completing: () => string;
+    failed: () => string;
+    denied: () => string;
+    invalid: () => string;
+    back: () => string;
+  }
+> = {
+  login: {
+    completing: m.auth_oauth_completing,
+    failed: m.auth_oauth_login_failed,
+    denied: m.auth_oauth_provider_denied,
+    invalid: m.auth_oauth_state_mismatch,
+    back: m.auth_back_to_sign_in,
+  },
+  link: {
+    completing: m.settings_social_logins_link_completing,
+    failed: m.settings_social_logins_link_failed,
+    denied: m.settings_social_logins_link_denied,
+    invalid: m.settings_social_logins_link_invalid,
+    back: m.settings_social_logins_back_to_settings,
+  },
+};
+
+const DONE_PATH: Record<OAuthIntent, string> = { login: "/", link: "/settings" };
 
 function OAuthCallbackPage() {
   const appName = useAppName();
   const search = Route.useSearch();
-  const [error, setError] = useState(() => initialError(search));
+  // The pending attempt lives in sessionStorage, so the intent is known only after hydration.
+  const [intent, setIntent] = useState<OAuthIntent>("login");
+  const [error, setError] = useState("");
   const ran = useRef(false);
+  const copy = COPY[intent];
 
   useEffect(() => {
-    if (error || !search.code || !search.state || ran.current) return;
     // The authorization code is single-use, so StrictMode's second run must not resend it.
+    if (ran.current) return;
     ran.current = true;
-    completeOAuthLogin(search.code, search.state)
+    const pending = takePendingOAuth();
+    const pendingIntent = pending?.intent ?? "login";
+    setIntent(pendingIntent);
+    if (search.error) {
+      setError(COPY[pendingIntent].denied());
+      return;
+    }
+    if (!search.code || !search.state) {
+      setError(COPY[pendingIntent].invalid());
+      return;
+    }
+    completeOAuth(pending, search.code, search.state)
       .then(() => {
-        window.location.replace("/");
+        window.location.replace(DONE_PATH[pendingIntent]);
       })
       .catch((err: unknown) => {
         setError(
-          err instanceof Error ? localizeApiError(err.message) : m.auth_oauth_login_failed()
+          err instanceof Error ? localizeApiError(err.message) : COPY[pendingIntent].failed()
         );
       });
-  }, [error, search.code, search.state]);
+  }, [search.code, search.state, search.error]);
 
   return (
     <AuthShell>
@@ -63,12 +99,15 @@ function OAuthCallbackPage() {
             <p className="text-[13px] text-danger" role="alert">
               {error}
             </p>
-            <Link to="/login" className="text-[13px] font-medium text-accent hover:opacity-80">
-              {m.auth_back_to_sign_in()}
+            <Link
+              to={intent === "link" ? "/settings" : "/login"}
+              className="text-[13px] font-medium text-accent hover:opacity-80"
+            >
+              {copy.back()}
             </Link>
           </div>
         ) : (
-          <p className="py-2 text-[13px] text-muted">{m.auth_oauth_completing()}</p>
+          <p className="py-2 text-[13px] text-muted">{copy.completing()}</p>
         )}
       </Card.Content>
     </AuthShell>

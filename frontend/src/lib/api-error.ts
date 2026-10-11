@@ -20,6 +20,7 @@ const API_ERROR_MAP: Record<string, () => string> = {
   "no account matches this sign-in": () => m.error_no_account_for_oauth(),
   "failed to fetch oauth2 token": () => m.error_oauth_exchange_failed(),
   "failed to fetch oauth2 user": () => m.error_oauth_exchange_failed(),
+  "this social account is linked to another user": () => m.error_oauth_linked_to_other_user(),
   "the email is invalid or already in use": () => m.error_email_invalid_or_taken(),
   "not found": () => m.error_not_found(),
   "email sendouts are unavailable: smtp is not configured": () => m.error_email_smtp_unavailable(),

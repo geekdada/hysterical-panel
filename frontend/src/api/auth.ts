@@ -4,7 +4,7 @@ import {
   readAuthCookieValueClient,
   writeAuthCookie,
 } from "./cookie";
-import { wrapFetchWithSession } from "./session";
+import { ensureSessionFresh, wrapFetchWithSession } from "./session";
 import { fetchPanelConfig, resolveApiBaseUrl } from "./panel-config";
 import { localizeApiError } from "~/lib/api-error";
 import * as m from "~/paraglide/messages.js";
@@ -64,7 +64,12 @@ interface AuthMethodsResponse {
   oauth2?: { enabled?: boolean; providers?: OAuthProviderChallenge[] };
 }
 
-interface PendingOAuthLogin {
+export type OAuthIntent = "login" | "link";
+
+export interface PendingOAuth {
+  intent: OAuthIntent;
+  // The user who started a link, so the callback can refuse a switched account.
+  userId?: string;
   provider: string;
   state: string;
   codeVerifier: string;
@@ -260,13 +265,26 @@ export async function fetchOAuthProviders(): Promise<OAuthProvider[]> {
  * verifier are fetched per attempt and kept in sessionStorage until the
  * provider redirects back to the callback route.
  */
-export async function startOAuthLogin(providerName: string): Promise<void> {
+export function startOAuthLogin(providerName: string): Promise<void> {
+  return startOAuthFlow(providerName, { intent: "login" });
+}
+
+/** Starts linking a provider account to the signed-in user, whatever its email. */
+export function startOAuthLink(providerName: string, userId: string): Promise<void> {
+  return startOAuthFlow(providerName, { intent: "link", userId });
+}
+
+async function startOAuthFlow(
+  providerName: string,
+  target: Pick<PendingOAuth, "intent" | "userId">
+): Promise<void> {
   const challenges = await fetchOAuthChallenges();
   const provider = challenges.find((candidate) => candidate.name === providerName);
   if (!provider) throw new Error(m.auth_oauth_provider_unavailable());
 
   const redirectURL = `${await resolveAuthBase()}${OAUTH_REDIRECT_PATH}`;
-  const pending: PendingOAuthLogin = {
+  const pending: PendingOAuth = {
+    ...target,
     provider: provider.name,
     state: provider.state,
     codeVerifier: provider.codeVerifier,
@@ -276,26 +294,45 @@ export async function startOAuthLogin(providerName: string): Promise<void> {
   window.location.assign(provider.authURL + encodeURIComponent(redirectURL));
 }
 
-function takePendingOAuthLogin(): PendingOAuthLogin | null {
+/** Removes the pending attempt so a callback can run it at most once. */
+export function takePendingOAuth(): PendingOAuth | null {
   const raw = sessionStorage.getItem(PENDING_OAUTH_LOGIN_KEY);
   sessionStorage.removeItem(PENDING_OAUTH_LOGIN_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as PendingOAuthLogin;
+    const pending = JSON.parse(raw) as PendingOAuth;
+    // Attempts stored before linking existed carry no intent.
+    return { ...pending, intent: pending.intent ?? "login" };
   } catch {
     return null;
   }
 }
 
-/** Exchanges the provider's authorization code for a panel session. */
-export async function completeOAuthLogin(code: string, state: string): Promise<AuthUser> {
-  const pending = takePendingOAuthLogin();
+/**
+ * Exchanges the provider's authorization code. A login stores the new panel
+ * session. A link sends the current session token, so PocketBase attaches the
+ * identity to the signed-in user even when the provider email differs.
+ */
+export async function completeOAuth(
+  pending: PendingOAuth | null,
+  code: string,
+  state: string
+): Promise<void> {
   if (!pending || pending.state !== state) {
-    throw new Error(m.auth_oauth_state_mismatch());
+    throw new Error(
+      pending?.intent === "link"
+        ? m.settings_social_logins_link_invalid()
+        : m.auth_oauth_state_mismatch()
+    );
+  }
+  const linking = pending.intent === "link";
+  // An expired token would let PocketBase fall back to an email match on another account.
+  if (linking && !(await ensureSessionFresh())) {
+    throw new Error(m.settings_social_logins_link_session_expired());
   }
   const auth = await apiFetch<AuthResponse>("/api/collections/users/auth-with-oauth2", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(linking ? authHeaders() : {}) },
     body: JSON.stringify({
       provider: pending.provider,
       code,
@@ -303,7 +340,13 @@ export async function completeOAuthLogin(code: string, state: string): Promise<A
       redirectURL: pending.redirectURL,
     }),
   });
-  return storeAuthResponse(auth);
+  if (!linking) {
+    storeAuthResponse(auth);
+    return;
+  }
+  if (auth.record.id !== pending.userId) {
+    throw new Error(m.settings_social_logins_link_failed());
+  }
 }
 
 export async function loginWithPasskey(): Promise<AuthUser> {
