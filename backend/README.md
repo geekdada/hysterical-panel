@@ -163,6 +163,7 @@ provider 在 `/_/` 后台 users collection 的 **Options → OAuth2** 里启用�
 - 仍过 `bindAuthGate` 的 `status` / `verified` 门禁。未验证用户经邮箱匹配登录时，PocketBase 会置 `verified=true` 并重置其密码。
 - **部署需做一次配置**：在每个 provider 的开发者后台把回调地址登记为 `<后端公开地址>/api/panel/oauth2-redirect`（后端公开地址即 `PANEL_BACKEND_URL_BASE`，同域反代时就是面板域名）。不要用 PocketBase 后台提示的 `/api/oauth2-redirect`，它只服务 JS SDK 的 realtime 弹窗流程。前后端不同源时必须设置 `PANEL_FRONTEND_URL_BASE`，且用户要从这个前端地址发起登录，因为 PKCE verifier 存在该 origin 的 sessionStorage 里。
 - Apple 以 `response_mode=form_post` 回跳，由转发路由的 POST 分支接收。
+- **主动关联**：设置页对每个尚未关联的已启用 provider 显示「关联」按钮。流程与登录相同，区别是前端交换 code 时带上当前 session token。PocketBase 先按已绑定身份匹配，没有命中就直接用 token 对应的用户，不再按邮箱查找，所以邮箱不同也能关联。该身份已绑定到其他用户时，`oauth2_login.go` 返回 409 `this social account is linked to another user`，避免 PocketBase 切换成那个账号登录。前端在交换前刷新 token，token 已失效则不发请求。每个用户每个 provider 最多一条关联（PocketBase 唯一索引）。
 - 设置页（本人）与用户详情页（admin）的「社交账号登录」区域经 `GET|DELETE /api/panel/users/{id}/oauth-links` 列出 / 取消关联（`oauth2_links.go`，`requireActiveAdminOrSelf`）。不用内置 `_externalAuths` record API，因为它的默认规则只允许本人访问。取消关联后，如果该社交账号邮箱与面板邮箱相同，再次用它登录会重新按邮箱关联。
 - 账号匹配依赖 provider 返回的邮箱可信，只启用会校验邮箱所有权的 provider。
 

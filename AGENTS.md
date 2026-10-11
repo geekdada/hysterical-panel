@@ -296,7 +296,7 @@ hysterical-panel/
 
 `POST /api/panel/passkeys/login/{options,finish}` — passkey 无密码登录（公开，无需先登录）。`options` 发 challenge，`finish` 校验断言成功后签发与密码登录同形的 token+record（仍过 `bindAuthGate` 的 status/verified 门禁）。passkey 未配置时（见决策 #9）这两个端点不可用。
 
-**OAuth2 登录**：provider 在 `/_/` 的 users collection 里配置。前端登录页读内置 `GET /api/collections/users/auth-methods` 渲染按钮；provider 回调公开的 `GET|POST /api/panel/oauth2-redirect`（不进 OpenAPI），它把 `code` / `state` / `error` 303 转发到 `PANEL_FRONTEND_URL_BASE + /oauth-callback`，前端再调内置 `auth-with-oauth2`。`oauth2_login.go` 拒绝新建用户（403 `no account matches this sign-in`），只按已绑定身份或邮箱匹配已有账号；仍过 `bindAuthGate`。各 provider 回调地址须登记为 `<后端公开地址>/api/panel/oauth2-redirect`，不是 PocketBase 的 `/api/oauth2-redirect`；前后端不同源时须设 `PANEL_FRONTEND_URL_BASE`。Apple 的 `form_post` 由 POST 分支接收。「社交账号登录」区域的关联管理走 `/users/{id}/oauth-links`，见上方面板接口。详见 backend/README.md。
+**OAuth2 登录**：provider 在 `/_/` 的 users collection 里配置。前端登录页读内置 `GET /api/collections/users/auth-methods` 渲染按钮；provider 回调公开的 `GET|POST /api/panel/oauth2-redirect`（不进 OpenAPI），它把 `code` / `state` / `error` 303 转发到 `PANEL_FRONTEND_URL_BASE + /oauth-callback`，前端再调内置 `auth-with-oauth2`。`oauth2_login.go` 拒绝新建用户（403 `no account matches this sign-in`），只按已绑定身份或邮箱匹配已有账号；仍过 `bindAuthGate`。各 provider 回调地址须登记为 `<后端公开地址>/api/panel/oauth2-redirect`，不是 PocketBase 的 `/api/oauth2-redirect`；前后端不同源时须设 `PANEL_FRONTEND_URL_BASE`。Apple 的 `form_post` 由 POST 分支接收。「社交账号登录」区域的关联管理走 `/users/{id}/oauth-links`，见上方面板接口。设置页可主动关联未关联的 provider：前端带当前 session token 调 `auth-with-oauth2`，PocketBase 优先关联到 token 对应用户，与邮箱无关；身份已属于其他用户时 hook 返回 409，不切换账号。详见 backend/README.md。
 
 `POST /api/mgmt/users`、`GET /api/mgmt/users` — Management API（公开但 Bearer 鉴权，未启用返回 404；见决策 #10）。供外部系统按 email/auth_string 查号或建号，**不进 OpenAPI**，契约见 backend/README.md。
 
