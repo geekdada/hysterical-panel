@@ -17,7 +17,7 @@
 - 自主轮询采集各节点流量与最新在线设备数，做用户级 / 节点级聚合 + admin 全局看板。
 - 用户管理（分页/排序/筛选列表）+ 实时诊断面板。
 - 作为 Hysteria 2 / anytls 节点的 `auth.type: http` 回调端点，按 `auth_string`（anytls 按其 hash）鉴权客户端连接。
-- 面板登录支持密码 + passkey（WebAuthn）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
+- 面板登录支持密码 + passkey（WebAuthn）+ PocketBase OAuth2（只登录已有账号，不注册）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
 - 可选的 Email Sendout：admin 在面板里写事务邮件，经 PocketBase SMTP 发给一个或全部可用 User；持久化队列、只发一次、失败手动重发，见 ADR-0008。
 - **不做**：支付/账单、节点部署。订阅仅作为节点访问与流量额度门禁，见 `docs/subscriptions.md`。Monitoring 支持基于 Observation 的 Node Monitor（offline / high-traffic）和基于订阅状态的 User Monitor（low allowance / expiring subscription，ADR-0009），共用 Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
 
@@ -127,7 +127,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..29）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..30）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -148,6 +148,7 @@ hysterical-panel/
 │           ├── users_list.go   分页 / 排序 / 筛选的用户列表 + /users/stats
 │           ├── recent_connections.go 用户最近连接 IP 的派生与脱敏序列化
 │           ├── passkeys.go     WebAuthn 注册 / 登录 / 列举 / 删除（go-webauthn）
+│           ├── oauth2_login.go OAuth2 只登录已有账号（拒绝新建用户）+ provider 回调转发
 │           ├── settings.go     app_settings 读写（注册开关 + management API token + email sendout 发送速率）
 │           ├── management_api.go 公开 /api/mgmt/* + requireMgmtToken（未启用 404）
 │           ├── database.go     GET /database/stats + POST /database/prune（30 天留存裁剪）
@@ -177,8 +178,8 @@ hysterical-panel/
     ├── messages/               i18n 文案（en.json / zh-cn.json）；编译产物落 src/paraglide/（gitignore）
     ├── scripts/                i18n-check.mjs（校验翻译完整）等
     └── src/
-        ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
-        ├── routes/             文件式路由（index / login / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / invitations / nodes / users）
+        ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/OAuth2/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
+        ├── routes/             文件式路由（index / login / oauth-callback / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / invitations / nodes / users）
         ├── components/         traffic.tsx / traffic-range-picker.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx
         ├── emails/             Email Sendout 编辑器（@react-email/editor）+ 固定服务邮件外框（serializerPlugin.BaseTemplate）
         ├── paraglide/          Paraglide 编译产物（生成，gitignore，勿手改）
@@ -195,6 +196,7 @@ hysterical-panel/
 - `subscription_required` (bool) — 存量用户迁移时为 false，首次授予订阅后永久为 true；新用户默认 true。`used_tx`、`used_rx` (number, int64) 仍为用户终身累计流量
 - `subscription_types` — 额度（字节）、固定 30/360 天重置周期、隐藏状态；已授予过的类型不可删除或修改重置周期
 - `user_subscriptions` — 360 天的用户授予记录、当前窗口按 tx / rx 分开的使用量与手动加额，以及跨窗口不清零的整期 tx / rx 用量（Grant Usage）；门禁只看 tx+rx 总和，见 `docs/subscriptions.md` 与 ADR-0007
+- 通用 record API 规则（List/View/Create/Update/Delete）由迁移 `1730000030` 锁为仅 superuser，防止用户自改 `role` / `status` / 用量或匿名建号；面板一律走 `/api/panel/*`
 - `last_connected_at` (date)、`recent_connections` (json) — Hysteria 鉴权成功后更新；`recent_connections` 只保留最近 10 个唯一客户端 IP（不含端口），MMDB ASN / 国家等信息在 API 序列化时临时补充，不落库
 
 `user_auth_strings`：
@@ -291,6 +293,8 @@ hysterical-panel/
 `POST /api/panel/register` — 自助注册（进 OpenAPI，标记无需鉴权）。访问与是否要码由 `app_settings` + `registrationDecision` 决定；`verified := codeRequired`；经码自动登录（返回 token+record），开放无码发验证邮件并返回 `{requires_verification:true}`（依赖 SMTP，未配 503）。强制 `role=user`/`status=active`，`auth_string` 系统生成。按 IP 限流。邮箱验证由前端 `/verify` 调 PocketBase 内置 `POST /api/collections/users/confirm-verification` 完成（非本项目自建端点）。
 
 `POST /api/panel/passkeys/login/{options,finish}` — passkey 无密码登录（公开，无需先登录）。`options` 发 challenge，`finish` 校验断言成功后签发与密码登录同形的 token+record（仍过 `bindAuthGate` 的 status/verified 门禁）。passkey 未配置时（见决策 #9）这两个端点不可用。
+
+**OAuth2 登录**：provider 在 `/_/` 的 users collection 里配置。前端登录页读内置 `GET /api/collections/users/auth-methods` 渲染按钮；provider 回调公开的 `GET|POST /api/panel/oauth2-redirect`（不进 OpenAPI），它把 `code` / `state` / `error` 303 转发到 `PANEL_FRONTEND_URL_BASE + /oauth-callback`，前端再调内置 `auth-with-oauth2`。`oauth2_login.go` 拒绝新建用户（403 `no account matches this sign-in`），只按已绑定身份或邮箱匹配已有账号；仍过 `bindAuthGate`。各 provider 回调地址须登记为 `<后端公开地址>/api/panel/oauth2-redirect`，不是 PocketBase 的 `/api/oauth2-redirect`；前后端不同源时须设 `PANEL_FRONTEND_URL_BASE`。Apple 的 `form_post` 由 POST 分支接收。详见 backend/README.md。
 
 `POST /api/mgmt/users`、`GET /api/mgmt/users` — Management API（公开但 Bearer 鉴权，未启用返回 404；见决策 #10）。供外部系统按 email/auth_string 查号或建号，**不进 OpenAPI**，契约见 backend/README.md。
 

@@ -154,6 +154,18 @@ docker run --rm \
 
 **部署需做一次配置**：默认重置邮件链接指向 PocketBase 后台（`{APP_URL}/_/#/auth/confirm-password-reset/{TOKEN}`）。要让链接落到前端重置页，请在 `/_/` 后台把 **Settings → Application URL** 设为前端域名，并把 users collection 的 **Reset password** 邮件模板链接改成 `{APP_URL}/reset-password?token={TOKEN}`。同样依赖 SMTP；未配置 SMTP 则找回密码不可用。
 
+### OAuth2 登录（只登录不注册）
+
+provider 在 `/_/` 后台 users collection 的 **Options → OAuth2** 里启用和配置，面板不新增环境变量。前端登录页调内置 `GET /api/collections/users/auth-methods` 列出已启用的 provider，点击后跳转到 provider 授权页。provider 回跳后端公开的 `GET|POST /api/panel/oauth2-redirect`，它只把 `code` / `state` / `error` 以 303 转发到 `PANEL_FRONTEND_URL_BASE + /oauth-callback`（未配置则为相对路径 `/oauth-callback`，只适用于前后端同域）。前端校验 `state` 后调内置 `POST /api/collections/users/auth-with-oauth2`（带 PKCE `codeVerifier`）换取与密码登录同形的 token+record。
+
+- **只登录已有账号**：`OnRecordAuthWithOAuth2Request("users")`（`oauth2_login.go`）拒绝新建用户，返回 403 `no account matches this sign-in`。PocketBase 先按已绑定的 OAuth2 身份匹配，再按 provider 返回的邮箱匹配；首次按邮箱匹配成功后自动绑定。新用户仍只能经面板注册策略、admin 建号或 Management API 产生。
+- 仍过 `bindAuthGate` 的 `status` / `verified` 门禁。未验证用户经邮箱匹配登录时，PocketBase 会置 `verified=true` 并重置其密码。
+- **部署需做一次配置**：在每个 provider 的开发者后台把回调地址登记为 `<后端公开地址>/api/panel/oauth2-redirect`（后端公开地址即 `PANEL_BACKEND_URL_BASE`，同域反代时就是面板域名）。不要用 PocketBase 后台提示的 `/api/oauth2-redirect`，它只服务 JS SDK 的 realtime 弹窗流程。前后端不同源时必须设置 `PANEL_FRONTEND_URL_BASE`，且用户要从这个前端地址发起登录，因为 PKCE verifier 存在该 origin 的 sessionStorage 里。
+- Apple 以 `response_mode=form_post` 回跳，由转发路由的 POST 分支接收。
+- 账号匹配依赖 provider 返回的邮箱可信，只启用会校验邮箱所有权的 provider。
+
+users collection 的 List / View / Create / Update / Delete API 规则由迁移 `1730000030` 锁为仅 superuser。PocketBase 默认规则允许匿名建号、允许用户改自己的 `role` / `status` / 用量字段；锁定后 OAuth2 也无法经通用建号接口创建用户。面板只走 `/api/panel/*` 与内置 auth 端点，不依赖这些规则。
+
 ### Hysteria 回调 `POST /api/hysteria/auth`（供 Hysteria 节点调用）
 
 给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<current-auth-string>","tx":1000000}`；后端只按 `user_auth_strings` 中的 Current Auth String 匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<user.id>"}`，其它返回非 200。稳定 User ID 会用于节点后续 `/traffic`、`/online`、`/dump/streams` 与 `/kick`；Retired Auth String 不能认证，但仍可把迁移前连接的统计归属回 User。成功鉴权会异步更新连接元数据。
