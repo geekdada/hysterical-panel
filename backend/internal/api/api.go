@@ -154,6 +154,8 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.POST("/users/{id}/passkeys/registration/options", h.passkeyRegistrationOptions).Bind(activeSelf)
 	g.POST("/users/{id}/passkeys/registration/finish", h.passkeyRegistrationFinish).Bind(activeSelf)
 	g.DELETE("/users/{id}/passkeys/{passkeyId}", h.deletePasskey).Bind(activeAdminOrSelf)
+	g.GET("/users/{id}/oauth-links", h.listOAuthLinks).Bind(activeAdminOrSelf)
+	g.DELETE("/users/{id}/oauth-links/{linkId}", h.deleteOAuthLink).Bind(activeAdminOrSelf)
 
 	// traffic + live
 	g.GET("/users/{id}/traffic/summary", h.trafficSummary).Bind(adminOrSelf)

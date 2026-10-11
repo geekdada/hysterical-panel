@@ -469,6 +469,13 @@ type Passkey struct {
 	LastUsedAt     string   `json:"last_used_at"`
 }
 
+// OAuthLink is an OAuth2 identity linked to a User for social sign-in.
+type OAuthLink struct {
+	ID       string `json:"id"`
+	Provider string `json:"provider"`
+	Created  string `json:"created"`
+}
+
 // PasskeyOptionsResponse returns a server-side challenge id and WebAuthn options.
 type PasskeyOptionsResponse struct {
 	ChallengeID string         `json:"challenge_id"`

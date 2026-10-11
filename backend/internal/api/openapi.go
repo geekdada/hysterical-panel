@@ -55,6 +55,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"SubscriptionRescheduleRequest":     SubscriptionRescheduleRequest{},
 		"UserSubscription":                  UserSubscription{},
 		"Passkey":                           Passkey{},
+		"OAuthLink":                         OAuthLink{},
 		"PasskeyOptionsResponse":            PasskeyOptionsResponse{},
 		"PasskeyFinishRequest":              PasskeyFinishRequest{},
 		"PanelAuthResponse":                 PanelAuthResponse{},
@@ -143,6 +144,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"UserSubscription":               {"id", "subscription_type", "type_name", "status", "starts_at", "ends_at", "terminated_at", "window_ends_at", "allowance_bytes", "used_bytes", "used_tx_bytes", "used_rx_bytes", "remaining_bytes", "over_allowance", "grant_tx_bytes", "grant_rx_bytes"},
 		"EmailSendoutContextResponse":    {"app_name", "frontend_url", "smtp_enabled", "eligible_recipient_count", "rate_per_minute"},
 		"EmailSendoutRecipientCandidate": {"id", "email"},
+		"OAuthLink":                      {"id", "provider", "created"},
 		"EmailSendoutCreateRequest":      {"subject", "language", "audience", "html", "text", "content"},
 		"EmailSendoutCounts":             {"total", "pending", "sent", "failed", "skipped", "cancelled"},
 		"EmailSendout":                   {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created"},
@@ -290,6 +292,14 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	passkeyIdParam := &openapi3.ParameterRef{
 		Value: &openapi3.Parameter{
 			Name:     "passkeyId",
+			In:       "path",
+			Required: true,
+			Schema:   &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
+		},
+	}
+	oauthLinkIdParam := &openapi3.ParameterRef{
+		Value: &openapi3.Parameter{
+			Name:     "linkId",
 			In:       "path",
 			Required: true,
 			Schema:   &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
@@ -1055,6 +1065,47 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 				OperationID: "deletePasskey",
 				Summary:     "Delete a passkey (admin or self)",
 				Tags:        []string{"passkeys"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Deletion confirmed"),
+						Content:     content(ref("DeleteResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── OAuth2 links ──────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/users/{id}/oauth-links", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listOAuthLinks",
+				Summary:     "List OAuth2 sign-in links for a user (admin or self)",
+				Tags:        []string{"oauth2"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("OAuth2 link list"),
+						Content:     content(arrayRef("OAuthLink")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/users/{id}/oauth-links/{linkId}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID"), oauthLinkIdParam},
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "deleteOAuthLink",
+				Summary:     "Unlink an OAuth2 sign-in (admin or self)",
+				Tags:        []string{"oauth2"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
 						Description: ptr("Deletion confirmed"),
