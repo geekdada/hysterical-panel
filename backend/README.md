@@ -94,6 +94,7 @@ docker run --rm \
 | GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |
 | GET | `/users/{id}/live` | 实时 streams 诊断（admin；活跃流、域名榜、客户端连接维度） |
+| GET / DELETE | `/users/{id}/oauth-links`、`/users/{id}/oauth-links/{linkId}` | 列出 / 取消该用户的 OAuth2 社交账号关联（active 的 admin 或本人） |
 | GET | `/users/{id}/current-speed` | 当前速度（最近一个采集周期的平均 B/s），按可见节点拆分，只列非零项（admin 或本人） |
 | GET | `/settings` | 读取注册/邀请开关 |
 | PATCH | `/settings` | 改开关（层级校验：`invitations_enabled=true` 需 `open_registration=true`；`require_invite_for_open=true` 需 `invitations_enabled=true`，否则 400）；也改 `email_sendout_rate_per_minute`（1–600） |
@@ -162,6 +163,7 @@ provider 在 `/_/` 后台 users collection 的 **Options → OAuth2** 里启用�
 - 仍过 `bindAuthGate` 的 `status` / `verified` 门禁。未验证用户经邮箱匹配登录时，PocketBase 会置 `verified=true` 并重置其密码。
 - **部署需做一次配置**：在每个 provider 的开发者后台把回调地址登记为 `<后端公开地址>/api/panel/oauth2-redirect`（后端公开地址即 `PANEL_BACKEND_URL_BASE`，同域反代时就是面板域名）。不要用 PocketBase 后台提示的 `/api/oauth2-redirect`，它只服务 JS SDK 的 realtime 弹窗流程。前后端不同源时必须设置 `PANEL_FRONTEND_URL_BASE`，且用户要从这个前端地址发起登录，因为 PKCE verifier 存在该 origin 的 sessionStorage 里。
 - Apple 以 `response_mode=form_post` 回跳，由转发路由的 POST 分支接收。
+- 设置页（本人）与用户详情页（admin）的「社交账号登录」区域经 `GET|DELETE /api/panel/users/{id}/oauth-links` 列出 / 取消关联（`oauth2_links.go`，`requireActiveAdminOrSelf`）。不用内置 `_externalAuths` record API，因为它的默认规则只允许本人访问。取消关联后，如果该社交账号邮箱与面板邮箱相同，再次用它登录会重新按邮箱关联。
 - 账号匹配依赖 provider 返回的邮箱可信，只启用会校验邮箱所有权的 provider。
 
 users collection 的 List / View / Create / Update / Delete API 规则由迁移 `1730000030` 锁为仅 superuser。PocketBase 默认规则允许匿名建号、允许用户改自己的 `role` / `status` / 用量字段；锁定后 OAuth2 也无法经通用建号接口创建用户。面板只走 `/api/panel/*` 与内置 auth 端点，不依赖这些规则。

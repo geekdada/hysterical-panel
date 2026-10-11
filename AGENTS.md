@@ -149,6 +149,7 @@ hysterical-panel/
 │           ├── recent_connections.go 用户最近连接 IP 的派生与脱敏序列化
 │           ├── passkeys.go     WebAuthn 注册 / 登录 / 列举 / 删除（go-webauthn）
 │           ├── oauth2_login.go OAuth2 只登录已有账号（拒绝新建用户）+ provider 回调转发
+│           ├── oauth2_links.go 用户 OAuth2 关联列举 / 取消（admin 或本人）
 │           ├── settings.go     app_settings 读写（注册开关 + management API token + email sendout 发送速率）
 │           ├── management_api.go 公开 /api/mgmt/* + requireMgmtToken（未启用 404）
 │           ├── database.go     GET /database/stats + POST /database/prune（30 天留存裁剪）
@@ -180,7 +181,7 @@ hysterical-panel/
     └── src/
         ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/OAuth2/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
         ├── routes/             文件式路由（index / login / oauth-callback / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / invitations / nodes / users）
-        ├── components/         traffic.tsx / traffic-range-picker.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx
+        ├── components/         traffic.tsx / traffic-range-picker.tsx / social-logins.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx
         ├── emails/             Email Sendout 编辑器（@react-email/editor）+ 固定服务邮件外框（serializerPlugin.BaseTemplate）
         ├── paraglide/          Paraglide 编译产物（生成，gitignore，勿手改）
         ├── lib/                展示与工具 helper（format / theme / locale / timezone / cn / use-* hooks 等）
@@ -273,6 +274,7 @@ hysterical-panel/
 - `GET /users`（仅 admin）是**分页 / 排序 / 筛选**列表（`users_list.go`：`page`、`perPage`∈{25,50,100}、`search`、`sort` 白名单），`GET /users/stats` 给看板汇总。`POST /users/{id}/reset-auth-string`、`POST /nodes/{id}/reset-api-secret` 重新随机生成对应凭据并返回（节点 secret 仍脱敏）。
 - **admin 全局看板**：`GET /traffic`、`GET /traffic/series`（`from`/`to` 必填，UTC）、`GET /nodes/traffic/summary` 是跨用户跨节点的全局聚合（`traffic_panel.go`），与下面单节点维度接口区分。
 - `GET /database/stats`、`POST /database/prune`（仅 admin，`database.go`）：查看库体量并按 **30 天 UTC 留存**裁剪 `traffic_hourly`/`traffic_daily` 历史。
+- OAuth2 社交账号关联：`GET /users/{id}/oauth-links`、`DELETE /users/{id}/oauth-links/{linkId}`（`requireActiveAdminOrSelf`，`oauth2_links.go`），设置页（本人）与用户详情页（admin）共用。
 - passkey：`GET /users/{id}/passkeys`、`DELETE /users/{id}/passkeys/{passkeyId}`（`requireActiveAdminOrSelf`）；注册 `POST /users/{id}/passkeys/registration/{options,finish}`（`requireActiveSelf`）。详见核心决策 #9。
 - 节点维度接口 `GET /nodes/{id}/traffic/summary|series`、`GET /nodes/{id}/live` 是**单节点跨用户**视角，仅 admin。
 - Current Speed：`GET /users/{id}/current-speed`（admin 或本人）返回该 User 在各可见 Node 上非零的速度与合计；`GET /nodes/{id}/current-speed`（admin）返回 Node 自身速度与速度最高的 10 个 User。两者直接读 `traffic_cursor`，不请求节点，与 Live 无关。
@@ -294,7 +296,7 @@ hysterical-panel/
 
 `POST /api/panel/passkeys/login/{options,finish}` — passkey 无密码登录（公开，无需先登录）。`options` 发 challenge，`finish` 校验断言成功后签发与密码登录同形的 token+record（仍过 `bindAuthGate` 的 status/verified 门禁）。passkey 未配置时（见决策 #9）这两个端点不可用。
 
-**OAuth2 登录**：provider 在 `/_/` 的 users collection 里配置。前端登录页读内置 `GET /api/collections/users/auth-methods` 渲染按钮；provider 回调公开的 `GET|POST /api/panel/oauth2-redirect`（不进 OpenAPI），它把 `code` / `state` / `error` 303 转发到 `PANEL_FRONTEND_URL_BASE + /oauth-callback`，前端再调内置 `auth-with-oauth2`。`oauth2_login.go` 拒绝新建用户（403 `no account matches this sign-in`），只按已绑定身份或邮箱匹配已有账号；仍过 `bindAuthGate`。各 provider 回调地址须登记为 `<后端公开地址>/api/panel/oauth2-redirect`，不是 PocketBase 的 `/api/oauth2-redirect`；前后端不同源时须设 `PANEL_FRONTEND_URL_BASE`。Apple 的 `form_post` 由 POST 分支接收。详见 backend/README.md。
+**OAuth2 登录**：provider 在 `/_/` 的 users collection 里配置。前端登录页读内置 `GET /api/collections/users/auth-methods` 渲染按钮；provider 回调公开的 `GET|POST /api/panel/oauth2-redirect`（不进 OpenAPI），它把 `code` / `state` / `error` 303 转发到 `PANEL_FRONTEND_URL_BASE + /oauth-callback`，前端再调内置 `auth-with-oauth2`。`oauth2_login.go` 拒绝新建用户（403 `no account matches this sign-in`），只按已绑定身份或邮箱匹配已有账号；仍过 `bindAuthGate`。各 provider 回调地址须登记为 `<后端公开地址>/api/panel/oauth2-redirect`，不是 PocketBase 的 `/api/oauth2-redirect`；前后端不同源时须设 `PANEL_FRONTEND_URL_BASE`。Apple 的 `form_post` 由 POST 分支接收。「社交账号登录」区域的关联管理走 `/users/{id}/oauth-links`，见上方面板接口。详见 backend/README.md。
 
 `POST /api/mgmt/users`、`GET /api/mgmt/users` — Management API（公开但 Bearer 鉴权，未启用返回 404；见决策 #10）。供外部系统按 email/auth_string 查号或建号，**不进 OpenAPI**，契约见 backend/README.md。
 
