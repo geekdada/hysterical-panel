@@ -41,6 +41,7 @@ import {
   LabeledSwitch,
   PageShell,
 } from "~/components/ui";
+import { SocialLoginsSection } from "~/components/social-logins";
 import { UserMenu } from "~/components/user-menu";
 import { relTimeFromISO } from "~/lib/format";
 import { offsetLabel, SYSTEM_TIMEZONE_ID, TIMEZONE_OPTIONS } from "~/lib/timezone";
@@ -118,6 +119,8 @@ function SettingsPage() {
       </div>
 
       {auth && <PasskeysSection userId={auth.user.id} />}
+
+      {auth && <SocialLoginsSection userId={auth.user.id} />}
 
       {isAdmin && (
         <>

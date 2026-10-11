@@ -34,6 +34,7 @@ type NodeLive = components["schemas"]["NodeLiveResponse"];
 type NodeTest = components["schemas"]["NodeTestResponse"];
 type NodeAPISecretReset = components["schemas"]["NodeAPISecretResetResponse"];
 type NotificationChannel = components["schemas"]["NotificationChannel"];
+type OAuthLink = components["schemas"]["OAuthLink"];
 type NotificationChannelCreateRequest = components["schemas"]["NotificationChannelCreateRequest"];
 type NotificationChannelUpdateRequest = components["schemas"]["NotificationChannelUpdateRequest"];
 type NotificationChannelTestResponse = components["schemas"]["NotificationChannelTestResponse"];
@@ -82,6 +83,7 @@ type RecipientStatus = NonNullable<EmailSendoutRecipient["status"]>;
 
 export type {
   Invitation,
+  OAuthLink,
   InvitationCreateRequest,
   IgnoredConnectionIP,
   IgnoredConnectionIPCreateRequest,
@@ -179,6 +181,7 @@ export const queryKeys = {
     ] as const,
   config: () => [...queryKeys.all, "config"] as const,
   oauthProviders: () => [...queryKeys.all, "oauth-providers"] as const,
+  userOAuthLinks: (userId: string) => [...queryKeys.all, "users", userId, "oauth-links"] as const,
   dashboardBase: () => [...queryKeys.all, "dashboard"] as const,
   dashboardNodes: () => [...queryKeys.dashboardBase(), "nodes"] as const,
   dashboardNodeTraffic: (range: TrafficRangeQuery | null) =>
@@ -286,6 +289,29 @@ export function oauthProvidersQueryOptions() {
     queryFn: fetchOAuthProviders,
     enabled: canQueryPanelApi(),
     staleTime: REFRESH_MS,
+  });
+}
+
+export function fetchUserOAuthLinks(userId: string): Promise<OAuthLink[]> {
+  return apiRequest<OAuthLink[]>(
+    apiClient.GET("/api/panel/users/{id}/oauth-links", { params: { path: { id: userId } } })
+  );
+}
+
+export function deleteUserOAuthLink(userId: string, linkId: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/users/{id}/oauth-links/{linkId}", {
+      params: { path: { id: userId, linkId } },
+    }),
+    m.error_social_login_unlink()
+  );
+}
+
+export function userOAuthLinksQueryOptions(userId: string) {
+  return queryOptions({
+    queryKey: queryKeys.userOAuthLinks(userId),
+    queryFn: () => fetchUserOAuthLinks(userId),
+    enabled: canQueryPanelApi(),
   });
 }
 

@@ -36,6 +36,7 @@ import { TrafficChart } from "~/components/traffic";
 import { SubscriptionSection } from "~/components/subscription-section";
 import { CurrentSpeedSection } from "~/components/current-speed";
 import { FiringAlertsSection } from "~/components/firing-alerts";
+import { UserSocialLoginsSection } from "~/components/social-logins";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
@@ -224,6 +225,10 @@ function AccountDetailPage() {
           {isAdmin && <LiveSection userId={userId} />}
 
           {isAdmin && user && <PasskeysSection userId={userId} isSelf={auth?.user.id === userId} />}
+
+          {isAdmin && user && (
+            <UserSocialLoginsSection userId={userId} isSelf={auth?.user.id === userId} />
+          )}
 
           {isAdmin && user && (
             <ManageSection userId={userId} user={user} isSelf={auth?.user.id === userId} />
