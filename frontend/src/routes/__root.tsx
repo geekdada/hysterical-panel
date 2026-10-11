@@ -26,12 +26,14 @@ import {
   type Auth,
 } from "~/api/auth";
 import { PanelQueryDevtools } from "~/api/query-provider";
+import { panelConfigQueryOptions } from "~/api/queries";
 import {
   ensureSessionFresh,
   getSessionRecoveryFailed,
   subscribeSessionRecovery,
 } from "~/api/session";
 import { readSsrTimeZone, syncTimezoneCookie } from "~/lib/timezone";
+import { resolveAppName } from "~/lib/use-app-name";
 
 import "~/styles/globals.css";
 
@@ -43,11 +45,18 @@ export interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: () => ({ auth: readAuthCookie(), timeZone: readSsrTimeZone() }),
-  head: () => ({
+  // Prefetch the config on every page so SSR renders the real app name.
+  loader: async ({ context }) => {
+    const config = await context.queryClient
+      .ensureQueryData(panelConfigQueryOptions())
+      .catch(() => undefined);
+    return { appName: config?.app_name };
+  },
+  head: ({ loaderData }) => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: m.app_title() },
+      { title: resolveAppName(loaderData?.appName) },
     ],
     links: [
       { rel: "icon", href: "/favicon.ico", sizes: "48x48" },

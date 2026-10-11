@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { confirmPasswordReset } from "~/api/auth";
-import { AuthShell } from "~/components/ui";
+import { AuthBrandMark, AuthShell } from "~/components/ui";
 import { localizeApiError } from "~/lib/api-error";
 import * as m from "~/paraglide/messages.js";
 
@@ -17,9 +17,7 @@ export const Route = createFileRoute("/reset-password")({
 function Header() {
   return (
     <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
-      <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-accent text-sm font-bold text-accent-foreground">
-        H
-      </span>
+      <AuthBrandMark />
       <Card.Title className="text-[15px] font-semibold tracking-tight text-foreground">
         {m.auth_reset_password()}
       </Card.Title>

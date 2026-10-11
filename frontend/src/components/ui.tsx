@@ -18,6 +18,7 @@ import {
   Tooltip,
 } from "@heroui/react";
 import { BreadcrumbTitleProvider, BreadcrumbBar } from "~/components/breadcrumbs";
+import { appNameInitial, useAppName } from "~/lib/use-app-name";
 import { cn } from "~/lib/cn";
 import { defaultDashboardSearch } from "~/lib/dashboard-search";
 import * as m from "~/paraglide/messages.js";
@@ -59,12 +60,13 @@ export function PageShell({
 
 // The "H" badge + wordmark shown on the left of top-level pages.
 export function Brand() {
+  const appName = useAppName();
   return (
     <div className="flex items-center gap-2">
       <span className="grid size-5 place-items-center rounded-[5px] bg-accent text-[11px] font-bold text-accent-foreground">
-        H
+        {appNameInitial(appName)}
       </span>
-      <span className="text-[13px] font-semibold tracking-tight">{m.app_title()}</span>
+      <span className="text-[13px] font-semibold tracking-tight">{appName}</span>
     </div>
   );
 }
@@ -80,6 +82,16 @@ export function BrandLink() {
     >
       <Brand />
     </Link>
+  );
+}
+
+// The larger badge that heads each auth card.
+export function AuthBrandMark() {
+  const appName = useAppName();
+  return (
+    <span className="mb-2 grid size-7 place-items-center rounded-[7px] bg-accent text-sm font-bold text-accent-foreground">
+      {appNameInitial(appName)}
+    </span>
   );
 }
 
