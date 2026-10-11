@@ -118,23 +118,6 @@ export function refreshAuthTokenSingleFlight(): Promise<Auth | null> {
   return refreshFlight;
 }
 
-export async function recoverSession(): Promise<Auth | null> {
-  try {
-    const { loginWithPasskey } = await import("./auth");
-    await loginWithPasskey(true);
-    sessionRecoveryFailed = false;
-    notifyRecoveryListeners();
-    return parseAuthFromRaw(readAuthCookieValueClient());
-  } catch (error) {
-    const { isPasskeySoftError } = await import("./auth");
-    if (!isPasskeySoftError(error)) {
-      sessionRecoveryFailed = true;
-      notifyRecoveryListeners();
-    }
-    return null;
-  }
-}
-
 export async function ensureSessionFresh(options?: { force?: boolean }): Promise<Auth | null> {
   const auth = parseAuthFromRaw(readAuthCookieValueClient());
   if (!auth?.token || !isTokenUsable(auth.token)) return null;
@@ -145,10 +128,8 @@ export async function ensureSessionFresh(options?: { force?: boolean }): Promise
 export async function handleUnauthorized(): Promise<string | null> {
   sessionRecovering = true;
   try {
-    let auth = await refreshAuthTokenSingleFlight();
-    if (!auth) {
-      auth = await recoverSession();
-    }
+    // Passkey recovery waits for the user to press the session banner button.
+    const auth = await refreshAuthTokenSingleFlight();
     if (auth?.token) {
       sessionRecoveryFailed = false;
       notifyRecoveryListeners();

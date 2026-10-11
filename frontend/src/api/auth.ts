@@ -306,17 +306,13 @@ export async function completeOAuthLogin(code: string, state: string): Promise<A
   return storeAuthResponse(auth);
 }
 
-export async function loginWithPasskey(useBrowserAutofill = false): Promise<AuthUser> {
+export async function loginWithPasskey(): Promise<AuthUser> {
   const { startAuthentication } = await import("@simplewebauthn/browser");
   const challenge = await apiFetch<PasskeyOptionsResponse<PublicKeyCredentialRequestOptionsJSON>>(
     "/api/panel/passkeys/login/options",
     { method: "POST" }
   );
-  const credential = await startAuthentication({
-    optionsJSON: challenge.options,
-    useBrowserAutofill,
-    verifyBrowserAutofillInput: useBrowserAutofill,
-  });
+  const credential = await startAuthentication({ optionsJSON: challenge.options });
   const auth = await apiFetch<AuthResponse>("/api/panel/passkeys/login/finish", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

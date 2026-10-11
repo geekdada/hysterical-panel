@@ -214,7 +214,7 @@ function SessionRecoveryBanner() {
     setRecovering(true);
     setRecoveryError("");
     try {
-      await loginWithPasskey(true);
+      await loginWithPasskey();
       setFailed(false);
       await router.invalidate();
       await queryClient.invalidateQueries();

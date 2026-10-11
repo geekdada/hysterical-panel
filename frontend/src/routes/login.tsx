@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
@@ -34,7 +34,7 @@ function LoginPage() {
     },
   });
   const passkeyMutation = useMutation({
-    mutationFn: () => loginWithPasskey(false),
+    mutationFn: () => loginWithPasskey(),
     onSuccess: () => {
       window.location.href = "/";
     },
@@ -56,33 +56,6 @@ function LoginPage() {
     passkeyMutation.reset();
     oauthMutation.reset();
   }
-
-  useEffect(() => {
-    if (!passkeysEnabled) return;
-    let cancelled = false;
-
-    async function run() {
-      if (typeof window === "undefined") return;
-      try {
-        const { browserSupportsWebAuthnAutofill } = await import("@simplewebauthn/browser");
-        if (!(await browserSupportsWebAuthnAutofill())) return;
-        await loginWithPasskey(true);
-        if (!cancelled) {
-          window.location.href = "/";
-        }
-      } catch {
-        // Password login remains available; avoid surfacing background failures.
-      }
-    }
-
-    void run();
-    return () => {
-      cancelled = true;
-      void import("@simplewebauthn/browser").then(({ WebAuthnAbortService }) => {
-        WebAuthnAbortService.cancelCeremony();
-      });
-    };
-  }, [passkeysEnabled]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -121,7 +94,7 @@ function LoginPage() {
             <Label>{m.auth_email()}</Label>
             <Input
               type="email"
-              autoComplete="username webauthn"
+              autoComplete="username"
               required
               value={email}
               onChange={(e) => {
