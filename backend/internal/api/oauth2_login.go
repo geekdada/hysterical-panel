@@ -14,10 +14,17 @@ const oauth2CallbackPath = "/oauth-callback"
 // bindOAuth2LoginOnly limits OAuth2 to existing users. New users go through
 // the panel registration policy, which OAuth2 sign-up would bypass. PocketBase
 // matches an existing user by a linked OAuth2 identity or by email.
+//
+// A request carrying a user token links the identity to that user. PocketBase
+// would sign in as the identity's owner instead when another user already
+// holds it, so a link attempt must never switch accounts.
 func (h *Handlers) bindOAuth2LoginOnly() {
 	h.app.OnRecordAuthWithOAuth2Request("users").BindFunc(func(e *core.RecordAuthWithOAuth2RequestEvent) error {
 		if e.IsNewRecord || e.Record == nil {
 			return apis.NewForbiddenError("no account matches this sign-in", nil)
+		}
+		if linking := e.Auth; linking != nil && linking.Collection().Id == e.Collection.Id && linking.Id != e.Record.Id {
+			return apis.NewApiError(http.StatusConflict, "this social account is linked to another user", nil)
 		}
 		return e.Next()
 	})

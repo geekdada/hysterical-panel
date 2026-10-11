@@ -54,6 +54,46 @@ func TestOAuth2LoginRejectsNewUsers(t *testing.T) {
 	}
 }
 
+func TestOAuth2LinkRejectsIdentityOwnedByAnotherUser(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := &Handlers{app: app}
+	h.bindOAuth2LoginOnly()
+	users, err := app.FindCollectionByNameOrId("users")
+	if err != nil {
+		t.Fatalf("find users collection: %v", err)
+	}
+	signedIn := newUsersTestRecord(t, app, "linker@example.com", "LinkerSecret1234")
+	owner := newUsersTestRecord(t, app, "owner@example.com", "OwnerSecret1234")
+
+	trigger := func(record *core.Record) (bool, error) {
+		submitted := false
+		event := &core.RecordAuthWithOAuth2RequestEvent{
+			RequestEvent: &core.RequestEvent{App: app, Auth: signedIn},
+			Record:       record,
+		}
+		event.Collection = users
+		err := app.OnRecordAuthWithOAuth2Request().Trigger(event, func(*core.RecordAuthWithOAuth2RequestEvent) error {
+			submitted = true
+			return nil
+		})
+		return submitted, err
+	}
+
+	submitted, err := trigger(owner)
+	var apiErr *router.ApiError
+	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusConflict {
+		t.Fatalf("link to another user's identity err = %v, want 409", err)
+	}
+	if submitted {
+		t.Fatal("link to another user's identity reached the record submit step")
+	}
+
+	submitted, err = trigger(signedIn)
+	if err != nil || !submitted {
+		t.Fatalf("link to signed-in user err = %v submitted = %v", err, submitted)
+	}
+}
+
 func TestOAuth2RedirectForwardsProviderResultToFrontend(t *testing.T) {
 	cases := []struct {
 		name        string
