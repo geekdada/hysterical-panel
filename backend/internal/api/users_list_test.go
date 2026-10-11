@@ -80,7 +80,7 @@ func TestBuildUserListFilter(t *testing.T) {
 	}
 
 	filter, params = buildUserListFilter("  alice  ", "user123")
-	wantFilter := "(email ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:search} || id = {:auth_user})"
+	wantFilter := "(email ~ {:like} || remark ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:search} || id = {:auth_user})"
 	if filter != wantFilter {
 		t.Fatalf("filter = %q, want %q", filter, wantFilter)
 	}
@@ -91,12 +91,31 @@ func TestBuildUserListFilter(t *testing.T) {
 
 func TestBuildUserListFilterExactID(t *testing.T) {
 	filter, params := buildUserListFilter("abc123xyz", "")
-	wantFilter := "(email ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:search} || id = {:auth_user})"
+	wantFilter := "(email ~ {:like} || remark ~ {:like} || role ~ {:like} || status ~ {:like} || id = {:search} || id = {:auth_user})"
 	if filter != wantFilter {
 		t.Fatalf("filter = %q, want %q", filter, wantFilter)
 	}
 	if params["search"] != "abc123xyz" || params["auth_user"] != "" {
 		t.Fatalf("params = %#v, want search=abc123xyz auth_user=''", params)
+	}
+}
+
+func TestBuildUserListFilterMatchesRemarkSubstring(t *testing.T) {
+	app := newMigratedTestApp(t)
+	tagged := newUsersTestRecord(t, app, "tagged@example.com", "TaggedKey")
+	newUsersTestRecord(t, app, "other@example.com", "OtherKey")
+	tagged.Set("remark", "Paid via Alipay in March")
+	if err := app.Save(tagged); err != nil {
+		t.Fatal(err)
+	}
+
+	filter, params := buildUserListFilter("alipay", "")
+	users, err := app.FindRecordsByFilter("users", filter, "created", 0, 0, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(users) != 1 || users[0].Id != tagged.Id {
+		t.Fatalf("users = %v, want only %s", users, tagged.Id)
 	}
 }
 
