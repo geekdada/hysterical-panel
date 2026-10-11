@@ -2,8 +2,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { Button, Card, Input, Label, TextField } from "@heroui/react";
-import { login, loginWithPasskey } from "~/api/auth";
-import { panelConfigQueryOptions } from "~/api/queries";
+import { login, loginWithPasskey, startOAuthLogin } from "~/api/auth";
+import { oauthProvidersQueryOptions, panelConfigQueryOptions } from "~/api/queries";
 import { AuthShell } from "~/components/ui";
 import { localizeApiError } from "~/lib/api-error";
 import { defaultDashboardSearch } from "~/lib/dashboard-search";
@@ -37,9 +37,23 @@ function LoginPage() {
       window.location.href = "/";
     },
   });
+  const oauthMutation = useMutation({
+    mutationFn: (providerName: string) => startOAuthLogin(providerName),
+  });
   const configQuery = useQuery(panelConfigQueryOptions());
+  const oauthProvidersQuery = useQuery(oauthProvidersQueryOptions());
   const canRegister = configQuery.data?.registration_open ?? false;
   const passkeysEnabled = configQuery.data?.passkeys_enabled ?? false;
+  const oauthProviders = oauthProvidersQuery.data ?? [];
+  const hasAlternativeLogins = passkeysEnabled || oauthProviders.length > 0;
+  const anyLoginPending =
+    loginMutation.isPending || passkeyMutation.isPending || oauthMutation.isPending;
+
+  function resetLoginErrors() {
+    loginMutation.reset();
+    passkeyMutation.reset();
+    oauthMutation.reset();
+  }
 
   useEffect(() => {
     if (!passkeysEnabled) return;
@@ -82,7 +96,11 @@ function LoginPage() {
           ? localizeApiError(passkeyMutation.error.message)
           : passkeyMutation.error
             ? m.auth_passkey_login_failed()
-            : "";
+            : oauthMutation.error instanceof Error
+              ? localizeApiError(oauthMutation.error.message)
+              : oauthMutation.error
+                ? m.auth_oauth_login_failed()
+                : "";
 
   return (
     <AuthShell>
@@ -141,33 +159,48 @@ function LoginPage() {
             type="submit"
             variant="primary"
             fullWidth
-            isDisabled={loginMutation.isPending}
+            isDisabled={anyLoginPending}
             className="mt-1"
           >
             {loginMutation.isPending ? m.auth_signing_in() : m.auth_sign_in()}
           </Button>
-          {passkeysEnabled && (
-            <>
-              <div className="relative my-1 flex items-center justify-center">
-                <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-separator" />
-                <span className="relative bg-surface px-2 text-[12px] text-muted">
-                  {m.auth_or()}
-                </span>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                fullWidth
-                isDisabled={passkeyMutation.isPending || loginMutation.isPending}
-                onPress={() => {
-                  loginMutation.reset();
-                  passkeyMutation.mutate();
-                }}
-              >
-                {passkeyMutation.isPending ? m.auth_checking_passkeys() : m.auth_sign_in_passkey()}
-              </Button>
-            </>
+          {hasAlternativeLogins && (
+            <div className="relative my-1 flex items-center justify-center">
+              <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-separator" />
+              <span className="relative bg-surface px-2 text-[12px] text-muted">{m.auth_or()}</span>
+            </div>
           )}
+          {passkeysEnabled && (
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth
+              isDisabled={anyLoginPending}
+              onPress={() => {
+                resetLoginErrors();
+                passkeyMutation.mutate();
+              }}
+            >
+              {passkeyMutation.isPending ? m.auth_checking_passkeys() : m.auth_sign_in_passkey()}
+            </Button>
+          )}
+          {oauthProviders.map((provider) => (
+            <Button
+              key={provider.name}
+              type="button"
+              variant="secondary"
+              fullWidth
+              isDisabled={anyLoginPending}
+              onPress={() => {
+                resetLoginErrors();
+                oauthMutation.mutate(provider.name);
+              }}
+            >
+              {oauthMutation.isPending && oauthMutation.variables === provider.name
+                ? m.auth_redirecting()
+                : m.auth_sign_in_oauth({ provider: provider.displayName })}
+            </Button>
+          ))}
           {canRegister && (
             <Link
               to="/register"

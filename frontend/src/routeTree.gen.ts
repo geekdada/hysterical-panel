@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as OauthCallbackRouteImport } from './routes/oauth-callback'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -48,6 +49,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthCallbackRoute = OauthCallbackRouteImport.update({
+  id: '/oauth-callback',
+  path: '/oauth-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
+  '/oauth-callback': typeof OauthCallbackRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify': typeof VerifyRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
+  '/oauth-callback': typeof OauthCallbackRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify': typeof VerifyRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
+  '/oauth-callback': typeof OauthCallbackRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify': typeof VerifyRoute
@@ -251,6 +260,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/invitations'
     | '/login'
+    | '/oauth-callback'
     | '/register'
     | '/reset-password'
     | '/verify'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/invitations'
     | '/login'
+    | '/oauth-callback'
     | '/register'
     | '/reset-password'
     | '/verify'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/invitations'
     | '/login'
+    | '/oauth-callback'
     | '/register'
     | '/reset-password'
     | '/verify'
@@ -330,6 +342,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
+  OauthCallbackRoute: typeof OauthCallbackRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyRoute: typeof VerifyRoute
@@ -356,6 +369,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth-callback': {
+      id: '/oauth-callback'
+      path: '/oauth-callback'
+      fullPath: '/oauth-callback'
+      preLoaderRoute: typeof OauthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -591,6 +611,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
+  OauthCallbackRoute: OauthCallbackRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyRoute: VerifyRoute,

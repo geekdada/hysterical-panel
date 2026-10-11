@@ -216,7 +216,6 @@ function DashboardPage() {
   }, [nodeTrafficSummary]);
   const enabledNodes = nodes.filter((n) => n.enabled);
   const healthyNodes = enabledNodes.filter((n) => n.health === "ok");
-  const disabledUserCount = (userStats?.total ?? 0) - (userStats?.active ?? 0);
   const hasCriticalAlerts = (alertSummaryQuery.data?.critical ?? 0) > 0;
   const totalTx = panelTraffic?.total?.tx ?? 0;
   const totalRx = panelTraffic?.total?.rx ?? 0;
@@ -283,11 +282,7 @@ function DashboardPage() {
           href="/users"
           linkSearch={defaultUsersListSearch()}
         >
-          {usersError ? (
-            <span className="text-danger">{m.common_unavailable()}</span>
-          ) : disabledUserCount > 0 ? (
-            m.common_disabled_count({ count: String(disabledUserCount) })
-          ) : null}
+          {usersError ? <span className="text-danger">{m.common_unavailable()}</span> : null}
         </Stat>
         <Stat
           label={m.nav_traffic()}

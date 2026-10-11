@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import { fetchOAuthProviders } from "./auth";
 import { apiClient } from "./client";
 import { fetchPanelConfig } from "./panel-config";
 import {
@@ -177,6 +178,7 @@ export const queryKeys = {
       range?.to ?? "",
     ] as const,
   config: () => [...queryKeys.all, "config"] as const,
+  oauthProviders: () => [...queryKeys.all, "oauth-providers"] as const,
   dashboardBase: () => [...queryKeys.all, "dashboard"] as const,
   dashboardNodes: () => [...queryKeys.dashboardBase(), "nodes"] as const,
   dashboardNodeTraffic: (range: TrafficRangeQuery | null) =>
@@ -273,6 +275,15 @@ export function panelConfigQueryOptions() {
   return queryOptions({
     queryKey: queryKeys.config(),
     queryFn: fetchPanelConfigQuery,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function oauthProvidersQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.oauthProviders(),
+    queryFn: fetchOAuthProviders,
     enabled: canQueryPanelApi(),
     staleTime: REFRESH_MS,
   });

@@ -49,7 +49,33 @@ interface PasskeyOptionsResponse<T> {
   options: T;
 }
 
+export interface OAuthProvider {
+  name: string;
+  displayName: string;
+}
+
+interface OAuthProviderChallenge extends OAuthProvider {
+  state: string;
+  authURL: string;
+  codeVerifier: string;
+}
+
+interface AuthMethodsResponse {
+  oauth2?: { enabled?: boolean; providers?: OAuthProviderChallenge[] };
+}
+
+interface PendingOAuthLogin {
+  provider: string;
+  state: string;
+  codeVerifier: string;
+  redirectURL: string;
+}
+
 const FRESH_PASSWORD_LOGIN_KEY = "hp:fresh-password-login";
+const PENDING_OAUTH_LOGIN_KEY = "hp:pending-oauth-login";
+// The backend receives the provider redirect, including Apple's form_post,
+// and forwards code and state to the frontend /oauth-callback route.
+const OAUTH_REDIRECT_PATH = "/api/panel/oauth2-redirect";
 const sessionFetch = wrapFetchWithSession(fetch);
 
 function parseAuth(raw: string | null | undefined): Auth | null {
@@ -215,6 +241,69 @@ export async function confirmPasswordReset(
 
 export function clearAuth(): void {
   clearAuthCookies();
+}
+
+async function fetchOAuthChallenges(): Promise<OAuthProviderChallenge[]> {
+  const methods = await apiFetch<AuthMethodsResponse>("/api/collections/users/auth-methods");
+  if (!methods.oauth2?.enabled) return [];
+  return methods.oauth2.providers ?? [];
+}
+
+/** Lists the OAuth2 providers enabled on the PocketBase users collection. */
+export async function fetchOAuthProviders(): Promise<OAuthProvider[]> {
+  const challenges = await fetchOAuthChallenges();
+  return challenges.map(({ name, displayName }) => ({ name, displayName }));
+}
+
+/**
+ * Redirects the browser to the provider's consent page. A fresh state and PKCE
+ * verifier are fetched per attempt and kept in sessionStorage until the
+ * provider redirects back to the callback route.
+ */
+export async function startOAuthLogin(providerName: string): Promise<void> {
+  const challenges = await fetchOAuthChallenges();
+  const provider = challenges.find((candidate) => candidate.name === providerName);
+  if (!provider) throw new Error(m.auth_oauth_provider_unavailable());
+
+  const redirectURL = `${await resolveAuthBase()}${OAUTH_REDIRECT_PATH}`;
+  const pending: PendingOAuthLogin = {
+    provider: provider.name,
+    state: provider.state,
+    codeVerifier: provider.codeVerifier,
+    redirectURL,
+  };
+  sessionStorage.setItem(PENDING_OAUTH_LOGIN_KEY, JSON.stringify(pending));
+  window.location.assign(provider.authURL + encodeURIComponent(redirectURL));
+}
+
+function takePendingOAuthLogin(): PendingOAuthLogin | null {
+  const raw = sessionStorage.getItem(PENDING_OAUTH_LOGIN_KEY);
+  sessionStorage.removeItem(PENDING_OAUTH_LOGIN_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as PendingOAuthLogin;
+  } catch {
+    return null;
+  }
+}
+
+/** Exchanges the provider's authorization code for a panel session. */
+export async function completeOAuthLogin(code: string, state: string): Promise<AuthUser> {
+  const pending = takePendingOAuthLogin();
+  if (!pending || pending.state !== state) {
+    throw new Error(m.auth_oauth_state_mismatch());
+  }
+  const auth = await apiFetch<AuthResponse>("/api/collections/users/auth-with-oauth2", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      provider: pending.provider,
+      code,
+      codeVerifier: pending.codeVerifier,
+      redirectURL: pending.redirectURL,
+    }),
+  });
+  return storeAuthResponse(auth);
 }
 
 export async function loginWithPasskey(useBrowserAutofill = false): Promise<AuthUser> {
