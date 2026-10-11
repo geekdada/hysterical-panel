@@ -127,7 +127,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..30）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..31）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -142,7 +142,7 @@ hysterical-panel/
 │       ├── sendouts/           Email Sendout 队列（创建/取消/重发/计数）+ 单 worker 限速投递
 │       └── api/                /api/panel 路由（+ /api/mgmt、公开回调）
 │           ├── api.go          路由注册 + 4 个鉴权守卫（含 verified / active 门禁）+ 脱敏辅助 + nodesForUser
-│           ├── config.go       公开 GET /api/panel/config（静态字段 + 实时注册开关 + passkeys 标志）
+│           ├── config.go       公开 GET /api/panel/config（静态字段 + 实时 app 名称与注册开关 + passkeys 标志）
 │           ├── nodes.go        节点 CRUD + 连通性测试 + 软删除（deleted_at）+ reset-api-secret
 │           ├── users.go        用户 CRUD + reset-auth-string
 │           ├── users_list.go   分页 / 排序 / 筛选的用户列表 + /users/stats
@@ -282,7 +282,7 @@ hysterical-panel/
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts`、`GET /users/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段（含 kind、阈值）会静默 cancel 旧 Alert 并立即重评估。User Monitor 请求传 `evaluation_window_seconds` / `node_scope` / 非空 `node_ids` 返回 400。
 - Email Sendout 接口 `GET /email-sendouts/context`、`GET /email-sendouts/eligible-recipients`、`GET|POST /email-sendouts`、`GET /email-sendouts/{id}`、`GET /email-sendouts/{id}/recipients`、`POST /email-sendouts/{id}/cancel|resend` 均仅 admin、进 OpenAPI。创建与重发在 SMTP 未启用时 503；worker 语义见 backend/README.md 与 ADR-0008。
-- `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口。
+- `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口；`app_name` 实时取 PocketBase `Settings → Application Name`，前端品牌名、徽标首字母与 `<title>` 都用它（`src/lib/use-app-name.ts`，取不到时回退 `m.app_title()`）。迁移 `1730000031` 把 PocketBase 默认的 `Acme` 改为 `Hysterical Panel`，已自定义的名称不动。
 - `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时 streams 诊断核心：并发拉可见节点的 `/dump/streams`（5s 超时），把稳定 `user.id` 与全部历史 Auth String 统一归属后，聚合出 `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按客户端连接分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** 在线设备数来自 Collector 的最新 `/online` 投影，不属于 live 响应。Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
 
 ### OpenAPI
