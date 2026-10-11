@@ -24,13 +24,18 @@ import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 // Loads a User's OAuth2 links and owns the unlink flow. The section stays
-// visible while any link exists, even after its provider is disabled, so the
-// link can still be removed.
+// hidden until PocketBase reports an enabled provider. A link to a disabled
+// provider cannot sign in, so hiding it loses no access.
 function useOAuthLinks(userId: string) {
   const queryClient = useQueryClient();
   const [pendingLink, setPendingLink] = useState<OAuthLink | null>(null);
   const providersQuery = useQuery(oauthProvidersQueryOptions());
-  const linksQuery = useQuery(userOAuthLinksQueryOptions(userId));
+  const hasProviders = (providersQuery.data ?? []).length > 0;
+  const linksOptions = userOAuthLinksQueryOptions(userId);
+  const linksQuery = useQuery({
+    ...linksOptions,
+    enabled: linksOptions.enabled !== false && hasProviders,
+  });
   const unlinkMutation = useMutation({
     mutationFn: (linkId: string) => deleteUserOAuthLink(userId, linkId),
     onSuccess: () => {
@@ -48,8 +53,8 @@ function useOAuthLinks(userId: string) {
   return {
     links,
     linkableProviders: providers.filter((p) => !linkedProviders.has(p.name)),
-    loading: providersQuery.isPending || linksQuery.isPending,
-    hidden: providers.length === 0 && links.length === 0 && !linksQuery.error,
+    loading: linksQuery.isPending,
+    hidden: !hasProviders,
     listError: linksQuery.error ? queryErrorMessage(linksQuery.error) : "",
     providerLabel: (link: OAuthLink) => displayNames.get(link.provider) ?? link.provider,
     unlinkingId: unlinkMutation.isPending ? unlinkMutation.variables : undefined,
@@ -76,8 +81,8 @@ export function SocialLoginsSection({ userId }: { userId: string }) {
   const state = useOAuthLinks(userId);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
 
-  if (state.loading) return <SocialLoginsSkeleton />;
   if (state.hidden) return null;
+  if (state.loading) return <SocialLoginsSkeleton />;
 
   return (
     <>
@@ -118,7 +123,7 @@ export function SocialLoginsSection({ userId }: { userId: string }) {
 /** User detail page section, where admins manage another user's links. */
 export function UserSocialLoginsSection({ userId, isSelf }: { userId: string; isSelf: boolean }) {
   const state = useOAuthLinks(userId);
-  if (state.hidden && !state.loading) return null;
+  if (state.hidden) return null;
 
   return (
     <Section
