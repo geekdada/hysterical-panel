@@ -102,6 +102,7 @@ func revokeFamily(app core.App, family string, now time.Time) error {
 const (
 	RevokeReasonUserDisabled   = "user_disabled"
 	RevokeReasonUserUnverified = "user_unverified"
+	RevokeReasonUserRevoked    = "user_revoked"
 )
 
 // RevokeUserGrants ends every remembered consent of a User. Their tokens
@@ -112,4 +113,63 @@ func RevokeUserGrants(app core.App, userID, reason string, now time.Time) error 
 		dbx.NewExp("[[user]] = {:user} AND [[revoked_at]] = ''", dbx.Params{"user": userID}),
 	).Execute()
 	return err
+}
+
+// ErrGrantNotFound reports a grant that does not exist, is already revoked
+// or belongs to another User.
+var ErrGrantNotFound = errors.New("connected app grant not found")
+
+// ActiveGrant is a remembered consent as the panel lists it. LastUsedAt is
+// zero until the app first receives tokens.
+type ActiveGrant struct {
+	ID         string
+	ClientName string
+	Scopes     []string
+	Created    time.Time
+	LastUsedAt time.Time
+}
+
+// ListActiveGrants returns a User's unrevoked grants, newest first.
+func ListActiveGrants(app core.App, userID string) ([]ActiveGrant, error) {
+	grants, err := app.FindRecordsByFilter(GrantsCollection, "user = {:user} && revoked_at = ''", "-created", 0, 0,
+		dbx.Params{"user": userID})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ActiveGrant, 0, len(grants))
+	for _, grant := range grants {
+		client, err := app.FindRecordById(ClientsCollection, grant.GetString("client"))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ActiveGrant{
+			ID:         grant.Id,
+			ClientName: client.GetString("name"),
+			Scopes:     grantScopes(grant),
+			Created:    grant.GetDateTime("created").Time(),
+			LastUsedAt: grant.GetDateTime("last_used_at").Time(),
+		})
+	}
+	return out, nil
+}
+
+// RevokeGrant ends one of a User's grants. Every token issued under it stops
+// working at once, because each token lookup checks the grant.
+func RevokeGrant(app core.App, userID, grantID string, now time.Time) error {
+	result, err := app.NonconcurrentDB().Update(GrantsCollection,
+		dbx.Params{"revoked_at": dbTime(now), "revoke_reason": RevokeReasonUserRevoked},
+		dbx.NewExp("[[id]] = {:id} AND [[user]] = {:user} AND [[revoked_at]] = ''",
+			dbx.Params{"id": grantID, "user": userID}),
+	).Execute()
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrGrantNotFound
+	}
+	return nil
 }

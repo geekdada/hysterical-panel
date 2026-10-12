@@ -11,13 +11,15 @@ func TestOpenAPIDescribesConnectedApps(t *testing.T) {
 		t.Fatalf("build spec: %v", err)
 	}
 	for path, methods := range map[string][]string{
-		"/api/panel/oidc-clients":                    {"GET", "POST"},
-		"/api/panel/oidc-clients/{id}":               {"PATCH", "DELETE"},
-		"/api/panel/oidc-clients/{id}/rotate-secret": {"POST"},
-		"/api/panel/oidc/requests/{handle}":          {"GET"},
-		"/api/panel/oidc/requests/{handle}/approve":  {"POST"},
-		"/api/panel/oidc/requests/{handle}/deny":     {"POST"},
-		"/api/panel/oidc/requests/{handle}/abort":    {"POST"},
+		"/api/panel/oidc-clients":                     {"GET", "POST"},
+		"/api/panel/oidc-clients/{id}":                {"PATCH", "DELETE"},
+		"/api/panel/oidc-clients/{id}/rotate-secret":  {"POST"},
+		"/api/panel/oidc/requests/{handle}":           {"GET"},
+		"/api/panel/oidc/requests/{handle}/approve":   {"POST"},
+		"/api/panel/oidc/requests/{handle}/deny":      {"POST"},
+		"/api/panel/oidc/requests/{handle}/abort":     {"POST"},
+		"/api/panel/users/{id}/oidc-grants":           {"GET"},
+		"/api/panel/users/{id}/oidc-grants/{grantId}": {"DELETE"},
 	} {
 		item := spec.Paths.Find(path)
 		if item == nil {

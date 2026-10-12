@@ -34,6 +34,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"OIDCClientUpdateRequest":           OIDCClientUpdateRequest{},
 		"OIDCClientSecretResponse":          OIDCClientSecretResponse{},
 		"OIDCAuthorizationRequest":          OIDCAuthorizationRequest{},
+		"OIDCGrant":                         OIDCGrant{},
 		"OIDCAuthorizationDecision":         OIDCAuthorizationDecision{},
 		"Monitor":                           Monitor{},
 		"OfflineMonitorConfig":              OfflineMonitorConfig{},
@@ -161,6 +162,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"OIDCClient":                     {"id", "client_id", "name", "redirect_uris", "allowed_scopes", "refresh_enabled", "skip_consent", "enabled", "created", "updated"},
 		"OIDCClientCreateRequest":        {"name", "redirect_uris"},
 		"OIDCClientSecretResponse":       {"client", "client_secret"},
+		"OIDCGrant":                      {"id", "client_name", "scopes", "created"},
 		"OIDCAuthorizationRequest":       {"client_name", "redirect_origin", "scopes", "consent_required", "reauthentication_required", "prompt_none", "expires_at"},
 		"OIDCAuthorizationDecision":      {"redirect_to"},
 	} {
@@ -1684,6 +1686,52 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	t.Paths.Set("/api/panel/oidc/requests/{handle}/abort", &openapi3.PathItem{
 		Parameters: openapi3.Parameters{handleParam},
 		Post:       decisionOp("abortOIDCAuthorizationRequest", "End a Connected App sign-in for a visitor who is not signed in", false),
+	})
+	grantIDParam := &openapi3.ParameterRef{
+		Value: &openapi3.Parameter{
+			Name:     "grantId",
+			In:       "path",
+			Required: true,
+			Schema:   &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
+		},
+	}
+	t.Paths.Set("/api/panel/users/{id}/oidc-grants", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listOIDCGrants",
+				Summary:     "List the Connected Apps a user has authorized (admin or self)",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Authorized apps, newest first"),
+						Content:     content(arrayRef("OIDCGrant")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+	t.Paths.Set("/api/panel/users/{id}/oidc-grants/{grantId}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID"), grantIDParam},
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "revokeOIDCGrant",
+				Summary:     "Revoke a Connected App's access to a user (admin or self)",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Revocation confirmed"),
+						Content:     content(ref("DeleteResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
 	})
 
 	// ── monitoring ────────────────────────────────────────────────────────

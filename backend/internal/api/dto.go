@@ -893,3 +893,13 @@ type OIDCAuthorizationRequest struct {
 type OIDCAuthorizationDecision struct {
 	RedirectTo string `json:"redirect_to"`
 }
+
+// OIDCGrant is a Connected App a User has authorized. last_used_at is absent
+// until the app first receives tokens.
+type OIDCGrant struct {
+	ID         string   `json:"id"`
+	ClientName string   `json:"client_name"`
+	Scopes     []string `json:"scopes"`
+	Created    string   `json:"created"`
+	LastUsedAt *string  `json:"last_used_at,omitempty"`
+}
