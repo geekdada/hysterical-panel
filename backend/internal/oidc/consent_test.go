@@ -173,10 +173,22 @@ func TestApproveRejectsUnusableUsersAppsAndExpiredRequests(t *testing.T) {
 	user := newTestUser(t, app, "blocked@example.com")
 	handle := newPendingHandle(t, app, client, nil, testNow)
 
-	disabledUser := user.Clone()
-	disabledUser.Set("status", "disabled")
-	if _, err := Approve(app, handle, disabledUser, signedInAt(testNow), testIssuer, testNow); !errors.Is(err, ErrUserNotAllowed) {
+	// The caller's copy of the User predates the disable, as the panel's
+	// session record does when the disable commits mid-request.
+	stored, err := app.FindRecordById("users", user.Id)
+	if err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	stored.Set("status", "disabled")
+	if err := app.Save(stored); err != nil {
+		t.Fatalf("disable user: %v", err)
+	}
+	if _, err := Approve(app, handle, user, signedInAt(testNow), testIssuer, testNow); !errors.Is(err, ErrUserNotAllowed) {
 		t.Fatalf("disabled user: %v", err)
+	}
+	stored.Set("status", "active")
+	if err := app.Save(stored); err != nil {
+		t.Fatalf("enable user: %v", err)
 	}
 	if _, err := Approve(app, handle, user, signedInAt(testNow), testIssuer, testNow.Add(AuthRequestTTL)); !errors.Is(err, ErrRequestNotFound) {
 		t.Fatalf("expired request: %v", err)

@@ -102,7 +102,17 @@ func Approve(app core.App, handle string, user *core.Record, s Session, issuer s
 		if err != nil {
 			return err
 		}
-		if !UserMayUse(p.Client, user) {
+		// The caller's record was loaded before the transaction. A disable
+		// committed since then has already revoked the grants, and approving
+		// would bring the remembered consent back.
+		current, err := tx.FindRecordById("users", user.Id)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrUserNotAllowed
+		}
+		if err != nil {
+			return err
+		}
+		if !UserMayUse(p.Client, current) {
 			return ErrUserNotAllowed
 		}
 		silent, err := p.silentFailure(tx, user.Id, s, now)
