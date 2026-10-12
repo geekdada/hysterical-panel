@@ -80,6 +80,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("startup: %v", err)
 	}
+	app.RootCmd.AddCommand(oidc.NewCommand(app, box))
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		panelserve.ApplyCORS(se)
