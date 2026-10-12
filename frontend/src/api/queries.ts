@@ -43,6 +43,9 @@ type OIDCClient = components["schemas"]["OIDCClient"];
 type OIDCClientCreateRequest = components["schemas"]["OIDCClientCreateRequest"];
 type OIDCClientUpdateRequest = components["schemas"]["OIDCClientUpdateRequest"];
 type OIDCClientSecretResponse = components["schemas"]["OIDCClientSecretResponse"];
+type OIDCAuthorizationRequest = components["schemas"]["OIDCAuthorizationRequest"];
+type OIDCAuthorizationDecision = components["schemas"]["OIDCAuthorizationDecision"];
+type OIDCGrant = components["schemas"]["OIDCGrant"];
 type PasskeyOptionsResponse = components["schemas"]["PasskeyOptionsResponse"];
 type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
 type NodeCurrentSpeed = components["schemas"]["NodeCurrentSpeedResponse"];
@@ -103,6 +106,9 @@ export type {
   OIDCClientCreateRequest,
   OIDCClientUpdateRequest,
   OIDCClientSecretResponse,
+  OIDCAuthorizationRequest,
+  OIDCAuthorizationDecision,
+  OIDCGrant,
   Monitor,
   MonitorCreateRequest,
   MonitorUpdateRequest,
@@ -212,6 +218,8 @@ export const queryKeys = {
   ignoredConnectionIPs: () => [...queryKeys.all, "ignored-connection-ips"] as const,
   notificationChannels: () => [...queryKeys.all, "notification-channels"] as const,
   oidcClients: () => [...queryKeys.all, "oidc-clients"] as const,
+  oidcRequest: (handle: string) => [...queryKeys.all, "oidc-requests", handle] as const,
+  userOIDCGrants: (userId: string) => [...queryKeys.all, "users", userId, "oidc-grants"] as const,
   emailSendouts: () => [...queryKeys.all, "email-sendouts"] as const,
   emailSendoutContext: () => [...queryKeys.emailSendouts(), "context"] as const,
   emailSendoutCandidates: (search: string) =>
@@ -985,6 +993,75 @@ export function rotateOIDCClientSecret(id: string): Promise<OIDCClientSecretResp
     apiClient.POST("/api/panel/oidc-clients/{id}/rotate-secret", { params: { path: { id } } }),
     m.error_oidc_client_rotate(),
     m.error_oidc_client_rotate_network()
+  );
+}
+
+export function fetchOIDCAuthorizationRequest(handle: string): Promise<OIDCAuthorizationRequest> {
+  return apiRequest<OIDCAuthorizationRequest>(
+    apiClient.GET("/api/panel/oidc/requests/{handle}", { params: { path: { handle } } }),
+    m.error_oidc_request_load()
+  );
+}
+
+export function oidcAuthorizationRequestQueryOptions(handle: string) {
+  return queryOptions({
+    queryKey: queryKeys.oidcRequest(handle),
+    queryFn: () => fetchOIDCAuthorizationRequest(handle),
+    enabled: canQueryPanelApi() && handle !== "",
+    // A request is single-use. A cached view from an earlier visit could
+    // offer a decision the backend no longer accepts.
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+export function approveOIDCAuthorizationRequest(
+  handle: string
+): Promise<OIDCAuthorizationDecision> {
+  return apiRequest<OIDCAuthorizationDecision>(
+    apiClient.POST("/api/panel/oidc/requests/{handle}/approve", { params: { path: { handle } } }),
+    m.error_oidc_request_decide()
+  );
+}
+
+export function denyOIDCAuthorizationRequest(handle: string): Promise<OIDCAuthorizationDecision> {
+  return apiRequest<OIDCAuthorizationDecision>(
+    apiClient.POST("/api/panel/oidc/requests/{handle}/deny", { params: { path: { handle } } }),
+    m.error_oidc_request_decide()
+  );
+}
+
+export function abortOIDCAuthorizationRequest(handle: string): Promise<OIDCAuthorizationDecision> {
+  return apiRequest<OIDCAuthorizationDecision>(
+    apiClient.POST("/api/panel/oidc/requests/{handle}/abort", { params: { path: { handle } } }),
+    m.error_oidc_request_decide()
+  );
+}
+
+export function fetchUserOIDCGrants(userId: string): Promise<OIDCGrant[]> {
+  return apiRequest<OIDCGrant[]>(
+    apiClient.GET("/api/panel/users/{id}/oidc-grants", { params: { path: { id: userId } } }),
+    m.error_oidc_grants_load()
+  );
+}
+
+export function userOIDCGrantsQueryOptions(userId: string) {
+  return queryOptions({
+    queryKey: queryKeys.userOIDCGrants(userId),
+    queryFn: () => fetchUserOIDCGrants(userId),
+    enabled: canQueryPanelApi(),
+  });
+}
+
+export function revokeUserOIDCGrant(
+  userId: string,
+  grantId: string
+): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/users/{id}/oidc-grants/{grantId}", {
+      params: { path: { id: userId, grantId } },
+    }),
+    m.error_oidc_grant_revoke()
   );
 }
 
