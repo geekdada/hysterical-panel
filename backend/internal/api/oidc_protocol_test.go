@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pocketbase/pocketbase/apis"
@@ -141,23 +140,6 @@ func TestOIDCOutOfBandEnablePinsIssuerAndCreatesKey(t *testing.T) {
 	}
 	if pinned := env.h.loadSettings().OIDCIssuer; pinned != oidcTestIssuer {
 		t.Fatalf("pinned issuer = %q", pinned)
-	}
-}
-
-func TestRateLimiterBlockedPeeksWithoutCounting(t *testing.T) {
-	limiter := newPasskeyRateLimiter(2, time.Minute)
-	now := time.Now()
-	for hits := 0; hits < 2; hits++ {
-		if limiter.blocked("192.0.2.1", now) {
-			t.Fatalf("blocked after %d hits", hits)
-		}
-		limiter.allow("192.0.2.1", now)
-	}
-	if !limiter.blocked("192.0.2.1", now) {
-		t.Fatal("not blocked at the limit")
-	}
-	if limiter.blocked("192.0.2.1", now.Add(2*time.Minute)) {
-		t.Fatal("still blocked after the window")
 	}
 }
 
@@ -382,16 +364,22 @@ func TestOIDCTokenEndpointRejectsBadRequests(t *testing.T) {
 	}
 }
 
-func TestOIDCTokenEndpointLocksOutRepeatedClientFailures(t *testing.T) {
+func TestOIDCTokenEndpointLimitsFailuresButNotTheRightSecret(t *testing.T) {
 	env := newOIDCTestEnv(t, nil)
 	for range oidcClientFailureMax {
 		if res := env.postClientForm("/api/oidc/token", codeForm("unused"), "wrong-secret"); res.Code != http.StatusUnauthorized {
 			t.Fatalf("failure = %d %s", res.Code, res.Body.String())
 		}
 	}
-	res := env.postToken(codeForm(env.approveCode(nil)))
-	if body := decodeBody[oauthErrorResponse](t, res); res.Code != http.StatusTooManyRequests || body.Error != "temporarily_unavailable" {
-		t.Fatalf("after the lockout = %d %s", res.Code, res.Body.String())
+	res := env.postClientForm("/api/oidc/token", codeForm("unused"), "wrong-secret")
+	if body := decodeBody[oauthErrorResponse](t, res); res.Code != http.StatusTooManyRequests || body.Error != "temporarily_unavailable" ||
+		res.Header().Get("Retry-After") == "" {
+		t.Fatalf("failure past the budget = %d %v %s", res.Code, res.Header(), res.Body.String())
+	}
+	// Behind an untrusted proxy every caller shares one address, so failures
+	// from anyone must not lock out an app that knows its secret.
+	if res := env.postToken(codeForm(env.approveCode(nil))); res.Code != http.StatusOK {
+		t.Fatalf("right secret after failures = %d %s", res.Code, res.Body.String())
 	}
 }
 

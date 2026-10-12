@@ -103,20 +103,6 @@ func (l *passkeyRateLimiter) allow(key string, now time.Time) bool {
 	return true
 }
 
-// blocked reports whether key has used up its window, without counting a hit.
-func (l *passkeyRateLimiter) blocked(key string, now time.Time) bool {
-	if l == nil {
-		return false
-	}
-	if key == "" {
-		key = "unknown"
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	client, ok := l.clients[key]
-	return ok && !now.After(client.reset) && client.count >= l.max
-}
-
 func (l *passkeyRateLimiter) cleanup(now time.Time) {
 	for key, client := range l.clients {
 		if now.After(client.reset) {

@@ -166,20 +166,23 @@ func (h *Handlers) oidcToken(e *core.RequestEvent) error {
 }
 
 // oidcAuthenticatedClient parses a back-channel request and authenticates
-// the app. An address with too many failed authentications is refused even
-// with the right secret until its window ends. Query parameters are ignored,
-// so credentials in a URL never count.
+// the app. Failures past the per-address budget answer 429, but the right
+// secret always passes. Behind a proxy that PocketBase does not trust, every
+// caller shares one address, and a hard lockout would let anyone shut out
+// every app. Secrets are 256-bit, so the lockout bought no brute-force
+// protection anyway. Query parameters are ignored, so credentials in a URL
+// never count.
 func (h *Handlers) oidcAuthenticatedClient(e *core.RequestEvent) (*core.Record, *oidc.Error) {
 	ip, now := e.RealIP(), time.Now()
-	if !h.oidcLimits.backchannel.allow(ip, now) || h.oidcLimits.clientFailures.blocked(ip, now) {
+	if !h.oidcLimits.backchannel.allow(ip, now) {
 		return nil, oidc.NewError(oidc.TemporarilyUnavailable, "too many requests")
 	}
 	if err := e.Request.ParseForm(); err != nil || oidc.HasRepeatedParams(e.Request.PostForm) {
 		return nil, oidc.NewError(oidc.InvalidRequest, "send each parameter once in a form-encoded body")
 	}
 	client, oauthErr := oidc.AuthenticateClient(h.app, e.Request)
-	if oauthErr != nil && oauthErr.Code == oidc.InvalidClient {
-		h.oidcLimits.clientFailures.allow(ip, now)
+	if oauthErr != nil && oauthErr.Code == oidc.InvalidClient && !h.oidcLimits.clientFailures.allow(ip, now) {
+		return nil, oidc.NewError(oidc.TemporarilyUnavailable, "too many failed client authentications")
 	}
 	return client, oauthErr
 }

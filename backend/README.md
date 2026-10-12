@@ -58,6 +58,12 @@ docker run --rm \
 仍为必填；`PB_ENCRYPTION_KEY` 可按需传入。镜像只会在 GitHub Release
 发布后由 CI 构建并推送，普通提交、PR 和 tag push 都不会触发发布镜像。
 
+放在反向代理后面时，要在 `/_/` 的 Settings → Application → User IP proxy
+headers 里填代理设置的头（仓库自带的 `deploy/nginx/default.conf` 用 `X-Real-IP`）。
+PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代理地址。注册、passkey
+和 `/api/oidc/*` 的按 IP 限流就变成所有人共用一份额度，一个人刷满后别人也会收到
+429。直接对外暴露、前面没有代理时不要填，否则客户端可以伪造这个头绕过限流。
+
 ## 采集器
 
 后台 goroutine 每 5s 调度，按各节点 `poll_interval` 并发轮询 `GET /traffic` 与 `GET /online`：
