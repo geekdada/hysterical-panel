@@ -29,6 +29,10 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"NotificationChannelUpdateRequest":  NotificationChannelUpdateRequest{},
 		"NotificationChannelTestResponse":   NotificationChannelTestResponse{},
 		"NotificationChannelRevealResponse": NotificationChannelRevealResponse{},
+		"OIDCClient":                        OIDCClient{},
+		"OIDCClientCreateRequest":           OIDCClientCreateRequest{},
+		"OIDCClientUpdateRequest":           OIDCClientUpdateRequest{},
+		"OIDCClientSecretResponse":          OIDCClientSecretResponse{},
 		"Monitor":                           Monitor{},
 		"OfflineMonitorConfig":              OfflineMonitorConfig{},
 		"HighTrafficMonitorConfig":          HighTrafficMonitorConfig{},
@@ -151,7 +155,10 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"EmailSendoutDetail":             {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created", "html", "text"},
 		"EmailSendoutRecipient":          {"id", "user_id", "email", "status", "attempts", "queued_at"},
 		"EmailSendoutResendResponse":     {"requeued"},
-		"SettingsResponse":               {"email_sendout_rate_per_minute"},
+		"SettingsResponse":               {"email_sendout_rate_per_minute", "oidc_enabled", "oidc_issuer", "oidc_unavailable_reason"},
+		"OIDCClient":                     {"id", "client_id", "name", "redirect_uris", "allowed_scopes", "refresh_enabled", "skip_consent", "enabled", "created", "updated"},
+		"OIDCClientCreateRequest":        {"name", "redirect_uris"},
+		"OIDCClientSecretResponse":       {"client", "client_secret"},
 	} {
 		if s := schemas[name]; s != nil && s.Value != nil {
 			s.Value.Required = append(s.Value.Required, fields...)
@@ -175,6 +182,9 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	if s, ok := schemas["NotificationChannelTestResponse"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "status", []any{"succeeded", "failed"})
 		setEnum(s.Value.Properties, "error", []any{"timed_out", "delivery_failed"})
+	}
+	if s, ok := schemas["SettingsResponse"]; ok && s.Value != nil {
+		setEnum(s.Value.Properties, "oidc_unavailable_reason", []any{"", "backend_url_missing", "backend_url_insecure", "frontend_url_missing"})
 	}
 	for _, name := range []string{"Monitor", "MonitorCreateRequest", "MonitorUpdateRequest"} {
 		if s, ok := schemas[name]; ok && s.Value != nil {
@@ -1493,6 +1503,109 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					Value: &openapi3.Response{
 						Description: ptr("The selected channel URL after a fresh passkey assertion"),
 						Content:     content(ref("NotificationChannelRevealResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /oidc-clients ─────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/oidc-clients", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listOIDCClients",
+				Summary:     "List Connected Apps without their secrets",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Connected Apps"),
+						Content:     content(arrayRef("OIDCClient")),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "createOIDCClient",
+				Summary:     "Register a Connected App and return its client secret once",
+				Tags:        []string{"connected apps"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("OIDCClientCreateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Created Connected App and its plaintext client secret"),
+						Content:     content(ref("OIDCClientSecretResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/oidc-clients/{id}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Connected App ID")},
+		Patch: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "updateOIDCClient",
+				Summary:     "Update a Connected App",
+				Tags:        []string{"connected apps"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("OIDCClientUpdateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Updated Connected App"),
+						Content:     content(ref("OIDCClient")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "deleteOIDCClient",
+				Summary:     "Delete a Connected App with its grants and tokens",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Deleted Connected App confirmation"),
+						Content:     content(ref("DeleteResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/oidc-clients/{id}/rotate-secret", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Connected App ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "rotateOIDCClientSecret",
+				Summary:     "Replace a Connected App's client secret and return it once",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Connected App and its new plaintext client secret"),
+						Content:     content(ref("OIDCClientSecretResponse")),
 					},
 				})),
 			}
