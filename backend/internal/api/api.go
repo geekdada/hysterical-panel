@@ -31,6 +31,7 @@ type Handlers struct {
 	ipLookup      ipMetadataLookup
 	passkeys      *webauthn.WebAuthn
 	passkeyLimit  *passkeyRateLimiter
+	oidcLimits    oidcLimits
 	registerLimit *passkeyRateLimiter
 	notifications notificationDelivery
 	monitoring    monitorLifecycle
@@ -46,6 +47,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 		ipLookup:      ipLookup,
 		passkeys:      passkeys,
 		passkeyLimit:  newPasskeyRateLimiter(30, passkeyChallengeTTL),
+		oidcLimits:    newOIDCLimits(),
 		registerLimit: newPasskeyRateLimiter(registerRateMax, registerRateWindow),
 		notifications: notifications.New(),
 		monitoring:    monitoring,

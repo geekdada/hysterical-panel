@@ -2,8 +2,12 @@ package api
 
 import (
 	"encoding/json"
+	"hysterical-panel/internal/token"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -149,5 +153,114 @@ func TestRateLimiterBlockedPeeksWithoutCounting(t *testing.T) {
 	}
 	if limiter.blocked("192.0.2.1", now.Add(2*time.Minute)) {
 		t.Fatal("still blocked after the window")
+	}
+}
+
+// oidcTestVerifier and oidcTestChallenge are the PKCE example of RFC 7636
+// appendix B.
+const (
+	oidcTestVerifier  = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	oidcTestChallenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+)
+
+// newOIDCTestEnv switches the provider on and adds a Connected App for
+// helpCenterCallback and a User signed in to the panel.
+func newOIDCTestEnv(t *testing.T, clientBody map[string]any) *oidcTestEnv {
+	t.Helper()
+	env := newOIDCRouterEnv(t)
+	env.setEnabled(true)
+	body := map[string]any{"name": "Help center", "redirect_uris": []string{helpCenterCallback}}
+	maps.Copy(body, clientBody)
+	created := createTestOIDCClient(t, env.h, nil, body)
+	env.client, env.secret = created.Client, created.ClientSecret
+	env.user = newUsersTestRecord(t, env.app, "oidc-user@example.com", "OIDCUserSecret123")
+	session, err := issueSessionToken(env.app, env.user)
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	env.session = session
+	return env
+}
+
+// authorizeQuery is a valid authorization request for the env's app. An
+// override replaces a value, and an empty override removes the parameter.
+func (env *oidcTestEnv) authorizeQuery(overrides map[string]string) url.Values {
+	q := url.Values{
+		"client_id":             {env.client.ClientID},
+		"redirect_uri":          {helpCenterCallback},
+		"response_type":         {"code"},
+		"scope":                 {"openid email"},
+		"state":                 {"rp-state"},
+		"nonce":                 {"rp-nonce"},
+		"code_challenge":        {oidcTestChallenge},
+		"code_challenge_method": {"S256"},
+	}
+	for key, value := range overrides {
+		if value == "" {
+			q.Del(key)
+		} else {
+			q.Set(key, value)
+		}
+	}
+	return q
+}
+
+// startAuthorization runs /authorize and returns the handle the consent page
+// receives.
+func (env *oidcTestEnv) startAuthorization(overrides map[string]string) string {
+	env.t.Helper()
+	res := env.get("/api/oidc/authorize?" + env.authorizeQuery(overrides).Encode())
+	location, err := url.Parse(res.Header().Get("Location"))
+	if res.Code != http.StatusSeeOther || err != nil || location.Path != "/oidc/authorize" {
+		env.t.Fatalf("authorize = %d %q", res.Code, res.Header().Get("Location"))
+	}
+	return location.Query().Get("request")
+}
+
+func TestOIDCAuthorizeHandsTheBrowserToTheConsentPage(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	const consentPrefix = oidcTestFrontend + "/oidc/authorize?request="
+	res := env.get("/api/oidc/authorize?" + env.authorizeQuery(nil).Encode())
+	location := res.Header().Get("Location")
+	if res.Code != http.StatusSeeOther || !strings.HasPrefix(location, consentPrefix) {
+		t.Fatalf("GET = %d %q", res.Code, location)
+	}
+	stored, err := env.app.FindAllRecords(oidc.AuthRequestsCollection)
+	if err != nil || len(stored) != 1 || stored[0].GetString("request_hash") != token.Sha256Hex(strings.TrimPrefix(location, consentPrefix)) {
+		t.Fatalf("stored requests = %d, err %v", len(stored), err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/oidc/authorize", strings.NewReader(env.authorizeQuery(nil).Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if res := env.do(req); res.Code != http.StatusSeeOther || !strings.HasPrefix(res.Header().Get("Location"), consentPrefix) {
+		t.Fatalf("POST = %d %q", res.Code, res.Header().Get("Location"))
+	}
+}
+
+func TestOIDCAuthorizeErrorsNeverRedirectToUnregisteredURIs(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	res := env.get("/api/oidc/authorize?" + env.authorizeQuery(map[string]string{"redirect_uri": "https://evil.example/cb"}).Encode())
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != oidcTestFrontend+"/oidc/error?reason=invalid_redirect_uri" {
+		t.Fatalf("bad redirect_uri = %d %q", res.Code, res.Header().Get("Location"))
+	}
+
+	res = env.get("/api/oidc/authorize?" + env.authorizeQuery(map[string]string{"code_challenge_method": "plain"}).Encode())
+	location, err := url.Parse(res.Header().Get("Location"))
+	if err != nil || res.Code != http.StatusSeeOther || !strings.HasPrefix(location.String(), helpCenterCallback+"?") {
+		t.Fatalf("plain pkce = %d %q", res.Code, res.Header().Get("Location"))
+	}
+	if q := location.Query(); q.Get("error") != oidc.InvalidRequest || q.Get("state") != "rp-state" || q.Get("iss") != oidcTestIssuer {
+		t.Fatalf("error query = %v", q)
+	}
+}
+
+func TestOIDCAuthorizeIsRateLimited(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	path := "/api/oidc/authorize?" + env.authorizeQuery(map[string]string{"client_id": "unknown"}).Encode()
+	for range oidcAuthorizeRateMax {
+		env.get(path)
+	}
+	if res := env.get(path); res.Header().Get("Location") != oidcTestFrontend+"/oidc/error?reason=rate_limited" {
+		t.Fatalf("over the limit = %d %q", res.Code, res.Header().Get("Location"))
 	}
 }

@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"maps"
+	"net/url"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -102,4 +103,33 @@ func newTestClient(t *testing.T, app core.App, fields map[string]any) (*core.Rec
 	}
 	maps.Copy(values, fields)
 	return saveTestRecord(t, app, ClientsCollection, values), secret
+}
+
+// testVerifier and testChallenge are the PKCE example of RFC 7636 appendix B.
+const (
+	testVerifier  = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	testChallenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+)
+
+// authorizeForm is a valid authorization request for client. An override
+// replaces a value, and an empty override removes the parameter.
+func authorizeForm(client *core.Record, overrides map[string]string) url.Values {
+	form := url.Values{
+		"client_id":             {client.GetString("client_id")},
+		"redirect_uri":          {testRedirectURI},
+		"response_type":         {"code"},
+		"scope":                 {"openid email"},
+		"state":                 {"state-1"},
+		"nonce":                 {"nonce-1"},
+		"code_challenge":        {testChallenge},
+		"code_challenge_method": {"S256"},
+	}
+	for key, value := range overrides {
+		if value == "" {
+			form.Del(key)
+		} else {
+			form.Set(key, value)
+		}
+	}
+	return form
 }

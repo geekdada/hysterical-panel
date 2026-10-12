@@ -391,7 +391,7 @@ help center 侧的接入改动：next-auth 换成通用 OIDC provider（`wellKno
 | `prompt=login` | 同意页提示「该应用要求重新验证身份」，按钮跳到 `/login?reauth=1&redirect=<同意页>`。用户可用任意登录方式，包括社交登录。回来后 approve 要求 `auth_time` 晚于授权请求创建时间 |
 | `prompt=consent` | 总是显示同意页，即使已记住同意或应用标为跳过 |
 | `prompt=none` | 未登录返回 `login_required`；需要重新认证返回 `login_required`；需要同意返回 `consent_required`。不显示任何页面 |
-| `prompt=select_account` | 不支持，返回 `account_selection_required`。同意页一直显示当前账号 email 与「切换账号」链接，用户可以手动切换 |
+| `prompt=select_account` | 与 `prompt=consent` 相同，总是显示同意页。同意页一直显示当前账号 email 与「切换账号」链接，用户可以在这里换账号。总是带这个值的 RP 也能正常登录 |
 
 选这个方案的理由：
 

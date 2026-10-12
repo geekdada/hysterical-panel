@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pocketbase/pocketbase/core"
+
 	"hysterical-panel/internal/token"
 )
 
@@ -128,4 +130,22 @@ func NewClientSecret() (secret, secretHash string, err error) {
 		return "", "", err
 	}
 	return secret, token.Sha256Hex(secret), nil
+}
+
+// ClientRedirectURIs returns the registered redirect URIs of a Connected App.
+func ClientRedirectURIs(client *core.Record) []string {
+	return stringList(client, "redirect_uris")
+}
+
+// ClientScopes returns the scopes an admin allowed for a Connected App.
+func ClientScopes(client *core.Record) []string {
+	return stringList(client, "allowed_scopes")
+}
+
+func stringList(rec *core.Record, field string) []string {
+	var out []string
+	if err := rec.UnmarshalJSONField(field, &out); err != nil {
+		return nil
+	}
+	return out
 }
