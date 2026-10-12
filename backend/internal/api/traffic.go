@@ -19,15 +19,12 @@ func (h *Handlers) trafficSummary(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewNotFoundError("user not found", err)
 	}
-	from, to, rangeErr := requiredTrafficRange(e)
+	_, _, r, rangeErr := requiredTrafficRange(e)
 	if rangeErr != nil {
 		return rangeErr
 	}
 
-	rows, err := h.app.FindRecordsByFilter(
-		"traffic_hourly", "user = {:u} && bucket >= {:from} && bucket <= {:to}", "", 0, 0,
-		map[string]any{"u": u.Id, "from": from, "to": to},
-	)
+	rows, err := findTrafficRows(h.app, "user = {:u}", map[string]any{"u": u.Id}, r)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read traffic", err)
 	}
@@ -79,22 +76,18 @@ func (h *Handlers) trafficSeries(e *core.RequestEvent) error {
 		gran = "hourly"
 	}
 
-	filter := "user = {:u}"
+	r, rangeErr := optionalTrafficRange(e)
+	if rangeErr != nil {
+		return rangeErr
+	}
+	scope := "user = {:u}"
 	params := map[string]any{"u": u.Id}
-	if from := q.Get("from"); from != "" {
-		filter += " && bucket >= {:from}"
-		params["from"] = from
-	}
-	if to := q.Get("to"); to != "" {
-		filter += " && bucket <= {:to}"
-		params["to"] = to
-	}
 	if node := q.Get("node"); node != "" {
-		filter += " && node = {:node}"
+		scope += " && node = {:node}"
 		params["node"] = node
 	}
 
-	rows, err := h.app.FindRecordsByFilter("traffic_hourly", filter, "bucket", 0, 0, params)
+	rows, err := findTrafficRows(h.app, scope, params, r)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read series", err)
 	}

@@ -14,15 +14,12 @@ func (h *Handlers) nodeTrafficSummary(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	from, to, rangeErr := requiredTrafficRange(e)
+	_, _, r, rangeErr := requiredTrafficRange(e)
 	if rangeErr != nil {
 		return rangeErr
 	}
 
-	rows, err := h.app.FindRecordsByFilter(
-		"traffic_hourly", "node = {:n} && bucket >= {:from} && bucket <= {:to}", "", 0, 0,
-		map[string]any{"n": n.Id, "from": from, "to": to},
-	)
+	rows, err := findTrafficRows(h.app, "node = {:n}", map[string]any{"n": n.Id}, r)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read traffic", err)
 	}
@@ -79,18 +76,12 @@ func (h *Handlers) nodeTrafficSeries(e *core.RequestEvent) error {
 		gran = "hourly"
 	}
 
-	filter := "node = {:n}"
-	params := map[string]any{"n": n.Id}
-	if from := q.Get("from"); from != "" {
-		filter += " && bucket >= {:from}"
-		params["from"] = from
-	}
-	if to := q.Get("to"); to != "" {
-		filter += " && bucket <= {:to}"
-		params["to"] = to
+	r, rangeErr := optionalTrafficRange(e)
+	if rangeErr != nil {
+		return rangeErr
 	}
 
-	rows, err := h.app.FindRecordsByFilter("traffic_hourly", filter, "bucket", 0, 0, params)
+	rows, err := findTrafficRows(h.app, "node = {:n}", map[string]any{"n": n.Id}, r)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read series", err)
 	}

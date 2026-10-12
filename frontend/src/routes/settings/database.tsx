@@ -72,7 +72,10 @@ function DatabasePage() {
   const storage = stats?.storage ?? null;
   const files = storage?.files ?? [];
   const tables = useMemo(() => stats?.traffic_tables ?? [], [stats]);
-  const pruneEligible = tables.reduce((sum, table) => sum + (table.older_than_30_days ?? 0), 0);
+  const pruneEligible = tables.reduce((sum, table) => sum + (table.prunable_rows ?? 0), 0);
+  const retentionDays = stats?.retention_days
+    ? formatLocaleCount(stats.retention_days)
+    : m.common_em_dash();
   const hourly = trafficTable(tables, "traffic_hourly");
   const daily = trafficTable(tables, "traffic_daily");
   const loading = statsQuery.isPending;
@@ -122,6 +125,7 @@ function DatabasePage() {
         hourly={hourly?.points ?? 0}
         daily={daily?.points ?? 0}
         pruneEligible={pruneEligible}
+        retentionDays={retentionDays}
       />
 
       <Section
@@ -150,7 +154,9 @@ function DatabasePage() {
             onPress={handlePruneRequest}
             className="border-danger text-danger hover:bg-danger-soft"
           >
-            {pruneMutation.isPending ? m.database_prune_deleting() : m.database_prune_button()}
+            {pruneMutation.isPending
+              ? m.database_prune_deleting()
+              : m.database_prune_button({ days: retentionDays })}
           </Button>
         }
       >
@@ -164,8 +170,11 @@ function DatabasePage() {
       <DestructiveConfirmModal
         isOpen={pruneOpen}
         title={m.database_prune_title()}
-        body={m.database_prune_confirm({ count: formatLocaleCount(pruneEligible) })}
-        confirmLabel={m.database_prune_button()}
+        body={m.database_prune_confirm({
+          count: formatLocaleCount(pruneEligible),
+          days: retentionDays,
+        })}
+        confirmLabel={m.database_prune_button({ days: retentionDays })}
         pendingLabel={m.database_prune_deleting()}
         pending={pruneMutation.isPending}
         error={pruneError}
@@ -182,12 +191,14 @@ function SummaryRail({
   hourly,
   daily,
   pruneEligible,
+  retentionDays,
 }: {
   loading: boolean;
   storageBytes: number;
   hourly: number;
   daily: number;
   pruneEligible: number;
+  retentionDays: string;
 }) {
   return (
     <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
@@ -214,7 +225,7 @@ function SummaryRail({
         value={formatLocaleCount(pruneEligible)}
         tone={pruneEligible > 0 ? "danger" : "muted"}
       >
-        {m.database_rail_prune_eligible_hint()}
+        {m.database_rail_prune_eligible_hint({ days: retentionDays })}
       </RailItem>
     </div>
   );
@@ -266,12 +277,12 @@ function TrafficTableSection({ loading, tables }: { loading: boolean; tables: Tr
           <tr>
             <Th>{m.database_th_table()}</Th>
             <Th className="text-right">{m.database_th_data_points()}</Th>
-            <Th className="text-right">{m.database_th_older_than_30d()}</Th>
+            <Th className="text-right">{m.database_th_prunable()}</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-separator">
           {tables.map((table) => {
-            const old = table.older_than_30_days ?? 0;
+            const prunable = table.prunable_rows ?? 0;
             return (
               <tr
                 key={table.table}
@@ -287,9 +298,9 @@ function TrafficTableSection({ loading, tables }: { loading: boolean; tables: Tr
                   {formatLocaleCount(table.points ?? 0)}
                 </Td>
                 <Td
-                  className={`text-right font-mono tabular-nums ${old > 0 ? "text-danger" : "text-muted"}`}
+                  className={`text-right font-mono tabular-nums ${prunable > 0 ? "text-danger" : "text-muted"}`}
                 >
-                  {formatLocaleCount(old)}
+                  {formatLocaleCount(prunable)}
                 </Td>
               </tr>
             );

@@ -133,7 +133,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..34）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..35）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -166,7 +166,7 @@ hysterical-panel/
 │           ├── oidc_user_hook.go User 停用 / 取消验证时撤销授权
 │           ├── settings.go     app_settings 读写（注册开关 + management API token + email sendout 发送速率）
 │           ├── management_api.go 公开 /api/mgmt/* + requireMgmtToken（未启用 404）
-│           ├── database.go     GET /database/stats + POST /database/prune（30 天留存裁剪）
+│           ├── database.go     GET /database/stats + POST /database/prune（90 天留存，只裁剪小时数据）
 │           ├── invitations.go  邀请码 CRUD + inviteValid
 │           ├── ignored_connection_ips.go 全局忽略 IP CRUD
 │           ├── notification_channels.go 通知 Channel CRUD / 测试 / passkey URL reveal
@@ -175,6 +175,7 @@ hysterical-panel/
 │           ├── mailer.go       邀请信 / 验证信（PocketBase SMTP，含 link 兜底）
 │           ├── traffic_panel.go admin 全局用量看板（GET /traffic、/traffic/series、/nodes/traffic/summary）
 │           ├── traffic.go      用户用量 summary / series
+│           ├── traffic_source.go 流量查询共用读取：小时数据完整的日期读 hourly，更早的日期读 daily
 │           ├── node_traffic.go 节点维度用量 summary / series
 │           ├── current_speed.go User×Node 当前速度（GET /users/{id}/current-speed、/nodes/{id}/current-speed）
 │           ├── live.go         用户实时诊断（重点）
@@ -231,7 +232,7 @@ hysterical-panel/
 - `deleted_at` (date) — **软删除**：`DELETE /nodes/{id}` 只写此字段，不真删；`nodesForUser` 与采集器都用 `deleted_at = '' && enabled = true` 过滤，保留历史流量归属
 
 `traffic_cursor` (user+node 唯一)：`last_tx`、`last_rx` —— counter-to-delta 的游标；`current_tx_speed`、`current_rx_speed` (int64, B/s) —— 该 User 在该 Node 上的 Current Speed，等于本轮已计量增量除以距上次成功采集的秒数。非 active User、本轮 `/traffic` 未出现或事务失败的 User 置 0；Node 采集失败、禁用、软删除时按 Node 整体清零（`internal/currentspeed`）
-`traffic_hourly` / `traffic_daily` (user+node+bucket 唯一)：`bucket` (date, **UTC**)、`tx`、`rx`
+`traffic_hourly` / `traffic_daily` (user+node+bucket 唯一)：`bucket` (date, **UTC**)、`tx`、`rx`。采集器在同一事务里写两表，daily 恒等于当日 hourly 之和；只有 hourly 会被裁剪，daily 永久保留。所有用量 summary / series 都经 `traffic_source.go` 的 `findTrafficRows` 读取：从小时数据完整的第一个 UTC 日起读 hourly，更早的日期读 daily（daily 行按「当日中点落在查询范围内」计入）。迁移 `1730000035` 补回了旧版 30 天裁剪误删的边界日 daily 行
 `online_device_counts` (user+node 唯一)：仅保存最近一次成功 `/online` 中可映射到现有用户的正数计数；每轮按 Node 整体替换，不保留历史。用户详情只汇总 Enabled Node，同一物理设备连接多个 Node 时会重复计数。
 
 `invitations`：`code` (text, unique) — 通用邀请码；`email`（可选，仅记录/发信，不绑定）、`max_uses`（0=不限）、`used_count`、`expires_at` (date, 空=永不)、`revoked` (bool)、`note`、`created_by` (relation→users)、`last_used_at`。
@@ -293,7 +294,7 @@ hysterical-panel/
 - `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。`PATCH /users/{id}` 在状态从 `active`→`disabled` 时，**异步**对 `nodesForUser(userID)` 返回的每个节点扇出 `POST /kick [user.id]`（3 并发，5s/节点，best-effort，失败只记日志，不阻塞响应）；详见核心决策 #6。
 - `GET /users`（仅 admin）是**分页 / 排序 / 筛选**列表（`users_list.go`：`page`、`perPage`∈{25,50,100}、`search`、`sort` 白名单），`GET /users/stats` 给看板汇总。`POST /users/{id}/reset-auth-string`、`POST /nodes/{id}/reset-api-secret` 重新随机生成对应凭据并返回（节点 secret 仍脱敏）。
 - **admin 全局看板**：`GET /traffic`、`GET /traffic/series`（`from`/`to` 必填，UTC）、`GET /nodes/traffic/summary` 是跨用户跨节点的全局聚合（`traffic_panel.go`），与下面单节点维度接口区分。
-- `GET /database/stats`、`POST /database/prune`（仅 admin，`database.go`）：查看库体量并按 **30 天 UTC 留存**裁剪 `traffic_hourly`/`traffic_daily` 历史。
+- `GET /database/stats`、`POST /database/prune`（仅 admin，`database.go`）：查看库体量并按 **90 天 UTC 留存**裁剪 `traffic_hourly`；`traffic_daily` 不裁剪，超过 90 天的查询自动改读日汇总。
 - OAuth2 社交账号关联：`GET /users/{id}/oauth-links`、`DELETE /users/{id}/oauth-links/{linkId}`（`requireActiveAdminOrSelf`，`oauth2_links.go`），设置页（本人）与用户详情页（admin）共用。
 - passkey：`GET /users/{id}/passkeys`、`DELETE /users/{id}/passkeys/{passkeyId}`（`requireActiveAdminOrSelf`）；注册 `POST /users/{id}/passkeys/registration/{options,finish}`（`requireActiveSelf`）。详见核心决策 #9。
 - 节点维度接口 `GET /nodes/{id}/traffic/summary|series`、`GET /nodes/{id}/live` 是**单节点跨用户**视角，仅 admin。

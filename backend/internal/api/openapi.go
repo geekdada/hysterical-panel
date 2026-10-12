@@ -516,7 +516,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Post: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "pruneDatabaseTraffic",
-				Summary:     "Delete traffic data older than 30 days",
+				Summary:     "Delete hourly traffic data older than the retention period",
 				Tags:        []string{"database"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{

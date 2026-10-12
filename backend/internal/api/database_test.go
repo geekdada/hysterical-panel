@@ -10,7 +10,7 @@ import (
 func TestTrafficRetentionCutoff(t *testing.T) {
 	now := time.Date(2026, 6, 6, 12, 34, 56, 789000000, time.FixedZone("test", 2*60*60))
 	got := trafficRetentionCutoff(now)
-	want := "2026-05-07 10:34:56.000Z"
+	want := "2026-03-08 10:34:56.000Z"
 	if got != want {
 		t.Fatalf("trafficRetentionCutoff() = %q, want %q", got, want)
 	}

@@ -16,6 +16,9 @@ import (
 const (
 	trafficHourlyTable = "traffic_hourly"
 	trafficDailyTable  = "traffic_daily"
+
+	// Only hourly rows are pruned. Daily rows are small and keep long-range traffic history.
+	trafficRetentionDays = 90
 )
 
 // GET /database/stats
@@ -31,28 +34,15 @@ func (h *Handlers) databaseStats(e *core.RequestEvent) error {
 // POST /database/prune
 func (h *Handlers) pruneDatabaseTraffic(e *core.RequestEvent) error {
 	cutoff := trafficRetentionCutoff(time.Now())
-	deleted := make([]DatabaseTrafficPruneResult, 0, 2)
-
-	err := h.app.RunInTransaction(func(txApp core.App) error {
-		for _, table := range []string{trafficHourlyTable, trafficDailyTable} {
-			count, err := deleteTrafficRowsBefore(txApp, table, cutoff)
-			if err != nil {
-				return err
-			}
-			deleted = append(deleted, DatabaseTrafficPruneResult{
-				Table:       table,
-				DeletedRows: count,
-			})
-		}
-		return nil
-	})
+	count, err := deleteTrafficRowsBefore(h.app, trafficHourlyTable, cutoff)
 	if err != nil {
 		return apis.NewBadRequestError("failed to prune traffic data", err)
 	}
 
 	return ok(e, DatabasePruneResponse{
-		Cutoff:  cutoff,
-		Deleted: deleted,
+		Cutoff:        cutoff,
+		RetentionDays: trafficRetentionDays,
+		Deleted:       []DatabaseTrafficPruneResult{{Table: trafficHourlyTable, DeletedRows: count}},
 	})
 }
 
@@ -68,19 +58,23 @@ func databaseManagementStats(app core.App, dataDir string, cutoff string) (Datab
 		if err != nil {
 			return DatabaseStatsResponse{}, err
 		}
-		old, err := countTrafficRowsBefore(app, table, cutoff)
-		if err != nil {
-			return DatabaseStatsResponse{}, err
+		var prunable int64
+		if table == trafficHourlyTable {
+			prunable, err = countTrafficRowsBefore(app, table, cutoff)
+			if err != nil {
+				return DatabaseStatsResponse{}, err
+			}
 		}
 		tables = append(tables, DatabaseTrafficTableStats{
-			Table:           table,
-			Points:          points,
-			OlderThan30Days: old,
+			Table:        table,
+			Points:       points,
+			PrunableRows: prunable,
 		})
 	}
 
 	return DatabaseStatsResponse{
 		Cutoff:        cutoff,
+		RetentionDays: trafficRetentionDays,
 		Storage:       storage,
 		TrafficTables: tables,
 	}, nil
@@ -115,7 +109,7 @@ func databaseFileSize(path string) (int64, error) {
 }
 
 func trafficRetentionCutoff(now time.Time) string {
-	return now.UTC().AddDate(0, 0, -30).Truncate(time.Second).Format("2006-01-02 15:04:05.000Z")
+	return now.UTC().AddDate(0, 0, -trafficRetentionDays).Truncate(time.Second).Format("2006-01-02 15:04:05.000Z")
 }
 
 func countTrafficRows(app core.App, table string) (int64, error) {

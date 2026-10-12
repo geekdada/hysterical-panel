@@ -599,6 +599,7 @@ type BucketPoint struct {
 // DatabaseStatsResponse is returned by GET /database/stats.
 type DatabaseStatsResponse struct {
 	Cutoff        string                      `json:"cutoff"`
+	RetentionDays int                         `json:"retention_days"`
 	Storage       DatabaseStorageStats        `json:"storage"`
 	TrafficTables []DatabaseTrafficTableStats `json:"traffic_tables"`
 }
@@ -616,16 +617,18 @@ type DatabaseStorageFile struct {
 }
 
 // DatabaseTrafficTableStats contains row counts for one traffic table.
+// PrunableRows is always 0 for traffic_daily because daily rows are never pruned.
 type DatabaseTrafficTableStats struct {
-	Table           string `json:"table"`
-	Points          int64  `json:"points"`
-	OlderThan30Days int64  `json:"older_than_30_days"`
+	Table        string `json:"table"`
+	Points       int64  `json:"points"`
+	PrunableRows int64  `json:"prunable_rows"`
 }
 
 // DatabasePruneResponse is returned by POST /database/prune.
 type DatabasePruneResponse struct {
-	Cutoff  string                       `json:"cutoff"`
-	Deleted []DatabaseTrafficPruneResult `json:"deleted"`
+	Cutoff        string                       `json:"cutoff"`
+	RetentionDays int                          `json:"retention_days"`
+	Deleted       []DatabaseTrafficPruneResult `json:"deleted"`
 }
 
 // DatabaseTrafficPruneResult contains deleted row counts for one traffic table.

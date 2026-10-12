@@ -9,28 +9,32 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-func requiredTrafficRange(e *core.RequestEvent) (string, string, error) {
+func requiredTrafficRange(e *core.RequestEvent) (string, string, trafficRange, error) {
 	q := e.Request.URL.Query()
 	from := strings.TrimSpace(q.Get("from"))
 	to := strings.TrimSpace(q.Get("to"))
 	if from == "" || to == "" {
-		return "", "", apis.NewBadRequestError("from and to are required", nil)
+		return "", "", trafficRange{}, apis.NewBadRequestError("from and to are required", nil)
 	}
-	return from, to, nil
+	r, err := parseTrafficRange(from, to)
+	return from, to, r, err
+}
+
+// optionalTrafficRange parses the optional from/to bounds of series endpoints.
+func optionalTrafficRange(e *core.RequestEvent) (trafficRange, error) {
+	q := e.Request.URL.Query()
+	return parseTrafficRange(strings.TrimSpace(q.Get("from")), strings.TrimSpace(q.Get("to")))
 }
 
 // GET /traffic?from=&to=
-// Admin dashboard global total from traffic_hourly over a UTC datetime range.
+// Admin dashboard global total over a UTC datetime range.
 func (h *Handlers) panelTraffic(e *core.RequestEvent) error {
-	from, to, rangeErr := requiredTrafficRange(e)
+	from, to, r, rangeErr := requiredTrafficRange(e)
 	if rangeErr != nil {
 		return rangeErr
 	}
 
-	rows, err := h.app.FindRecordsByFilter(
-		"traffic_hourly", "bucket >= {:from} && bucket <= {:to}", "", 0, 0,
-		map[string]any{"from": from, "to": to},
-	)
+	rows, err := findTrafficRows(h.app, "", nil, r)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read traffic", err)
 	}
@@ -49,10 +53,10 @@ func (h *Handlers) panelTraffic(e *core.RequestEvent) error {
 }
 
 // GET /traffic/series?granularity=hourly|daily&from=&to=
-// Admin dashboard global time series. Reads hourly rows inside the requested
-// UTC range and collapses them across every node and user. Daily granularity
-// groups the matching hourly rows into UTC day buckets, so totals stay aligned
-// with range summaries that use the same hourly table.
+// Admin dashboard global time series. Reads the same rows as the range
+// summaries and collapses them across every node and user, so totals stay
+// aligned. Daily granularity groups rows into UTC day buckets. Days older than
+// the hourly history appear as one point at UTC midnight in hourly series.
 func (h *Handlers) panelTrafficSeries(e *core.RequestEvent) error {
 	q := e.Request.URL.Query()
 	gran := strings.TrimSpace(q.Get("granularity"))
@@ -60,15 +64,12 @@ func (h *Handlers) panelTrafficSeries(e *core.RequestEvent) error {
 		gran = "hourly"
 	}
 
-	from, to, rangeErr := requiredTrafficRange(e)
+	_, _, r, rangeErr := requiredTrafficRange(e)
 	if rangeErr != nil {
 		return rangeErr
 	}
 
-	rows, err := h.app.FindRecordsByFilter(
-		"traffic_hourly", "bucket >= {:from} && bucket <= {:to}", "bucket", 0, 0,
-		map[string]any{"from": from, "to": to},
-	)
+	rows, err := findTrafficRows(h.app, "", nil, r)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read series", err)
 	}
@@ -112,17 +113,14 @@ func utcDailyBucketString(bucket string) string {
 }
 
 // GET /nodes/traffic/summary?from=&to=
-// Admin dashboard per-node total from traffic_hourly over a UTC datetime range.
+// Admin dashboard per-node total over a UTC datetime range.
 func (h *Handlers) panelNodeTrafficSummary(e *core.RequestEvent) error {
-	from, to, rangeErr := requiredTrafficRange(e)
+	from, to, r, rangeErr := requiredTrafficRange(e)
 	if rangeErr != nil {
 		return rangeErr
 	}
 
-	rows, err := h.app.FindRecordsByFilter(
-		"traffic_hourly", "bucket >= {:from} && bucket <= {:to}", "", 0, 0,
-		map[string]any{"from": from, "to": to},
-	)
+	rows, err := findTrafficRows(h.app, "", nil, r)
 	if err != nil {
 		return apis.NewBadRequestError("failed to read node traffic", err)
 	}
