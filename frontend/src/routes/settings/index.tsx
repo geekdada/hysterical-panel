@@ -42,6 +42,7 @@ import {
   LabeledSwitch,
   PageShell,
 } from "~/components/ui";
+import { AuthorizedAppsSection } from "~/components/authorized-apps";
 import { SocialLoginsSection } from "~/components/social-logins";
 import { UserMenu } from "~/components/user-menu";
 import { relTimeFromISO } from "~/lib/format";
@@ -122,6 +123,7 @@ function SettingsPage() {
       {auth && <PasskeysSection userId={auth.user.id} />}
 
       {auth && <SocialLoginsSection userId={auth.user.id} />}
+      {auth && <AuthorizedAppsSection userId={auth.user.id} />}
 
       {isAdmin && (
         <>
