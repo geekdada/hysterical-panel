@@ -10,6 +10,7 @@ import {
   Database,
   Envelope,
   Gear,
+  PlugConnection,
   Pulse,
   Xmark,
 } from "@gravity-ui/icons";
@@ -295,6 +296,12 @@ function SettingsPage() {
               aria-hidden
             />
           </Link>
+
+          <OIDCSection
+            settings={settings}
+            pending={mutation.isPending}
+            onSave={(patch) => mutation.mutate(patch)}
+          />
 
           <ManagementApiSection
             settings={settings}
@@ -790,4 +797,81 @@ function ManagementApiSection({
       <ErrorAlert message={error} className="mt-4" />
     </>
   );
+}
+
+function OIDCSection({
+  settings,
+  pending,
+  onSave,
+}: {
+  settings: AppSettings | undefined;
+  pending: boolean;
+  onSave: (patch: SettingsUpdateRequest) => void;
+}) {
+  const enabled = settings?.oidc_enabled ?? false;
+  const issuer = settings?.oidc_issuer ?? "";
+  const unavailable = oidcUnavailableMessage(settings?.oidc_unavailable_reason ?? "");
+
+  return (
+    <>
+      <div className="mt-8 mb-5">
+        <h1 className="text-base font-semibold tracking-tight">{m.settings_oidc()}</h1>
+        <p className="mt-0.5 text-[13px] text-muted">{m.settings_oidc_desc()}</p>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-lg border bg-surface p-5">
+        <LabeledSwitch
+          label={m.settings_enable_oidc()}
+          description={enabled ? m.settings_oidc_enabled_desc() : m.settings_oidc_disabled_desc()}
+          isSelected={enabled}
+          isDisabled={!settings || pending || (!enabled && unavailable !== "")}
+          onChange={(value) => onSave({ oidc_enabled: value })}
+        />
+        {unavailable && <p className="text-xs text-warning-soft-foreground">{unavailable}</p>}
+        {issuer && (
+          <>
+            <div className="h-px bg-separator" />
+            <div>
+              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted">
+                {m.settings_oidc_issuer()}
+              </p>
+              <CopyableCode value={issuer} label={m.oidc_copy_issuer()} />
+            </div>
+          </>
+        )}
+      </div>
+
+      <Link
+        to="/settings/connected-apps"
+        className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      >
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+          <PlugConnection className="size-4" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium text-foreground">
+            {m.settings_oidc_manage()}
+          </span>
+          <span className="block text-xs text-muted">{m.settings_oidc_manage_desc()}</span>
+        </span>
+        <ChevronRight
+          className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+          aria-hidden
+        />
+      </Link>
+    </>
+  );
+}
+
+function oidcUnavailableMessage(reason: string): string {
+  switch (reason) {
+    case "backend_url_missing":
+      return m.settings_oidc_unavailable_backend_url_missing();
+    case "backend_url_insecure":
+      return m.settings_oidc_unavailable_backend_url_insecure();
+    case "frontend_url_missing":
+      return m.settings_oidc_unavailable_frontend_url_missing();
+    default:
+      return "";
+  }
 }
