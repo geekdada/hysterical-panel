@@ -30,6 +30,7 @@ import { Route as SettingsMonitoringRouteImport } from './routes/settings/monito
 import { Route as SettingsManagementApiRouteImport } from './routes/settings/management-api'
 import { Route as SettingsDatabaseRouteImport } from './routes/settings/database'
 import { Route as SettingsConnectedAppsRouteImport } from './routes/settings/connected-apps'
+import { Route as OidcErrorRouteImport } from './routes/oidc/error'
 import { Route as NodesNewRouteImport } from './routes/nodes/new'
 import { Route as NodesNodeIdRouteImport } from './routes/nodes/$nodeId'
 import { Route as SettingsEmailsRouteRouteImport } from './routes/settings/emails/route'
@@ -142,6 +143,11 @@ const SettingsConnectedAppsRoute = SettingsConnectedAppsRouteImport.update({
   path: '/connected-apps',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const OidcErrorRoute = OidcErrorRouteImport.update({
+  id: '/oidc/error',
+  path: '/oidc/error',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NodesNewRoute = NodesNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -189,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/settings/emails': typeof SettingsEmailsRouteRouteWithChildren
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
+  '/oidc/error': typeof OidcErrorRoute
   '/settings/connected-apps': typeof SettingsConnectedAppsRoute
   '/settings/database': typeof SettingsDatabaseRoute
   '/settings/management-api': typeof SettingsManagementApiRoute
@@ -215,6 +222,7 @@ export interface FileRoutesByTo {
   '/verify': typeof VerifyRoute
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
+  '/oidc/error': typeof OidcErrorRoute
   '/settings/connected-apps': typeof SettingsConnectedAppsRoute
   '/settings/database': typeof SettingsDatabaseRoute
   '/settings/management-api': typeof SettingsManagementApiRoute
@@ -245,6 +253,7 @@ export interface FileRoutesById {
   '/settings/emails': typeof SettingsEmailsRouteRouteWithChildren
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
+  '/oidc/error': typeof OidcErrorRoute
   '/settings/connected-apps': typeof SettingsConnectedAppsRoute
   '/settings/database': typeof SettingsDatabaseRoute
   '/settings/management-api': typeof SettingsManagementApiRoute
@@ -276,6 +285,7 @@ export interface FileRouteTypes {
     | '/settings/emails'
     | '/nodes/$nodeId'
     | '/nodes/new'
+    | '/oidc/error'
     | '/settings/connected-apps'
     | '/settings/database'
     | '/settings/management-api'
@@ -302,6 +312,7 @@ export interface FileRouteTypes {
     | '/verify'
     | '/nodes/$nodeId'
     | '/nodes/new'
+    | '/oidc/error'
     | '/settings/connected-apps'
     | '/settings/database'
     | '/settings/management-api'
@@ -331,6 +342,7 @@ export interface FileRouteTypes {
     | '/settings/emails'
     | '/nodes/$nodeId'
     | '/nodes/new'
+    | '/oidc/error'
     | '/settings/connected-apps'
     | '/settings/database'
     | '/settings/management-api'
@@ -358,6 +370,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyRoute: typeof VerifyRoute
+  OidcErrorRoute: typeof OidcErrorRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -509,6 +522,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsConnectedAppsRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/oidc/error': {
+      id: '/oidc/error'
+      path: '/oidc/error'
+      fullPath: '/oidc/error'
+      preLoaderRoute: typeof OidcErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/nodes/new': {
       id: '/nodes/new'
       path: '/new'
@@ -636,6 +656,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyRoute: VerifyRoute,
+  OidcErrorRoute: OidcErrorRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
