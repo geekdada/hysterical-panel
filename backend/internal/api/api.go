@@ -56,6 +56,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	h.bindAuthGate()
 	h.bindOAuth2LoginOnly()
 	h.bindUserCreateAuthString()
+	h.bindOIDCSessionAuthTimes()
 
 	g := se.Router.Group("/api/panel")
 	g.Bind(apis.RequireAuth("users")) // must be a logged-in users-collection record
