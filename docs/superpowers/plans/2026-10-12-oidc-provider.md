@@ -10081,3 +10081,180 @@ The review of this layer changed the code above in these places. The commits are
 - [ ] **Step 7: Update the ledger and stop**
 
 Record the layer 4 commits, the browser results and the review outcome in `.superpowers/sdd/2026-10-12-oidc-provider/progress.md`. Stop for the user's review before starting layer 5.
+
+---
+
+## Layer 5: `oidc/5-finish`
+
+Start: `git switch -c oidc/5-finish oidc/4-consent-ui`.
+
+### Decisions for this layer
+
+- **Management API lookup by `id`.** `GET /api/mgmt/users?id=` returns the same `PanelUser` shape as the email and Auth String lookups. A Connected App receives the User ID as `sub`, so the help center can look the account up without keeping the email. Exactly one of `id`, `email` and `auth_string` is allowed.
+- **Docs.** AGENTS.md gains the provider in the scope list, a core decision, the data model, the endpoint lists and the directory tree. CONTEXT.md gains Connected App and Authorized App Grant. The backend README gains an "OIDC Provider" section with setup, the endpoints, the relying party settings and the key rotation CLI.
+- **Conformance.** Run the OpenID Foundation conformance suite's `oidcc-basic-certification-test-plan` against a local panel, with static clients and discovery. The plan's modules do not send PKCE (except one), and the provider requires S256 PKCE from every client. The test setup therefore puts a small proxy in front of the backend that adds a fixed S256 challenge to `/authorize` and the matching verifier to `/token` when the request has none. The proxy and the browser driver live in `scripts/oidc-conformance/` so the run can be repeated. Results go to `docs/oidc-conformance.md`, with every non-passing module explained.
+- **Not in this layer:** making PKCE optional, `request`/`request_uri` support, extra scopes. Conformance failures caused by ADR-0010 decisions are documented, not fixed.
+
+### File structure
+
+| File | Responsibility |
+|---|---|
+| `backend/internal/api/management_api.go` | `mgmtGetUser` accepts `id` |
+| `backend/internal/api/management_api_test.go` | Lookup by `id` and parameter validation |
+| `backend/README.md` | Management API row, OIDC Provider section |
+| `AGENTS.md`, `CONTEXT.md` | Scope, decision, data model, endpoints, glossary |
+| `scripts/oidc-conformance/` | PKCE proxy, browser driver, suite config template, README |
+| `docs/oidc-conformance.md` | Conformance results and explanations |
+
+### Review Focus
+
+- `?id=` with an `email` or `auth_string` also present must be rejected, not resolved by precedence. Covered in Task 28.
+- `?id=` naming a User that does not exist answers 404 with the same body as the other lookups, so the id space cannot be probed differently. Covered in Task 28.
+- The conformance proxy must only add PKCE when the request has none, so `oidcc-ensure-request-with-valid-pkce-succeeds` still tests the provider's own PKCE handling. Checked in Task 30 by that module passing with the client's challenge.
+- The docs must not tell operators to put the issuer on plain http outside loopback. Checked in Task 29 review.
+
+### Task 28: Management API lookup by `id`
+
+**Files:**
+- Modify: `backend/internal/api/management_api.go`
+- Create: `backend/internal/api/management_api_test.go`
+- Modify: `backend/README.md` (Management API table)
+
+- [ ] **Step 1: Write the failing test**
+
+```go
+func TestManagementAPILooksUsersUpByID(t *testing.T) {
+	app := newMigratedTestApp(t)
+	user := newUsersTestRecord(t, app, "mgmt-id@example.com", "IDLookupSecret")
+	h := &Handlers{app: app}
+
+	cases := []struct {
+		query  string
+		status int
+	}{
+		{"id=" + user.Id, http.StatusOK},
+		{"id=missinguser0000", http.StatusNotFound},
+		{"id=" + user.Id + "&email=mgmt-id@example.com", http.StatusBadRequest},
+		{"id=" + user.Id + "&auth_string=IDLookupSecret", http.StatusBadRequest},
+		{"", http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		res := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/mgmt/users?"+tc.query, nil)
+		err := h.mgmtGetUser(&core.RequestEvent{App: app, Event: router.Event{Request: req, Response: res}})
+		if status := mgmtStatus(t, err); status != tc.status {
+			t.Fatalf("%q: status = %d, want %d", tc.query, status, tc.status)
+		}
+		if tc.status != http.StatusOK {
+			continue
+		}
+		var body PanelUser
+		if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil || body.ID != user.Id || body.AuthString != "IDLookupSecret" {
+			t.Fatalf("body = %+v, err = %v", body, err)
+		}
+	}
+}
+
+func mgmtStatus(t *testing.T, err error) int {
+	t.Helper()
+	if err == nil {
+		return http.StatusOK
+	}
+	var apiErr *router.ApiError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error %v is not an ApiError", err)
+	}
+	return apiErr.Status
+}
+```
+
+- [ ] **Step 2: Run it and see it fail**
+
+Run: `cd backend && go test ./internal/api -run TestManagementAPILooksUsersUpByID`
+Expected: FAIL, the `id` case answers 400 because `id` is not read.
+
+- [ ] **Step 3: Implement**
+
+Replace the lookup selection in `mgmtGetUser`:
+
+```go
+// mgmtGetUser looks up a single user by User ID, exact email or Current Auth
+// String. Exactly one of them must be provided. Connected Apps receive the
+// User ID as sub, so apps signing Users in through OIDC look them up by id.
+func (h *Handlers) mgmtGetUser(e *core.RequestEvent) error {
+	query := e.Request.URL.Query()
+	id := strings.TrimSpace(query.Get("id"))
+	email := strings.TrimSpace(query.Get("email"))
+	authString := strings.TrimSpace(query.Get("auth_string"))
+	if countNonEmpty(id, email, authString) > 1 {
+		return apis.NewBadRequestError("provide only one of id, email or auth_string", nil)
+	}
+
+	var user *core.Record
+	var err error
+	switch {
+	case id != "":
+		user, err = h.app.FindRecordById("users", id)
+	case email != "":
+		user, err = h.app.FindFirstRecordByFilter("users", "email = {:v}", map[string]any{"v": email})
+	case authString != "":
+		user, err = authstrings.FindCurrentUserByAuthString(h.app, authString)
+	default:
+		return apis.NewBadRequestError("id, email or auth_string is required", nil)
+	}
+	// unchanged from here
+}
+
+func countNonEmpty(values ...string) int {
+	count := 0
+	for _, value := range values {
+		if value != "" {
+			count++
+		}
+	}
+	return count
+}
+```
+
+- [ ] **Step 4: Run the test and the existing Management API tests**
+
+Run: `cd backend && go test ./internal/api -run 'Management|Mgmt|AnyTLS|AuthStringLifecycle'`
+Expected: PASS.
+
+- [ ] **Step 5: Update the README row and commit**
+
+The row becomes: `GET | /api/mgmt/users?id=`、`?email=` 或 `?auth_string=` | 按 User ID、email 或 Current `auth_string` 精确查询单个用户（三选一）...
+
+```bash
+git commit -m "feat(backend): look management api users up by id"
+```
+
+### Task 29: Documentation
+
+**Files:** `AGENTS.md`, `CONTEXT.md`, `backend/README.md`
+
+- [ ] **Step 1: AGENTS.md**
+  - Scope list: the panel is an OIDC provider for admin-registered Connected Apps (ADR-0010).
+  - Core decision 11: hand-rolled narrow profile, PKCE S256 required, confidential clients only, `/api/oidc/*` outside OpenAPI and 404 while off, issuer pinned, `oidcUserMayUse` style single check, grant revocation hook, CLI-only key rotation.
+  - Data model: the seven `oidc_*` collections and `app_settings.oidc_enabled` / `oidc_issuer`.
+  - Endpoints: admin `/oidc-clients`, consent `/oidc/requests/*`, `/users/{id}/oidc-grants`, the protocol endpoints, Management API `id`.
+  - Directory tree: `internal/oidc/` and the `oidc_*.go` handler files; frontend `routes/oidc/`, `routes/settings/connected-apps` and `components/authorized-apps.tsx`.
+- [ ] **Step 2: CONTEXT.md** adds Connected App and Authorized App Grant, each with an `_Avoid_` line.
+- [ ] **Step 3: backend README** adds an "OIDC Provider" section: requirements (`PANEL_BACKEND_URL_BASE` https or loopback, `PANEL_FRONTEND_URL_BASE`), enabling, the issuer pin, the endpoint table, relying party settings, lifetimes, `oidc rotate-signing-key`, and the reverse proxy note.
+- [ ] **Step 4: Commit** `docs: document the oidc provider`.
+
+### Task 30: Conformance run
+
+**Files:** `scripts/oidc-conformance/{README.md,pkce-proxy.mjs,driver.mjs,config.template.json,package.json}`, `docs/oidc-conformance.md`
+
+- [ ] **Step 1:** Build and start the suite from a local clone of `gitlab.com/openid/conformance-suite` with its `builder-compose.yml` and `docker-compose-dev.yml`, published at `https://localhost.emobix.co.uk:8443`.
+- [ ] **Step 2:** Start the backend on 127.0.0.1:8091 with `PANEL_BACKEND_URL_BASE=http://127.0.0.1:8092`, the PKCE proxy on 127.0.0.1:8092 and the frontend on 127.0.0.1:3001. Create two Connected Apps with redirect URI `https://localhost.emobix.co.uk:8443/test/a/hysterical-panel/callback`, refresh enabled, and two Users.
+- [ ] **Step 3:** Run the driver. It creates the plan through the suite API, starts each module, completes sign-in and consent in Playwright when the module waits for the browser, uploads nothing, and writes a JSON summary.
+- [ ] **Step 4:** Fix any failure that is a provider bug, with a regression test, in its own commit. Document the rest in `docs/oidc-conformance.md`.
+- [ ] **Step 5:** Commit `test: add the oidc conformance harness and results`.
+
+### Layer 5 exit check
+
+- [ ] Gates as in layer 4 Step 1.
+- [ ] Review `git diff oidc/4-consent-ui...oidc/5-finish` with `review:code-reviewer`. Fix Critical findings.
+- [ ] Update the ledger and report.
