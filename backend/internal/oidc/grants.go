@@ -65,3 +65,35 @@ func claimOnce(app core.App, collection, id, field string, now time.Time) (bool,
 	rows, err := result.RowsAffected()
 	return rows == 1, err
 }
+
+// errInvalidGrant answers every unusable code or refresh token alike, so a
+// client cannot tell an unknown value from an expired or foreign one.
+var errInvalidGrant = NewError(InvalidGrant, "the code or refresh token is invalid or expired")
+
+// grantUser returns the User behind an unrevoked grant who may still use the
+// app, or errInvalidGrant.
+func grantUser(app core.App, grant, client *core.Record) (*core.Record, error) {
+	if !grant.GetDateTime("revoked_at").IsZero() {
+		return nil, errInvalidGrant
+	}
+	user, err := app.FindRecordById("users", grant.GetString("user"))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errInvalidGrant
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !UserMayUse(client, user) {
+		return nil, errInvalidGrant
+	}
+	return user, nil
+}
+
+// revokeFamily revokes every token issued from one code.
+func revokeFamily(app core.App, family string, now time.Time) error {
+	_, err := app.NonconcurrentDB().Update(TokensCollection,
+		dbx.Params{"revoked_at": dbTime(now)},
+		dbx.NewExp("[[family]] = {:family} AND [[revoked_at]] = ''", dbx.Params{"family": family}),
+	).Execute()
+	return err
+}

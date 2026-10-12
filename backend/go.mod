@@ -6,6 +6,7 @@ require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/getkin/kin-openapi v0.139.0
 	github.com/go-webauthn/webauthn v0.17.4
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/nicholas-fedor/shoutrrr v0.16.1
 	github.com/oschwald/maxminddb-golang/v2 v2.3.0
 	github.com/pocketbase/dbx v1.12.0
@@ -30,7 +31,6 @@ require (
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/go-webauthn/x v0.2.6 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect

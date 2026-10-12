@@ -1,9 +1,12 @@
 package api
 
 import (
+	"crypto/rsa"
+	"encoding/base64"
 	"encoding/json"
-	"hysterical-panel/internal/token"
+	"errors"
 	"maps"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,11 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
 	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/oidc"
+	"hysterical-panel/internal/token"
 )
 
 const (
@@ -262,5 +267,130 @@ func TestOIDCAuthorizeIsRateLimited(t *testing.T) {
 	}
 	if res := env.get(path); res.Header().Get("Location") != oidcTestFrontend+"/oidc/error?reason=rate_limited" {
 		t.Fatalf("over the limit = %d %q", res.Code, res.Header().Get("Location"))
+	}
+}
+
+type oauthErrorResponse struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+// postClientForm sends a back-channel request with client_secret_basic.
+func (env *oidcTestEnv) postClientForm(path string, form url.Values, secret string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(url.QueryEscape(env.client.ClientID), url.QueryEscape(secret))
+	return env.do(req)
+}
+
+func (env *oidcTestEnv) postToken(form url.Values) *httptest.ResponseRecorder {
+	return env.postClientForm("/api/oidc/token", form, env.secret)
+}
+
+func codeForm(code string) url.Values {
+	return url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"redirect_uri":  {helpCenterCallback},
+		"code_verifier": {oidcTestVerifier},
+	}
+}
+
+// tokens runs the whole code flow as the env's User.
+func (env *oidcTestEnv) tokens(overrides map[string]string) oidc.TokenResponse {
+	env.t.Helper()
+	res := env.postToken(codeForm(env.approveCode(overrides)))
+	if res.Code != http.StatusOK {
+		env.t.Fatalf("token = %d %s", res.Code, res.Body.String())
+	}
+	return decodeBody[oidc.TokenResponse](env.t, res)
+}
+
+// verifyIDToken checks an ID token the way a relying party does, with the
+// served JWKS and the issuer from discovery.
+func (env *oidcTestEnv) verifyIDToken(raw string) jwt.MapClaims {
+	env.t.Helper()
+	jwks := decodeBody[oidc.JWKS](env.t, env.get("/api/oidc/jwks"))
+	issuer := decodeBody[oidc.ProviderMetadata](env.t, env.get("/api/oidc/.well-known/openid-configuration")).Issuer
+	parsed, err := jwt.Parse(raw, func(tok *jwt.Token) (any, error) {
+		for _, key := range jwks.Keys {
+			if key.KeyID == tok.Header["kid"] {
+				return rsaPublicKey(key)
+			}
+		}
+		return nil, errors.New("kid is not in the jwks")
+	}, jwt.WithValidMethods([]string{"RS256"}), jwt.WithIssuer(issuer), jwt.WithAudience(env.client.ClientID), jwt.WithExpirationRequired())
+	if err != nil {
+		env.t.Fatalf("verify id token: %v", err)
+	}
+	return parsed.Claims.(jwt.MapClaims)
+}
+
+func rsaPublicKey(key oidc.JWK) (*rsa.PublicKey, error) {
+	n, err := base64.RawURLEncoding.DecodeString(key.Modulus)
+	if err != nil {
+		return nil, err
+	}
+	e, err := base64.RawURLEncoding.DecodeString(key.Exponent)
+	if err != nil {
+		return nil, err
+	}
+	return &rsa.PublicKey{N: new(big.Int).SetBytes(n), E: int(new(big.Int).SetBytes(e).Int64())}, nil
+}
+
+func TestOIDCCodeFlowEndToEnd(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	code := env.approveCode(nil)
+	res := env.postToken(codeForm(code))
+	if res.Code != http.StatusOK || res.Header().Get("Cache-Control") != "no-store" || res.Header().Get("Pragma") != "no-cache" {
+		t.Fatalf("token = %d %v %s", res.Code, res.Header(), res.Body.String())
+	}
+	tokens := decodeBody[oidc.TokenResponse](t, res)
+	claims := env.verifyIDToken(tokens.IDToken)
+	if claims["sub"] != env.user.Id || claims["email"] != "oidc-user@example.com" || claims["nonce"] != "rp-nonce" ||
+		tokens.Scope != "openid email" || tokens.RefreshToken != "" {
+		t.Fatalf("claims = %v, tokens = %+v", claims, tokens)
+	}
+
+	res = env.postToken(codeForm(code))
+	if body := decodeBody[oauthErrorResponse](t, res); res.Code != http.StatusBadRequest || body.Error != "invalid_grant" {
+		t.Fatalf("replay = %d %s", res.Code, res.Body.String())
+	}
+}
+
+func TestOIDCTokenEndpointRejectsBadRequests(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	res := env.postClientForm("/api/oidc/token", codeForm("unused"), "wrong-secret")
+	if body := decodeBody[oauthErrorResponse](t, res); res.Code != http.StatusUnauthorized || body.Error != "invalid_client" ||
+		res.Header().Get("WWW-Authenticate") != `Basic realm="oidc"` {
+		t.Fatalf("wrong secret = %d %v %s", res.Code, res.Header(), res.Body.String())
+	}
+
+	cases := map[string]struct {
+		form url.Values
+		want string
+	}{
+		"unsupported grant type": {url.Values{"grant_type": {"password"}}, "unsupported_grant_type"},
+		"missing grant type":     {url.Values{"code": {"unused"}}, "invalid_request"},
+		"repeated parameter":     {url.Values{"grant_type": {"authorization_code", "authorization_code"}}, "invalid_request"},
+	}
+	for name, c := range cases {
+		res := env.postToken(c.form)
+		if body := decodeBody[oauthErrorResponse](t, res); res.Code != http.StatusBadRequest || body.Error != c.want {
+			t.Errorf("%s = %d %s", name, res.Code, res.Body.String())
+		}
+	}
+}
+
+func TestOIDCTokenEndpointLocksOutRepeatedClientFailures(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	for range oidcClientFailureMax {
+		if res := env.postClientForm("/api/oidc/token", codeForm("unused"), "wrong-secret"); res.Code != http.StatusUnauthorized {
+			t.Fatalf("failure = %d %s", res.Code, res.Body.String())
+		}
+	}
+	res := env.postToken(codeForm(env.approveCode(nil)))
+	if body := decodeBody[oauthErrorResponse](t, res); res.Code != http.StatusTooManyRequests || body.Error != "temporarily_unavailable" {
+		t.Fatalf("after the lockout = %d %s", res.Code, res.Body.String())
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -25,6 +26,7 @@ func (h *Handlers) bindOIDCRoutes(se *core.ServeEvent) {
 	g.GET(oidc.JWKSPath, h.oidcJWKS)
 	g.GET(oidc.AuthorizePath, h.oidcAuthorize)
 	g.POST(oidc.AuthorizePath, h.oidcAuthorize)
+	g.POST(oidc.TokenPath, h.oidcToken)
 }
 
 // requireOIDCServing hides the provider behind 404 while it is off or
@@ -126,4 +128,76 @@ func (h *Handlers) oidcAuthorizeFailure(e *core.RequestEvent, failure *oidc.Auth
 
 func (h *Handlers) oidcErrorPage(e *core.RequestEvent, reason string) error {
 	return e.Redirect(http.StatusSeeOther, h.publicConfig.FrontendURL+"/oidc/error?reason="+url.QueryEscape(reason))
+}
+
+// oauthErrorBody is the error response of RFC 6749 5.2.
+type oauthErrorBody struct {
+	Error       string `json:"error"`
+	Description string `json:"error_description,omitempty"`
+}
+
+func (h *Handlers) oidcToken(e *core.RequestEvent) error {
+	setNoStore(e)
+	client, oauthErr := h.oidcAuthenticatedClient(e)
+	if oauthErr != nil {
+		return writeOAuthError(e, oauthErr)
+	}
+	req := oidc.TokenRequest{Client: client, Form: e.Request.PostForm, Issuer: oidcIssuer(e), Box: h.box, Now: time.Now()}
+	var resp *oidc.TokenResponse
+	switch e.Request.PostForm.Get("grant_type") {
+	case oidc.GrantTypeAuthorizationCode:
+		resp, oauthErr = oidc.ExchangeCode(h.app, req)
+	case "":
+		oauthErr = oidc.NewError(oidc.InvalidRequest, "grant_type is required")
+	default:
+		oauthErr = oidc.NewError(oidc.UnsupportedGrantType, "use authorization_code or refresh_token")
+	}
+	if oauthErr != nil {
+		return writeOAuthError(e, oauthErr)
+	}
+	return e.JSON(http.StatusOK, resp)
+}
+
+// oidcAuthenticatedClient parses a back-channel request and authenticates
+// the app. An address with too many failed authentications is refused even
+// with the right secret until its window ends. Query parameters are ignored,
+// so credentials in a URL never count.
+func (h *Handlers) oidcAuthenticatedClient(e *core.RequestEvent) (*core.Record, *oidc.Error) {
+	ip, now := e.RealIP(), time.Now()
+	if !h.oidcLimits.backchannel.allow(ip, now) || h.oidcLimits.clientFailures.blocked(ip, now) {
+		return nil, oidc.NewError(oidc.TemporarilyUnavailable, "too many requests")
+	}
+	if err := e.Request.ParseForm(); err != nil || oidc.HasRepeatedParams(e.Request.PostForm) {
+		return nil, oidc.NewError(oidc.InvalidRequest, "send each parameter once in a form-encoded body")
+	}
+	client, oauthErr := oidc.AuthenticateClient(h.app, e.Request)
+	if oauthErr != nil && oauthErr.Code == oidc.InvalidClient {
+		h.oidcLimits.clientFailures.allow(ip, now)
+	}
+	return client, oauthErr
+}
+
+// writeOAuthError answers with RFC 6749 5.2 statuses. invalid_client always
+// carries a Basic challenge, which keeps the 401 valid HTTP whichever method
+// the client used.
+func writeOAuthError(e *core.RequestEvent, oauthErr *oidc.Error) error {
+	status := http.StatusBadRequest
+	switch oauthErr.Code {
+	case oidc.InvalidClient:
+		status = http.StatusUnauthorized
+		e.Response.Header().Set("WWW-Authenticate", `Basic realm="oidc"`)
+	case oidc.TemporarilyUnavailable:
+		status = http.StatusTooManyRequests
+		e.Response.Header().Set("Retry-After", strconv.Itoa(int(oidcRateWindow.Seconds())))
+	case oidc.ServerError:
+		status = http.StatusInternalServerError
+		log.Printf("[oidc] %s %s: %v", e.Request.Method, e.Request.URL.Path, oauthErr)
+	}
+	return e.JSON(status, oauthErrorBody{Error: oauthErr.Code, Description: oauthErr.Description})
+}
+
+// setNoStore keeps tokens and claims out of caches (RFC 6749 5.1).
+func setNoStore(e *core.RequestEvent) {
+	e.Response.Header().Set("Cache-Control", "no-store")
+	e.Response.Header().Set("Pragma", "no-cache")
 }
