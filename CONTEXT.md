@@ -133,7 +133,7 @@ An admin-registered site that signs Users in with their panel account through th
 _Avoid_: Client (for this meaning), OAuth app, integration, relying party (as the product noun)
 
 **Authorized App**:
-A Connected App a User has approved, with the scopes approved. The panel remembers it so the consent page is skipped next time; the User or an admin can revoke it, which ends the app's tokens. Disabling or unverifying the User revokes every Authorized App.
+A Connected App a User has approved, with the scopes approved. The panel remembers it so the consent page is skipped next time; the User or an admin can revoke it, which ends the app's tokens. Disabling or unverifying the User revokes every Authorized App on a best-effort basis; while the User stays unusable, every token is refused anyway.
 _Avoid_: connection, linked app, OAuth link (that is a panel login link), session
 
 **Passkey**:

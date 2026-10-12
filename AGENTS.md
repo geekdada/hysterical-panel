@@ -103,8 +103,8 @@
 
 11. **OIDC Provider 是手写的窄 profile，只服务 admin 登记的 Connected App（ADR-0010）。**
     后端在 `internal/oidc`（状态、密钥、token、授权）+ `internal/api/oidc_*.go`（HTTP）。只有 Authorization Code + PKCE `S256`（每个请求都必须带），只有 confidential client（`client_secret_basic` / `client_secret_post`，secret 只存 sha256、只回显一次）。`/api/oidc/*` 不进 OpenAPI，`app_settings.oidc_enabled=false` 时一律 404；issuer = `PANEL_BACKEND_URL_BASE + "/api/oidc"`，须 https（loopback 可 http），开启时固定到 `oidc_issuer`，之后地址变了就 404 直到 admin 关了再开。
-    **谁能登录只在 `oidc.UserMayUse` 一处判断**（应用 enabled + User active + verified），授权、换 token、刷新、userinfo 每步都调它；将来按应用限制用户只改这个函数。User 停用或取消验证时 `bindOIDCGrantRevocation` 的 record hook 在同一次保存里撤销其全部授权（`/_/` 改动同样生效）；改密码、删 passkey 不撤销。
-    同意按 User + 应用 + scope 记住（`oidc_grants`），scope 变多才重问；应用可设跳过同意页（默认关）。`prompt=login` / `max_age` 走前端 `/login?reauth=true&redirect=`，`auth_time` 来自 `oidc_session_auth_times` 记录的真实登录时间，token 刷新时沿用。有效期写死在 `internal/oidc/oidc.go`。签名密钥 RS256，私钥经 `cryptobox` 加密，**只能用 CLI `oidc rotate-signing-key` 轮换**。code 或已轮换 refresh token 被重放时撤销整条 family。
+    **谁能登录只在 `oidc.UserMayUse` 一处判断**（应用 enabled + User active + verified），授权、换 token、刷新、userinfo 每步都调它；将来按应用限制用户只改这个函数。User 停用或取消验证时 `bindOIDCGrantRevocation` 的 record hook 在保存后尽力撤销其全部授权（`/_/` 改动同样生效；失败只记日志、不阻止保存，停用期间 `UserMayUse` 照样拒绝所有 token）；改密码、删 passkey 不撤销。
+    同意按 User + 应用 + scope 记住（`oidc_grants`），scope 变多才重问；应用可设跳过同意页（默认关）。`prompt=login` / `max_age` 走前端 `/login?reauth=true&redirect=`，`auth_time` 来自 `oidc_session_auth_times` 记录的真实登录时间，token 刷新时沿用。有效期写死在 `internal/oidc/oidc.go`。签名密钥 RS256，私钥经 `cryptobox` 加密，**手动轮换只有 CLI `oidc rotate-signing-key`**，面板无入口；换 `PANEL_MASTER_KEY` 后服务端会在下次签名或请求 JWKS 时自动退役解不开的旧密钥并生成新的，CLI 此时拒绝执行是为了发现 shell 环境与服务端不一致。code 或已轮换 refresh token 被重放时撤销整条 family。
 
 ## 技术栈与版本
 
@@ -253,7 +253,7 @@ hysterical-panel/
 `oidc_grants`：User 对 Connected App 的已记住同意（Authorized App）。`user` + `client` 在 `revoked_at = ''` 时唯一，`scopes`、`revoked_at`、`revoke_reason`、`last_used_at`。
 `oidc_auth_requests`（10min）/ `oidc_codes`（60s，单次）/ `oidc_tokens`（`kind` access 10min / refresh 闲置 30 天、最长 90 天，按 `family` 整条撤销）：handle、code、token 都只存 sha256（**Hidden**）。
 `oidc_signing_keys`：RS256 密钥，`private_key` 经 `cryptobox` 加密（**Hidden**），`state` active 唯一、retired 在 JWKS 保留 24h。
-`oidc_session_auth_times`：面板 session token hash → 真实登录时间，供 `auth_time`。以上 `oidc_*` collection 五条 API rule 全为 nil（仅 superuser），过期记录由 30 分钟一次的 cron 清理。
+`oidc_session_auth_times`：面板 session token hash → 真实登录时间，供 `auth_time`。以上 `oidc_*` collection 五条 API rule 全为 nil（仅 superuser），30 分钟一次的 cron 清理：过期授权请求与登录时间立即删；过期 code / token 再留 7 天供重放检测撤销 family；退役签名密钥退役 24 小时后删；已撤销的 `oidc_grants` 不清理。
 
 `app_settings`（单例，迁移时 seed 一条全 false 记录）：`invitations_enabled`、`open_registration`、`require_invite_for_open` (bool)；`management_api_enabled` (bool) + `management_api_token_hash` (text, 仅存 token 的 sha256 hex，**绝不存明文**)；`email_sendout_rate_per_minute`（1–600，默认 30）；`oidc_enabled` (bool) + `oidc_issuer`（开启时固定的 issuer）。运行期可变，注册与 `/config` 实时读。
 
@@ -301,7 +301,7 @@ hysterical-panel/
 - `GET|PATCH /settings`、`POST /management-api/rotate`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验注册开关层级（`invitations_enabled` 依赖 `open_registration`；`require_invite_for_open` 依赖 `invitations_enabled`），并在首次置 `management_api_enabled=true` 时生成明文 token 回显一次（见决策 #10）；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts`、`GET /users/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段（含 kind、阈值）会静默 cancel 旧 Alert 并立即重评估。User Monitor 请求传 `evaluation_window_seconds` / `node_scope` / 非空 `node_ids` 返回 400。
-- OIDC 接口均进 OpenAPI：`GET|POST /oidc-clients`、`PATCH|DELETE /oidc-clients/{id}`、`POST /oidc-clients/{id}/rotate-secret` 仅 admin；同意页用的 `GET /oidc/requests/{handle}`、`POST /oidc/requests/{handle}/approve|deny` 要求已登录，且当前 User 须通过 `oidc.UserMayUse`；`POST /oidc/requests/{handle}/abort` 公开（未登录时结束 `prompt=none` 请求）。这四个同意页接口在提供方关闭时 404。`GET /users/{id}/oidc-grants`、`DELETE /users/{id}/oidc-grants/{grantId}` 走 `requireActiveAdminOrSelf`。见决策 #11。
+- OIDC 接口均进 OpenAPI：`GET|POST /oidc-clients`、`PATCH|DELETE /oidc-clients/{id}`、`POST /oidc-clients/{id}/rotate-secret` 仅 admin；同意页用的 `GET /oidc/requests/{handle}`、`POST /oidc/requests/{handle}/approve` 要求已登录且通过 `oidc.UserMayUse`，`deny` 只要求已登录；`POST /oidc/requests/{handle}/abort` 公开，持有 handle 即可结束请求（`prompt=none` 回 `login_required`，其余回 `access_denied`），与 `/authorize` 共用每 IP 60 次/分钟额度。这四个同意页接口在提供方关闭时 404。`GET /users/{id}/oidc-grants`、`DELETE /users/{id}/oidc-grants/{grantId}` 走 `requireActiveAdminOrSelf`。见决策 #11。
 - Email Sendout 接口 `GET /email-sendouts/context`、`GET /email-sendouts/eligible-recipients`、`GET|POST /email-sendouts`、`GET /email-sendouts/{id}`、`GET /email-sendouts/{id}/recipients`、`POST /email-sendouts/{id}/cancel|resend` 均仅 admin、进 OpenAPI。创建与重发在 SMTP 未启用时 503；worker 语义见 backend/README.md 与 ADR-0008。
 - `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口；`app_name` 实时取 PocketBase `Settings → Application Name`，前端品牌名、徽标首字母与 `<title>` 都用它（`src/lib/use-app-name.ts`，取不到时回退 `m.app_title()`）。迁移 `1730000031` 把 PocketBase 默认的 `Acme` 改为 `Hysterical Panel`，已自定义的名称不动。
 - `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时 streams 诊断核心：并发拉可见节点的 `/dump/streams`（5s 超时），把稳定 `user.id` 与全部历史 Auth String 统一归属后，聚合出 `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按客户端连接分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** 在线设备数来自 Collector 的最新 `/online` 投影，不属于 live 响应。Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
@@ -349,7 +349,7 @@ hysterical-panel/
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
-| `PANEL_MASTER_KEY` | 是 | 经 SHA-256 派生 256 位 AES key，加解密节点 secret。**换 key → 已存 secret 全部解不开**，迁移环境要带原 key。生成 schema 时可传占位（`make openapi` 用 `PANEL_MASTER_KEY=skip`） |
+| `PANEL_MASTER_KEY` | 是 | 经 SHA-256 派生 256 位 AES key，加解密节点 secret、通知 Channel URL 与 OIDC 签名私钥。**换 key → 已存 secret 全部解不开**，迁移环境要带原 key。生成 schema 时可传占位（`make openapi` 用 `PANEL_MASTER_KEY=skip`） |
 | `PANEL_FRONTEND_URL_BASE` | 否 | 面板 UI 的 CORS 来源（`http://` / `https://`，无路径）；未设置则 `*`。写入 `apis.ServeConfig.AllowedOrigins` |
 | `PANEL_BACKEND_URL_BASE` | 否 | 公开 API 来源，经 `GET /api/panel/config` 的 `api_url` 回给前端；未设置则省略该字段，前端回退同域 / 构建期配置 |
 | `PANEL_SSR_API_BASE_URL` | 否 | 前端 Nitro SSR 进程访问后端的运行期地址；Docker Compose 默认 `http://backend:8090` |
@@ -376,7 +376,7 @@ hysterical-panel/
 - 新增或写入 datetime 字段时默认 **UTC**；勿用 `time.Now()` 无 `.UTC()` 落库。
 - 改动后端后至少跑 `go build ./...` 和 `go vet ./...`，确保零告警；改了接口契约要 `make openapi` + 前端 `pnpm api:sync`。
 - 验证启动：带 `PANEL_MASTER_KEY` 跑 `serve`，确认 collection 建出、未授权访问 `/api/panel/*` 返回 401。
-- 已有测试覆盖 `internal/config`、`internal/ipmeta`、`internal/sendouts`（queue/worker），及 `internal/api` 的 live 聚合 / register / kick / database / users_list / recent_connections / auth_string_anytls_hash / email_sendouts，以及 `internal/monitoring` 的 User Monitor 生命周期与通知文案；继续补测优先 `collector.delta`（reset 边界）和 live 聚合逻辑。
+- 已有测试覆盖 `internal/config`、`internal/ipmeta`、`internal/sendouts`（queue/worker），及 `internal/api` 的 live 聚合 / register / kick / database / users_list / recent_connections / auth_string_anytls_hash / email_sendouts，`internal/monitoring` 的 User Monitor 生命周期与通知文案，以及 `internal/oidc`（授权请求、同意、code / token、重放、签名密钥、清理）与 `internal/api` 的 `oidc_*` / management_api 接口；继续补测优先 `collector.delta`（reset 边界）和 live 聚合逻辑。
 - **改前端可见文案务必 `messages/en.json` 与 `messages/zh-cn.json` 同步加键**，并 `pnpm i18n:check`；新增组件不要硬编码文案。
 - 字段名、collection 名、API 契约一旦定下前端会依赖，改动需同步更新 `dto.go` / OpenAPI / README 并通知前端。
 

@@ -31,8 +31,9 @@ make serve     # 或: go run . serve
 
 | 变量 | 必填 | 说明 |
 |------|------|------|
-| `PANEL_MASTER_KEY` | 是 | 节点 `api_secret` 的 AES-GCM 主密钥 |
+| `PANEL_MASTER_KEY` | 是 | 节点 `api_secret` 与 OIDC 签名私钥的 AES-GCM 主密钥 |
 | `PANEL_FRONTEND_URL_BASE` | 否 | 面板 UI 的 CORS 来源（`http://` 或 `https://`，不含路径）；未设置则允许 `*` |
+| `PANEL_BACKEND_URL_BASE` | 否 | 后端公开地址，经 `GET /api/panel/config` 回给前端；OIDC issuer 也由它派生 |
 | `PANEL_CORS_MAX_AGE` | 否 | 预检 `Access-Control-Max-Age`（秒），默认 `7200`；`0` 表示不发送 |
 | `PB_DATA_DIR` | 否 | PocketBase 数据目录，默认 `./pb_data`；CLI `--dir` 优先级更高 |
 | `MMDB_DIR` | 否 | IP 元数据 MMDB 目录，默认 `./mmdb`，需包含 `ipinfo_lite.mmdb` |
@@ -106,9 +107,11 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 | PATCH | `/settings` | 改开关（层级校验：`invitations_enabled=true` 需 `open_registration=true`；`require_invite_for_open=true` 需 `invitations_enabled=true`，否则 400）；也改 `email_sendout_rate_per_minute`（1–600）与 `oidc_enabled`（见下方 OIDC Provider） |
 | GET/POST | `/oidc-clients` | 列出 Connected App / 新建（`client_secret` 只在响应里出现一次） |
 | PATCH/DELETE | `/oidc-clients/{id}` | 修改名称、redirect URI、scope、refresh、跳过同意页、启停 / 删除（连同它的授权、code 与 token） |
-| POST | `/oidc-clients/{id}/rotate-secret` | 轮换 client secret，新明文只返回一次 |
+| POST | `/oidc-clients/{id}/rotate-secret` | 轮换 client secret，新明文只返回一次。已签发的 access token 在 10 分钟内仍有效，刷新须用新 secret；secret 泄露时要立即切断请停用该应用 |
 | GET | `/oidc/requests/{handle}` | 同意页读取待处理的授权请求（任意已登录且可用的 User；提供方关闭时 404） |
-| POST | `/oidc/requests/{handle}/approve`、`/deny` | 同意页提交决定，返回跳回应用的 `redirect_to` |
+| POST | `/oidc/requests/{handle}/approve` | 同意页同意，返回跳回应用的 `redirect_to`（任意已登录且可用的 User） |
+| POST | `/oidc/requests/{handle}/deny` | 同意页拒绝，返回带 `access_denied` 的 `redirect_to`（只要求已登录） |
+| POST | `/oidc/requests/{handle}/abort` | **公开**。未登录的 User 结束授权请求：`prompt=none` 返回 `login_required`，其余返回 `access_denied`。持有 handle 即可调用，与 `/authorize` 共用每 IP 每分钟 60 次额度 |
 | GET / DELETE | `/users/{id}/oidc-grants`、`/users/{id}/oidc-grants/{grantId}` | 列出 / 撤销该用户已授权的 Connected App（active 的 admin 或本人） |
 | GET/POST | `/notification-channels` | 管理员列出非秘密 Channel 元数据 / 新建单 URL Channel（默认 disabled） |
 | PATCH/DELETE | `/notification-channels/{id}` | 修改名称、启停或替换 URL / 永久删除 Channel |
@@ -235,13 +238,13 @@ auth:
 
 ## OIDC Provider（Connected App 登录）
 
-面板可以作为 OpenID Connect 提供方，让 admin 登记的 Connected App 用面板账号登录。决策与取舍见 [ADR-0010](../docs/adr/0010-oidc-provider.md)，conformance 结果见 [`docs/oidc-conformance.md`](../docs/oidc-conformance.md)。
+面板可以作为 OpenID Connect 提供方，让 admin 登记的 Connected App 用面板账号登录。Connected App 只面向自己运营的站点（ADR-0010），不要登记第三方应用。决策与取舍见 [ADR-0010](../docs/adr/0010-oidc-provider.md)，conformance 结果见 [`docs/oidc-conformance.md`](../docs/oidc-conformance.md)。
 
 只支持一种流程：Authorization Code + PKCE `S256`，客户端必须是持有 secret 的 confidential client（`client_secret_basic` 或 `client_secret_post`）。不支持 public client、implicit、`client_credentials`、动态注册、`request` / `request_uri`、introspection。
 
 ### 启用
 
-1. 设置 `PANEL_BACKEND_URL_BASE` 与 `PANEL_FRONTEND_URL_BASE`。issuer 是 `PANEL_BACKEND_URL_BASE + "/api/oidc"`，必须是 https；只有 `localhost`、`127.0.0.1`、`::1` 这类 loopback 地址允许 http，供本地开发。同意页由前端渲染，所以前端地址也必须配置。
+1. 设置 `PANEL_BACKEND_URL_BASE` 与 `PANEL_FRONTEND_URL_BASE`。issuer 是 `PANEL_BACKEND_URL_BASE + "/api/oidc"`，必须是 https；只有 `localhost`、`127.0.0.1`、`::1` 这类 loopback 地址允许 http，供本地开发。同意页由前端渲染，所以前端地址也必须配置。启用时只检查后端地址的 https，前端地址同样应该用 https，因为同意页带着面板登录态。
 2. admin 在面板「设置」里打开 OIDC 开关（`PATCH /settings` 置 `oidc_enabled=true`）。打开时生成签名密钥并固定当前 issuer。
 3. 在「设置 → Connected Apps」登记应用，填精确的 redirect URI，保存后复制只显示一次的 client secret。
 
@@ -255,32 +258,35 @@ auth:
 | GET | `/jwks` | 签名公钥（RS256） |
 | GET / POST | `/authorize` | 校验请求后 303 到前端同意页 `/oidc/authorize?request=...`，错误按 RFC 6749 跳回应用或跳到前端 `/oidc/error` |
 | POST | `/token` | `authorization_code` 与 `refresh_token` |
-| GET / POST | `/userinfo` | Bearer access token，返回 `sub`、`email`、`email_verified` |
+| GET / POST | `/userinfo` | access token 只从 `Authorization: Bearer` 头读取，返回 `sub`、`email`、`email_verified` |
 | POST | `/revoke` | RFC 7009，撤销 access 或 refresh token |
 
-`/authorize` 按 IP 每分钟 60 次；`/token`、`/userinfo`、`/revoke` 共用每分钟 300 次，另外 client 认证失败每分钟 10 次，超出返回 429，但正确的 secret 始终放行。放在反向代理后面时按上文「Docker」一节配置 User IP proxy headers。
+限流按 IP 计。`/authorize` 每分钟 60 次，超出时跳到前端 `/oidc/error?reason=rate_limited`。`/token`、`/userinfo`、`/revoke` 共用每分钟 300 次，超出返回 429。client 认证失败另有每分钟 10 次的额度，用完后错误的 secret 收到 429，正确的 secret 仍放行，但仍受 300 次总额度限制。放在反向代理后面时按上文「Docker」一节配置 User IP proxy headers。
 
 ### 应用侧配置
 
-- scope：`openid`（必需）、`email`、`offline_access`。`sub` 是 User ID；需要 Current Auth String 或账号状态时，应用服务端用 Management API `GET /api/mgmt/users?id=<sub>` 查。
-- 只有 `status=active` 且 `verified=true` 的 User 能登录，授权、换 token、刷新和 userinfo 每一步都会重新检查。User 被停用或取消验证时，它的全部授权在同一次保存里撤销，`/_/` 后台的修改同样生效。改密码或删 passkey 不撤销授权。
-- 同意按 User + 应用 + scope 记住，scope 变多时再问。应用可以设置为跳过同意页，默认关闭。用户在「设置 → 已授权的应用」里撤销。
+- scope：`openid`（必需）、`email`、`offline_access`。未知 scope（如 `profile`）直接忽略、不报错，实际授予的 scope 见 token 响应的 `scope`。
+- `sub` 是 User ID。需要 Current Auth String 或账号状态时，应用服务端用 Management API `GET /api/mgmt/users?id=<sub>` 查。Management API token 是全局的，能读任意 User 的 Current Auth String，也能建号。只把它交给你自己控制的服务端，不要给第三方，也不要放进浏览器。
+- 只有 `status=active` 且 `verified=true` 的 User 能登录，授权、换 token、刷新和 userinfo 每一步都会重新检查。User 被停用或取消验证时，保存后会尽力撤销它的全部授权，`/_/` 后台的修改同样生效。撤销失败只记日志、不阻止保存；停用期间所有 token 照样被拒。改密码或删 passkey 不撤销授权。
+- 同意按 User + 应用 + scope 记住，scope 变多时再问。应用可以设置为跳过同意页，默认关闭；请求带 `prompt=consent` 或 `prompt=select_account` 时仍显示同意页。用户在「设置 → 已授权的应用」里撤销。
 - `prompt=login` 和 `max_age` 会让用户回到面板登录页重新登录，任何登录方式都算；`auth_time` 取自这次真实登录的时间。`prompt=none` 未登录时返回 `login_required`，需要同意时返回 `consent_required`。
 - 回调参数带 RFC 9207 的 `iss`。
 - refresh token 只在应用开启 refresh 且请求带 `offline_access` 时签发，每次使用都轮换；重放已轮换的 refresh token 或已用过的 code 会撤销同一授权链上的所有 token。
 
-固定有效期：授权请求 10 分钟，code 60 秒，access token 与 ID token 10 分钟，refresh token 闲置 30 天、最长 90 天。过期记录由每 30 分钟一次的 cron 清理。
+固定有效期：授权请求 10 分钟，code 60 秒，access token 与 ID token 10 分钟，refresh token 闲置 30 天、最长 90 天。每 30 分钟一次的 cron 清理：过期的授权请求与登录时间记录立即删除；过期的 code 与 token 再保留 7 天，让迟到的重放仍能找到记录并撤销整条 family；退役的签名密钥在退役 24 小时后删除。已撤销的授权记录不清理。
 
 ### 签名密钥
 
-私钥用 `PANEL_MASTER_KEY` 加密存储。轮换只能用 CLI：
+私钥用 `PANEL_MASTER_KEY` 加密存储。面板里没有手动轮换入口，用 CLI。命令必须带服务端相同的 `PANEL_MASTER_KEY` 和数据目录（`PB_DATA_DIR` 或 `--dir`），否则会在另一个空库上「成功」：
 
 ```bash
 ./hysterical-panel oidc rotate-signing-key
 # Docker 镜像里：docker exec <容器> hysterical-panel oidc rotate-signing-key
 ```
 
-旧公钥在 JWKS 里保留 24 小时，之前签发的 ID token 仍能验证。`--drop-previous` 立即移除旧公钥。更换 `PANEL_MASTER_KEY` 后旧私钥解不开，命令会拒绝执行，加 `--force` 才会直接生成新密钥。
+新签发的 ID token 立即使用新 `kid`。`/jwks` 带 `Cache-Control: max-age=300`，遇到未知 `kid` 不重新拉取 JWKS 的应用最多会失败 5 分钟。旧公钥在 JWKS 里保留 24 小时，之前签发的 ID token 仍能验证。`--drop-previous` 立即移除所有旧公钥，包括刚被替换的那把。
+
+换了 `PANEL_MASTER_KEY` 后不需要手动轮换：服务端在下次签名或请求 JWKS 时发现旧私钥解不开，会自动退役它并生成新密钥。CLI 遇到解不开的密钥会拒绝执行，这通常说明当前 shell 的 `PANEL_MASTER_KEY` 或数据目录与服务端不一致。先核对，确认无误再考虑 `--force`。
 
 ## 结构
 
@@ -294,5 +300,6 @@ internal/token/             URL-safe 随机 token（邀请码 / auth_string）
 internal/hysteria/          Traffic Stats API 客户端
 internal/notifications/     Beszel-compatible Shoutrrr URL 校验与单 Channel 测试投递
 internal/collector/         counter-to-delta 采集核心
+internal/oidc/              OIDC Provider：授权请求、同意、code / token、签名密钥、清理、`oidc rotate-signing-key` CLI
 internal/api/               /api/panel 路由：nodes / users / traffic / live / settings / invitations / notification-channels / register
 ```
