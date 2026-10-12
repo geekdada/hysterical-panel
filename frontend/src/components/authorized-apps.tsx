@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@heroui/react";
 import {
+  PanelApiError,
   queryErrorMessage,
   queryKeys,
   revokeUserOIDCGrant,
@@ -21,7 +22,14 @@ export function AuthorizedAppsSection({ userId }: { userId: string }) {
   const [pendingGrant, setPendingGrant] = useState<OIDCGrant | null>(null);
   const grantsQuery = useQuery(userOIDCGrantsQueryOptions(userId));
   const revokeMutation = useMutation({
-    mutationFn: (grantId: string) => revokeUserOIDCGrant(userId, grantId),
+    mutationFn: async (grantId: string) => {
+      try {
+        await revokeUserOIDCGrant(userId, grantId);
+      } catch (error) {
+        // Another tab or an admin already revoked it, which is the outcome the User asked for.
+        if (!(error instanceof PanelApiError && error.status === 404)) throw error;
+      }
+    },
     onSuccess: () => {
       setPendingGrant(null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.userOIDCGrants(userId) });

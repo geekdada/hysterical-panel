@@ -976,7 +976,7 @@
   "oidc_consent_reauth_desc": "{client} 要求你重新登录后再继续。",
   "oidc_consent_reauth_action": "重新登录",
   "oidc_consent_expired": "这个登录请求已过期或已使用。请返回应用重新开始。",
-  "oidc_consent_not_allowed": "你的账号无法登录接入应用，账号需已启用且邮箱已验证。",
+  "oidc_consent_not_allowed": "此应用或你的账号当前无法用于登录。账号需已启用且邮箱已验证。",
   "oidc_consent_session_expired": "面板登录已失效。请重新登录以继续。",
   "oidc_consent_failed": "出现问题。请返回应用重试。",
   "oidc_scope_openid": "你的账号 ID",
@@ -989,13 +989,9 @@
   "settings_authorized_apps_revoke": "撤销",
   "settings_authorized_apps_revoking": "正在撤销",
   "settings_authorized_apps_revoke_title": "撤销 {app}",
-  "settings_authorized_apps_revoke_confirm": "{app} 将无法再访问你的账号。下次登录该应用时，它会重新请求你的同意。",
+  "settings_authorized_apps_revoke_confirm": "{app} 将失去对你账号的访问，直到你再次登录该应用。",
   "error_oidc_request_load": "读取登录请求失败",
   "error_oidc_request_decide": "完成登录请求失败",
-  "error_oidc_request_expired": "登录请求已过期",
-  "error_oidc_reauthentication_required": "请重新登录后继续",
-  "error_oidc_account_not_allowed": "此账号无法登录接入应用",
-  "error_oidc_grant_not_found": "该应用已不再被授权",
   "error_oidc_grants_load": "读取已授权应用失败",
   "error_oidc_grant_revoke": "撤销授权失败"
 }

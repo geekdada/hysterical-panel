@@ -35,7 +35,7 @@ func (h *Handlers) revokeOIDCGrant(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewInternalServerError("failed to revoke connected app grant", err)
 	}
-	return ok(e, map[string]any{"deleted": true})
+	return ok(e, DeleteResponse{Deleted: true})
 }
 
 func publicOIDCGrant(grant oidc.ActiveGrant) OIDCGrant {

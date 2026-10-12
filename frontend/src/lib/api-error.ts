@@ -46,10 +46,6 @@ const API_ERROR_MAP: Record<string, () => string> = {
     m.error_oidc_scopes_invalid(),
   "oidc provider requires an https panel_backend_url_base and panel_frontend_url_base": () =>
     m.error_oidc_unavailable(),
-  "authorization request not found or expired": () => m.error_oidc_request_expired(),
-  "reauthentication required": () => m.error_oidc_reauthentication_required(),
-  "account cannot sign in to connected apps": () => m.error_oidc_account_not_allowed(),
-  "connected app grant not found": () => m.error_oidc_grant_not_found(),
 };
 
 export function localizeApiError(message: string): string {

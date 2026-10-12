@@ -57,6 +57,8 @@ function OAuthCallbackPage() {
   // The pending attempt lives in sessionStorage, so the intent is known only after hydration.
   const [intent, setIntent] = useState<OAuthIntent>("login");
   const [error, setError] = useState("");
+  // Where a failed sign-in goes back to, so a consent request is not lost.
+  const [returnTo, setReturnTo] = useState<string | undefined>();
   const ran = useRef(false);
   const copy = COPY[intent];
 
@@ -66,7 +68,10 @@ function OAuthCallbackPage() {
     ran.current = true;
     const pending = takePendingOAuth();
     const pendingIntent = pending?.intent ?? "login";
+    const loginReturnTo =
+      pendingIntent === "login" ? safeRedirectPath(pending?.returnTo) : undefined;
     setIntent(pendingIntent);
+    setReturnTo(loginReturnTo);
     if (search.error) {
       setError(COPY[pendingIntent].denied());
       return;
@@ -77,9 +82,7 @@ function OAuthCallbackPage() {
     }
     completeOAuth(pending, search.code, search.state)
       .then(() => {
-        const returnTo =
-          pendingIntent === "login" ? safeRedirectPath(pending?.returnTo) : undefined;
-        window.location.replace(returnTo ?? DONE_PATH[pendingIntent]);
+        window.location.replace(loginReturnTo ?? DONE_PATH[pendingIntent]);
       })
       .catch((err: unknown) => {
         setError(
@@ -104,6 +107,7 @@ function OAuthCallbackPage() {
             </p>
             <Link
               to={intent === "link" ? "/settings" : "/login"}
+              search={intent === "link" ? undefined : { redirect: returnTo }}
               className="text-[13px] font-medium text-accent hover:opacity-80"
             >
               {copy.back()}

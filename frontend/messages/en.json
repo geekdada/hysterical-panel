@@ -976,7 +976,7 @@
   "oidc_consent_reauth_desc": "{client} asks you to sign in again before it continues.",
   "oidc_consent_reauth_action": "Sign in again",
   "oidc_consent_expired": "This sign-in request has expired or was already used. Go back to the app and start again.",
-  "oidc_consent_not_allowed": "Your account can't sign in to connected apps. It must be active and have a verified email.",
+  "oidc_consent_not_allowed": "This app or your account can't be used to sign in right now. Your account must be active and have a verified email.",
   "oidc_consent_session_expired": "Your panel session has ended. Sign in again to continue.",
   "oidc_consent_failed": "Something went wrong. Go back to the app and try again.",
   "oidc_scope_openid": "Your account ID",
@@ -989,13 +989,9 @@
   "settings_authorized_apps_revoke": "Revoke",
   "settings_authorized_apps_revoking": "Revoking",
   "settings_authorized_apps_revoke_title": "Revoke {app}",
-  "settings_authorized_apps_revoke_confirm": "{app} loses access to your account. Next time you sign in to it, it asks for your approval again.",
+  "settings_authorized_apps_revoke_confirm": "{app} loses access to your account until you sign in to it again.",
   "error_oidc_request_load": "Failed to load the sign-in request",
   "error_oidc_request_decide": "Failed to finish the sign-in request",
-  "error_oidc_request_expired": "This sign-in request has expired",
-  "error_oidc_reauthentication_required": "Sign in again to continue",
-  "error_oidc_account_not_allowed": "This account can't sign in to connected apps",
-  "error_oidc_grant_not_found": "This app is no longer authorized",
   "error_oidc_grants_load": "Failed to load authorized apps",
   "error_oidc_grant_revoke": "Failed to revoke access"
 }
