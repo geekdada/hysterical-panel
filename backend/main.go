@@ -22,6 +22,7 @@ import (
 	"hysterical-panel/internal/ipmeta"
 	"hysterical-panel/internal/monitoring"
 	"hysterical-panel/internal/notifications"
+	"hysterical-panel/internal/oidc"
 	"hysterical-panel/internal/panelserve"
 	"hysterical-panel/internal/sendouts"
 	"hysterical-panel/internal/version"
@@ -128,6 +129,7 @@ func main() {
 		handlers.StartSubscriptionExpiry(ctx)
 		monitorService.Start(ctx)
 		sendoutService.Start(ctx)
+		oidc.ScheduleCleanup(app)
 
 		// stop the collector when the app terminates
 		app.OnTerminate().BindFunc(func(te *core.TerminateEvent) error {
