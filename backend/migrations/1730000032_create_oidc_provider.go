@@ -173,7 +173,8 @@ func oidcSessionAuthTimesCollection(users *core.Collection) *core.Collection {
 	c := core.NewBaseCollection("oidc_session_auth_times")
 	c.Fields.Add(&core.TextField{Name: "token_hash", Required: true, Max: 64, Hidden: true})
 	c.Fields.Add(&core.RelationField{Name: "user", Required: true, MaxSelect: 1, CascadeDelete: true, CollectionId: users.Id})
-	c.Fields.Add(&core.DateField{Name: "auth_time", Required: true})
+	// An empty auth_time marks a session of unknown age.
+	c.Fields.Add(&core.DateField{Name: "auth_time"})
 	c.Fields.Add(&core.DateField{Name: "expires_at", Required: true})
 	addOIDCAutodates(c)
 	c.AddIndex("idx_oidc_session_auth_times_hash", true, "token_hash", "")
