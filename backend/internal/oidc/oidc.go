@@ -28,7 +28,7 @@ const (
 	// relying parties to verify ID tokens it signed before the rotation.
 	RetiredKeyRetention = 24 * time.Hour
 
-	// expiredTokenRetention keeps expired tokens a while longer so a late
-	// refresh token replay is still recognised and revokes its family.
+	// expiredTokenRetention keeps expired codes and tokens a while longer so
+	// a late replay is still recognised and revokes its family.
 	expiredTokenRetention = 7 * 24 * time.Hour
 )

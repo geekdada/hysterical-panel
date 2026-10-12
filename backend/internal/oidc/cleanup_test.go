@@ -22,16 +22,17 @@ func TestCleanupRemovesOnlyExpiredRows(t *testing.T) {
 			"request_hash": "req-" + suffix, "client": client.Id, "redirect_uri": "https://app.example/cb",
 			"scope": "openid", "code_challenge": "c", "expires_at": expires,
 		})
-		saveTestRecord(t, app, CodesCollection, map[string]any{
-			"code_hash": "code-" + suffix, "grant": grant.Id, "family": "f", "redirect_uri": "https://app.example/cb",
-			"scope": "openid", "code_challenge": "c", "expires_at": expires,
-		})
 		saveTestRecord(t, app, SessionAuthTimesCollection, map[string]any{
 			"token_hash": "session-" + suffix, "user": user.Id, "auth_time": past, "expires_at": expires,
 		})
 	}
 	tokenExpiries := []time.Time{now.Add(-expiredTokenRetention - time.Minute), now.Add(-time.Hour)}
+	// Used codes stay as long as tokens so a late code replay still revokes its family.
 	for i, expires := range tokenExpiries {
+		saveTestRecord(t, app, CodesCollection, map[string]any{
+			"code_hash": "code-" + string(rune('a'+i)), "grant": grant.Id, "family": "f", "redirect_uri": "https://app.example/cb",
+			"scope": "openid", "code_challenge": "c", "expires_at": expires,
+		})
 		saveTestRecord(t, app, TokensCollection, map[string]any{
 			"token_hash": "token-" + string(rune('a'+i)), "kind": "refresh", "grant": grant.Id,
 			"family": "f", "scope": "openid", "expires_at": expires,

@@ -18,11 +18,11 @@ type cleanupRule struct {
 	cutoff     time.Duration
 }
 
-// Expired tokens stay for expiredTokenRetention so a late refresh token
-// replay still finds its row and revokes the family.
+// Expired codes and tokens stay for expiredTokenRetention so a late code or
+// refresh token replay still finds its row and revokes the family.
 var cleanupRules = []cleanupRule{
 	{AuthRequestsCollection, "expires_at < {:cutoff}", 0},
-	{CodesCollection, "expires_at < {:cutoff}", 0},
+	{CodesCollection, "expires_at < {:cutoff}", expiredTokenRetention},
 	{SessionAuthTimesCollection, "expires_at < {:cutoff}", 0},
 	{TokensCollection, "expires_at < {:cutoff}", expiredTokenRetention},
 	{SigningKeysCollection, "state = 'retired' && retired_at < {:cutoff}", RetiredKeyRetention},
