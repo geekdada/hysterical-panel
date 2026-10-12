@@ -1,0 +1,19 @@
+{
+  "alias": "hysterical-panel",
+  "description": "hysterical-panel local",
+  "server": {
+    "discoveryUrl": "http://127.0.0.1:8092/api/oidc/.well-known/openid-configuration"
+  },
+  "client": {
+    "client_id": "<first app client_id>",
+    "client_secret": "<first app client_secret>"
+  },
+  "client2": {
+    "client_id": "<second app client_id>",
+    "client_secret": "<second app client_secret>"
+  },
+  "client_secret_post": {
+    "client_id": "<first app client_id>",
+    "client_secret": "<first app client_secret>"
+  }
+}

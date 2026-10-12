@@ -1,0 +1,9 @@
+{
+  "name": "oidc-conformance-harness",
+  "private": true,
+  "type": "module",
+  "description": "Runs the OpenID conformance suite's Basic OP plan against a local panel",
+  "dependencies": {
+    "playwright": "^1.56.0"
+  }
+}
