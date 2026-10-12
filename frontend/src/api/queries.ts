@@ -39,6 +39,10 @@ type NotificationChannelCreateRequest = components["schemas"]["NotificationChann
 type NotificationChannelUpdateRequest = components["schemas"]["NotificationChannelUpdateRequest"];
 type NotificationChannelTestResponse = components["schemas"]["NotificationChannelTestResponse"];
 type NotificationChannelRevealResponse = components["schemas"]["NotificationChannelRevealResponse"];
+type OIDCClient = components["schemas"]["OIDCClient"];
+type OIDCClientCreateRequest = components["schemas"]["OIDCClientCreateRequest"];
+type OIDCClientUpdateRequest = components["schemas"]["OIDCClientUpdateRequest"];
+type OIDCClientSecretResponse = components["schemas"]["OIDCClientSecretResponse"];
 type PasskeyOptionsResponse = components["schemas"]["PasskeyOptionsResponse"];
 type NodeTrafficSummary = components["schemas"]["NodeTrafficSummaryResponse"];
 type NodeCurrentSpeed = components["schemas"]["NodeCurrentSpeedResponse"];
@@ -95,6 +99,10 @@ export type {
   NotificationChannelUpdateRequest,
   NotificationChannelTestResponse,
   NotificationChannelRevealResponse,
+  OIDCClient,
+  OIDCClientCreateRequest,
+  OIDCClientUpdateRequest,
+  OIDCClientSecretResponse,
   Monitor,
   MonitorCreateRequest,
   MonitorUpdateRequest,
@@ -203,6 +211,7 @@ export const queryKeys = {
   invitations: () => [...queryKeys.all, "invitations"] as const,
   ignoredConnectionIPs: () => [...queryKeys.all, "ignored-connection-ips"] as const,
   notificationChannels: () => [...queryKeys.all, "notification-channels"] as const,
+  oidcClients: () => [...queryKeys.all, "oidc-clients"] as const,
   emailSendouts: () => [...queryKeys.all, "email-sendouts"] as const,
   emailSendoutContext: () => [...queryKeys.emailSendouts(), "context"] as const,
   emailSendoutCandidates: (search: string) =>
@@ -937,6 +946,45 @@ export async function revealNotificationChannelURL(
       },
     }),
     m.error_notification_channel_reveal()
+  );
+}
+
+export function fetchOIDCClients(): Promise<OIDCClient[]> {
+  return apiRequest<OIDCClient[]>(
+    apiClient.GET("/api/panel/oidc-clients"),
+    m.error_oidc_clients_load()
+  );
+}
+
+export function createOIDCClient(body: OIDCClientCreateRequest): Promise<OIDCClientSecretResponse> {
+  return apiRequest<OIDCClientSecretResponse>(
+    apiClient.POST("/api/panel/oidc-clients", { body }),
+    m.error_oidc_client_save(),
+    m.error_oidc_client_save_network()
+  );
+}
+
+export function updateOIDCClient(id: string, body: OIDCClientUpdateRequest): Promise<OIDCClient> {
+  return apiRequest<OIDCClient>(
+    apiClient.PATCH("/api/panel/oidc-clients/{id}", { params: { path: { id } }, body }),
+    m.error_oidc_client_save(),
+    m.error_oidc_client_save_network()
+  );
+}
+
+export function deleteOIDCClient(id: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/oidc-clients/{id}", { params: { path: { id } } }),
+    m.error_oidc_client_delete(),
+    m.error_oidc_client_delete_network()
+  );
+}
+
+export function rotateOIDCClientSecret(id: string): Promise<OIDCClientSecretResponse> {
+  return apiRequest<OIDCClientSecretResponse>(
+    apiClient.POST("/api/panel/oidc-clients/{id}/rotate-secret", { params: { path: { id } } }),
+    m.error_oidc_client_rotate(),
+    m.error_oidc_client_rotate_network()
   );
 }
 

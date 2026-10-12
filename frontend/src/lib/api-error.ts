@@ -34,6 +34,18 @@ const API_ERROR_MAP: Record<string, () => string> = {
   "email content is too large": () => m.error_email_content_too_large(),
   "content is too large": () => m.error_email_content_too_large(),
   "email_sendout_rate_per_minute must be between 1 and 600": () => m.error_email_rate_invalid(),
+  "connected app name must be between 1 and 128 characters": () =>
+    m.error_oidc_client_name_invalid(),
+  "connected app name cannot contain control characters": () => m.error_oidc_client_name_invalid(),
+  "connected app not found": () => m.error_oidc_client_not_found(),
+  "redirect_uris must contain between 1 and 10 entries": () => m.error_oidc_redirect_uris_count(),
+  "redirect uri must be an absolute https url, or http on localhost, without a fragment or credentials":
+    () => m.error_oidc_redirect_uri_invalid(),
+  "redirect uris must be unique": () => m.error_oidc_redirect_uris_duplicate(),
+  "allowed_scopes must include openid and only contain openid or email": () =>
+    m.error_oidc_scopes_invalid(),
+  "oidc provider requires an https panel_backend_url_base and panel_frontend_url_base": () =>
+    m.error_oidc_unavailable(),
 };
 
 export function localizeApiError(message: string): string {
