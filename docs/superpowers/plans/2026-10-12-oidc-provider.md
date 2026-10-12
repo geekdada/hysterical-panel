@@ -23,7 +23,7 @@ Each layer is one local branch stacked on the previous one. Stop after each laye
 | `oidc/4-consent-ui` | `oidc/3-protocol` | Consent and error pages, `/login?reauth=1&redirect=`, remembered consent, authorized apps list in settings | A real RP (next-auth dev app) signs in, re-authenticates on `prompt=login`, and the user can revoke it |
 | `oidc/5-finish` | `oidc/4-consent-ui` | Management API lookup by `id`, AGENTS.md, CONTEXT.md, backend README, OpenID conformance Basic OP run | Conformance plan passes or each failure is documented |
 
-The detailed task list for layers 2 to 5 is written when the layer starts, against the code the previous layer actually merged. Only layer 1 is detailed below.
+The detailed task list for each layer is written when the layer starts, against the code the previous layer actually merged. Layers 1 and 2 are detailed below.
 
 ## Global Constraints
 
@@ -1623,3 +1623,2383 @@ git commit -m "feat(backend): add oidc signing key rotation command"
 - [ ] `PANEL_MASTER_KEY=dev make serve` starts, the seven `oidc_*` collections appear in `/_/`, and `GET /api/collections/oidc_clients/records` with a panel user's token returns 403.
 - [ ] Signing in to the panel creates one `oidc_session_auth_times` row; reloading the panel after the token refresh creates a second row with the same `auth_time`.
 - [ ] `git log --oneline oidc/0-docs..oidc/1-foundation` shows the six commits above. Stop for review.
+
+---
+
+## Layer 2: `oidc/2-connected-apps`
+
+Start: `git switch -c oidc/2-connected-apps oidc/1-foundation`.
+
+### Decisions for this layer
+
+These follow from ADR-0010 and the research report. The plan is the record for them.
+
+- Admins can manage Connected Apps while the provider switch is off, so an app can be registered before the provider is enabled.
+- Enabling the provider requires a usable issuer and a consent page. `PANEL_BACKEND_URL_BASE` must be set and use https. Plain http is allowed on loopback hosts. `PANEL_FRONTEND_URL_BASE` must also be set. Enabling creates the signing key at once, so JWKS is never empty while the provider is on.
+- `allowed_scopes` is a subset of `openid` and `email`, and `openid` is required. `refresh_enabled` decides whether `offline_access` is honoured, so it is not a scope option.
+- Redirect URIs are stored trimmed but otherwise as entered, because `/authorize` compares them by exact string match.
+- Validation errors are fixed English strings, so `frontend/src/lib/api-error.ts` can localize them.
+- Rotating a client secret does not revoke tokens. A refresh needs client authentication, so holders of the old secret cannot refresh. Access tokens expire within 10 minutes anyway.
+- Deleting a Connected App deletes the record. The relation cascade removes its grants, codes, tokens and authorization requests.
+- Note for layer 3: `oidc_enabled` can stay true after the environment changes. The protocol endpoints must return 404 unless `oidc_enabled` is true **and** `oidcAvailability()` reports no reason.
+
+### File structure
+
+| File | Responsibility |
+|---|---|
+| `backend/migrations/1730000033_add_oidc_settings.go` | `app_settings.oidc_enabled` |
+| `backend/internal/oidc/issuer.go` | `Issuer`, loopback check |
+| `backend/internal/oidc/clients.go` | Redirect URI and scope validation, client credentials |
+| `backend/internal/api/oidc_settings.go` | `oidcAvailability`, `applyOIDCEnabled` |
+| `backend/internal/api/settings.go` | Read and write the switch, report issuer and availability |
+| `backend/internal/api/oidc_clients.go` | Admin CRUD and secret rotation handlers |
+| `backend/internal/api/dto.go` | Settings fields and `OIDCClient*` DTOs |
+| `backend/internal/api/openapi.go` | Schemas and paths |
+| `backend/internal/api/api.go` | Route registration |
+| `frontend/src/api/queries.ts` | Types, query key, fetchers |
+| `frontend/src/lib/api-error.ts` | Localized backend errors |
+| `frontend/messages/en.json`, `frontend/messages/zh-cn.json` | Copy |
+| `frontend/src/routes/settings/index.tsx` | Provider switch, issuer, link to the apps page |
+| `frontend/src/routes/settings/connected-apps.tsx` | Connected Apps page |
+
+### Task 7: Provider switch in settings
+
+**Files:**
+- Create: `backend/migrations/1730000033_add_oidc_settings.go`, `backend/internal/oidc/issuer.go`, `backend/internal/api/oidc_settings.go`
+- Modify: `backend/internal/api/settings.go`, `backend/internal/api/dto.go`
+- Test: `backend/migrations/oidc_provider_test.go`, `backend/internal/oidc/issuer_test.go`, `backend/internal/api/oidc_settings_test.go`
+
+**Interfaces:**
+- Consumes: `oidc.ActiveSigningKey` (Task 4); `Handlers.publicConfig.APIURL` / `.FrontendURL`; `newMigratedTestApp` (`auth_string_anytls_hash_test.go`).
+- Produces:
+  - `oidc.IssuerPath = "/api/oidc"`, `oidc.Issuer(backendURL string) (string, error)`, `oidc.ErrBackendURLMissing`, `oidc.ErrBackendURLInsecure`, unexported `isLoopbackHost(host string) bool`
+  - `(h *Handlers) oidcAvailability() (issuer, reason string)` with reasons `backend_url_missing`, `backend_url_insecure`, `frontend_url_missing`
+  - `(h *Handlers) settingsResponse(s settings) SettingsResponse` (was a plain function)
+  - `SettingsResponse.OIDCEnabled` (`oidc_enabled`), `.OIDCIssuer` (`oidc_issuer`), `.OIDCUnavailableReason` (`oidc_unavailable_reason`); `SettingsUpdateRequest.OIDCEnabled`
+  - `settings.OIDCEnabled`
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `backend/migrations/oidc_provider_test.go`:
+
+```go
+func TestOIDCSettingsMigrationAddsDisabledSwitch(t *testing.T) {
+	app := migratedApp(t)
+	recs, err := app.FindRecordsByFilter("app_settings", "", "", 1, 0)
+	if err != nil || len(recs) != 1 {
+		t.Fatalf("app_settings seed: %v (%d rows)", err, len(recs))
+	}
+	if recs[0].GetBool("oidc_enabled") {
+		t.Fatal("oidc_enabled must default to false")
+	}
+
+	runner := migrationRunnerThrough(t, app, "1730000033_add_oidc_settings.go")
+	if reverted, err := runner.Down(1); err != nil || len(reverted) != 1 {
+		t.Fatalf("revert oidc settings migration: reverted=%v err=%v", reverted, err)
+	}
+	settings, _ := app.FindCollectionByNameOrId("app_settings")
+	if settings.Fields.GetByName("oidc_enabled") != nil {
+		t.Fatal("rollback kept oidc_enabled")
+	}
+	if _, err := runner.Up(); err != nil {
+		t.Fatalf("reapply oidc settings migration: %v", err)
+	}
+}
+```
+
+Create `backend/internal/oidc/issuer_test.go`:
+
+```go
+package oidc
+
+import (
+	"errors"
+	"testing"
+)
+
+func TestIssuer(t *testing.T) {
+	cases := []struct {
+		backend, want string
+		err           error
+	}{
+		{"https://panel.example.com", "https://panel.example.com/api/oidc", nil},
+		{"https://panel.example.com/", "https://panel.example.com/api/oidc", nil},
+		{"http://localhost:8090", "http://localhost:8090/api/oidc", nil},
+		{"http://127.0.0.1:8090", "http://127.0.0.1:8090/api/oidc", nil},
+		{"http://[::1]:8090", "http://[::1]:8090/api/oidc", nil},
+		{"", "", ErrBackendURLMissing},
+		{"http://panel.example.com", "", ErrBackendURLInsecure},
+		{"http://localhost.example.com", "", ErrBackendURLInsecure},
+	}
+	for _, c := range cases {
+		got, err := Issuer(c.backend)
+		if got != c.want || !errors.Is(err, c.err) {
+			t.Errorf("Issuer(%q) = %q, %v; want %q, %v", c.backend, got, err, c.want, c.err)
+		}
+	}
+}
+```
+
+Create `backend/internal/api/oidc_settings_test.go`:
+
+```go
+package api
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/router"
+
+	"hysterical-panel/internal/cryptobox"
+	"hysterical-panel/internal/oidc"
+)
+
+func newOIDCHandlers(t *testing.T, app core.App, apiURL, frontendURL string) *Handlers {
+	t.Helper()
+	box, err := cryptobox.New("oidc-test-master-key")
+	if err != nil {
+		t.Fatalf("cryptobox: %v", err)
+	}
+	return &Handlers{app: app, box: box, publicConfig: PanelConfigResponse{APIURL: apiURL, FrontendURL: frontendURL}}
+}
+
+// panelEvent builds a handler event the way the router would, with an
+// optional path id and authenticated record.
+func panelEvent(t *testing.T, app core.App, method, path, id string, body any, auth *core.Record) (*core.RequestEvent, *httptest.ResponseRecorder) {
+	t.Helper()
+	raw := []byte{}
+	if body != nil {
+		var err error
+		if raw, err = json.Marshal(body); err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+	}
+	response := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	if id != "" {
+		req.SetPathValue("id", id)
+	}
+	return &core.RequestEvent{App: app, Auth: auth, Event: router.Event{Request: req, Response: response}}, response
+}
+
+// assertAPIError compares the message the way the frontend does: PocketBase
+// capitalises it and appends a period.
+func assertAPIError(t *testing.T, err error, status int, message string) {
+	t.Helper()
+	var apiErr *router.ApiError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %v, want an API error", err)
+	}
+	got := strings.ToLower(strings.TrimSuffix(apiErr.Message, "."))
+	if apiErr.Status != status || got != message {
+		t.Fatalf("API error = %d %q, want %d %q", apiErr.Status, got, status, message)
+	}
+}
+
+func TestEnablingOIDCRequiresIssuerAndConsentOrigins(t *testing.T) {
+	cases := map[string]struct{ api, frontend, reason string }{
+		"no backend url":     {"", "https://panel.example.com", "backend_url_missing"},
+		"plain http backend": {"http://api.example.com", "https://panel.example.com", "backend_url_insecure"},
+		"no frontend url":    {"https://api.example.com", "", "frontend_url_missing"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			app := newMigratedTestApp(t)
+			h := newOIDCHandlers(t, app, c.api, c.frontend)
+			e, _ := panelEvent(t, app, http.MethodPatch, "/api/panel/settings", "", map[string]any{"oidc_enabled": true}, nil)
+			assertAPIError(t, h.updateSettings(e), http.StatusBadRequest,
+				"oidc provider requires an https panel_backend_url_base and panel_frontend_url_base")
+			if h.loadSettings().OIDCEnabled {
+				t.Fatal("the switch was stored")
+			}
+			if got := h.settingsResponse(h.loadSettings()).OIDCUnavailableReason; got != c.reason {
+				t.Fatalf("reason = %q, want %q", got, c.reason)
+			}
+		})
+	}
+}
+
+func TestEnablingOIDCCreatesSigningKeyAndReportsIssuer(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := newOIDCHandlers(t, app, "https://api.example.com", "https://panel.example.com")
+	e, rec := panelEvent(t, app, http.MethodPatch, "/api/panel/settings", "", map[string]any{"oidc_enabled": true}, nil)
+	if err := h.updateSettings(e); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	var resp SettingsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.OIDCEnabled || resp.OIDCIssuer != "https://api.example.com/api/oidc" || resp.OIDCUnavailableReason != "" {
+		t.Fatalf("settings response = %+v", resp)
+	}
+	if jwks, err := oidc.PublicJWKS(app, time.Now()); err != nil || len(jwks.Keys) != 1 {
+		t.Fatalf("jwks after enabling = %+v, err=%v", jwks, err)
+	}
+
+	e, _ = panelEvent(t, app, http.MethodPatch, "/api/panel/settings", "", map[string]any{"oidc_enabled": false}, nil)
+	if err := h.updateSettings(e); err != nil || h.loadSettings().OIDCEnabled {
+		t.Fatalf("disable: err=%v enabled=%v", err, h.loadSettings().OIDCEnabled)
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./migrations ./internal/oidc ./internal/api -run 'OIDCSettings|TestIssuer|EnablingOIDC'`
+Expected: build failure in `internal/oidc` (`undefined: Issuer`) and `internal/api` (`h.settingsResponse undefined`), and `TestOIDCSettingsMigrationAddsDisabledSwitch` fails with `migration 1730000033_add_oidc_settings.go not registered`.
+
+- [ ] **Step 3: Write the migration**
+
+```go
+package migrations
+
+import (
+	"github.com/pocketbase/pocketbase/core"
+	m "github.com/pocketbase/pocketbase/migrations"
+)
+
+// Add the OIDC provider switch to app_settings (ADR-0010). It defaults to off,
+// so /api/oidc/* stays absent until an admin enables it.
+func init() {
+	m.Register(func(app core.App) error {
+		settings, err := app.FindCollectionByNameOrId("app_settings")
+		if err != nil {
+			return err
+		}
+		settings.Fields.Add(&core.BoolField{Name: "oidc_enabled"})
+		return app.Save(settings)
+	}, func(app core.App) error {
+		settings, err := app.FindCollectionByNameOrId("app_settings")
+		if err != nil {
+			return err
+		}
+		settings.Fields.RemoveByName("oidc_enabled")
+		return app.Save(settings)
+	})
+}
+```
+
+- [ ] **Step 4: Write `issuer.go`**
+
+```go
+package oidc
+
+import (
+	"errors"
+	"fmt"
+	"net"
+	"net/url"
+	"strings"
+)
+
+// IssuerPath is appended to PANEL_BACKEND_URL_BASE. The deployed nginx /api/
+// rule already routes it to the backend.
+const IssuerPath = "/api/oidc"
+
+var (
+	ErrBackendURLMissing  = errors.New("PANEL_BACKEND_URL_BASE is not set")
+	ErrBackendURLInsecure = errors.New("PANEL_BACKEND_URL_BASE must use https unless it points to a loopback host")
+)
+
+// Issuer derives the provider issuer from the public backend origin. OIDC
+// requires an https issuer; plain http is accepted on loopback hosts so the
+// provider works in local development.
+func Issuer(backendURL string) (string, error) {
+	base := strings.TrimRight(strings.TrimSpace(backendURL), "/")
+	if base == "" {
+		return "", ErrBackendURLMissing
+	}
+	u, err := url.Parse(base)
+	if err != nil || u.Host == "" {
+		return "", fmt.Errorf("%w: %q is not an absolute URL", ErrBackendURLInsecure, base)
+	}
+	if u.Scheme != "https" && !(u.Scheme == "http" && isLoopbackHost(u.Hostname())) {
+		return "", ErrBackendURLInsecure
+	}
+	return base + IssuerPath, nil
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+```
+
+- [ ] **Step 5: Add the DTO fields**
+
+In `backend/internal/api/dto.go`, inside `SettingsResponse` after `EmailSendoutRatePerMinute`:
+
+```go
+	// OIDCEnabled switches the /api/oidc/* provider (ADR-0010).
+	OIDCEnabled bool `json:"oidc_enabled"`
+	// OIDCIssuer is the issuer Connected Apps configure. It is empty when
+	// PANEL_BACKEND_URL_BASE cannot serve as an issuer.
+	OIDCIssuer string `json:"oidc_issuer"`
+	// OIDCUnavailableReason says why the provider cannot be enabled, or is
+	// empty when it can: backend_url_missing, backend_url_insecure or
+	// frontend_url_missing.
+	OIDCUnavailableReason string `json:"oidc_unavailable_reason"`
+```
+
+Inside `SettingsUpdateRequest` after `EmailSendoutRatePerMinute`:
+
+```go
+	OIDCEnabled               *bool `json:"oidc_enabled,omitempty"`
+```
+
+- [ ] **Step 6: Write `oidc_settings.go`**
+
+```go
+package api
+
+import (
+	"errors"
+	"time"
+
+	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/oidc"
+)
+
+const (
+	oidcUnavailableBackendURLMissing  = "backend_url_missing"
+	oidcUnavailableBackendURLInsecure = "backend_url_insecure"
+	oidcUnavailableFrontendURLMissing = "frontend_url_missing"
+)
+
+// oidcAvailability reports the issuer and why the provider cannot be enabled.
+// The consent page is served by the frontend, so it needs a frontend origin.
+func (h *Handlers) oidcAvailability() (issuer, reason string) {
+	issuer, err := oidc.Issuer(h.publicConfig.APIURL)
+	switch {
+	case errors.Is(err, oidc.ErrBackendURLMissing):
+		return "", oidcUnavailableBackendURLMissing
+	case err != nil:
+		return "", oidcUnavailableBackendURLInsecure
+	case h.publicConfig.FrontendURL == "":
+		return issuer, oidcUnavailableFrontendURLMissing
+	}
+	return issuer, ""
+}
+
+// applyOIDCEnabled validates and stores the provider switch. Enabling creates
+// the signing key at once so JWKS is never empty while the provider is on.
+func (h *Handlers) applyOIDCEnabled(rec *core.Record, enabled bool) error {
+	if enabled {
+		if _, reason := h.oidcAvailability(); reason != "" {
+			return apis.NewBadRequestError("oidc provider requires an https PANEL_BACKEND_URL_BASE and PANEL_FRONTEND_URL_BASE", nil)
+		}
+		if _, err := oidc.ActiveSigningKey(h.app, h.box, time.Now()); err != nil {
+			return apis.NewBadRequestError("failed to prepare the oidc signing key", err)
+		}
+	}
+	rec.Set("oidc_enabled", enabled)
+	return nil
+}
+```
+
+- [ ] **Step 7: Wire it into `settings.go`**
+
+1. Add `OIDCEnabled bool` as the last field of `type settings struct`, and `OIDCEnabled: rec.GetBool("oidc_enabled"),` as the last line of `settingsFromRecord`.
+2. Replace `func settingsResponse(s settings) SettingsResponse {` with `func (h *Handlers) settingsResponse(s settings) SettingsResponse {`, add `issuer, reason := h.oidcAvailability()` as its first line, and add these three fields to the returned literal:
+
+```go
+		OIDCEnabled:               s.OIDCEnabled,
+		OIDCIssuer:                issuer,
+		OIDCUnavailableReason:     reason,
+```
+
+3. Change both callers, in `getSettings` and `updateSettings`, from `settingsResponse(` to `h.settingsResponse(`.
+4. In `updateSettings`, insert this block right before the `// Management API: enabling auto-generates` comment:
+
+```go
+	if in.OIDCEnabled != nil {
+		if err := h.applyOIDCEnabled(rec, *in.OIDCEnabled); err != nil {
+			return err
+		}
+	}
+```
+
+- [ ] **Step 8: Run tests to verify they pass**
+
+Run: `go test ./migrations ./internal/oidc ./internal/api -run 'OIDCSettings|TestIssuer|EnablingOIDC' -v`
+Expected: PASS for the migration test, `TestIssuer`, and both `EnablingOIDC` tests (three subtests in the first).
+
+- [ ] **Step 9: Run the full suite and commit**
+
+Run: `go build ./... && go vet ./... && go test ./...`
+Expected: no build or vet output, every package `ok`.
+
+```bash
+git add backend/migrations/1730000033_add_oidc_settings.go backend/migrations/oidc_provider_test.go backend/internal/oidc/issuer.go backend/internal/oidc/issuer_test.go backend/internal/api/oidc_settings.go backend/internal/api/oidc_settings_test.go backend/internal/api/settings.go backend/internal/api/dto.go
+git commit -m "feat(backend): add oidc provider switch"
+```
+
+### Task 8: Connected App validation and credentials
+
+**Files:**
+- Create: `backend/internal/oidc/clients.go`
+- Test: `backend/internal/oidc/clients_test.go`
+
+**Interfaces:**
+- Consumes: `isLoopbackHost` (Task 7), `token.New`, `token.Sha256Hex`.
+- Produces:
+  - `oidc.ScopeOpenID = "openid"`, `oidc.ScopeEmail = "email"`, `oidc.MaxRedirectURIs = 10`
+  - `oidc.NormalizeRedirectURIs(raw []string) ([]string, error)`, `oidc.NormalizeScopes(raw []string) ([]string, error)`
+  - `oidc.ErrRedirectURICount`, `oidc.ErrRedirectURIInvalid`, `oidc.ErrRedirectURIDuplicate`, `oidc.ErrScopesInvalid` (messages are API error strings)
+  - `oidc.NewClientID() (string, error)`, `oidc.NewClientSecret() (secret, secretHash string, err error)`
+
+- [ ] **Step 1: Write the failing tests**
+
+```go
+package oidc
+
+import (
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"testing"
+
+	"hysterical-panel/internal/token"
+)
+
+func TestNormalizeRedirectURIsAcceptsHTTPSAndLoopbackHTTP(t *testing.T) {
+	valid := []string{
+		"https://app.example/cb",
+		"https://app.example/cb?tenant=1",
+		"https://app.example:8443/auth/callback",
+		"http://localhost:3000/cb",
+		"http://127.0.0.1/cb",
+		"http://[::1]:8080/cb",
+	}
+	got, err := NormalizeRedirectURIs(append([]string{"  https://trim.example/cb  "}, valid...))
+	if err != nil {
+		t.Fatalf("valid redirect URIs rejected: %v", err)
+	}
+	if want := append([]string{"https://trim.example/cb"}, valid...); !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	// Exact matching keeps a trailing slash meaningful, so both spellings stay.
+	if got, err := NormalizeRedirectURIs([]string{"https://a.example/cb", "https://a.example/cb/"}); err != nil || len(got) != 2 {
+		t.Fatalf("distinct spellings: %q, %v", got, err)
+	}
+}
+
+func TestNormalizeRedirectURIsRejectsUnsafeValues(t *testing.T) {
+	for _, bad := range []string{
+		"",
+		"/cb",
+		"app.example/cb",
+		"http://app.example/cb",
+		"http://localhost.example/cb",
+		"https://app.example/cb#fragment",
+		"https://user:pass@app.example/cb",
+		"ftp://app.example/cb",
+		"javascript:alert(1)",
+		"https:///cb",
+		"https://app.example/" + strings.Repeat("a", 2048),
+	} {
+		if _, err := NormalizeRedirectURIs([]string{bad}); !errors.Is(err, ErrRedirectURIInvalid) {
+			t.Errorf("%q: err = %v, want ErrRedirectURIInvalid", bad, err)
+		}
+	}
+	eleven := make([]string, MaxRedirectURIs+1)
+	for i := range eleven {
+		eleven[i] = fmt.Sprintf("https://app.example/cb%d", i)
+	}
+	for _, list := range [][]string{nil, {}, eleven} {
+		if _, err := NormalizeRedirectURIs(list); !errors.Is(err, ErrRedirectURICount) {
+			t.Errorf("%d entries: err = %v, want ErrRedirectURICount", len(list), err)
+		}
+	}
+	if _, err := NormalizeRedirectURIs([]string{"https://a.example/cb", " https://a.example/cb"}); !errors.Is(err, ErrRedirectURIDuplicate) {
+		t.Errorf("duplicate: err = %v, want ErrRedirectURIDuplicate", err)
+	}
+}
+
+func TestNormalizeScopes(t *testing.T) {
+	if got, err := NormalizeScopes([]string{"email", "openid", "email"}); err != nil || !slices.Equal(got, []string{"openid", "email"}) {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	if got, err := NormalizeScopes([]string{"openid"}); err != nil || !slices.Equal(got, []string{"openid"}) {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	for _, bad := range [][]string{nil, {"email"}, {"openid", "profile"}, {"openid", "offline_access"}} {
+		if _, err := NormalizeScopes(bad); !errors.Is(err, ErrScopesInvalid) {
+			t.Errorf("%q: err = %v, want ErrScopesInvalid", bad, err)
+		}
+	}
+}
+
+func TestNewClientCredentials(t *testing.T) {
+	id, err := NewClientID()
+	if err != nil || len(id) < 20 {
+		t.Fatalf("client id %q, %v", id, err)
+	}
+	secret, hash, err := NewClientSecret()
+	if err != nil || len(secret) < 43 || hash != token.Sha256Hex(secret) {
+		t.Fatalf("secret %q hash %q err %v", secret, hash, err)
+	}
+	other, _, _ := NewClientSecret()
+	if other == secret {
+		t.Fatal("two secrets are equal")
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/oidc -run 'NormalizeRedirect|NormalizeScopes|NewClientCredentials'`
+Expected: build failure with `undefined: NormalizeRedirectURIs`.
+
+- [ ] **Step 3: Write `clients.go`**
+
+```go
+package oidc
+
+import (
+	"errors"
+	"net/url"
+	"strings"
+
+	"hysterical-panel/internal/token"
+)
+
+const (
+	ScopeOpenID = "openid"
+	ScopeEmail  = "email"
+
+	// MaxRedirectURIs bounds the admin form and the exact-match lookup.
+	MaxRedirectURIs      = 10
+	maxRedirectURILength = 2048
+)
+
+// The messages are API error strings that the frontend localizes.
+var (
+	ErrRedirectURICount     = errors.New("redirect_uris must contain between 1 and 10 entries")
+	ErrRedirectURIInvalid   = errors.New("redirect URI must be an absolute https URL, or http on localhost, without a fragment or credentials")
+	ErrRedirectURIDuplicate = errors.New("redirect URIs must be unique")
+	ErrScopesInvalid        = errors.New("allowed_scopes must include openid and only contain openid or email")
+)
+
+// NormalizeRedirectURIs trims and validates each entry. /authorize compares
+// redirect_uri by exact string match (RFC 9700 2.1), so values are otherwise
+// stored as entered.
+func NormalizeRedirectURIs(raw []string) ([]string, error) {
+	if len(raw) == 0 || len(raw) > MaxRedirectURIs {
+		return nil, ErrRedirectURICount
+	}
+	out := make([]string, 0, len(raw))
+	seen := make(map[string]bool, len(raw))
+	for _, entry := range raw {
+		uri := strings.TrimSpace(entry)
+		if !validRedirectURI(uri) {
+			return nil, ErrRedirectURIInvalid
+		}
+		if seen[uri] {
+			return nil, ErrRedirectURIDuplicate
+		}
+		seen[uri] = true
+		out = append(out, uri)
+	}
+	return out, nil
+}
+
+// RFC 6749 3.1.2 forbids fragments. Plain http is allowed only on loopback
+// hosts, where the code never crosses the network.
+func validRedirectURI(uri string) bool {
+	if uri == "" || len(uri) > maxRedirectURILength || strings.Contains(uri, "#") {
+		return false
+	}
+	u, err := url.Parse(uri)
+	if err != nil || u.Host == "" || u.User != nil || u.Opaque != "" {
+		return false
+	}
+	switch u.Scheme {
+	case "https":
+		return true
+	case "http":
+		return isLoopbackHost(u.Hostname())
+	}
+	return false
+}
+
+// NormalizeScopes returns the allowed scopes in canonical order. Refresh
+// tokens depend on the client's refresh_enabled flag, not on a scope here.
+func NormalizeScopes(raw []string) ([]string, error) {
+	has := map[string]bool{}
+	for _, scope := range raw {
+		scope = strings.TrimSpace(scope)
+		if scope != ScopeOpenID && scope != ScopeEmail {
+			return nil, ErrScopesInvalid
+		}
+		has[scope] = true
+	}
+	if !has[ScopeOpenID] {
+		return nil, ErrScopesInvalid
+	}
+	out := []string{ScopeOpenID}
+	if has[ScopeEmail] {
+		out = append(out, ScopeEmail)
+	}
+	return out, nil
+}
+
+// NewClientID returns a random public client identifier.
+func NewClientID() (string, error) {
+	return token.New(16)
+}
+
+// NewClientSecret returns a 256-bit secret, shown to the admin once, and its
+// SHA-256 hash, which is all the panel stores.
+func NewClientSecret() (secret, secretHash string, err error) {
+	secret, err = token.New(32)
+	if err != nil {
+		return "", "", err
+	}
+	return secret, token.Sha256Hex(secret), nil
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `go test ./internal/oidc -run 'NormalizeRedirect|NormalizeScopes|NewClientCredentials' -v`
+Expected: PASS for all four tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add backend/internal/oidc/clients.go backend/internal/oidc/clients_test.go
+git commit -m "feat(backend): validate connected app settings"
+```
+
+### Task 9: Connected App admin endpoints
+
+**Files:**
+- Create: `backend/internal/api/oidc_clients.go`
+- Modify: `backend/internal/api/dto.go`, `backend/internal/api/api.go`
+- Test: `backend/internal/api/oidc_clients_test.go`
+
+**Interfaces:**
+- Consumes: Task 8 functions and errors; `panelEvent`, `assertAPIError`, `newOIDCHandlers` (Task 7 test file); `newUsersTestRecord`.
+- Produces:
+  - DTOs `OIDCClient`, `OIDCClientCreateRequest`, `OIDCClientUpdateRequest`, `OIDCClientSecretResponse`
+  - Routes, all `requireAdmin`: `GET|POST /api/panel/oidc-clients`, `PATCH|DELETE /api/panel/oidc-clients/{id}`, `POST /api/panel/oidc-clients/{id}/rotate-secret`
+  - API error strings: `connected app name must be between 1 and 128 characters`, `connected app name cannot contain control characters`, `connected app not found`, plus the four Task 8 errors
+
+- [ ] **Step 1: Add the DTOs**
+
+Append to `backend/internal/api/dto.go`:
+
+```go
+// ── OIDC Connected Apps ──────────────────────────────────────────────────────
+
+// OIDCClient is a Connected App as admins see it. The client secret and its
+// hash are never returned; only create and rotate responses carry the
+// plaintext secret, once.
+type OIDCClient struct {
+	ID             string   `json:"id"`
+	ClientID       string   `json:"client_id"`
+	Name           string   `json:"name"`
+	RedirectURIs   []string `json:"redirect_uris"`
+	AllowedScopes  []string `json:"allowed_scopes"`
+	RefreshEnabled bool     `json:"refresh_enabled"`
+	SkipConsent    bool     `json:"skip_consent"`
+	Enabled        bool     `json:"enabled"`
+	LastUsedAt     *string  `json:"last_used_at,omitempty"`
+	Created        string   `json:"created"`
+	Updated        string   `json:"updated"`
+}
+
+// OIDCClientCreateRequest registers a Connected App. allowed_scopes defaults
+// to openid and email, and enabled defaults to true.
+type OIDCClientCreateRequest struct {
+	Name           string   `json:"name"`
+	RedirectURIs   []string `json:"redirect_uris"`
+	AllowedScopes  []string `json:"allowed_scopes,omitempty"`
+	RefreshEnabled *bool    `json:"refresh_enabled,omitempty"`
+	SkipConsent    *bool    `json:"skip_consent,omitempty"`
+	Enabled        *bool    `json:"enabled,omitempty"`
+}
+
+// OIDCClientUpdateRequest changes a Connected App. Omitted fields stay.
+type OIDCClientUpdateRequest struct {
+	Name           *string   `json:"name,omitempty"`
+	RedirectURIs   *[]string `json:"redirect_uris,omitempty"`
+	AllowedScopes  *[]string `json:"allowed_scopes,omitempty"`
+	RefreshEnabled *bool     `json:"refresh_enabled,omitempty"`
+	SkipConsent    *bool     `json:"skip_consent,omitempty"`
+	Enabled        *bool     `json:"enabled,omitempty"`
+}
+
+// OIDCClientSecretResponse is returned on create and on secret rotation, the
+// only places the plaintext client secret appears.
+type OIDCClientSecretResponse struct {
+	Client       OIDCClient `json:"client"`
+	ClientSecret string     `json:"client_secret"`
+}
+```
+
+- [ ] **Step 2: Write the failing tests**
+
+`backend/internal/api/oidc_clients_test.go`:
+
+```go
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/oidc"
+	"hysterical-panel/internal/token"
+)
+
+const helpCenterCallback = "https://help.example/api/auth/callback/panel"
+
+func decodeBody[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
+	t.Helper()
+	var out T
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode %s: %v", rec.Body.String(), err)
+	}
+	return out
+}
+
+func createTestOIDCClient(t *testing.T, h *Handlers, admin *core.Record, body map[string]any) OIDCClientSecretResponse {
+	t.Helper()
+	e, rec := panelEvent(t, h.app, http.MethodPost, "/api/panel/oidc-clients", "", body, admin)
+	if err := h.createOIDCClient(e); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	return decodeBody[OIDCClientSecretResponse](t, rec)
+}
+
+func TestCreateOIDCClientReturnsSecretOnceAndStoresOnlyHash(t *testing.T) {
+	app := newMigratedTestApp(t)
+	admin := newUsersTestRecord(t, app, "oidc-admin@example.com", "AdminSecret123")
+	h := newOIDCHandlers(t, app, "https://api.example.com", "https://panel.example.com")
+
+	created := createTestOIDCClient(t, h, admin, map[string]any{
+		"name": "  Help center  ", "redirect_uris": []string{helpCenterCallback},
+	})
+	client := created.Client
+	if created.ClientSecret == "" || client.ClientID == "" || client.Name != "Help center" {
+		t.Fatalf("create response = %+v", created)
+	}
+	if !slices.Equal(client.AllowedScopes, []string{"openid", "email"}) || !client.Enabled || client.RefreshEnabled || client.SkipConsent {
+		t.Fatalf("defaults = %+v", client)
+	}
+	stored, err := app.FindRecordById(oidc.ClientsCollection, client.ID)
+	if err != nil {
+		t.Fatalf("find stored client: %v", err)
+	}
+	if stored.GetString("secret_hash") != token.Sha256Hex(created.ClientSecret) || stored.GetString("created_by") != admin.Id {
+		t.Fatalf("stored hash or creator wrong: %v", stored.PublicExport())
+	}
+
+	e, rec := panelEvent(t, app, http.MethodGet, "/api/panel/oidc-clients", "", nil, admin)
+	if err := h.listOIDCClients(e); err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, secret := range []string{created.ClientSecret, stored.GetString("secret_hash")} {
+		if strings.Contains(rec.Body.String(), secret) {
+			t.Fatalf("list leaked %q: %s", secret, rec.Body.String())
+		}
+	}
+	if list := decodeBody[[]OIDCClient](t, rec); len(list) != 1 || list[0].ClientID != client.ClientID {
+		t.Fatalf("list = %+v", list)
+	}
+}
+
+func TestCreateOIDCClientRejectsInvalidInput(t *testing.T) {
+	cases := map[string]struct {
+		body    map[string]any
+		message string
+	}{
+		"empty name":         {map[string]any{"name": " ", "redirect_uris": []string{helpCenterCallback}}, "connected app name must be between 1 and 128 characters"},
+		"control character":  {map[string]any{"name": "Help\ncenter", "redirect_uris": []string{helpCenterCallback}}, "connected app name cannot contain control characters"},
+		"no redirect":        {map[string]any{"name": "Help", "redirect_uris": []string{}}, "redirect_uris must contain between 1 and 10 entries"},
+		"plain http":         {map[string]any{"name": "Help", "redirect_uris": []string{"http://help.example/cb"}}, "redirect uri must be an absolute https url, or http on localhost, without a fragment or credentials"},
+		"duplicate redirect": {map[string]any{"name": "Help", "redirect_uris": []string{helpCenterCallback, helpCenterCallback}}, "redirect uris must be unique"},
+		"missing openid":     {map[string]any{"name": "Help", "redirect_uris": []string{helpCenterCallback}, "allowed_scopes": []string{"email"}}, "allowed_scopes must include openid and only contain openid or email"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			app := newMigratedTestApp(t)
+			h := newOIDCHandlers(t, app, "", "")
+			e, _ := panelEvent(t, app, http.MethodPost, "/api/panel/oidc-clients", "", c.body, nil)
+			assertAPIError(t, h.createOIDCClient(e), http.StatusBadRequest, c.message)
+			if recs, _ := app.FindAllRecords(oidc.ClientsCollection); len(recs) != 0 {
+				t.Fatalf("stored %d clients", len(recs))
+			}
+		})
+	}
+}
+
+func TestUpdateOIDCClientChangesOnlyGivenFields(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := newOIDCHandlers(t, app, "", "")
+	created := createTestOIDCClient(t, h, nil, map[string]any{"name": "Help", "redirect_uris": []string{helpCenterCallback}})
+	id := created.Client.ID
+
+	uris := []string{helpCenterCallback, "http://localhost:3000/api/auth/callback/panel"}
+	e, rec := panelEvent(t, app, http.MethodPatch, "/api/panel/oidc-clients/"+id, id,
+		map[string]any{"enabled": false, "redirect_uris": uris, "refresh_enabled": true}, nil)
+	if err := h.updateOIDCClient(e); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	updated := decodeBody[OIDCClient](t, rec)
+	if updated.Name != "Help" || updated.Enabled || !updated.RefreshEnabled || !slices.Equal(updated.RedirectURIs, uris) || updated.ClientID != created.Client.ClientID {
+		t.Fatalf("updated = %+v", updated)
+	}
+
+	e, _ = panelEvent(t, app, http.MethodPatch, "/api/panel/oidc-clients/"+id, id,
+		map[string]any{"name": "Renamed", "redirect_uris": []string{"http://help.example/cb"}}, nil)
+	assertAPIError(t, h.updateOIDCClient(e), http.StatusBadRequest,
+		"redirect uri must be an absolute https url, or http on localhost, without a fragment or credentials")
+	stored, _ := app.FindRecordById(oidc.ClientsCollection, id)
+	if stored.GetString("name") != "Help" {
+		t.Fatal("a rejected update changed the stored name")
+	}
+
+	e, _ = panelEvent(t, app, http.MethodPatch, "/api/panel/oidc-clients/missing", "missing", map[string]any{"enabled": true}, nil)
+	assertAPIError(t, h.updateOIDCClient(e), http.StatusNotFound, "connected app not found")
+}
+
+func TestRotateOIDCClientSecretReplacesHash(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := newOIDCHandlers(t, app, "", "")
+	created := createTestOIDCClient(t, h, nil, map[string]any{"name": "Help", "redirect_uris": []string{helpCenterCallback}})
+	id := created.Client.ID
+
+	e, rec := panelEvent(t, app, http.MethodPost, "/api/panel/oidc-clients/"+id+"/rotate-secret", id, nil, nil)
+	if err := h.rotateOIDCClientSecret(e); err != nil {
+		t.Fatalf("rotate: %v", err)
+	}
+	rotated := decodeBody[OIDCClientSecretResponse](t, rec)
+	stored, _ := app.FindRecordById(oidc.ClientsCollection, id)
+	if rotated.ClientSecret == created.ClientSecret || stored.GetString("secret_hash") != token.Sha256Hex(rotated.ClientSecret) {
+		t.Fatal("rotation did not replace the stored secret")
+	}
+	if rotated.Client.ClientID != created.Client.ClientID {
+		t.Fatal("rotation changed the client id")
+	}
+}
+
+func TestDeleteOIDCClientRemovesItsGrants(t *testing.T) {
+	app := newMigratedTestApp(t)
+	user := newUsersTestRecord(t, app, "oidc-grant@example.com", "GrantSecret123")
+	h := newOIDCHandlers(t, app, "", "")
+	created := createTestOIDCClient(t, h, nil, map[string]any{"name": "Help", "redirect_uris": []string{helpCenterCallback}})
+	grants, _ := app.FindCollectionByNameOrId(oidc.GrantsCollection)
+	grant := core.NewRecord(grants)
+	grant.Set("user", user.Id)
+	grant.Set("client", created.Client.ID)
+	grant.Set("scopes", []string{"openid"})
+	if err := app.Save(grant); err != nil {
+		t.Fatalf("save grant: %v", err)
+	}
+
+	id := created.Client.ID
+	e, _ := panelEvent(t, app, http.MethodDelete, "/api/panel/oidc-clients/"+id, id, nil, nil)
+	if err := h.deleteOIDCClient(e); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := app.FindRecordById(oidc.GrantsCollection, grant.Id); err == nil {
+		t.Fatal("grant survived its client")
+	}
+}
+```
+
+- [ ] **Step 3: Run tests to verify they fail**
+
+Run: `go test ./internal/api -run OIDCClient`
+Expected: build failure with `h.createOIDCClient undefined`.
+
+- [ ] **Step 4: Write `oidc_clients.go`**
+
+```go
+package api
+
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/oidc"
+)
+
+func publicOIDCClient(rec *core.Record) OIDCClient {
+	var lastUsedAt *string
+	if value := rec.GetString("last_used_at"); value != "" {
+		lastUsedAt = &value
+	}
+	return OIDCClient{
+		ID:             rec.Id,
+		ClientID:       rec.GetString("client_id"),
+		Name:           rec.GetString("name"),
+		RedirectURIs:   jsonStringList(rec, "redirect_uris"),
+		AllowedScopes:  jsonStringList(rec, "allowed_scopes"),
+		RefreshEnabled: rec.GetBool("refresh_enabled"),
+		SkipConsent:    rec.GetBool("skip_consent"),
+		Enabled:        rec.GetBool("enabled"),
+		LastUsedAt:     lastUsedAt,
+		Created:        rec.GetString("created"),
+		Updated:        rec.GetString("updated"),
+	}
+}
+
+// jsonStringList reads a JSON string array field. A malformed value reads as
+// empty instead of failing the whole list.
+func jsonStringList(rec *core.Record, field string) []string {
+	var out []string
+	if err := rec.UnmarshalJSONField(field, &out); err != nil || out == nil {
+		return []string{}
+	}
+	return out
+}
+
+func (h *Handlers) findOIDCClient(id string) (*core.Record, error) {
+	rec, err := h.app.FindRecordById(oidc.ClientsCollection, id)
+	if err != nil {
+		return nil, apis.NewNotFoundError("connected app not found", err)
+	}
+	return rec, nil
+}
+
+func (h *Handlers) listOIDCClients(e *core.RequestEvent) error {
+	records, err := h.app.FindRecordsByFilter(oidc.ClientsCollection, "", "name", 0, 0)
+	if err != nil {
+		return apis.NewBadRequestError("failed to list connected apps", err)
+	}
+	out := make([]OIDCClient, 0, len(records))
+	for _, rec := range records {
+		out = append(out, publicOIDCClient(rec))
+	}
+	return ok(e, out)
+}
+
+func (h *Handlers) createOIDCClient(e *core.RequestEvent) error {
+	var in OIDCClientCreateRequest
+	if err := e.BindBody(&in); err != nil {
+		return apis.NewBadRequestError("invalid body", err)
+	}
+	coll, err := h.app.FindCollectionByNameOrId(oidc.ClientsCollection)
+	if err != nil {
+		return apis.NewBadRequestError("failed to load connected apps", err)
+	}
+	rec := core.NewRecord(coll)
+	if err := applyOIDCClientUpdate(rec, createAsUpdate(in)); err != nil {
+		return err
+	}
+	clientID, err := oidc.NewClientID()
+	if err != nil {
+		return apis.NewBadRequestError("failed to generate client credentials", err)
+	}
+	secret, secretHash, err := oidc.NewClientSecret()
+	if err != nil {
+		return apis.NewBadRequestError("failed to generate client credentials", err)
+	}
+	rec.Set("client_id", clientID)
+	rec.Set("secret_hash", secretHash)
+	if e.Auth != nil {
+		rec.Set("created_by", e.Auth.Id)
+	}
+	if err := h.app.Save(rec); err != nil {
+		return apis.NewBadRequestError("failed to save connected app", err)
+	}
+	return ok(e, OIDCClientSecretResponse{Client: publicOIDCClient(rec), ClientSecret: secret})
+}
+
+// createAsUpdate applies the create defaults: openid and email scopes, enabled.
+func createAsUpdate(in OIDCClientCreateRequest) OIDCClientUpdateRequest {
+	scopes := in.AllowedScopes
+	if scopes == nil {
+		scopes = []string{oidc.ScopeOpenID, oidc.ScopeEmail}
+	}
+	enabled := in.Enabled == nil || *in.Enabled
+	return OIDCClientUpdateRequest{
+		Name:           &in.Name,
+		RedirectURIs:   &in.RedirectURIs,
+		AllowedScopes:  &scopes,
+		RefreshEnabled: in.RefreshEnabled,
+		SkipConsent:    in.SkipConsent,
+		Enabled:        &enabled,
+	}
+}
+
+func (h *Handlers) updateOIDCClient(e *core.RequestEvent) error {
+	rec, err := h.findOIDCClient(e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	var in OIDCClientUpdateRequest
+	if err := e.BindBody(&in); err != nil {
+		return apis.NewBadRequestError("invalid body", err)
+	}
+	if err := applyOIDCClientUpdate(rec, in); err != nil {
+		return err
+	}
+	if err := h.app.Save(rec); err != nil {
+		return apis.NewBadRequestError("failed to save connected app", err)
+	}
+	return ok(e, publicOIDCClient(rec))
+}
+
+func (h *Handlers) deleteOIDCClient(e *core.RequestEvent) error {
+	rec, err := h.findOIDCClient(e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	if err := h.app.Delete(rec); err != nil {
+		return apis.NewBadRequestError("failed to delete connected app", err)
+	}
+	return ok(e, DeleteResponse{Deleted: true})
+}
+
+// rotateOIDCClientSecret replaces the secret. Existing tokens stay valid, but
+// a refresh needs client authentication, so only the new secret can refresh.
+func (h *Handlers) rotateOIDCClientSecret(e *core.RequestEvent) error {
+	rec, err := h.findOIDCClient(e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	secret, secretHash, err := oidc.NewClientSecret()
+	if err != nil {
+		return apis.NewBadRequestError("failed to generate client credentials", err)
+	}
+	rec.Set("secret_hash", secretHash)
+	if err := h.app.Save(rec); err != nil {
+		return apis.NewBadRequestError("failed to save connected app", err)
+	}
+	return ok(e, OIDCClientSecretResponse{Client: publicOIDCClient(rec), ClientSecret: secret})
+}
+
+// applyOIDCClientUpdate validates every given field before the caller saves,
+// so a rejected request changes nothing.
+func applyOIDCClientUpdate(rec *core.Record, in OIDCClientUpdateRequest) error {
+	if in.Name != nil {
+		name, err := normalizeOIDCClientName(*in.Name)
+		if err != nil {
+			return err
+		}
+		rec.Set("name", name)
+	}
+	if in.RedirectURIs != nil {
+		uris, err := oidc.NormalizeRedirectURIs(*in.RedirectURIs)
+		if err != nil {
+			return apis.NewBadRequestError(err.Error(), nil)
+		}
+		rec.Set("redirect_uris", uris)
+	}
+	if in.AllowedScopes != nil {
+		scopes, err := oidc.NormalizeScopes(*in.AllowedScopes)
+		if err != nil {
+			return apis.NewBadRequestError(err.Error(), nil)
+		}
+		rec.Set("allowed_scopes", scopes)
+	}
+	setOptionalBool(rec, "refresh_enabled", in.RefreshEnabled)
+	setOptionalBool(rec, "skip_consent", in.SkipConsent)
+	setOptionalBool(rec, "enabled", in.Enabled)
+	return nil
+}
+
+func setOptionalBool(rec *core.Record, field string, value *bool) {
+	if value != nil {
+		rec.Set(field, *value)
+	}
+}
+
+func normalizeOIDCClientName(input string) (string, error) {
+	name := strings.TrimSpace(input)
+	if name == "" || utf8.RuneCountInString(name) > 128 {
+		return "", apis.NewBadRequestError("connected app name must be between 1 and 128 characters", nil)
+	}
+	for _, r := range name {
+		if unicode.IsControl(r) {
+			return "", apis.NewBadRequestError("connected app name cannot contain control characters", nil)
+		}
+	}
+	return name, nil
+}
+```
+
+- [ ] **Step 5: Register the routes**
+
+In `backend/internal/api/api.go`, after the `g.POST("/notification-channels/{id}/reveal/finish", ...)` line, add:
+
+```go
+	g.GET("/oidc-clients", h.listOIDCClients).Bind(adminOnly)
+	g.POST("/oidc-clients", h.createOIDCClient).Bind(adminOnly)
+	g.PATCH("/oidc-clients/{id}", h.updateOIDCClient).Bind(adminOnly)
+	g.DELETE("/oidc-clients/{id}", h.deleteOIDCClient).Bind(adminOnly)
+	g.POST("/oidc-clients/{id}/rotate-secret", h.rotateOIDCClientSecret).Bind(adminOnly)
+```
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `go test ./internal/api -run OIDCClient -v`
+Expected: PASS for all five tests, including the six subtests of `TestCreateOIDCClientRejectsInvalidInput`.
+
+- [ ] **Step 7: Run the full suite and commit**
+
+Run: `go build ./... && go vet ./... && go test ./...`
+Expected: no build or vet output, every package `ok`.
+
+```bash
+git add backend/internal/api/oidc_clients.go backend/internal/api/oidc_clients_test.go backend/internal/api/dto.go backend/internal/api/api.go
+git commit -m "feat(backend): add connected app admin endpoints"
+```
+
+### Task 10: OpenAPI contract
+
+**Files:**
+- Modify: `backend/internal/api/openapi.go`
+- Test: `backend/internal/api/openapi_oidc_test.go`
+- Regenerate: `backend/openapi.json` and `frontend/src/api/schema.d.ts`. Both are gitignored, so they are not committed.
+
+**Interfaces:**
+- Consumes: Task 7 and Task 9 DTOs.
+- Produces: schemas `OIDCClient`, `OIDCClientCreateRequest`, `OIDCClientUpdateRequest`, `OIDCClientSecretResponse`; paths `/api/panel/oidc-clients`, `/api/panel/oidc-clients/{id}`, `/api/panel/oidc-clients/{id}/rotate-secret`; operation IDs `listOIDCClients`, `createOIDCClient`, `updateOIDCClient`, `deleteOIDCClient`, `rotateOIDCClientSecret`. The frontend types in Task 11 come from these.
+
+- [ ] **Step 1: Write the failing test**
+
+```go
+package api
+
+import (
+	"slices"
+	"testing"
+)
+
+func TestOpenAPIDescribesConnectedApps(t *testing.T) {
+	spec, err := BuildOpenAPISpec()
+	if err != nil {
+		t.Fatalf("build spec: %v", err)
+	}
+	for path, methods := range map[string][]string{
+		"/api/panel/oidc-clients":                    {"GET", "POST"},
+		"/api/panel/oidc-clients/{id}":               {"PATCH", "DELETE"},
+		"/api/panel/oidc-clients/{id}/rotate-secret": {"POST"},
+	} {
+		item := spec.Paths.Find(path)
+		if item == nil {
+			t.Fatalf("missing path %s", path)
+		}
+		for _, method := range methods {
+			if item.GetOperation(method) == nil {
+				t.Fatalf("missing %s %s", method, path)
+			}
+		}
+	}
+	schemas := spec.Components.Schemas
+	client := schemas["OIDCClient"]
+	if client == nil || !slices.Contains(client.Value.Required, "client_id") || client.Value.Properties["secret_hash"] != nil {
+		t.Fatalf("OIDCClient schema = %+v", client)
+	}
+	reason := schemas["SettingsResponse"].Value.Properties["oidc_unavailable_reason"]
+	if reason == nil || len(reason.Value.Enum) != 4 {
+		t.Fatalf("oidc_unavailable_reason enum = %+v", reason)
+	}
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `go test ./internal/api -run TestOpenAPIDescribesConnectedApps`
+Expected: FAIL with `missing path /api/panel/oidc-clients`.
+
+- [ ] **Step 3: Add schemas, required fields and enums**
+
+In `BuildOpenAPISpec`, add to `schemaDefs` after the `NotificationChannelRevealResponse` entry:
+
+```go
+		"OIDCClient":                        OIDCClient{},
+		"OIDCClientCreateRequest":           OIDCClientCreateRequest{},
+		"OIDCClientUpdateRequest":           OIDCClientUpdateRequest{},
+		"OIDCClientSecretResponse":          OIDCClientSecretResponse{},
+```
+
+In the required-fields map, replace the `"SettingsResponse"` entry and add three entries:
+
+```go
+		"SettingsResponse":               {"email_sendout_rate_per_minute", "oidc_enabled", "oidc_issuer", "oidc_unavailable_reason"},
+		"OIDCClient":                     {"id", "client_id", "name", "redirect_uris", "allowed_scopes", "refresh_enabled", "skip_consent", "enabled", "created", "updated"},
+		"OIDCClientCreateRequest":        {"name", "redirect_uris"},
+		"OIDCClientSecretResponse":       {"client", "client_secret"},
+```
+
+After the `NotificationChannelTestResponse` enum block, add:
+
+```go
+	if s, ok := schemas["SettingsResponse"]; ok && s.Value != nil {
+		setEnum(s.Value.Properties, "oidc_unavailable_reason", []any{"", "backend_url_missing", "backend_url_insecure", "frontend_url_missing"})
+	}
+```
+
+- [ ] **Step 4: Add the paths**
+
+After the `/api/panel/notification-channels/{id}/reveal/finish` path block, add:
+
+```go
+	// ── /oidc-clients ─────────────────────────────────────────────────────
+	t.Paths.Set("/api/panel/oidc-clients", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listOIDCClients",
+				Summary:     "List Connected Apps without their secrets",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Connected Apps"),
+						Content:     content(arrayRef("OIDCClient")),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "createOIDCClient",
+				Summary:     "Register a Connected App and return its client secret once",
+				Tags:        []string{"connected apps"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("OIDCClientCreateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Created Connected App and its plaintext client secret"),
+						Content:     content(ref("OIDCClientSecretResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/oidc-clients/{id}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Connected App ID")},
+		Patch: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "updateOIDCClient",
+				Summary:     "Update a Connected App",
+				Tags:        []string{"connected apps"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("OIDCClientUpdateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Updated Connected App"),
+						Content:     content(ref("OIDCClient")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "deleteOIDCClient",
+				Summary:     "Delete a Connected App with its grants and tokens",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Deleted Connected App confirmation"),
+						Content:     content(ref("DeleteResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	t.Paths.Set("/api/panel/oidc-clients/{id}/rotate-secret", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("Connected App ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "rotateOIDCClientSecret",
+				Summary:     "Replace a Connected App's client secret and return it once",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Connected App and its new plaintext client secret"),
+						Content:     content(ref("OIDCClientSecretResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+```
+
+- [ ] **Step 5: Run the test and regenerate the frontend types**
+
+Run: `go test ./internal/api -run TestOpenAPIDescribesConnectedApps -v` from `backend/`.
+Expected: PASS.
+
+Run from `frontend/`: `pnpm api:sync`
+Expected: it rewrites `backend/openapi.json` and `frontend/src/api/schema.d.ts`; `grep -c OIDCClient src/api/schema.d.ts` prints a non-zero count.
+
+- [ ] **Step 6: Run the full suite and commit**
+
+Run: `go build ./... && go vet ./... && go test ./...` from `backend/`.
+Expected: no build or vet output, every package `ok`.
+
+```bash
+git add backend/internal/api/openapi.go backend/internal/api/openapi_oidc_test.go
+git commit -m "feat(backend): describe connected apps in openapi"
+```
+
+### Task 11: Frontend API layer and copy
+
+**Files:**
+- Modify: `frontend/src/api/queries.ts`, `frontend/src/lib/api-error.ts`, `frontend/messages/en.json`, `frontend/messages/zh-cn.json`
+
+**Interfaces:**
+- Consumes: Task 10 schema types (after `pnpm api:sync`).
+- Produces: exported types `OIDCClient`, `OIDCClientCreateRequest`, `OIDCClientUpdateRequest`, `OIDCClientSecretResponse`; `queryKeys.oidcClients()`; `fetchOIDCClients`, `createOIDCClient`, `updateOIDCClient`, `deleteOIDCClient`, `rotateOIDCClientSecret`; every message key used in Tasks 11 and 12.
+
+The frontend has no unit tests. `pnpm typecheck` and `pnpm i18n:check` are the gates (AGENTS.md).
+
+- [ ] **Step 1: Add the types and fetchers to `queries.ts`**
+
+Next to the other `components["schemas"]` aliases near the top:
+
+```ts
+type OIDCClient = components["schemas"]["OIDCClient"];
+type OIDCClientCreateRequest = components["schemas"]["OIDCClientCreateRequest"];
+type OIDCClientUpdateRequest = components["schemas"]["OIDCClientUpdateRequest"];
+type OIDCClientSecretResponse = components["schemas"]["OIDCClientSecretResponse"];
+```
+
+Add the four names to the `export type { ... }` list after `NotificationChannelRevealResponse`. In `queryKeys`, after `notificationChannels`:
+
+```ts
+  oidcClients: () => [...queryKeys.all, "oidc-clients"] as const,
+```
+
+After `testNotificationChannel` and the other notification-channel fetchers:
+
+```ts
+export function fetchOIDCClients(): Promise<OIDCClient[]> {
+  return apiRequest<OIDCClient[]>(
+    apiClient.GET("/api/panel/oidc-clients"),
+    m.error_oidc_clients_load()
+  );
+}
+
+export function createOIDCClient(body: OIDCClientCreateRequest): Promise<OIDCClientSecretResponse> {
+  return apiRequest<OIDCClientSecretResponse>(
+    apiClient.POST("/api/panel/oidc-clients", { body }),
+    m.error_oidc_client_save(),
+    m.error_oidc_client_save_network()
+  );
+}
+
+export function updateOIDCClient(id: string, body: OIDCClientUpdateRequest): Promise<OIDCClient> {
+  return apiRequest<OIDCClient>(
+    apiClient.PATCH("/api/panel/oidc-clients/{id}", { params: { path: { id } }, body }),
+    m.error_oidc_client_save(),
+    m.error_oidc_client_save_network()
+  );
+}
+
+export function deleteOIDCClient(id: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/oidc-clients/{id}", { params: { path: { id } } }),
+    m.error_oidc_client_delete(),
+    m.error_oidc_client_delete_network()
+  );
+}
+
+export function rotateOIDCClientSecret(id: string): Promise<OIDCClientSecretResponse> {
+  return apiRequest<OIDCClientSecretResponse>(
+    apiClient.POST("/api/panel/oidc-clients/{id}/rotate-secret", { params: { path: { id } } }),
+    m.error_oidc_client_rotate(),
+    m.error_oidc_client_rotate_network()
+  );
+}
+```
+
+- [ ] **Step 2: Localize the backend errors**
+
+Add to `API_ERROR_MAP` in `frontend/src/lib/api-error.ts`. Keys are lowercase without the trailing period, as `localizeApiError` normalizes them:
+
+```ts
+  "connected app name must be between 1 and 128 characters": () => m.error_oidc_client_name_invalid(),
+  "connected app name cannot contain control characters": () => m.error_oidc_client_name_invalid(),
+  "connected app not found": () => m.error_oidc_client_not_found(),
+  "redirect_uris must contain between 1 and 10 entries": () => m.error_oidc_redirect_uris_count(),
+  "redirect uri must be an absolute https url, or http on localhost, without a fragment or credentials": () =>
+    m.error_oidc_redirect_uri_invalid(),
+  "redirect uris must be unique": () => m.error_oidc_redirect_uris_duplicate(),
+  "allowed_scopes must include openid and only contain openid or email": () => m.error_oidc_scopes_invalid(),
+  "oidc provider requires an https panel_backend_url_base and panel_frontend_url_base": () =>
+    m.error_oidc_unavailable(),
+```
+
+- [ ] **Step 3: Add the copy**
+
+Append these keys to `frontend/messages/en.json`:
+
+```json
+  "settings_oidc": "OpenID Connect",
+  "settings_oidc_desc": "Let sites you register sign users in with their panel account.",
+  "settings_enable_oidc": "Enable OpenID Connect provider",
+  "settings_oidc_enabled_desc": "Connected apps can sign in active users whose email is verified.",
+  "settings_oidc_disabled_desc": "Every OpenID Connect endpoint returns 404.",
+  "settings_oidc_issuer": "Issuer",
+  "settings_oidc_unavailable_backend_url_missing": "Set PANEL_BACKEND_URL_BASE to enable it",
+  "settings_oidc_unavailable_backend_url_insecure": "PANEL_BACKEND_URL_BASE must use https unless it points to localhost",
+  "settings_oidc_unavailable_frontend_url_missing": "Set PANEL_FRONTEND_URL_BASE to enable it",
+  "settings_oidc_manage": "Connected apps",
+  "settings_oidc_manage_desc": "Register sites, their redirect URIs and client secrets.",
+  "oidc_clients_title": "Connected apps",
+  "oidc_clients_new": "New app",
+  "oidc_clients_empty_title": "No connected apps",
+  "oidc_clients_empty_hint": "Register a site to let it sign users in with their panel account.",
+  "oidc_clients_provider_off": "The OpenID Connect provider is off. Apps cannot sign users in until it is turned on.",
+  "oidc_clients_discovery": "Discovery URL",
+  "oidc_clients_redirect_count": "Redirect URIs: {count}",
+  "oidc_clients_last_used": "Last used {time}",
+  "oidc_clients_enabled": "Enabled",
+  "oidc_clients_disabled": "Disabled",
+  "oidc_clients_more_actions": "More actions",
+  "oidc_clients_edit": "Edit",
+  "oidc_clients_rotate_secret": "Rotate secret",
+  "oidc_clients_rotating": "Rotating…",
+  "oidc_clients_rotate_title": "Rotate client secret",
+  "oidc_clients_rotate_body": "The current secret stops working right away. Update {name} with the new secret.",
+  "oidc_clients_delete_title": "Delete connected app",
+  "oidc_clients_delete_confirm": "Delete {name}? Users can no longer sign in to it with their panel account, and their consent is removed.",
+  "oidc_clients_create_title": "New connected app",
+  "oidc_clients_edit_title": "Edit connected app",
+  "oidc_clients_form_description": "Users see this name on the consent screen.",
+  "oidc_clients_name_label": "Name",
+  "oidc_clients_redirect_label": "Redirect URIs",
+  "oidc_clients_redirect_hint": "One per line, matched exactly. Use https, or http only for localhost.",
+  "oidc_clients_scope_email_label": "Share email address",
+  "oidc_clients_scope_email_desc": "Lets the app request the email scope.",
+  "oidc_clients_refresh_label": "Allow refresh tokens",
+  "oidc_clients_refresh_desc": "Issued only when the app requests offline_access.",
+  "oidc_clients_skip_consent_label": "Skip consent screen",
+  "oidc_clients_skip_consent_desc": "Only for apps you run yourself. Users sign in without being asked.",
+  "oidc_clients_enabled_label": "Enabled",
+  "oidc_clients_create_submit": "Create",
+  "oidc_clients_save": "Save",
+  "oidc_clients_saving": "Saving…",
+  "oidc_clients_credentials_title": "Client credentials",
+  "oidc_clients_client_id": "Client ID",
+  "oidc_clients_client_secret": "Client secret",
+  "oidc_clients_secret_warning": "Copy the secret now. It is not shown again",
+  "oidc_clients_credentials_done": "Done",
+  "oidc_copy_issuer": "issuer",
+  "oidc_copy_discovery": "discovery URL",
+  "oidc_copy_client_id": "client ID",
+  "oidc_copy_client_secret": "client secret",
+  "error_oidc_clients_load": "Couldn't load connected apps.",
+  "error_oidc_client_save": "Couldn't save the connected app.",
+  "error_oidc_client_save_network": "Network error while saving the connected app.",
+  "error_oidc_client_delete": "Couldn't delete the connected app.",
+  "error_oidc_client_delete_network": "Network error while deleting the connected app.",
+  "error_oidc_client_rotate": "Couldn't rotate the client secret.",
+  "error_oidc_client_rotate_network": "Network error while rotating the client secret.",
+  "error_oidc_client_name_invalid": "Enter a name of 1 to 128 characters without line breaks.",
+  "error_oidc_client_not_found": "This connected app no longer exists.",
+  "error_oidc_redirect_uris_count": "Enter between 1 and 10 redirect URIs.",
+  "error_oidc_redirect_uri_invalid": "Each redirect URI must be an absolute https URL, or http on localhost, without a fragment or credentials.",
+  "error_oidc_redirect_uris_duplicate": "Each redirect URI can appear only once.",
+  "error_oidc_scopes_invalid": "Scopes must include openid.",
+  "error_oidc_unavailable": "Set an https PANEL_BACKEND_URL_BASE and PANEL_FRONTEND_URL_BASE first."
+```
+
+Append the same keys to `frontend/messages/zh-cn.json`:
+
+```json
+  "settings_oidc": "OpenID Connect",
+  "settings_oidc_desc": "让你登记的网站使用面板账号登录。",
+  "settings_enable_oidc": "启用 OpenID Connect 提供方",
+  "settings_oidc_enabled_desc": "已连接的应用可以让已启用且邮箱已验证的用户登录。",
+  "settings_oidc_disabled_desc": "所有 OpenID Connect 端点都返回 404。",
+  "settings_oidc_issuer": "Issuer",
+  "settings_oidc_unavailable_backend_url_missing": "设置 PANEL_BACKEND_URL_BASE 后才能启用",
+  "settings_oidc_unavailable_backend_url_insecure": "PANEL_BACKEND_URL_BASE 必须使用 https，localhost 除外",
+  "settings_oidc_unavailable_frontend_url_missing": "设置 PANEL_FRONTEND_URL_BASE 后才能启用",
+  "settings_oidc_manage": "已连接的应用",
+  "settings_oidc_manage_desc": "登记网站及其回调地址和 client secret。",
+  "oidc_clients_title": "已连接的应用",
+  "oidc_clients_new": "新建应用",
+  "oidc_clients_empty_title": "还没有已连接的应用",
+  "oidc_clients_empty_hint": "登记一个网站后，它就能让用户用面板账号登录。",
+  "oidc_clients_provider_off": "OpenID Connect 提供方已关闭。开启之前，应用无法让用户登录。",
+  "oidc_clients_discovery": "Discovery 地址",
+  "oidc_clients_redirect_count": "回调地址：{count}",
+  "oidc_clients_last_used": "最近使用 {time}",
+  "oidc_clients_enabled": "已启用",
+  "oidc_clients_disabled": "已停用",
+  "oidc_clients_more_actions": "更多操作",
+  "oidc_clients_edit": "编辑",
+  "oidc_clients_rotate_secret": "轮换 secret",
+  "oidc_clients_rotating": "轮换中…",
+  "oidc_clients_rotate_title": "轮换 client secret",
+  "oidc_clients_rotate_body": "当前 secret 会立即失效。请在 {name} 中换成新的 secret。",
+  "oidc_clients_delete_title": "删除已连接的应用",
+  "oidc_clients_delete_confirm": "删除 {name}？用户将无法再用面板账号登录它，相关授权记录也会删除。",
+  "oidc_clients_create_title": "新建已连接的应用",
+  "oidc_clients_edit_title": "编辑已连接的应用",
+  "oidc_clients_form_description": "用户会在授权页看到这个名称。",
+  "oidc_clients_name_label": "名称",
+  "oidc_clients_redirect_label": "回调地址",
+  "oidc_clients_redirect_hint": "每行一个，需完全一致。使用 https，仅 localhost 可用 http。",
+  "oidc_clients_scope_email_label": "提供邮箱地址",
+  "oidc_clients_scope_email_desc": "允许应用请求 email scope。",
+  "oidc_clients_refresh_label": "允许 refresh token",
+  "oidc_clients_refresh_desc": "仅在应用请求 offline_access 时签发。",
+  "oidc_clients_skip_consent_label": "跳过授权确认",
+  "oidc_clients_skip_consent_desc": "只用于你自己运营的应用。用户登录时不会被询问。",
+  "oidc_clients_enabled_label": "启用",
+  "oidc_clients_create_submit": "创建",
+  "oidc_clients_save": "保存",
+  "oidc_clients_saving": "保存中…",
+  "oidc_clients_credentials_title": "Client 凭据",
+  "oidc_clients_client_id": "Client ID",
+  "oidc_clients_client_secret": "Client secret",
+  "oidc_clients_secret_warning": "现在复制 secret，之后不会再显示",
+  "oidc_clients_credentials_done": "完成",
+  "oidc_copy_issuer": "Issuer",
+  "oidc_copy_discovery": "Discovery 地址",
+  "oidc_copy_client_id": "Client ID",
+  "oidc_copy_client_secret": "Client secret",
+  "error_oidc_clients_load": "无法加载已连接的应用。",
+  "error_oidc_client_save": "无法保存已连接的应用。",
+  "error_oidc_client_save_network": "保存已连接的应用时网络错误。",
+  "error_oidc_client_delete": "无法删除已连接的应用。",
+  "error_oidc_client_delete_network": "删除已连接的应用时网络错误。",
+  "error_oidc_client_rotate": "无法轮换 client secret。",
+  "error_oidc_client_rotate_network": "轮换 client secret 时网络错误。",
+  "error_oidc_client_name_invalid": "请输入 1 到 128 个字符的名称，不含换行。",
+  "error_oidc_client_not_found": "该应用已不存在。",
+  "error_oidc_redirect_uris_count": "请填写 1 到 10 个回调地址。",
+  "error_oidc_redirect_uri_invalid": "每个回调地址都必须是绝对 https URL，localhost 可用 http，且不能包含 fragment 或凭据。",
+  "error_oidc_redirect_uris_duplicate": "回调地址不能重复。",
+  "error_oidc_scopes_invalid": "scope 必须包含 openid。",
+  "error_oidc_unavailable": "请先设置 https 的 PANEL_BACKEND_URL_BASE 和 PANEL_FRONTEND_URL_BASE。"
+```
+
+- [ ] **Step 4: Verify**
+
+Run from `frontend/`: `pnpm typecheck && pnpm i18n:check`
+Expected: both pass. The new message keys are unused until Task 12, which Paraglide allows.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add frontend/src/api/queries.ts frontend/src/lib/api-error.ts frontend/messages/en.json frontend/messages/zh-cn.json
+git commit -m "feat(frontend): add connected app api and copy"
+```
+
+### Task 12: Connected Apps page and settings entry
+
+**Files:**
+- Create: `frontend/src/routes/settings/connected-apps.tsx`
+- Modify: `frontend/src/routes/settings/index.tsx`, `frontend/src/routeTree.gen.ts` (regenerated)
+
+**Interfaces:**
+- Consumes: Task 11 fetchers, types and messages; `fetchSettings` for the issuer and switch state.
+- Produces: route `/settings/connected-apps` (admin only).
+
+- [ ] **Step 1: Write the page**
+
+Check the HeroUI v3 docs for `TextArea` inside `TextField` first (the heroui-react MCP `get_component_docs` for `TextArea`). If `TextField` does not accept a `TextArea` child, render `<Label>` and a standalone `<TextArea aria-label=...>` as `src/routes/users/$userId.tsx` does.
+
+`frontend/src/routes/settings/connected-apps.tsx`:
+
+```tsx
+import { useState, type Key } from "react";
+import { useForm } from "@tanstack/react-form";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  Button,
+  Dropdown,
+  Input,
+  Label,
+  Modal,
+  Separator,
+  Switch,
+  TextArea,
+  TextField,
+} from "@heroui/react";
+import { ArrowRotateRight, Ellipsis, Pencil, Plus, TrashBin } from "@gravity-ui/icons";
+import { requireAdmin } from "~/api/guards";
+import {
+  canQueryPanelApi,
+  createOIDCClient,
+  deleteOIDCClient,
+  fetchOIDCClients,
+  fetchSettings,
+  queryErrorMessage,
+  queryKeys,
+  rotateOIDCClientSecret,
+  updateOIDCClient,
+  type OIDCClient,
+  type OIDCClientCreateRequest,
+  type OIDCClientSecretResponse,
+  type OIDCClientUpdateRequest,
+} from "~/api/queries";
+import { markResponsePrivate } from "~/api/ssr";
+import {
+  BrandLink,
+  CopyableCode,
+  DestructiveConfirmModal,
+  Dot,
+  ErrorAlert,
+  LabeledSwitch,
+  PageShell,
+  PanelMessage,
+  Section,
+  TableSkeleton,
+} from "~/components/ui";
+import { UserMenu } from "~/components/user-menu";
+import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
+import { relTimeFromISO } from "~/lib/format";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
+import * as m from "~/paraglide/messages.js";
+
+export const Route = createFileRoute("/settings/connected-apps")({
+  beforeLoad: ({ context }) => requireAdmin(context.auth),
+  staticData: breadcrumbStaticData({
+    label: () => m.oidc_clients_title(),
+  }),
+  loader: ({ context }) => {
+    markResponsePrivate();
+    return context.queryClient.ensureQueryData({
+      queryKey: queryKeys.oidcClients(),
+      queryFn: fetchOIDCClients,
+    });
+  },
+  component: ConnectedAppsPage,
+});
+
+function ConnectedAppsPage() {
+  const { auth } = Route.useRouteContext();
+  const queryClient = useQueryClient();
+  const now = useHydratedNow();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<OIDCClient | null>(null);
+  const [deleting, setDeleting] = useState<OIDCClient | null>(null);
+  const [rotating, setRotating] = useState<OIDCClient | null>(null);
+  const [credentials, setCredentials] = useState<OIDCClientSecretResponse | null>(null);
+
+  const clientsQuery = useQuery({ queryKey: queryKeys.oidcClients(), queryFn: fetchOIDCClients });
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.settings(),
+    queryFn: fetchSettings,
+    enabled: canQueryPanelApi(),
+  });
+
+  const invalidate = () => void queryClient.invalidateQueries({ queryKey: queryKeys.oidcClients() });
+
+  const createMutation = useMutation({
+    mutationFn: createOIDCClient,
+    onSuccess: (data) => {
+      setCreateOpen(false);
+      setCredentials(data);
+      invalidate();
+    },
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: OIDCClientUpdateRequest }) =>
+      updateOIDCClient(id, body),
+    onSuccess: () => {
+      setEditing(null);
+      invalidate();
+    },
+  });
+  const rotateMutation = useMutation({
+    mutationFn: rotateOIDCClientSecret,
+    onSuccess: (data) => {
+      setRotating(null);
+      setCredentials(data);
+      invalidate();
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteOIDCClient,
+    onSuccess: () => {
+      setDeleting(null);
+      invalidate();
+    },
+  });
+
+  const clients = clientsQuery.data ?? [];
+  const issuer = settingsQuery.data?.oidc_issuer ?? "";
+  const providerOff = settingsQuery.data !== undefined && !settingsQuery.data.oidc_enabled;
+  const loadError = clientsQuery.error ? queryErrorMessage(clientsQuery.error) : "";
+  // Row switches share the update mutation with the edit modal, whose own
+  // error renders inside the modal.
+  const toggleError =
+    updateMutation.error && editing === null
+      ? queryErrorMessage(updateMutation.error, m.error_oidc_client_save_network())
+      : "";
+
+  function openCreate(open: boolean) {
+    setCreateOpen(open);
+    if (!open) createMutation.reset();
+  }
+
+  function closeEdit(open: boolean) {
+    if (!open) {
+      setEditing(null);
+      updateMutation.reset();
+    }
+  }
+
+  function closeRotate(open: boolean) {
+    if (!open) {
+      setRotating(null);
+      rotateMutation.reset();
+    }
+  }
+
+  function closeDelete(open: boolean) {
+    if (!open) {
+      setDeleting(null);
+      deleteMutation.reset();
+    }
+  }
+
+  return (
+    <PageShell
+      width="narrow"
+      headerLeft={<BrandLink />}
+      headerRight={auth ? <UserMenu auth={auth} /> : undefined}
+    >
+      <div className="mb-6">
+        <h1 className="text-base font-semibold tracking-tight">{m.settings_oidc()}</h1>
+        <p className="mt-0.5 max-w-2xl text-[13px] text-muted">{m.settings_oidc_desc()}</p>
+      </div>
+
+      {providerOff && (
+        <div className="mb-4 rounded-lg border bg-surface-secondary px-4 py-3 text-[13px] text-muted">
+          {m.oidc_clients_provider_off()}{" "}
+          <Link to="/settings" className="font-medium text-accent hover:opacity-80">
+            {m.nav_settings()}
+          </Link>
+        </div>
+      )}
+
+      {issuer && (
+        <div className="mb-6">
+          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted">
+            {m.oidc_clients_discovery()}
+          </p>
+          <CopyableCode
+            value={`${issuer}/.well-known/openid-configuration`}
+            label={m.oidc_copy_discovery()}
+          />
+        </div>
+      )}
+
+      <ErrorAlert message={loadError || toggleError} className="mb-4" />
+
+      <ClientFormModal
+        key={createOpen ? "create-open" : "create-closed"}
+        isOpen={createOpen}
+        onOpenChange={openCreate}
+        pending={createMutation.isPending}
+        error={
+          createMutation.error
+            ? queryErrorMessage(createMutation.error, m.error_oidc_client_save_network())
+            : ""
+        }
+        onSubmit={(body) => createMutation.mutate(body)}
+      />
+      <ClientFormModal
+        key={editing ? `edit-${editing.id}` : "edit-closed"}
+        client={editing}
+        isOpen={editing !== null}
+        onOpenChange={closeEdit}
+        pending={updateMutation.isPending}
+        error={
+          updateMutation.error && editing !== null
+            ? queryErrorMessage(updateMutation.error, m.error_oidc_client_save_network())
+            : ""
+        }
+        onSubmit={(body) => editing && updateMutation.mutate({ id: editing.id, body })}
+      />
+      <DestructiveConfirmModal
+        isOpen={rotating !== null}
+        title={m.oidc_clients_rotate_title()}
+        body={m.oidc_clients_rotate_body({ name: rotating?.name ?? "" })}
+        confirmLabel={m.oidc_clients_rotate_secret()}
+        pendingLabel={m.oidc_clients_rotating()}
+        pending={rotateMutation.isPending}
+        error={
+          rotateMutation.error
+            ? queryErrorMessage(rotateMutation.error, m.error_oidc_client_rotate_network())
+            : ""
+        }
+        onOpenChange={closeRotate}
+        onConfirm={() => rotating && rotateMutation.mutate(rotating.id)}
+      />
+      <DestructiveConfirmModal
+        isOpen={deleting !== null}
+        title={m.oidc_clients_delete_title()}
+        body={m.oidc_clients_delete_confirm({ name: deleting?.name ?? "" })}
+        confirmLabel={m.common_delete()}
+        pendingLabel={m.common_deleting()}
+        pending={deleteMutation.isPending}
+        error={
+          deleteMutation.error
+            ? queryErrorMessage(deleteMutation.error, m.error_oidc_client_delete_network())
+            : ""
+        }
+        onOpenChange={closeDelete}
+        onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
+      />
+      <CredentialsModal credentials={credentials} onClose={() => setCredentials(null)} />
+
+      <Section
+        className="mt-0"
+        title={m.oidc_clients_title()}
+        action={
+          <Button size="sm" variant="secondary" onPress={() => setCreateOpen(true)}>
+            <Plus className="size-3.5" aria-hidden />
+            {m.oidc_clients_new()}
+          </Button>
+        }
+      >
+        {clientsQuery.isPending ? (
+          <TableSkeleton />
+        ) : clients.length === 0 ? (
+          <PanelMessage>
+            <span className="block font-medium text-foreground">{m.oidc_clients_empty_title()}</span>
+            <span className="mt-1 block">{m.oidc_clients_empty_hint()}</span>
+          </PanelMessage>
+        ) : (
+          <div className="divide-y divide-separator">
+            {clients.map((client) => (
+              <ClientRow
+                key={client.id}
+                client={client}
+                now={now}
+                toggling={updateMutation.isPending && updateMutation.variables?.id === client.id}
+                onToggle={(enabled) => updateMutation.mutate({ id: client.id, body: { enabled } })}
+                onEdit={() => setEditing(client)}
+                onRotate={() => setRotating(client)}
+                onDelete={() => setDeleting(client)}
+              />
+            ))}
+          </div>
+        )}
+      </Section>
+    </PageShell>
+  );
+}
+
+const menuItemClass =
+  "h-7 rounded-md px-2 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-secondary data-[focus=true]:bg-surface-secondary data-[hovered=true]:bg-surface-secondary";
+const menuDangerItemClass =
+  "h-7 rounded-md px-2 text-[13px] text-danger transition-colors duration-150 hover:bg-danger-soft data-[focus=true]:bg-danger-soft data-[hovered=true]:bg-danger-soft";
+const menuIconClass = "size-3.5 shrink-0 text-muted";
+
+function ClientRow({
+  client,
+  now,
+  toggling,
+  onToggle,
+  onEdit,
+  onRotate,
+  onDelete,
+}: {
+  client: OIDCClient;
+  now: number | null;
+  toggling: boolean;
+  onToggle: (enabled: boolean) => void;
+  onEdit: () => void;
+  onRotate: () => void;
+  onDelete: () => void;
+}) {
+  const stateLabel = client.enabled ? m.oidc_clients_enabled() : m.oidc_clients_disabled();
+  return (
+    <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <Dot tone={client.enabled ? "ok" : "idle"} />
+          <span className="truncate text-[13px] font-medium">{client.name}</span>
+        </div>
+        <p className="mt-1 truncate font-mono text-xs text-muted">{client.client_id}</p>
+        <p className="mt-0.5 text-xs text-muted">
+          {m.oidc_clients_redirect_count({ count: client.redirect_uris.length })}
+          {client.last_used_at && now !== null && (
+            <>
+              <span> · </span>
+              <span className="tabular-nums">
+                {m.oidc_clients_last_used({ time: relTimeFromISO(client.last_used_at, now) })}
+              </span>
+            </>
+          )}
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-1.5 sm:flex-shrink-0">
+        <Switch
+          aria-label={stateLabel}
+          isSelected={client.enabled}
+          isDisabled={toggling}
+          onChange={onToggle}
+        >
+          <Switch.Content>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <span className="text-xs text-muted">{stateLabel}</span>
+          </Switch.Content>
+        </Switch>
+        <Dropdown>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={m.oidc_clients_more_actions()}
+            className="px-1.5"
+          >
+            <Ellipsis className="size-4 text-muted" aria-hidden />
+          </Button>
+          <Dropdown.Popover
+            placement="bottom end"
+            className="min-w-40 rounded-lg border bg-surface p-1 shadow-none"
+          >
+            <Dropdown.Menu
+              onAction={(key: Key) => {
+                if (key === "edit") onEdit();
+                else if (key === "rotate") onRotate();
+                else if (key === "delete") onDelete();
+              }}
+            >
+              <Dropdown.Item id="edit" textValue={m.oidc_clients_edit()} className={menuItemClass}>
+                <Pencil className={menuIconClass} aria-hidden />
+                <Label className="truncate">{m.oidc_clients_edit()}</Label>
+              </Dropdown.Item>
+              <Dropdown.Item
+                id="rotate"
+                textValue={m.oidc_clients_rotate_secret()}
+                className={menuItemClass}
+              >
+                <ArrowRotateRight className={menuIconClass} aria-hidden />
+                <Label className="truncate">{m.oidc_clients_rotate_secret()}</Label>
+              </Dropdown.Item>
+              <Separator className="my-1 bg-separator" />
+              <Dropdown.Item
+                id="delete"
+                variant="danger"
+                textValue={m.common_delete()}
+                className={menuDangerItemClass}
+              >
+                <TrashBin className="size-3.5 shrink-0 text-current" aria-hidden />
+                <Label className="truncate">{m.common_delete()}</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      </div>
+    </div>
+  );
+}
+
+function splitLines(value: string): string[] {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function ClientFormModal({
+  client,
+  isOpen,
+  onOpenChange,
+  pending,
+  error,
+  onSubmit,
+}: {
+  client?: OIDCClient | null;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  pending: boolean;
+  error: string;
+  onSubmit: (body: OIDCClientCreateRequest) => void;
+}) {
+  const isNew = !client;
+  const form = useForm({
+    defaultValues: {
+      name: client?.name ?? "",
+      redirectURIs: (client?.redirect_uris ?? []).join("\n"),
+      shareEmail: client ? client.allowed_scopes.includes("email") : true,
+      refreshEnabled: client?.refresh_enabled ?? false,
+      skipConsent: client?.skip_consent ?? false,
+      enabled: client?.enabled ?? true,
+    },
+    onSubmit: ({ value }) => {
+      onSubmit({
+        name: value.name.trim(),
+        redirect_uris: splitLines(value.redirectURIs),
+        allowed_scopes: value.shareEmail ? ["openid", "email"] : ["openid"],
+        refresh_enabled: value.refreshEnabled,
+        skip_consent: value.skipConsent,
+        enabled: value.enabled,
+      });
+    },
+  });
+
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="md" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void form.handleSubmit();
+            }}
+          >
+            <Modal.Header>
+              <Modal.Heading>
+                {isNew ? m.oidc_clients_create_title() : m.oidc_clients_edit_title()}
+              </Modal.Heading>
+              <p className="mt-1.5 text-sm leading-5 text-muted">
+                {m.oidc_clients_form_description()}
+              </p>
+            </Modal.Header>
+            <Modal.Body>
+              <div className="flex flex-col gap-4">
+                <form.Field name="name">
+                  {(field) => (
+                    <TextField
+                      value={field.state.value}
+                      onChange={field.handleChange}
+                      onBlur={field.handleBlur}
+                      autoFocus
+                    >
+                      <Label>{m.oidc_clients_name_label()}</Label>
+                      <Input autoComplete="off" maxLength={128} />
+                    </TextField>
+                  )}
+                </form.Field>
+                <form.Field name="redirectURIs">
+                  {(field) => (
+                    <TextField
+                      value={field.state.value}
+                      onChange={field.handleChange}
+                      onBlur={field.handleBlur}
+                    >
+                      <Label>{m.oidc_clients_redirect_label()}</Label>
+                      <TextArea
+                        rows={3}
+                        spellCheck={false}
+                        className="font-mono text-xs"
+                        style={{ resize: "vertical" }}
+                      />
+                    </TextField>
+                  )}
+                </form.Field>
+                <p className="-mt-2 text-xs text-muted">{m.oidc_clients_redirect_hint()}</p>
+                <form.Field name="shareEmail">
+                  {(field) => (
+                    <LabeledSwitch
+                      label={m.oidc_clients_scope_email_label()}
+                      description={m.oidc_clients_scope_email_desc()}
+                      isSelected={field.state.value}
+                      onChange={field.handleChange}
+                    />
+                  )}
+                </form.Field>
+                <form.Field name="refreshEnabled">
+                  {(field) => (
+                    <LabeledSwitch
+                      label={m.oidc_clients_refresh_label()}
+                      description={m.oidc_clients_refresh_desc()}
+                      isSelected={field.state.value}
+                      onChange={field.handleChange}
+                    />
+                  )}
+                </form.Field>
+                <form.Field name="skipConsent">
+                  {(field) => (
+                    <LabeledSwitch
+                      label={m.oidc_clients_skip_consent_label()}
+                      description={m.oidc_clients_skip_consent_desc()}
+                      isSelected={field.state.value}
+                      onChange={field.handleChange}
+                    />
+                  )}
+                </form.Field>
+                <form.Field name="enabled">
+                  {(field) => (
+                    <LabeledSwitch
+                      label={m.oidc_clients_enabled_label()}
+                      isSelected={field.state.value}
+                      onChange={field.handleChange}
+                    />
+                  )}
+                </form.Field>
+              </div>
+              {error && (
+                <p className="mt-4 text-[13px] text-danger" role="alert">
+                  {error}
+                </p>
+              )}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button slot="close" variant="secondary">
+                {m.common_cancel()}
+              </Button>
+              <form.Subscribe
+                selector={(state) => ({
+                  name: state.values.name,
+                  redirectURIs: state.values.redirectURIs,
+                })}
+              >
+                {({ name, redirectURIs }) => (
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    isPending={pending}
+                    isDisabled={pending || !name.trim() || splitLines(redirectURIs).length === 0}
+                  >
+                    {pending
+                      ? m.oidc_clients_saving()
+                      : isNew
+                        ? m.oidc_clients_create_submit()
+                        : m.oidc_clients_save()}
+                  </Button>
+                )}
+              </form.Subscribe>
+            </Modal.Footer>
+          </form>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
+// The secret exists only in this response, so the modal stays until the
+// admin dismisses it.
+function CredentialsModal({
+  credentials,
+  onClose,
+}: {
+  credentials: OIDCClientSecretResponse | null;
+  onClose: () => void;
+}) {
+  return (
+    <Modal.Backdrop isOpen={credentials !== null} onOpenChange={(open) => !open && onClose()}>
+      <Modal.Container size="md" placement="auto">
+        <Modal.Dialog>
+          <Modal.Header>
+            <Modal.Heading>{m.oidc_clients_credentials_title()}</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body>
+            <div className="flex flex-col gap-4">
+              <p className="text-[13px] font-medium">{credentials?.client.name}</p>
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted">
+                  {m.oidc_clients_client_id()}
+                </p>
+                <CopyableCode
+                  value={credentials?.client.client_id ?? ""}
+                  label={m.oidc_copy_client_id()}
+                />
+              </div>
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted">
+                  {m.oidc_clients_client_secret()}
+                </p>
+                <CopyableCode
+                  value={credentials?.client_secret ?? ""}
+                  label={m.oidc_copy_client_secret()}
+                />
+              </div>
+              <div className="rounded-lg border border-warning bg-warning-soft px-4 py-3">
+                <p className="text-[13px] font-semibold text-warning-soft-foreground">
+                  {m.oidc_clients_secret_warning()}
+                </p>
+              </div>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="primary" onPress={onClose}>
+              {m.oidc_clients_credentials_done()}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+```
+
+- [ ] **Step 2: Add the provider section and link to the settings page**
+
+In `frontend/src/routes/settings/index.tsx`, add `PlugConnection` to the `@gravity-ui/icons` import. Render the section right before `<ManagementApiSection`, so a save error from the shared settings mutation shows in the `ErrorAlert` that section already renders below it:
+
+```tsx
+          <OIDCSection
+            settings={settings}
+            pending={mutation.isPending}
+            onSave={(patch) => mutation.mutate(patch)}
+          />
+```
+
+Add the component after `ManagementApiSection`:
+
+```tsx
+function OIDCSection({
+  settings,
+  pending,
+  onSave,
+}: {
+  settings: AppSettings | undefined;
+  pending: boolean;
+  onSave: (patch: SettingsUpdateRequest) => void;
+}) {
+  const enabled = settings?.oidc_enabled ?? false;
+  const issuer = settings?.oidc_issuer ?? "";
+  const unavailable = oidcUnavailableMessage(settings?.oidc_unavailable_reason ?? "");
+
+  return (
+    <>
+      <div className="mt-8 mb-5">
+        <h1 className="text-base font-semibold tracking-tight">{m.settings_oidc()}</h1>
+        <p className="mt-0.5 text-[13px] text-muted">{m.settings_oidc_desc()}</p>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-lg border bg-surface p-5">
+        <LabeledSwitch
+          label={m.settings_enable_oidc()}
+          description={enabled ? m.settings_oidc_enabled_desc() : m.settings_oidc_disabled_desc()}
+          isSelected={enabled}
+          isDisabled={!settings || pending || (!enabled && unavailable !== "")}
+          onChange={(value) => onSave({ oidc_enabled: value })}
+        />
+        {unavailable && <p className="text-xs text-warning-soft-foreground">{unavailable}</p>}
+        {issuer && (
+          <>
+            <div className="h-px bg-separator" />
+            <div>
+              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted">
+                {m.settings_oidc_issuer()}
+              </p>
+              <CopyableCode value={issuer} label={m.oidc_copy_issuer()} />
+            </div>
+          </>
+        )}
+      </div>
+
+      <Link
+        to="/settings/connected-apps"
+        className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      >
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+          <PlugConnection className="size-4" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium text-foreground">
+            {m.settings_oidc_manage()}
+          </span>
+          <span className="block text-xs text-muted">{m.settings_oidc_manage_desc()}</span>
+        </span>
+        <ChevronRight
+          className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+          aria-hidden
+        />
+      </Link>
+    </>
+  );
+}
+
+function oidcUnavailableMessage(reason: string): string {
+  switch (reason) {
+    case "backend_url_missing":
+      return m.settings_oidc_unavailable_backend_url_missing();
+    case "backend_url_insecure":
+      return m.settings_oidc_unavailable_backend_url_insecure();
+    case "frontend_url_missing":
+      return m.settings_oidc_unavailable_frontend_url_missing();
+    default:
+      return "";
+  }
+}
+```
+
+
+- [ ] **Step 3: Regenerate the route tree and verify**
+
+Run from `frontend/`: `pnpm build` (the TanStack router plugin rewrites `src/routeTree.gen.ts`), then `pnpm typecheck && pnpm i18n:check`.
+Expected: build succeeds, `git diff --stat src/routeTree.gen.ts` shows the new route, typecheck and i18n check pass.
+
+- [ ] **Step 4: Check the page in a browser**
+
+Run `pnpm dev` from the repo root with `PANEL_MASTER_KEY` set and `PANEL_BACKEND_URL_BASE=http://localhost:8090`, `PANEL_FRONTEND_URL_BASE=http://localhost:3000` in the backend environment. As an admin:
+
+1. `/settings` shows the OpenID Connect section. The switch turns on, and the issuer `http://localhost:8090/api/oidc` appears.
+2. `/settings/connected-apps`: create an app with `http://localhost:3001/api/auth/callback/panel`. The credentials modal shows client ID and secret. After closing it, the secret is gone from the page.
+3. Edit the app, switch it off from the row, rotate its secret (new secret shown), delete it.
+4. Submitting `http://example.com/cb` shows the localized redirect URI error in the modal. Switch the locale to 中文 and repeat once.
+5. Check light and dark themes.
+
+Expected: every step behaves as described and no copy shows a raw message key.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add frontend/src/routes/settings/connected-apps.tsx frontend/src/routes/settings/index.tsx frontend/src/routeTree.gen.ts
+git commit -m "feat(frontend): manage connected apps"
+```
+
+### Layer 2 exit check
+
+- [ ] Backend: `go build ./... && go vet ./... && go test ./...` passes.
+- [ ] Frontend: `pnpm typecheck && pnpm i18n:check && pnpm build` passes.
+- [ ] A non-admin token gets 403 on `GET /api/panel/oidc-clients`.
+- [ ] No response body from `/api/panel/oidc-clients*` other than create and rotate contains a client secret, and none contains `secret_hash`.
+- [ ] Stop for review.
