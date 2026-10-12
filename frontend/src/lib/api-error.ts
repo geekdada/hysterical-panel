@@ -39,7 +39,7 @@ const API_ERROR_MAP: Record<string, () => string> = {
   "connected app name cannot contain control characters": () => m.error_oidc_client_name_invalid(),
   "connected app not found": () => m.error_oidc_client_not_found(),
   "redirect_uris must contain between 1 and 10 entries": () => m.error_oidc_redirect_uris_count(),
-  "redirect uri must be an absolute https url, or http on localhost, without a fragment or credentials":
+  "redirect uri must be an absolute https url, or http on a loopback host, with a lowercase ascii host and no spaces, fragment or credentials":
     () => m.error_oidc_redirect_uri_invalid(),
   "redirect uris must be unique": () => m.error_oidc_redirect_uris_duplicate(),
   "allowed_scopes must include openid and only contain openid or email": () =>

@@ -7,9 +7,12 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
+	"hysterical-panel/internal/cryptobox"
 	"hysterical-panel/internal/oidc"
 	"hysterical-panel/internal/token"
 )
@@ -79,7 +82,7 @@ func TestCreateOIDCClientRejectsInvalidInput(t *testing.T) {
 		"empty name":         {map[string]any{"name": " ", "redirect_uris": []string{helpCenterCallback}}, "connected app name must be between 1 and 128 characters"},
 		"control character":  {map[string]any{"name": "Help\ncenter", "redirect_uris": []string{helpCenterCallback}}, "connected app name cannot contain control characters"},
 		"no redirect":        {map[string]any{"name": "Help", "redirect_uris": []string{}}, "redirect_uris must contain between 1 and 10 entries"},
-		"plain http":         {map[string]any{"name": "Help", "redirect_uris": []string{"http://help.example/cb"}}, "redirect uri must be an absolute https url, or http on localhost, without a fragment or credentials"},
+		"plain http":         {map[string]any{"name": "Help", "redirect_uris": []string{"http://help.example/cb"}}, "redirect uri must be an absolute https url, or http on a loopback host, with a lowercase ascii host and no spaces, fragment or credentials"},
 		"duplicate redirect": {map[string]any{"name": "Help", "redirect_uris": []string{helpCenterCallback, helpCenterCallback}}, "redirect uris must be unique"},
 		"missing openid":     {map[string]any{"name": "Help", "redirect_uris": []string{helpCenterCallback}, "allowed_scopes": []string{"email"}}, "allowed_scopes must include openid and only contain openid or email"},
 	}
@@ -116,7 +119,7 @@ func TestUpdateOIDCClientChangesOnlyGivenFields(t *testing.T) {
 	e, _ = panelEvent(t, app, http.MethodPatch, "/api/panel/oidc-clients/"+id, id,
 		map[string]any{"name": "Renamed", "redirect_uris": []string{"http://help.example/cb"}}, nil)
 	assertAPIError(t, h.updateOIDCClient(e), http.StatusBadRequest,
-		"redirect uri must be an absolute https url, or http on localhost, without a fragment or credentials")
+		"redirect uri must be an absolute https url, or http on a loopback host, with a lowercase ascii host and no spaces, fragment or credentials")
 	stored, _ := app.FindRecordById(oidc.ClientsCollection, id)
 	if stored.GetString("name") != "Help" {
 		t.Fatal("a rejected update changed the stored name")
@@ -146,7 +149,7 @@ func TestRotateOIDCClientSecretReplacesHash(t *testing.T) {
 	}
 }
 
-func TestDeleteOIDCClientRemovesItsGrants(t *testing.T) {
+func TestDeleteOIDCClientRemovesEverythingIssuedForIt(t *testing.T) {
 	app := newMigratedTestApp(t)
 	user := newUsersTestRecord(t, app, "oidc-grant@example.com", "GrantSecret123")
 	h := newOIDCHandlers(t, app, "", "")
@@ -159,13 +162,93 @@ func TestDeleteOIDCClientRemovesItsGrants(t *testing.T) {
 	if err := app.Save(grant); err != nil {
 		t.Fatalf("save grant: %v", err)
 	}
+	expires := time.Now().UTC().Add(time.Hour)
+	issued := map[string]map[string]any{
+		oidc.AuthRequestsCollection: {"request_hash": "r", "client": created.Client.ID, "redirect_uri": helpCenterCallback, "scope": "openid", "code_challenge": "c", "expires_at": expires},
+		oidc.CodesCollection:        {"code_hash": "c", "grant": grant.Id, "family": "f", "redirect_uri": helpCenterCallback, "scope": "openid", "code_challenge": "c", "expires_at": expires},
+		oidc.TokensCollection:       {"token_hash": "t", "kind": "refresh", "grant": grant.Id, "family": "f", "scope": "openid", "expires_at": expires},
+	}
+	ids := map[string]string{oidc.GrantsCollection: grant.Id}
+	for collection, fields := range issued {
+		ids[collection] = saveTestRecord(t, app, collection, fields)
+	}
 
 	id := created.Client.ID
 	e, _ := panelEvent(t, app, http.MethodDelete, "/api/panel/oidc-clients/"+id, id, nil, nil)
 	if err := h.deleteOIDCClient(e); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := app.FindRecordById(oidc.GrantsCollection, grant.Id); err == nil {
-		t.Fatal("grant survived its client")
+	for collection, recordID := range ids {
+		if _, err := app.FindRecordById(collection, recordID); err == nil {
+			t.Errorf("%s record survived its client", collection)
+		}
+	}
+}
+
+func saveTestRecord(t *testing.T, app core.App, collection string, fields map[string]any) string {
+	t.Helper()
+	c, err := app.FindCollectionByNameOrId(collection)
+	if err != nil {
+		t.Fatalf("find %s: %v", collection, err)
+	}
+	rec := core.NewRecord(c)
+	for key, value := range fields {
+		rec.Set(key, value)
+	}
+	if err := app.Save(rec); err != nil {
+		t.Fatalf("save %s: %v", collection, err)
+	}
+	return rec.Id
+}
+
+// The handlers above are called directly, so this goes through the real
+// router to prove every Connected App route carries the admin guard.
+func TestOIDCClientRoutesRejectNonAdmins(t *testing.T) {
+	app := newMigratedTestApp(t)
+	user := newUsersTestRecord(t, app, "oidc-plain@example.com", "PlainSecret123")
+	sessionToken, err := user.NewAuthToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	r, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatalf("router: %v", err)
+	}
+	box, _ := cryptobox.New("oidc-test-master-key")
+	Register(&core.ServeEvent{App: app, Router: r}, app, box, nil, nil, nil, nil, PanelConfigResponse{})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatalf("mux: %v", err)
+	}
+
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/panel/oidc-clients"},
+		{http.MethodPost, "/api/panel/oidc-clients"},
+		{http.MethodPatch, "/api/panel/oidc-clients/any"},
+		{http.MethodDelete, "/api/panel/oidc-clients/any"},
+		{http.MethodPost, "/api/panel/oidc-clients/any/rotate-secret"},
+	} {
+		req := httptest.NewRequest(route.method, route.path, strings.NewReader("{}"))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", sessionToken)
+		res := httptest.NewRecorder()
+		mux.ServeHTTP(res, req)
+		if res.Code != http.StatusForbidden {
+			t.Errorf("%s %s = %d, want 403", route.method, route.path, res.Code)
+		}
+	}
+
+	// The same session passes once the User is an admin, so the 403s above
+	// come from the role check and not from a broken session.
+	user.Set("role", "admin")
+	if err := app.Save(user); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/panel/oidc-clients", nil)
+	req.Header.Set("Authorization", sessionToken)
+	res := httptest.NewRecorder()
+	mux.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("admin list = %d %s", res.Code, res.Body.String())
 	}
 }

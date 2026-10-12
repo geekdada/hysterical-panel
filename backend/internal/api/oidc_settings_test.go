@@ -106,3 +106,38 @@ func TestEnablingOIDCCreatesSigningKeyAndReportsIssuer(t *testing.T) {
 		t.Fatalf("disable: err=%v enabled=%v", err, h.loadSettings().OIDCEnabled)
 	}
 }
+
+func TestReEnablingOIDCIsANoOpAfterTheEnvironmentChanges(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := newOIDCHandlers(t, app, "https://api.example.com", "https://panel.example.com")
+	e, _ := panelEvent(t, app, http.MethodPatch, "/api/panel/settings", "", map[string]any{"oidc_enabled": true}, nil)
+	if err := h.updateSettings(e); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+
+	h.publicConfig.FrontendURL = ""
+	e, _ = panelEvent(t, app, http.MethodPatch, "/api/panel/settings", "", map[string]any{"oidc_enabled": true}, nil)
+	if err := h.updateSettings(e); err != nil {
+		t.Fatalf("re-enable: %v", err)
+	}
+	if !h.loadSettings().OIDCEnabled {
+		t.Fatal("the switch was turned off")
+	}
+}
+
+func TestEnablingOIDCReportsSigningKeyFailureAsServerError(t *testing.T) {
+	app := newMigratedTestApp(t)
+	keys, err := app.FindCollectionByNameOrId(oidc.SigningKeysCollection)
+	if err != nil {
+		t.Fatalf("find keys: %v", err)
+	}
+	if err := app.Delete(keys); err != nil {
+		t.Fatalf("drop keys: %v", err)
+	}
+	h := newOIDCHandlers(t, app, "https://api.example.com", "https://panel.example.com")
+	e, _ := panelEvent(t, app, http.MethodPatch, "/api/panel/settings", "", map[string]any{"oidc_enabled": true}, nil)
+	assertAPIError(t, h.updateSettings(e), http.StatusInternalServerError, "failed to prepare the oidc signing key")
+	if h.loadSettings().OIDCEnabled {
+		t.Fatal("the switch was stored without a signing key")
+	}
+}

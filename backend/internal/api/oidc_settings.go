@@ -33,13 +33,15 @@ func (h *Handlers) oidcAvailability() (issuer, reason string) {
 
 // applyOIDCEnabled validates and stores the provider switch. Enabling creates
 // the signing key at once so JWKS is never empty while the provider is on.
+// Repeating true is a no-op, so a client that resends the whole form is not
+// rejected after the environment changes.
 func (h *Handlers) applyOIDCEnabled(rec *core.Record, enabled bool) error {
-	if enabled {
+	if enabled && !rec.GetBool("oidc_enabled") {
 		if _, reason := h.oidcAvailability(); reason != "" {
 			return apis.NewBadRequestError("oidc provider requires an https PANEL_BACKEND_URL_BASE and PANEL_FRONTEND_URL_BASE", nil)
 		}
 		if _, err := oidc.ActiveSigningKey(h.app, h.box, time.Now()); err != nil {
-			return apis.NewBadRequestError("failed to prepare the oidc signing key", err)
+			return apis.NewInternalServerError("failed to prepare the oidc signing key", err)
 		}
 	}
 	rec.Set("oidc_enabled", enabled)

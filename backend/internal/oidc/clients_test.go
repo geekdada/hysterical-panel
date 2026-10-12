@@ -18,6 +18,8 @@ func TestNormalizeRedirectURIsAcceptsHTTPSAndLoopbackHTTP(t *testing.T) {
 		"http://localhost:3000/cb",
 		"http://127.0.0.1/cb",
 		"http://[::1]:8080/cb",
+		"https://xn--exmple-cua.com/cb",
+		"https://app.example/c%20b",
 	}
 	got, err := NormalizeRedirectURIs(append([]string{"  https://trim.example/cb  "}, valid...))
 	if err != nil {
@@ -45,6 +47,16 @@ func TestNormalizeRedirectURIsRejectsUnsafeValues(t *testing.T) {
 		"javascript:alert(1)",
 		"https:///cb",
 		"https://app.example/" + strings.Repeat("a", 2048),
+		// These parse, but /authorize compares bytes, so no client could ever
+		// send a matching value, and look-alike hosts would reach the UI.
+		"HTTPS://app.example/cb",
+		"https://App.Example/cb",
+		"https://app.example/c b",
+		"https://app.example/c\tb",
+		"https://exаmple.com/cb",
+		"https://app.example:65536/cb",
+		"https://app.example:0/cb",
+		"https://:443/cb",
 	} {
 		if _, err := NormalizeRedirectURIs([]string{bad}); !errors.Is(err, ErrRedirectURIInvalid) {
 			t.Errorf("%q: err = %v, want ErrRedirectURIInvalid", bad, err)
