@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
@@ -56,12 +57,23 @@ func (h *Handlers) oidcServingIssuer() (string, bool) {
 		return "", false
 	}
 	if rec.GetString("oidc_issuer") == "" {
-		rec.Set("oidc_issuer", issuer)
-		if err := h.app.Save(rec); err != nil {
+		if err := h.pinOIDCIssuer(rec, issuer); err != nil {
 			log.Printf("[oidc] pin issuer: %v", err)
 		}
 	}
 	return issuer, true
+}
+
+// pinOIDCIssuer writes only the pin, and only while the switch is still on
+// and unpinned. Saving the whole record loaded earlier would undo an admin
+// turning the provider off in the meantime.
+func (h *Handlers) pinOIDCIssuer(rec *core.Record, issuer string) error {
+	_, err := h.app.NonconcurrentDB().Update(
+		rec.Collection().Name,
+		dbx.Params{"oidc_issuer": issuer},
+		dbx.NewExp("id = {:id} AND oidc_enabled = 1 AND oidc_issuer = ''", dbx.Params{"id": rec.Id}),
+	).Execute()
+	return err
 }
 
 // applyOIDCEnabled validates and stores the provider switch. Enabling creates

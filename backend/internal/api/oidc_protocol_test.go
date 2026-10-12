@@ -122,6 +122,28 @@ func TestOIDCEndpointsReturn404AfterIssuerChange(t *testing.T) {
 	}
 }
 
+func TestOIDCLazyPinKeepsAConcurrentSwitchOff(t *testing.T) {
+	env := newOIDCRouterEnv(t)
+	stale, err := env.h.settingsRecord()
+	if err != nil {
+		t.Fatalf("settings: %v", err)
+	}
+	stale.Set("oidc_enabled", true)
+	if err := env.app.Save(stale); err != nil {
+		t.Fatalf("enable in place: %v", err)
+	}
+	// An admin turns the provider off while a request still holds the
+	// record it loaded with an empty pin.
+	env.setEnabled(false)
+
+	if err := env.h.pinOIDCIssuer(stale, oidcTestIssuer); err != nil {
+		t.Fatalf("pin: %v", err)
+	}
+	if s := env.h.loadSettings(); s.OIDCEnabled || s.OIDCIssuer != "" {
+		t.Fatalf("after the pin: enabled=%v issuer=%q", s.OIDCEnabled, s.OIDCIssuer)
+	}
+}
+
 func TestOIDCOutOfBandEnablePinsIssuerAndCreatesKey(t *testing.T) {
 	env := newOIDCRouterEnv(t)
 	rec, err := env.h.settingsRecord()
