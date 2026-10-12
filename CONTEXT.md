@@ -128,6 +128,14 @@ _Avoid_: webhook (as the feature name), AAA, login API, auth server
 An optional, default-absent external channel for systems to query or create Users with a Bearer token. Distinct from panel login and Node Client Auth; when disabled it must not advertise itself.
 _Avoid_: admin API, public API, provisioning API, service account API (as the product name)
 
+**Connected App**:
+An admin-registered site that signs Users in with their panel account through the panel's OpenID Connect provider. It holds a client secret and receives the User ID as `sub`, never the Auth String. Distinct from a Node Client, and from the OAuth2 providers the panel itself uses for panel login.
+_Avoid_: Client (for this meaning), OAuth app, integration, relying party (as the product noun)
+
+**Authorized App**:
+A Connected App a User has approved, with the scopes approved. The panel remembers it so the consent page is skipped next time; the User or an admin can revoke it, which ends the app's tokens. Disabling or unverifying the User revokes every Authorized App.
+_Avoid_: connection, linked app, OAuth link (that is a panel login link), session
+
 **Passkey**:
 A WebAuthn credential for panel login, offered alongside password rather than replacing it. Distinct from Auth String and from Node Client Auth.
 _Avoid_: security key (as the only name), biometric login, 2FA, MFA, WebAuthn (as the user-facing noun)

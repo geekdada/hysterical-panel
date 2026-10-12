@@ -18,6 +18,7 @@
 - 用户管理（分页/排序/筛选列表）+ 实时诊断面板。
 - 作为 Hysteria 2 / anytls 节点的 `auth.type: http` 回调端点，按 `auth_string`（anytls 按其 hash）鉴权客户端连接。
 - 面板登录支持密码 + passkey（WebAuthn）+ PocketBase OAuth2（只登录已有账号，不注册）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
+- 可选的 OIDC Provider：admin 登记 Connected App 后，其他站点可用面板账号登录（Authorization Code + PKCE，见 ADR-0010）。只发 `sub` / `email` / `email_verified`，不发 Auth String。
 - 可选的 Email Sendout：admin 在面板里写事务邮件，经 PocketBase SMTP 发给一个或全部可用 User；持久化队列、只发一次、失败手动重发，见 ADR-0008。
 - **不做**：支付/账单、节点部署。订阅仅作为节点访问与流量额度门禁，见 `docs/subscriptions.md`。Monitoring 支持基于 Observation 的 Node Monitor（offline / high-traffic）和基于订阅状态的 User Monitor（low allowance / expiring subscription，ADR-0009），共用 Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
 
@@ -92,13 +93,18 @@
    公开 `POST /api/panel/register`（见 `register.go`）。三开关层级：`open_registration`（总开关）> `invitations_enabled`（依赖总开关）> `require_invite_for_open`（依赖邀请系统）。判定：`open_registration=false` → 403（无论邀请系统开否）；`open_registration=true` → `require_invite_for_open` 决定是否要码。`PATCH /settings` 强制校验该嵌套（`invitations_enabled` 需 `open_registration`；`require_invite_for_open` 需 `invitations_enabled`，违反 400）；前端关父开关时在同一 PATCH 里级联把子开关置 false。`verified := codeRequired`（经码即验证并自动登录；开放无码 → `verified=false`、发验证邮件、依赖 SMTP、未配则 503）。新用户固定 `role=user`/`status=active`、`auth_string` 由 `internal/token` 随机生成并查重，**不信任客户端传入的 role/auth_string/status**。`registrationDecision` / `invalidInviteReason` 有单测（`register_test.go`），改判定逻辑务必同步测试。邀请码是通用码（`max_uses`/`expires_at`/`revoked`）。存量「仅邀请」部署（`invitations_enabled=true && open_registration=false`）由迁移 `1730000017` 提升为三开关全开以保持行为不变。
 
 8. **后端是 OpenAPI 契约的唯一来源。**
-   `internal/api/dto.go` 的结构体 + `internal/api/openapi.go` 生成 `/api/openapi.json`（也可 `make openapi` 落地成文件），前端据此生成 TS 类型。**新增/改动 `/api/panel/*` 接口时同步更新 DTO 并重生成 schema**。`/api/hysteria/auth`、`/api/anytls/auth`、`/api/mgmt/*` 故意不进 schema（它们由节点 / 外部系统调用，不是前端 client 的一部分）。
+   `internal/api/dto.go` 的结构体 + `internal/api/openapi.go` 生成 `/api/openapi.json`（也可 `make openapi` 落地成文件），前端据此生成 TS 类型。**新增/改动 `/api/panel/*` 接口时同步更新 DTO 并重生成 schema**。`/api/hysteria/auth`、`/api/anytls/auth`、`/api/mgmt/*`、`/api/oidc/*` 故意不进 schema（它们由节点 / 外部系统 / Connected App 调用，不是前端 client 的一部分）。
 
 9. **Passkey（WebAuthn）是密码之外的第二登录方式，不替代密码。**
    基于 `go-webauthn/webauthn`，落在 `internal/api/passkeys.go` + 两张 collection：`passkey_credentials`（每凭据一行，私有 `credential` JSON `Hidden`）、`passkey_sessions`（challenge 暂存，`passkeyChallengeTTL` 5min，用后即焚）。登录走公开的 `POST /api/panel/passkeys/login/{options,finish}`（finish 成功签发与密码登录同形的 token+record，同样过 `bindAuthGate` 的 status/verified 门禁）；注册/列举/删除挂在 `/users/{id}/passkeys/*`，受 `requireActiveSelf` / `requireActiveAdminOrSelf` 守。**RP ID 与允许的 origin 由 `PANEL_WEBAUTHN_RP_ID` / `PANEL_WEBAUTHN_ORIGINS` 配置；未配（且无静态面板 origin）则 passkey 整体禁用**，`/config` 的 `passkeys` 标志据此告诉前端是否渲染入口。
 
 10. **Management API 是「默认不存在」的外部建号通道。**
     `/api/mgmt/*`（`management_api.go`）公开无面板登录，唯一门禁是 `Authorization: Bearer <token>`。**功能未启用时一律返回 404（不泄露其存在）**，启用但 token 错返回 401。开关与 token **哈希**存在 `app_settings`（`management_api_enabled` / `management_api_token_hash`，只存 `sha256` hex，明文 token 仅在启用/轮换响应里回显一次）：admin 经 `PATCH /settings` 首次启用时自动生成，或 `POST /management-api/rotate` 轮换。当前仅 `GET /api/mgmt/users`（按 id、email 或 auth_string 精确查）与 `POST /api/mgmt/users`（建号，自动生成密码与 auth_string、均不返回）。详见 backend/README.md。
+
+11. **OIDC Provider 是手写的窄 profile，只服务 admin 登记的 Connected App（ADR-0010）。**
+    后端在 `internal/oidc`（状态、密钥、token、授权）+ `internal/api/oidc_*.go`（HTTP）。只有 Authorization Code + PKCE `S256`（每个请求都必须带），只有 confidential client（`client_secret_basic` / `client_secret_post`，secret 只存 sha256、只回显一次）。`/api/oidc/*` 不进 OpenAPI，`app_settings.oidc_enabled=false` 时一律 404；issuer = `PANEL_BACKEND_URL_BASE + "/api/oidc"`，须 https（loopback 可 http），开启时固定到 `oidc_issuer`，之后地址变了就 404 直到 admin 关了再开。
+    **谁能登录只在 `oidc.UserMayUse` 一处判断**（应用 enabled + User active + verified），授权、换 token、刷新、userinfo 每步都调它；将来按应用限制用户只改这个函数。User 停用或取消验证时 `bindOIDCGrantRevocation` 的 record hook 在同一次保存里撤销其全部授权（`/_/` 改动同样生效）；改密码、删 passkey 不撤销。
+    同意按 User + 应用 + scope 记住（`oidc_grants`），scope 变多才重问；应用可设跳过同意页（默认关）。`prompt=login` / `max_age` 走前端 `/login?reauth=true&redirect=`，`auth_time` 来自 `oidc_session_auth_times` 记录的真实登录时间，token 刷新时沿用。有效期写死在 `internal/oidc/oidc.go`。签名密钥 RS256，私钥经 `cryptobox` 加密，**只能用 CLI `oidc rotate-signing-key` 轮换**。code 或已轮换 refresh token 被重放时撤销整条 family。
 
 ## 技术栈与版本
 
@@ -127,7 +133,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..31）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..34）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -139,6 +145,7 @@ hysterical-panel/
 │       ├── collector/          counter-to-delta 采集核心
 │       ├── onlinedevices/      最新在线设备投影的共享持久化操作
 │       ├── currentspeed/       User×Node Current Speed 的按节点清零
+│       ├── oidc/               OIDC Provider 核心：授权请求、同意、code / token、签名密钥、清理 cron、`oidc rotate-signing-key` CLI
 │       ├── sendouts/           Email Sendout 队列（创建/取消/重发/计数）+ 单 worker 限速投递
 │       └── api/                /api/panel 路由（+ /api/mgmt、公开回调）
 │           ├── api.go          路由注册 + 4 个鉴权守卫（含 verified / active 门禁）+ 脱敏辅助 + nodesForUser
@@ -150,6 +157,13 @@ hysterical-panel/
 │           ├── passkeys.go     WebAuthn 注册 / 登录 / 列举 / 删除（go-webauthn）
 │           ├── oauth2_login.go OAuth2 只登录已有账号（拒绝新建用户）+ provider 回调转发
 │           ├── oauth2_links.go 用户 OAuth2 关联列举 / 取消（admin 或本人）
+│           ├── oidc_protocol.go  /api/oidc/* 协议端点（discovery / jwks / authorize / token / userinfo / revoke）+ 限流
+│           ├── oidc_clients.go   Connected App CRUD + secret 轮换（admin）
+│           ├── oidc_consent.go   同意页用的 /oidc/requests/{handle} 读取 / approve / deny / abort
+│           ├── oidc_grants.go    用户已授权应用列举 / 撤销（admin 或本人）
+│           ├── oidc_settings.go  oidc_enabled 开关、issuer 固定与可用性判断
+│           ├── oidc_session.go   面板登录时记录 session auth_time（供 max_age / prompt=login）
+│           ├── oidc_user_hook.go User 停用 / 取消验证时撤销授权
 │           ├── settings.go     app_settings 读写（注册开关 + management API token + email sendout 发送速率）
 │           ├── management_api.go 公开 /api/mgmt/* + requireMgmtToken（未启用 404）
 │           ├── database.go     GET /database/stats + POST /database/prune（30 天留存裁剪）
@@ -180,8 +194,8 @@ hysterical-panel/
     ├── scripts/                i18n-check.mjs（校验翻译完整）等
     └── src/
         ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/OAuth2/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
-        ├── routes/             文件式路由（index / login / oauth-callback / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / invitations / nodes / users）
-        ├── components/         traffic.tsx / traffic-range-picker.tsx / social-logins.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx
+        ├── routes/             文件式路由（index / login / oauth-callback / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / settings/connected-apps / oidc/authorize / oidc/error / invitations / nodes / users）
+        ├── components/         traffic.tsx / traffic-range-picker.tsx / social-logins.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx / authorized-apps.tsx
         ├── emails/             Email Sendout 编辑器（@react-email/editor）+ 固定服务邮件外框（serializerPlugin.BaseTemplate）
         ├── paraglide/          Paraglide 编译产物（生成，gitignore，勿手改）
         ├── lib/                展示与工具 helper（format / theme / locale / timezone / cn / use-* hooks 等）
@@ -235,7 +249,13 @@ hysterical-panel/
 
 `email_sendouts` / `email_sendout_recipients`：Email Sendout 与每个收件人一行。Sendout 保存浏览器生成、原样发送的 `html` / `text` 与 editor JSON `content`、`language`、`audience`（`single`/`all`）、`created_by` + `created_by_email` 快照、`cancelled_at`；状态不落库，由 Recipient 计数推导。Recipient 的 `status` 为 `pending`/`sending`/`sent`/`failed`/`skipped`/`cancelled`，`reason` 为安全错误码，`email` 记录最近一次投递的地址；User 删除后 `user` 置空而行保留。历史永久保留。
 
-`app_settings`（单例，迁移时 seed 一条全 false 记录）：`invitations_enabled`、`open_registration`、`require_invite_for_open` (bool)；`management_api_enabled` (bool) + `management_api_token_hash` (text, 仅存 token 的 sha256 hex，**绝不存明文**)；`email_sendout_rate_per_minute`（1–600，默认 30）。运行期可变，注册与 `/config` 实时读。
+`oidc_clients`：Connected App。`client_id`（unique）、`name`、`secret_hash`（**Hidden**，sha256 hex）、`redirect_uris` / `allowed_scopes`（json）、`refresh_enabled`、`skip_consent`、`enabled`、`created_by`、`last_used_at`。
+`oidc_grants`：User 对 Connected App 的已记住同意（Authorized App）。`user` + `client` 在 `revoked_at = ''` 时唯一，`scopes`、`revoked_at`、`revoke_reason`、`last_used_at`。
+`oidc_auth_requests`（10min）/ `oidc_codes`（60s，单次）/ `oidc_tokens`（`kind` access 10min / refresh 闲置 30 天、最长 90 天，按 `family` 整条撤销）：handle、code、token 都只存 sha256（**Hidden**）。
+`oidc_signing_keys`：RS256 密钥，`private_key` 经 `cryptobox` 加密（**Hidden**），`state` active 唯一、retired 在 JWKS 保留 24h。
+`oidc_session_auth_times`：面板 session token hash → 真实登录时间，供 `auth_time`。以上 `oidc_*` collection 五条 API rule 全为 nil（仅 superuser），过期记录由 30 分钟一次的 cron 清理。
+
+`app_settings`（单例，迁移时 seed 一条全 false 记录）：`invitations_enabled`、`open_registration`、`require_invite_for_open` (bool)；`management_api_enabled` (bool) + `management_api_token_hash` (text, 仅存 token 的 sha256 hex，**绝不存明文**)；`email_sendout_rate_per_minute`（1–600，默认 30）；`oidc_enabled` (bool) + `oidc_issuer`（开启时固定的 issuer）。运行期可变，注册与 `/config` 实时读。
 
 > 字节一律 int64，禁止 float。
 
@@ -281,6 +301,7 @@ hysterical-panel/
 - `GET|PATCH /settings`、`POST /management-api/rotate`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验注册开关层级（`invitations_enabled` 依赖 `open_registration`；`require_invite_for_open` 依赖 `invitations_enabled`），并在首次置 `management_api_enabled=true` 时生成明文 token 回显一次（见决策 #10）；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts`、`GET /users/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段（含 kind、阈值）会静默 cancel 旧 Alert 并立即重评估。User Monitor 请求传 `evaluation_window_seconds` / `node_scope` / 非空 `node_ids` 返回 400。
+- OIDC 接口均进 OpenAPI：`GET|POST /oidc-clients`、`PATCH|DELETE /oidc-clients/{id}`、`POST /oidc-clients/{id}/rotate-secret` 仅 admin；同意页用的 `GET /oidc/requests/{handle}`、`POST /oidc/requests/{handle}/approve|deny` 要求已登录，且当前 User 须通过 `oidc.UserMayUse`；`POST /oidc/requests/{handle}/abort` 公开（未登录时结束 `prompt=none` 请求）。这四个同意页接口在提供方关闭时 404。`GET /users/{id}/oidc-grants`、`DELETE /users/{id}/oidc-grants/{grantId}` 走 `requireActiveAdminOrSelf`。见决策 #11。
 - Email Sendout 接口 `GET /email-sendouts/context`、`GET /email-sendouts/eligible-recipients`、`GET|POST /email-sendouts`、`GET /email-sendouts/{id}`、`GET /email-sendouts/{id}/recipients`、`POST /email-sendouts/{id}/cancel|resend` 均仅 admin、进 OpenAPI。创建与重发在 SMTP 未启用时 503；worker 语义见 backend/README.md 与 ADR-0008。
 - `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口；`app_name` 实时取 PocketBase `Settings → Application Name`，前端品牌名、徽标首字母与 `<title>` 都用它（`src/lib/use-app-name.ts`，取不到时回退 `m.app_title()`）。迁移 `1730000031` 把 PocketBase 默认的 `Acme` 改为 `Hysterical Panel`，已自定义的名称不动。
 - `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时 streams 诊断核心：并发拉可见节点的 `/dump/streams`（5s 超时），把稳定 `user.id` 与全部历史 Auth String 统一归属后，聚合出 `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按客户端连接分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** 在线设备数来自 Collector 的最新 `/online` 投影，不属于 live 响应。Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
@@ -298,7 +319,9 @@ hysterical-panel/
 
 **OAuth2 登录**：provider 在 `/_/` 的 users collection 里配置。前端登录页读内置 `GET /api/collections/users/auth-methods` 渲染按钮；provider 回调公开的 `GET|POST /api/panel/oauth2-redirect`（不进 OpenAPI），它把 `code` / `state` / `error` 303 转发到 `PANEL_FRONTEND_URL_BASE + /oauth-callback`，前端再调内置 `auth-with-oauth2`。`oauth2_login.go` 拒绝新建用户（403 `no account matches this sign-in`），只按已绑定身份或邮箱匹配已有账号；仍过 `bindAuthGate`。各 provider 回调地址须登记为 `<后端公开地址>/api/panel/oauth2-redirect`，不是 PocketBase 的 `/api/oauth2-redirect`；前后端不同源时须设 `PANEL_FRONTEND_URL_BASE`。Apple 的 `form_post` 由 POST 分支接收。「社交账号登录」区域的关联管理走 `/users/{id}/oauth-links`，见上方面板接口。设置页可主动关联未关联的 provider：前端带当前 session token 调 `auth-with-oauth2`，PocketBase 优先关联到 token 对应用户，与邮箱无关；身份已属于其他用户时 hook 返回 409，不切换账号。详见 backend/README.md。
 
-`POST /api/mgmt/users`、`GET /api/mgmt/users` — Management API（公开但 Bearer 鉴权，未启用返回 404；见决策 #10）。供外部系统按 email/auth_string 查号或建号，**不进 OpenAPI**，契约见 backend/README.md。
+`POST /api/mgmt/users`、`GET /api/mgmt/users` — Management API（公开但 Bearer 鉴权，未启用返回 404；见决策 #10）。供外部系统按 id/email/auth_string 查号或建号，**不进 OpenAPI**，契约见 backend/README.md。Connected App 拿到的 `sub` 即 User ID，用 `?id=` 查。
+
+`/api/oidc/*` — OIDC Provider 协议端点（discovery、jwks、authorize、token、userinfo、revoke），由 Connected App 与浏览器调用，**不进 OpenAPI**，关闭时 404。`/authorize` 校验后 303 到前端 `/oidc/authorize?request=<handle>`，同意页响应头带 `frame-ancestors 'none'` 与 `Referrer-Policy: no-referrer`。见决策 #11 与 backend/README.md。
 
 **找回密码**（无自建后端代码，纯走 PocketBase 内置）：前端 `/forgot-password` 调内置 `POST /api/collections/users/request-password-reset`（`{email}`，恒 204，内置反枚举 + 2 分钟重发节流）；`/reset-password?token=` 调内置 `POST /api/collections/users/confirm-password-reset`（`{token,password,passwordConfirm}`，成功且 token 邮箱匹配会顺带置 `verified=true`）。两端点不触发 `OnRecordAuthRequest`，不受 `bindAuthGate` 阻挡（`disabled` 用户可重置但仍无法登录）。前端函数在 `src/api/auth.ts` 的 `requestPasswordReset`/`confirmPasswordReset`。**部署须一次性配置**：把 PocketBase `Settings → Application URL` 设为前端域名，并把 users collection 的 **Reset password** 邮件模板链接由默认的 `{APP_URL}/_/#/auth/confirm-password-reset/{TOKEN}` 改成 `{APP_URL}/reset-password?token={TOKEN}`，否则邮件链接落到 PocketBase 后台而非前端重置页。该模板邮件走内置 SMTP，不经 `mailer.go`。
 
