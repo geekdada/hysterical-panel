@@ -419,3 +419,46 @@ func TestOIDCRefreshThroughTheTokenEndpoint(t *testing.T) {
 		t.Fatalf("the replay left the family usable: %d", res.Code)
 	}
 }
+
+func (env *oidcTestEnv) userInfo(authorization string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, "/api/oidc/userinfo", nil)
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
+	return env.do(req)
+}
+
+func TestOIDCUserInfoAndRevocation(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	tokens := env.tokens(nil)
+
+	res := env.userInfo("Bearer " + tokens.AccessToken)
+	claims := decodeBody[map[string]any](t, res)
+	if res.Code != http.StatusOK || claims["sub"] != env.user.Id || claims["email"] != "oidc-user@example.com" ||
+		claims["email_verified"] != true || res.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("userinfo = %d %s", res.Code, res.Body.String())
+	}
+	post := httptest.NewRequest(http.MethodPost, "/api/oidc/userinfo", nil)
+	post.Header.Set("Authorization", "Bearer "+tokens.AccessToken)
+	if res := env.do(post); res.Code != http.StatusOK {
+		t.Fatalf("POST userinfo = %d", res.Code)
+	}
+
+	if res := env.userInfo(""); res.Code != http.StatusUnauthorized || res.Header().Get("WWW-Authenticate") != `Bearer realm="oidc"` {
+		t.Fatalf("without a token = %d %v", res.Code, res.Header())
+	}
+	if res := env.userInfo(env.session); res.Code != http.StatusUnauthorized {
+		t.Fatalf("a panel session at userinfo = %d", res.Code)
+	}
+
+	if res := env.postClientForm("/api/oidc/revoke", url.Values{}, env.secret); res.Code != http.StatusBadRequest {
+		t.Fatalf("revoke without a token = %d", res.Code)
+	}
+	if res := env.postClientForm("/api/oidc/revoke", url.Values{"token": {tokens.AccessToken}}, env.secret); res.Code != http.StatusOK {
+		t.Fatalf("revoke = %d %s", res.Code, res.Body.String())
+	}
+	res = env.userInfo("Bearer " + tokens.AccessToken)
+	if res.Code != http.StatusUnauthorized || res.Header().Get("WWW-Authenticate") != `Bearer realm="oidc", error="invalid_token"` {
+		t.Fatalf("revoked token = %d %v", res.Code, res.Header())
+	}
+}

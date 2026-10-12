@@ -1,10 +1,12 @@
 package api
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -27,6 +29,9 @@ func (h *Handlers) bindOIDCRoutes(se *core.ServeEvent) {
 	g.GET(oidc.AuthorizePath, h.oidcAuthorize)
 	g.POST(oidc.AuthorizePath, h.oidcAuthorize)
 	g.POST(oidc.TokenPath, h.oidcToken)
+	g.GET(oidc.UserInfoPath, h.oidcUserInfo)
+	g.POST(oidc.UserInfoPath, h.oidcUserInfo)
+	g.POST(oidc.RevocationPath, h.oidcRevoke)
 }
 
 // requireOIDCServing hides the provider behind 404 while it is off or
@@ -202,4 +207,55 @@ func writeOAuthError(e *core.RequestEvent, oauthErr *oidc.Error) error {
 func setNoStore(e *core.RequestEvent) {
 	e.Response.Header().Set("Cache-Control", "no-store")
 	e.Response.Header().Set("Pragma", "no-cache")
+}
+
+// oidcUserInfo returns the claims the access token's scope releases
+// (OIDC Core 5.3). Errors follow RFC 6750 3.
+func (h *Handlers) oidcUserInfo(e *core.RequestEvent) error {
+	setNoStore(e)
+	now := time.Now()
+	if !h.oidcLimits.backchannel.allow(e.RealIP(), now) {
+		return writeOAuthError(e, oidc.NewError(oidc.TemporarilyUnavailable, "too many requests"))
+	}
+	raw, found := oidcBearerToken(e.Request)
+	if !found {
+		e.Response.Header().Set("WWW-Authenticate", `Bearer realm="oidc"`)
+		return e.NoContent(http.StatusUnauthorized)
+	}
+	user, scope, err := oidc.LookupAccessToken(h.app, raw, now)
+	if errors.Is(err, oidc.ErrInvalidToken) {
+		e.Response.Header().Set("WWW-Authenticate", `Bearer realm="oidc", error="invalid_token"`)
+		return e.NoContent(http.StatusUnauthorized)
+	}
+	if err != nil {
+		return writeOAuthError(e, oidc.WrapServerError(err))
+	}
+	return e.JSON(http.StatusOK, oidc.UserClaims(user, scope))
+}
+
+// oidcRevoke implements RFC 7009. It answers 200 for unknown tokens too.
+func (h *Handlers) oidcRevoke(e *core.RequestEvent) error {
+	setNoStore(e)
+	client, oauthErr := h.oidcAuthenticatedClient(e)
+	if oauthErr != nil {
+		return writeOAuthError(e, oauthErr)
+	}
+	raw := e.Request.PostForm.Get("token")
+	if raw == "" {
+		return writeOAuthError(e, oidc.NewError(oidc.InvalidRequest, "token is required"))
+	}
+	if err := oidc.RevokeToken(h.app, client, raw, time.Now()); err != nil {
+		return writeOAuthError(e, oidc.WrapServerError(err))
+	}
+	return e.NoContent(http.StatusOK)
+}
+
+// oidcBearerToken reads an RFC 6750 bearer token from the Authorization
+// header. A panel session without the Bearer scheme does not count.
+func oidcBearerToken(r *http.Request) (string, bool) {
+	scheme, raw, found := strings.Cut(r.Header.Get("Authorization"), " ")
+	if !found || !strings.EqualFold(scheme, "Bearer") || raw == "" {
+		return "", false
+	}
+	return raw, true
 }
