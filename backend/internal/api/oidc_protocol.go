@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -121,7 +122,15 @@ func (h *Handlers) oidcAuthorize(e *core.RequestEvent) error {
 			Err: oidc.NewError(oidc.ServerError, ""), RedirectURI: req.RedirectURI, State: req.State,
 		})
 	}
-	return e.Redirect(http.StatusSeeOther, h.publicConfig.FrontendURL+"/oidc/authorize?request="+url.QueryEscape(handle))
+	consentPage := h.publicConfig.FrontendURL + "/oidc/authorize?request=" + url.QueryEscape(handle)
+	if slices.Contains(req.Prompt, oidc.PromptNone) {
+		// The page cannot read the request before the visitor signs in, and a
+		// prompt=none request must end at once instead of showing the sign-in
+		// form. The abort endpoint still decides the error from the stored
+		// request, so a forged hint changes nothing the app receives.
+		consentPage += "&prompt=none"
+	}
+	return e.Redirect(http.StatusSeeOther, consentPage)
 }
 
 func (h *Handlers) oidcAuthorizeFailure(e *core.RequestEvent, failure *oidc.AuthorizeFailure) error {

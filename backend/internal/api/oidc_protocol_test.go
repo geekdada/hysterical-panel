@@ -472,3 +472,15 @@ func TestOIDCUserInfoAndRevocation(t *testing.T) {
 		t.Fatalf("revoked token = %d %v", res.Code, res.Header())
 	}
 }
+
+func TestOIDCAuthorizeTellsTheConsentPageAboutPromptNone(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	for prompt, want := range map[string]string{"none": "none", "": "", "consent": "", "login": ""} {
+		res := env.get("/api/oidc/authorize?" + env.authorizeQuery(map[string]string{"prompt": prompt}).Encode())
+		location, err := url.Parse(res.Header().Get("Location"))
+		if res.Code != http.StatusSeeOther || err != nil || location.Path != "/oidc/authorize" ||
+			location.Query().Get("request") == "" || location.Query().Get("prompt") != want {
+			t.Errorf("prompt=%q: %d %q", prompt, res.Code, res.Header().Get("Location"))
+		}
+	}
+}
