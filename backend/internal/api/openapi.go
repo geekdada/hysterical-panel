@@ -183,6 +183,9 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		setEnum(s.Value.Properties, "status", []any{"succeeded", "failed"})
 		setEnum(s.Value.Properties, "error", []any{"timed_out", "delivery_failed"})
 	}
+	if s, ok := schemas["OIDCClientSecretResponse"]; ok && s.Value != nil {
+		s.Value.Properties["client"] = &openapi3.SchemaRef{Ref: "#/components/schemas/OIDCClient"}
+	}
 	if s, ok := schemas["SettingsResponse"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "oidc_unavailable_reason", []any{"", "backend_url_missing", "backend_url_insecure", "frontend_url_missing"})
 	}

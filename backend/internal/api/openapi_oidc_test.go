@@ -30,6 +30,11 @@ func TestOpenAPIDescribesConnectedApps(t *testing.T) {
 	if client == nil || !slices.Contains(client.Value.Required, "client_id") || client.Value.Properties["secret_hash"] != nil {
 		t.Fatalf("OIDCClient schema = %+v", client)
 	}
+	// The generator inlines nested structs without their required list, which
+	// would type every field of the returned client as optional.
+	if ref := schemas["OIDCClientSecretResponse"].Value.Properties["client"]; ref == nil || ref.Ref != "#/components/schemas/OIDCClient" {
+		t.Fatalf("OIDCClientSecretResponse.client = %+v, want a $ref to OIDCClient", ref)
+	}
 	reason := schemas["SettingsResponse"].Value.Properties["oidc_unavailable_reason"]
 	if reason == nil || len(reason.Value.Enum) != 4 {
 		t.Fatalf("oidc_unavailable_reason enum = %+v", reason)
