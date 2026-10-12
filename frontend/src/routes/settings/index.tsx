@@ -822,7 +822,7 @@ function OIDCSection({
       <div className="flex flex-col gap-4 rounded-lg border bg-surface p-5">
         <LabeledSwitch
           label={m.settings_enable_oidc()}
-          description={enabled ? m.settings_oidc_enabled_desc() : m.settings_oidc_disabled_desc()}
+          description={oidcSwitchDescription(enabled, unavailable !== "")}
           isSelected={enabled}
           isDisabled={!settings || pending || (!enabled && unavailable !== "")}
           onChange={(value) => onSave({ oidc_enabled: value })}
@@ -861,6 +861,11 @@ function OIDCSection({
       </Link>
     </>
   );
+}
+
+function oidcSwitchDescription(enabled: boolean, unavailable: boolean): string {
+  if (!enabled) return m.settings_oidc_disabled_desc();
+  return unavailable ? m.settings_oidc_enabled_unavailable_desc() : m.settings_oidc_enabled_desc();
 }
 
 function oidcUnavailableMessage(reason: string): string {

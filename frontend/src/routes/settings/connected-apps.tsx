@@ -84,8 +84,11 @@ function ConnectedAppsPage() {
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: queryKeys.oidcClients() });
 
+  // The create and rotate results carry the plaintext secret. gcTime 0 drops
+  // it from the mutation cache as soon as the credentials modal resets them.
   const createMutation = useMutation({
     mutationFn: createOIDCClient,
+    gcTime: 0,
     onSuccess: (data) => {
       setCreateOpen(false);
       setCredentials(data);
@@ -109,6 +112,7 @@ function ConnectedAppsPage() {
   });
   const rotateMutation = useMutation({
     mutationFn: rotateOIDCClientSecret,
+    gcTime: 0,
     onSuccess: (data) => {
       setRotating(null);
       setCredentials(data);
@@ -126,6 +130,8 @@ function ConnectedAppsPage() {
   const clients = clientsQuery.data ?? [];
   const issuer = settingsQuery.data?.oidc_issuer ?? "";
   const providerOff = settingsQuery.data !== undefined && !settingsQuery.data.oidc_enabled;
+  const providerUnavailable =
+    settingsQuery.data?.oidc_enabled === true && settingsQuery.data.oidc_unavailable_reason !== "";
   const loadError = clientsQuery.error ? queryErrorMessage(clientsQuery.error) : "";
   const toggleError = toggleMutation.error
     ? queryErrorMessage(toggleMutation.error, m.error_oidc_client_save_network())
@@ -134,6 +140,12 @@ function ConnectedAppsPage() {
   function openCreate(open: boolean) {
     setCreateOpen(open);
     if (!open) createMutation.reset();
+  }
+
+  function closeCredentials() {
+    setCredentials(null);
+    createMutation.reset();
+    rotateMutation.reset();
   }
 
   function closeEdit(open: boolean) {
@@ -172,6 +184,15 @@ function ConnectedAppsPage() {
         <div className="mb-4 rounded-lg border bg-surface-secondary px-4 py-3 text-[13px] text-muted">
           {m.oidc_clients_provider_off()}{" "}
           <Link to="/settings" className="font-medium text-accent hover:opacity-80">
+            {m.nav_settings()}
+          </Link>
+        </div>
+      )}
+
+      {providerUnavailable && (
+        <div className="mb-4 rounded-lg border border-warning bg-warning-soft px-4 py-3 text-[13px] text-warning-soft-foreground">
+          {m.oidc_clients_provider_unavailable()}{" "}
+          <Link to="/settings" className="font-medium underline hover:opacity-80">
             {m.nav_settings()}
           </Link>
         </div>
@@ -246,7 +267,7 @@ function ConnectedAppsPage() {
         onOpenChange={closeDelete}
         onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
       />
-      <CredentialsModal credentials={credentials} onClose={() => setCredentials(null)} />
+      <CredentialsModal credentials={credentials} onClose={closeCredentials} />
 
       <Section
         className="mt-0"
