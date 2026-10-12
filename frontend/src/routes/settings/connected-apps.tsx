@@ -100,6 +100,13 @@ function ConnectedAppsPage() {
       invalidate();
     },
   });
+  // Row switches get their own mutation so a toggle never shares pending
+  // state, errors or the close-on-success with the edit modal.
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      updateOIDCClient(id, { enabled }),
+    onSuccess: invalidate,
+  });
   const rotateMutation = useMutation({
     mutationFn: rotateOIDCClientSecret,
     onSuccess: (data) => {
@@ -120,12 +127,9 @@ function ConnectedAppsPage() {
   const issuer = settingsQuery.data?.oidc_issuer ?? "";
   const providerOff = settingsQuery.data !== undefined && !settingsQuery.data.oidc_enabled;
   const loadError = clientsQuery.error ? queryErrorMessage(clientsQuery.error) : "";
-  // Row switches share the update mutation with the edit modal, whose own
-  // error renders inside the modal.
-  const toggleError =
-    updateMutation.error && editing === null
-      ? queryErrorMessage(updateMutation.error, m.error_oidc_client_save_network())
-      : "";
+  const toggleError = toggleMutation.error
+    ? queryErrorMessage(toggleMutation.error, m.error_oidc_client_save_network())
+    : "";
 
   function openCreate(open: boolean) {
     setCreateOpen(open);
@@ -206,7 +210,7 @@ function ConnectedAppsPage() {
         onOpenChange={closeEdit}
         pending={updateMutation.isPending}
         error={
-          updateMutation.error && editing !== null
+          updateMutation.error
             ? queryErrorMessage(updateMutation.error, m.error_oidc_client_save_network())
             : ""
         }
@@ -270,8 +274,8 @@ function ConnectedAppsPage() {
                 key={client.id}
                 client={client}
                 now={now}
-                toggling={updateMutation.isPending && updateMutation.variables?.id === client.id}
-                onToggle={(enabled) => updateMutation.mutate({ id: client.id, body: { enabled } })}
+                toggling={toggleMutation.isPending && toggleMutation.variables?.id === client.id}
+                onToggle={(enabled) => toggleMutation.mutate({ id: client.id, enabled })}
                 onEdit={() => setEditing(client)}
                 onRotate={() => setRotating(client)}
                 onDelete={() => setDeleting(client)}
@@ -568,8 +572,8 @@ function ClientFormModal({
   );
 }
 
-// The secret exists only in this response, so the modal stays until the
-// admin dismisses it.
+// The secret exists only in this response, so only the Done button closes
+// the modal. A stray click outside or Escape would lose the secret.
 function CredentialsModal({
   credentials,
   onClose,
@@ -578,7 +582,12 @@ function CredentialsModal({
   onClose: () => void;
 }) {
   return (
-    <Modal.Backdrop isOpen={credentials !== null} onOpenChange={(open) => !open && onClose()}>
+    <Modal.Backdrop
+      isOpen={credentials !== null}
+      onOpenChange={(open) => !open && onClose()}
+      isDismissable={false}
+      isKeyboardDismissDisabled
+    >
       <Modal.Container size="md" placement="auto">
         <Modal.Dialog>
           <Modal.Header>
