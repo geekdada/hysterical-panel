@@ -187,7 +187,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		s.Value.Properties["client"] = &openapi3.SchemaRef{Ref: "#/components/schemas/OIDCClient"}
 	}
 	if s, ok := schemas["SettingsResponse"]; ok && s.Value != nil {
-		setEnum(s.Value.Properties, "oidc_unavailable_reason", []any{"", "backend_url_missing", "backend_url_insecure", "frontend_url_missing"})
+		setEnum(s.Value.Properties, "oidc_unavailable_reason", []any{"", "backend_url_missing", "backend_url_insecure", "frontend_url_missing", "issuer_changed"})
 	}
 	for _, name := range []string{"Monitor", "MonitorCreateRequest", "MonitorUpdateRequest"} {
 		if s, ok := schemas[name]; ok && s.Value != nil {

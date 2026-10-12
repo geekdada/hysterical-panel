@@ -208,6 +208,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	mgmt.Bind(h.requireMgmtToken())
 	mgmt.GET("/users", h.mgmtGetUser)
 	mgmt.POST("/users", h.mgmtCreateUser)
+	h.bindOIDCRoutes(se)
 	return h
 }
 

@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	ScopeOpenID = "openid"
-	ScopeEmail  = "email"
+	ScopeOpenID        = "openid"
+	ScopeEmail         = "email"
+	ScopeOfflineAccess = "offline_access"
 
 	// MaxRedirectURIs bounds the admin form and the exact-match lookup.
 	MaxRedirectURIs      = 10

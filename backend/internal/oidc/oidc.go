@@ -32,3 +32,14 @@ const (
 	// a late replay is still recognised and revokes its family.
 	expiredTokenRetention = 7 * 24 * time.Hour
 )
+
+// Prompt values (OIDC Core 3.1.2.1) in the order they are stored.
+const (
+	PromptNone          = "none"
+	PromptLogin         = "login"
+	PromptConsent       = "consent"
+	PromptSelectAccount = "select_account"
+)
+
+// PromptValues lists every supported prompt value in canonical order.
+var PromptValues = []string{PromptNone, PromptLogin, PromptConsent, PromptSelectAccount}

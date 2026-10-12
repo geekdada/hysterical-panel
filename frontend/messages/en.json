@@ -894,6 +894,7 @@
   "settings_oidc_unavailable_backend_url_missing": "PANEL_BACKEND_URL_BASE is not set",
   "settings_oidc_unavailable_backend_url_insecure": "PANEL_BACKEND_URL_BASE must use https unless it points to a loopback address such as localhost or 127.0.0.1",
   "settings_oidc_unavailable_frontend_url_missing": "PANEL_FRONTEND_URL_BASE is not set",
+  "settings_oidc_unavailable_issuer_changed": "PANEL_BACKEND_URL_BASE changed after the provider was turned on. Turn it off and on again to publish the new issuer, then update every connected app",
   "settings_oidc_manage": "Connected apps",
   "settings_oidc_manage_desc": "Register sites, their redirect URIs and client secrets.",
   "oidc_clients_title": "Connected apps",

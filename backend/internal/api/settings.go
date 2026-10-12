@@ -23,6 +23,7 @@ type settings struct {
 	ManagementAPITokenHash    string
 	EmailSendoutRatePerMinute int
 	OIDCEnabled               bool
+	OIDCIssuer                string
 }
 
 // settingsFromRecord reads the feature flags off an app_settings record.
@@ -35,6 +36,7 @@ func settingsFromRecord(rec *core.Record) settings {
 		ManagementAPITokenHash:    rec.GetString("management_api_token_hash"),
 		EmailSendoutRatePerMinute: rec.GetInt("email_sendout_rate_per_minute"),
 		OIDCEnabled:               rec.GetBool("oidc_enabled"),
+		OIDCIssuer:                rec.GetString("oidc_issuer"),
 	}
 }
 
@@ -74,7 +76,7 @@ func (h *Handlers) settingsRecord() (*core.Record, error) {
 }
 
 func (h *Handlers) settingsResponse(s settings) SettingsResponse {
-	issuer, reason := h.oidcAvailability()
+	issuer, reason := h.oidcStatus(s)
 	return SettingsResponse{
 		InvitationsEnabled:        s.InvitationsEnabled,
 		OpenRegistration:          s.OpenRegistration,

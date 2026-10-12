@@ -141,3 +141,19 @@ func TestEnablingOIDCReportsSigningKeyFailureAsServerError(t *testing.T) {
 		t.Fatal("the switch was stored without a signing key")
 	}
 }
+func TestOIDCSwitchPinsAndClearsIssuer(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := newOIDCHandlers(t, app, "https://api.example.com", "https://panel.example.com")
+	for _, step := range []struct {
+		enabled bool
+		pinned  string
+	}{{true, "https://api.example.com/api/oidc"}, {false, ""}} {
+		e, _ := panelEvent(t, app, http.MethodPatch, "/api/panel/settings", "", map[string]any{"oidc_enabled": step.enabled}, nil)
+		if err := h.updateSettings(e); err != nil {
+			t.Fatalf("oidc_enabled=%v: %v", step.enabled, err)
+		}
+		if got := h.loadSettings().OIDCIssuer; got != step.pinned {
+			t.Fatalf("oidc_enabled=%v pinned %q, want %q", step.enabled, got, step.pinned)
+		}
+	}
+}

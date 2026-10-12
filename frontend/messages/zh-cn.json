@@ -894,6 +894,7 @@
   "settings_oidc_unavailable_backend_url_missing": "未设置 PANEL_BACKEND_URL_BASE",
   "settings_oidc_unavailable_backend_url_insecure": "PANEL_BACKEND_URL_BASE 必须使用 https，localhost、127.0.0.1 等回环地址除外",
   "settings_oidc_unavailable_frontend_url_missing": "未设置 PANEL_FRONTEND_URL_BASE",
+  "settings_oidc_unavailable_issuer_changed": "开启提供方之后 PANEL_BACKEND_URL_BASE 发生了变化。关闭再开启即可发布新的 issuer，之后需要更新每个已连接的应用",
   "settings_oidc_manage": "已连接的应用",
   "settings_oidc_manage_desc": "登记网站及其回调地址和 client secret。",
   "oidc_clients_title": "已连接的应用",

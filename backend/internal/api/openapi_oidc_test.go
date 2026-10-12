@@ -36,7 +36,7 @@ func TestOpenAPIDescribesConnectedApps(t *testing.T) {
 		t.Fatalf("OIDCClientSecretResponse.client = %+v, want a $ref to OIDCClient", ref)
 	}
 	reason := schemas["SettingsResponse"].Value.Properties["oidc_unavailable_reason"]
-	if reason == nil || len(reason.Value.Enum) != 4 {
+	if reason == nil || len(reason.Value.Enum) != 5 {
 		t.Fatalf("oidc_unavailable_reason enum = %+v", reason)
 	}
 }

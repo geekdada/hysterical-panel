@@ -876,6 +876,8 @@ function oidcUnavailableMessage(reason: string): string {
       return m.settings_oidc_unavailable_backend_url_insecure();
     case "frontend_url_missing":
       return m.settings_oidc_unavailable_frontend_url_missing();
+    case "issuer_changed":
+      return m.settings_oidc_unavailable_issuer_changed();
     default:
       return "";
   }
