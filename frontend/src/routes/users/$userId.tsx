@@ -282,7 +282,7 @@ function AccountRail({
     <div className="overflow-hidden rounded-lg border bg-surface">
       <div className="grid divide-y divide-border md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)] md:divide-x md:divide-y-0">
         <RailItem label={m.user_rail_id()}>
-          <div className="group flex min-w-0 items-center gap-1.5">
+          <div className="group/key flex min-w-0 items-center gap-1.5">
             <span className="block min-w-0 truncate font-mono text-[13px] text-foreground">
               {user?.id || m.common_em_dash()}
             </span>
@@ -290,7 +290,7 @@ function AccountRail({
           </div>
         </RailItem>
         <RailItem label={m.user_rail_email()}>
-          <div className="group flex min-w-0 items-center gap-1.5">
+          <div className="group/key flex min-w-0 items-center gap-1.5">
             <span
               className="block min-w-0 truncate font-mono text-[13px] text-foreground"
               title={user?.email || ""}
@@ -301,7 +301,7 @@ function AccountRail({
           </div>
         </RailItem>
         <RailItem label={m.user_rail_auth_key()}>
-          <div className="group flex min-w-0 items-center gap-1.5">
+          <div className="group/key flex min-w-0 items-center gap-1.5">
             <span className="block min-w-0 truncate font-mono text-[13px] text-foreground">
               {user?.auth_string || m.common_em_dash()}
             </span>

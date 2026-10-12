@@ -400,7 +400,17 @@ export function SeverityBadge({
   );
 }
 
-export function CopyButton({ value, label }: { value: string; label: string }) {
+// CopyButton appears when its `group/key` ancestor is hovered, unless it is
+// alwaysVisible.
+export function CopyButton({
+  value,
+  label,
+  alwaysVisible = false,
+}: {
+  value: string;
+  label: string;
+  alwaysVisible?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -432,7 +442,10 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
         "inline-grid size-5 shrink-0 place-items-center rounded transition-[opacity,color] duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
         copied
           ? "text-success opacity-100"
-          : "text-muted opacity-0 hover:text-foreground group-hover:opacity-100"
+          : cn(
+              "text-muted hover:text-foreground",
+              alwaysVisible ? "opacity-100" : "opacity-0 group-hover/key:opacity-100"
+            )
       )}
     >
       {copied ? (
@@ -488,7 +501,7 @@ export function CopyableCode({
         {value}
       </pre>
       <div className="absolute right-2 top-2">
-        <CopyButton value={value} label={label} />
+        <CopyButton value={value} label={label} alwaysVisible />
       </div>
     </div>
   );
