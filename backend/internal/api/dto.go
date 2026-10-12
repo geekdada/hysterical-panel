@@ -829,3 +829,50 @@ type EmailSendoutResendRequest struct {
 type EmailSendoutResendResponse struct {
 	Requeued int64 `json:"requeued"`
 }
+
+// ── OIDC Connected Apps ──────────────────────────────────────────────────────
+
+// OIDCClient is a Connected App as admins see it. The client secret and its
+// hash are never returned; only create and rotate responses carry the
+// plaintext secret, once.
+type OIDCClient struct {
+	ID             string   `json:"id"`
+	ClientID       string   `json:"client_id"`
+	Name           string   `json:"name"`
+	RedirectURIs   []string `json:"redirect_uris"`
+	AllowedScopes  []string `json:"allowed_scopes"`
+	RefreshEnabled bool     `json:"refresh_enabled"`
+	SkipConsent    bool     `json:"skip_consent"`
+	Enabled        bool     `json:"enabled"`
+	LastUsedAt     *string  `json:"last_used_at,omitempty"`
+	Created        string   `json:"created"`
+	Updated        string   `json:"updated"`
+}
+
+// OIDCClientCreateRequest registers a Connected App. allowed_scopes defaults
+// to openid and email, and enabled defaults to true.
+type OIDCClientCreateRequest struct {
+	Name           string   `json:"name"`
+	RedirectURIs   []string `json:"redirect_uris"`
+	AllowedScopes  []string `json:"allowed_scopes,omitempty"`
+	RefreshEnabled *bool    `json:"refresh_enabled,omitempty"`
+	SkipConsent    *bool    `json:"skip_consent,omitempty"`
+	Enabled        *bool    `json:"enabled,omitempty"`
+}
+
+// OIDCClientUpdateRequest changes a Connected App. Omitted fields stay.
+type OIDCClientUpdateRequest struct {
+	Name           *string   `json:"name,omitempty"`
+	RedirectURIs   *[]string `json:"redirect_uris,omitempty"`
+	AllowedScopes  *[]string `json:"allowed_scopes,omitempty"`
+	RefreshEnabled *bool     `json:"refresh_enabled,omitempty"`
+	SkipConsent    *bool     `json:"skip_consent,omitempty"`
+	Enabled        *bool     `json:"enabled,omitempty"`
+}
+
+// OIDCClientSecretResponse is returned on create and on secret rotation, the
+// only places the plaintext client secret appears.
+type OIDCClientSecretResponse struct {
+	Client       OIDCClient `json:"client"`
+	ClientSecret string     `json:"client_secret"`
+}

@@ -112,6 +112,11 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.POST("/notification-channels/{id}/test", h.testNotificationChannel).Bind(adminOnly)
 	g.POST("/notification-channels/{id}/reveal/options", h.notificationChannelRevealOptions).Bind(adminOnly)
 	g.POST("/notification-channels/{id}/reveal/finish", h.notificationChannelRevealFinish).Bind(adminOnly)
+	g.GET("/oidc-clients", h.listOIDCClients).Bind(adminOnly)
+	g.POST("/oidc-clients", h.createOIDCClient).Bind(adminOnly)
+	g.PATCH("/oidc-clients/{id}", h.updateOIDCClient).Bind(adminOnly)
+	g.DELETE("/oidc-clients/{id}", h.deleteOIDCClient).Bind(adminOnly)
+	g.POST("/oidc-clients/{id}/rotate-secret", h.rotateOIDCClientSecret).Bind(adminOnly)
 
 	// monitoring
 	g.GET("/monitors", h.listMonitors).Bind(adminOnly)
