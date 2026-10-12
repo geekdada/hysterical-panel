@@ -45,10 +45,12 @@ export const Route = createFileRoute("/oidc/authorize")({
 
 function ConsentPage() {
   const { auth } = Route.useRouteContext();
-  const { request } = Route.useSearch();
+  const { request, prompt } = Route.useSearch();
   if (!request) return <ConsentMessage message={m.oidc_consent_expired()} />;
   if (!auth) return <SilentAbort handle={request} />;
-  return <SignedInConsent handle={request} email={auth.user.email} />;
+  return (
+    <SignedInConsent handle={request} email={auth.user.email} promptNone={prompt === "none"} />
+  );
 }
 
 function consentPath(handle: string): string {
@@ -95,13 +97,23 @@ function SilentAbort({ handle }: { handle: string }) {
   );
 }
 
-function SignedInConsent({ handle, email }: { handle: string; email: string }) {
+function SignedInConsent({
+  handle,
+  email,
+  promptNone,
+}: {
+  handle: string;
+  email: string;
+  promptNone: boolean;
+}) {
   const navigate = useNavigate();
   const requestQuery = useQuery(oidcAuthorizationRequestQueryOptions(handle));
   const decision = useMutation({
     mutationFn: (allow: boolean) =>
       allow ? approveOIDCAuthorizationRequest(handle) : denyOIDCAuthorizationRequest(handle),
-    onSuccess: (result) => window.location.assign(result.redirect_to),
+    // Replacing the history entry keeps Back from restoring a used consent
+    // page out of the back-forward cache.
+    onSuccess: (result) => window.location.replace(result.redirect_to),
   });
   const view = requestQuery.data;
   // Remembered consent and prompt=none skip the page. The backend turns a
@@ -128,6 +140,12 @@ function SignedInConsent({ handle, email }: { handle: string; email: string }) {
   }
 
   const failure = requestQuery.error ?? decision.error;
+  const sessionRejected = errorStatus(failure) === 401 || errorStatus(failure) === 403;
+  if (failure && promptNone && sessionRejected) {
+    // A panel cookie the backend no longer accepts must still end a
+    // prompt=none request at once instead of asking the User to sign in.
+    return <SilentAbort handle={handle} />;
+  }
   if (failure) {
     if (errorStatus(failure) === 400 && view) {
       return <ReauthCard clientName={view.client_name} onSignIn={signInAgain} />;
