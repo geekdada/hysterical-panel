@@ -218,7 +218,7 @@ auth:
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/mgmt/users?email=` 或 `?auth_string=` | 按 email 或 Current `auth_string` 精确查询单个用户（二选一，不能同时给）；Retired 值不匹配。返回 `PanelUser` 形状（含 Current `auth_string`） |
+| GET | `/api/mgmt/users?id=`、`?email=` 或 `?auth_string=` | 按 User ID、email 或 Current `auth_string` 精确查询单个用户（三选一，不能同时给）；Retired 值不匹配。Connected App 拿到的 `sub` 就是 User ID，可直接用 `?id=` 查。返回 `PanelUser` 形状（含 Current `auth_string`） |
 | POST | `/api/mgmt/users` | 请求体 `{ email }`，自动生成密码与 `auth_string`（不返回）。返回 `{ id, email, status }`，状态码 **201**。创建后用户需走找回密码流程拿到登录凭证 |
 
 所有 `/api/mgmt/*` 请求必须带 `Authorization: Bearer <token>`。功能未启用时返回 **404**（避免泄露表面存在）；token 缺失或不匹配返回 **401**。

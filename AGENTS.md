@@ -98,7 +98,7 @@
    基于 `go-webauthn/webauthn`，落在 `internal/api/passkeys.go` + 两张 collection：`passkey_credentials`（每凭据一行，私有 `credential` JSON `Hidden`）、`passkey_sessions`（challenge 暂存，`passkeyChallengeTTL` 5min，用后即焚）。登录走公开的 `POST /api/panel/passkeys/login/{options,finish}`（finish 成功签发与密码登录同形的 token+record，同样过 `bindAuthGate` 的 status/verified 门禁）；注册/列举/删除挂在 `/users/{id}/passkeys/*`，受 `requireActiveSelf` / `requireActiveAdminOrSelf` 守。**RP ID 与允许的 origin 由 `PANEL_WEBAUTHN_RP_ID` / `PANEL_WEBAUTHN_ORIGINS` 配置；未配（且无静态面板 origin）则 passkey 整体禁用**，`/config` 的 `passkeys` 标志据此告诉前端是否渲染入口。
 
 10. **Management API 是「默认不存在」的外部建号通道。**
-    `/api/mgmt/*`（`management_api.go`）公开无面板登录，唯一门禁是 `Authorization: Bearer <token>`。**功能未启用时一律返回 404（不泄露其存在）**，启用但 token 错返回 401。开关与 token **哈希**存在 `app_settings`（`management_api_enabled` / `management_api_token_hash`，只存 `sha256` hex，明文 token 仅在启用/轮换响应里回显一次）：admin 经 `PATCH /settings` 首次启用时自动生成，或 `POST /management-api/rotate` 轮换。当前仅 `GET /api/mgmt/users`（按 email 或 auth_string 精确查）与 `POST /api/mgmt/users`（建号，自动生成密码与 auth_string、均不返回）。详见 backend/README.md。
+    `/api/mgmt/*`（`management_api.go`）公开无面板登录，唯一门禁是 `Authorization: Bearer <token>`。**功能未启用时一律返回 404（不泄露其存在）**，启用但 token 错返回 401。开关与 token **哈希**存在 `app_settings`（`management_api_enabled` / `management_api_token_hash`，只存 `sha256` hex，明文 token 仅在启用/轮换响应里回显一次）：admin 经 `PATCH /settings` 首次启用时自动生成，或 `POST /management-api/rotate` 轮换。当前仅 `GET /api/mgmt/users`（按 id、email 或 auth_string 精确查）与 `POST /api/mgmt/users`（建号，自动生成密码与 auth_string、均不返回）。详见 backend/README.md。
 
 ## 技术栈与版本
 

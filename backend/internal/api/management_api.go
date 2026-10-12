@@ -49,24 +49,31 @@ type mgmtCreateUserResponse struct {
 	Status string `json:"status"`
 }
 
-// mgmtGetUser looks up a single user by exact email or Current Auth String,
-// exactly one of which must be provided. It returns the panel's PanelUser
-// shape (including only the Current Auth String).
+// mgmtGetUser looks up a single user by User ID, exact email or Current Auth
+// String. Exactly one of them must be provided. Connected Apps receive the
+// User ID as sub, so apps signing Users in through OIDC look them up by id.
+// It returns the panel's PanelUser shape (including only the Current Auth
+// String).
 func (h *Handlers) mgmtGetUser(e *core.RequestEvent) error {
-	email := strings.TrimSpace(e.Request.URL.Query().Get("email"))
-	authString := strings.TrimSpace(e.Request.URL.Query().Get("auth_string"))
+	query := e.Request.URL.Query()
+	id := strings.TrimSpace(query.Get("id"))
+	email := strings.TrimSpace(query.Get("email"))
+	authString := strings.TrimSpace(query.Get("auth_string"))
+	if countNonEmpty(id, email, authString) > 1 {
+		return apis.NewBadRequestError("provide only one of id, email or auth_string", nil)
+	}
 
 	var user *core.Record
 	var err error
 	switch {
-	case email != "" && authString != "":
-		return apis.NewBadRequestError("provide either email or auth_string, not both", nil)
+	case id != "":
+		user, err = h.app.FindRecordById("users", id)
 	case email != "":
 		user, err = h.app.FindFirstRecordByFilter("users", "email = {:v}", map[string]any{"v": email})
 	case authString != "":
 		user, err = authstrings.FindCurrentUserByAuthString(h.app, authString)
 	default:
-		return apis.NewBadRequestError("email or auth_string is required", nil)
+		return apis.NewBadRequestError("id, email or auth_string is required", nil)
 	}
 	if err != nil || user == nil {
 		return apis.NewNotFoundError("user not found", nil)
@@ -76,6 +83,16 @@ func (h *Handlers) mgmtGetUser(e *core.RequestEvent) error {
 		return apis.NewNotFoundError("user not found", nil)
 	}
 	return e.JSON(http.StatusOK, panelUser(user, currentAuthString, h.ipLookup, h.loadIgnoredConnectionIPSet()))
+}
+
+func countNonEmpty(values ...string) int {
+	count := 0
+	for _, value := range values {
+		if value != "" {
+			count++
+		}
+	}
+	return count
 }
 
 // mgmtCreateUser provisions a user from an email only. Password and
