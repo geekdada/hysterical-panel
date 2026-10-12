@@ -22,6 +22,7 @@ type settings struct {
 	ManagementAPIEnabled      bool
 	ManagementAPITokenHash    string
 	EmailSendoutRatePerMinute int
+	OIDCEnabled               bool
 }
 
 // settingsFromRecord reads the feature flags off an app_settings record.
@@ -33,6 +34,7 @@ func settingsFromRecord(rec *core.Record) settings {
 		ManagementAPIEnabled:      rec.GetBool("management_api_enabled"),
 		ManagementAPITokenHash:    rec.GetString("management_api_token_hash"),
 		EmailSendoutRatePerMinute: rec.GetInt("email_sendout_rate_per_minute"),
+		OIDCEnabled:               rec.GetBool("oidc_enabled"),
 	}
 }
 
@@ -71,7 +73,8 @@ func (h *Handlers) settingsRecord() (*core.Record, error) {
 	return rec, nil
 }
 
-func settingsResponse(s settings) SettingsResponse {
+func (h *Handlers) settingsResponse(s settings) SettingsResponse {
+	issuer, reason := h.oidcAvailability()
 	return SettingsResponse{
 		InvitationsEnabled:        s.InvitationsEnabled,
 		OpenRegistration:          s.OpenRegistration,
@@ -79,11 +82,14 @@ func settingsResponse(s settings) SettingsResponse {
 		ManagementAPIEnabled:      s.ManagementAPIEnabled,
 		ManagementAPITokenSet:     s.ManagementAPITokenHash != "",
 		EmailSendoutRatePerMinute: sendouts.NormalizeRate(s.EmailSendoutRatePerMinute),
+		OIDCEnabled:               s.OIDCEnabled,
+		OIDCIssuer:                issuer,
+		OIDCUnavailableReason:     reason,
 	}
 }
 
 func (h *Handlers) getSettings(e *core.RequestEvent) error {
-	return ok(e, settingsResponse(h.loadSettings()))
+	return ok(e, h.settingsResponse(h.loadSettings()))
 }
 
 func (h *Handlers) updateSettings(e *core.RequestEvent) error {
@@ -121,6 +127,11 @@ func (h *Handlers) updateSettings(e *core.RequestEvent) error {
 		}
 		rec.Set("email_sendout_rate_per_minute", rate)
 	}
+	if in.OIDCEnabled != nil {
+		if err := h.applyOIDCEnabled(rec, *in.OIDCEnabled); err != nil {
+			return err
+		}
+	}
 	// Management API: enabling auto-generates a token if none exists yet. The
 	// plaintext token is returned exactly once in the response.
 	var plaintextToken string
@@ -138,7 +149,7 @@ func (h *Handlers) updateSettings(e *core.RequestEvent) error {
 	if err := h.app.Save(rec); err != nil {
 		return apis.NewBadRequestError("failed to save settings", err)
 	}
-	resp := settingsResponse(settingsFromRecord(rec))
+	resp := h.settingsResponse(settingsFromRecord(rec))
 	resp.ManagementAPIToken = plaintextToken // shown once, only when just generated
 	return ok(e, resp)
 }

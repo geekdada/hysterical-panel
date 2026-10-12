@@ -133,3 +133,25 @@ func buildOIDCRecord(app core.App, collection string, fields map[string]any) (*c
 	}
 	return rec, nil
 }
+func TestOIDCSettingsMigrationAddsDisabledSwitch(t *testing.T) {
+	app := migratedApp(t)
+	recs, err := app.FindRecordsByFilter("app_settings", "", "", 1, 0)
+	if err != nil || len(recs) != 1 {
+		t.Fatalf("app_settings seed: %v (%d rows)", err, len(recs))
+	}
+	if recs[0].GetBool("oidc_enabled") {
+		t.Fatal("oidc_enabled must default to false")
+	}
+
+	runner := migrationRunnerThrough(t, app, "1730000033_add_oidc_settings.go")
+	if reverted, err := runner.Down(1); err != nil || len(reverted) != 1 {
+		t.Fatalf("revert oidc settings migration: reverted=%v err=%v", reverted, err)
+	}
+	settings, _ := app.FindCollectionByNameOrId("app_settings")
+	if settings.Fields.GetByName("oidc_enabled") != nil {
+		t.Fatal("rollback kept oidc_enabled")
+	}
+	if _, err := runner.Up(); err != nil {
+		t.Fatalf("reapply oidc settings migration: %v", err)
+	}
+}

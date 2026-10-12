@@ -434,6 +434,15 @@ type SettingsResponse struct {
 	// populated by a plain GET.
 	ManagementAPIToken        string `json:"management_api_token,omitempty"`
 	EmailSendoutRatePerMinute int    `json:"email_sendout_rate_per_minute"`
+	// OIDCEnabled switches the /api/oidc/* provider (ADR-0010).
+	OIDCEnabled bool `json:"oidc_enabled"`
+	// OIDCIssuer is the issuer Connected Apps configure. It is empty when
+	// PANEL_BACKEND_URL_BASE cannot serve as an issuer.
+	OIDCIssuer string `json:"oidc_issuer"`
+	// OIDCUnavailableReason says why the provider cannot be enabled, or is
+	// empty when it can: backend_url_missing, backend_url_insecure or
+	// frontend_url_missing.
+	OIDCUnavailableReason string `json:"oidc_unavailable_reason"`
 }
 
 // SettingsUpdateRequest is the body for PATCH /settings (all fields optional).
@@ -445,6 +454,7 @@ type SettingsUpdateRequest struct {
 	RequireInviteForOpen      *bool `json:"require_invite_for_open,omitempty"`
 	ManagementAPIEnabled      *bool `json:"management_api_enabled,omitempty"`
 	EmailSendoutRatePerMinute *int  `json:"email_sendout_rate_per_minute,omitempty"`
+	OIDCEnabled               *bool `json:"oidc_enabled,omitempty"`
 }
 
 // ManagementAPITokenResponse is returned by POST /management-api/rotate.
