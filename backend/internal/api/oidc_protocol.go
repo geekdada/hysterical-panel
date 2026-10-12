@@ -147,6 +147,8 @@ func (h *Handlers) oidcToken(e *core.RequestEvent) error {
 	switch e.Request.PostForm.Get("grant_type") {
 	case oidc.GrantTypeAuthorizationCode:
 		resp, oauthErr = oidc.ExchangeCode(h.app, req)
+	case oidc.GrantTypeRefreshToken:
+		resp, oauthErr = oidc.RefreshTokens(h.app, req)
 	case "":
 		oauthErr = oidc.NewError(oidc.InvalidRequest, "grant_type is required")
 	default:

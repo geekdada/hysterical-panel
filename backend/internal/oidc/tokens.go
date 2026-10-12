@@ -256,3 +256,59 @@ func touchLastUsed(tx core.App, now time.Time, records ...*core.Record) error {
 	}
 	return nil
 }
+
+// RefreshTokens rotates a refresh token (RFC 6749 6, RFC 9700 4.14.2). The
+// presented token stops working, and presenting it again revokes the family.
+func RefreshTokens(app core.App, req TokenRequest) (*TokenResponse, *Error) {
+	raw := req.Form.Get("refresh_token")
+	if raw == "" {
+		return nil, NewError(InvalidRequest, "refresh_token is required")
+	}
+	return runGrant(app, func(tx core.App) (*TokenResponse, error) {
+		rec, grant, err := findIssued(tx, TokensCollection, "token_hash = {:hash} && kind = 'refresh'", raw, req.Client)
+		if err != nil {
+			return nil, err
+		}
+		if !rec.GetDateTime("rotated_at").IsZero() {
+			return nil, replayed(tx, rec, req.Now)
+		}
+		if !rec.GetDateTime("revoked_at").IsZero() || !req.Now.Before(rec.GetDateTime("expires_at").Time()) ||
+			!req.Client.GetBool("refresh_enabled") {
+			return nil, errInvalidGrant
+		}
+		user, err := grantUser(tx, grant, req.Client)
+		if err != nil {
+			return nil, err
+		}
+		granted := grantableScopes(req.Client, strings.Fields(rec.GetString("scope")))
+		scope, err := narrowScope(granted, req.Form.Get("scope"))
+		if err != nil {
+			return nil, err
+		}
+		if err := claimGrant(tx, TokensCollection, rec, "rotated_at", req.Now); err != nil {
+			return nil, err
+		}
+		return issueTokens(tx, req, issuance{
+			grant:        grant,
+			user:         user,
+			family:       rec.GetString("family"),
+			scope:        scope,
+			refreshScope: granted,
+			authTime:     rec.GetDateTime("auth_time").Time(),
+			refreshUntil: rec.GetDateTime("absolute_expires_at").Time(),
+		})
+	})
+}
+
+// narrowScope applies the optional scope of a refresh request. It may only
+// drop scopes, and openid stays because the response carries an ID token.
+func narrowScope(granted []string, requested string) ([]string, error) {
+	if requested == "" {
+		return granted, nil
+	}
+	scope := strings.Fields(requested)
+	if !slices.Contains(scope, ScopeOpenID) || !isSubset(scope, granted) {
+		return nil, NewError(InvalidScope, "a refresh may only narrow the granted scope and must keep openid")
+	}
+	return orderScopes(scope), nil
+}

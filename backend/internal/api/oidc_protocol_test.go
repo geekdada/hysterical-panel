@@ -394,3 +394,28 @@ func TestOIDCTokenEndpointLocksOutRepeatedClientFailures(t *testing.T) {
 		t.Fatalf("after the lockout = %d %s", res.Code, res.Body.String())
 	}
 }
+
+func TestOIDCRefreshThroughTheTokenEndpoint(t *testing.T) {
+	env := newOIDCTestEnv(t, map[string]any{"refresh_enabled": true})
+	first := env.tokens(map[string]string{"scope": "openid email offline_access"})
+	refresh := func(raw string) *httptest.ResponseRecorder {
+		return env.postToken(url.Values{"grant_type": {"refresh_token"}, "refresh_token": {raw}})
+	}
+
+	res := refresh(first.RefreshToken)
+	next := decodeBody[oidc.TokenResponse](t, res)
+	if res.Code != http.StatusOK || next.RefreshToken == "" || next.RefreshToken == first.RefreshToken {
+		t.Fatalf("refresh = %d %s", res.Code, res.Body.String())
+	}
+	if claims := env.verifyIDToken(next.IDToken); claims["sub"] != env.user.Id {
+		t.Fatalf("refreshed claims = %v", claims)
+	}
+
+	res = refresh(first.RefreshToken)
+	if body := decodeBody[oauthErrorResponse](t, res); res.Code != http.StatusBadRequest || body.Error != "invalid_grant" {
+		t.Fatalf("replay = %d %s", res.Code, res.Body.String())
+	}
+	if res := refresh(next.RefreshToken); res.Code != http.StatusBadRequest {
+		t.Fatalf("the replay left the family usable: %d", res.Code)
+	}
+}
