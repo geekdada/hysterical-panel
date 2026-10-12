@@ -35,7 +35,6 @@ import {
   BrandLink,
   CopyableCode,
   DestructiveConfirmModal,
-  Dot,
   ErrorAlert,
   LabeledSwitch,
   PageShell,
@@ -336,22 +335,15 @@ function ClientRow({
   return (
     <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <Dot tone={client.enabled ? "ok" : "idle"} />
-          <span className="truncate text-[13px] font-medium">{client.name}</span>
-        </div>
-        <p className="mt-1 truncate font-mono text-xs text-muted">{client.client_id}</p>
-        <p className="mt-0.5 text-xs text-muted">
-          {m.oidc_clients_redirect_count({ count: client.redirect_uris.length })}
-          {client.last_used_at && now !== null && (
-            <>
-              <span> · </span>
-              <span className="tabular-nums">
-                {m.oidc_clients_last_used({ time: relTimeFromISO(client.last_used_at, now) })}
-              </span>
-            </>
-          )}
+        <p className="truncate text-[13px] font-medium">{client.name}</p>
+        <p className="mt-1 truncate font-mono text-xs text-muted">
+          {m.oidc_clients_client_id_value({ id: client.client_id })}
         </p>
+        {client.last_used_at && now !== null && (
+          <p className="mt-0.5 text-xs tabular-nums text-muted">
+            {m.oidc_clients_last_used({ time: relTimeFromISO(client.last_used_at, now) })}
+          </p>
+        )}
       </div>
       <div className="flex items-center justify-between gap-1.5 sm:flex-shrink-0">
         <Switch

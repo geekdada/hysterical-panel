@@ -904,7 +904,7 @@
   "oidc_clients_provider_off": "The OpenID Connect provider is off. Apps cannot sign users in until it is turned on.",
   "oidc_clients_provider_unavailable": "The OpenID Connect provider is on, but its configuration is incomplete. Apps cannot sign users in until it is fixed.",
   "oidc_clients_discovery": "Discovery URL",
-  "oidc_clients_redirect_count": "Redirect URIs: {count}",
+  "oidc_clients_client_id_value": "Client ID: {id}",
   "oidc_clients_last_used": "Last used {time}",
   "oidc_clients_enabled": "Enabled",
   "oidc_clients_disabled": "Disabled",
