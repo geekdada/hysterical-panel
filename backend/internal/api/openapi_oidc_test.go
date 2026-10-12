@@ -14,6 +14,10 @@ func TestOpenAPIDescribesConnectedApps(t *testing.T) {
 		"/api/panel/oidc-clients":                    {"GET", "POST"},
 		"/api/panel/oidc-clients/{id}":               {"PATCH", "DELETE"},
 		"/api/panel/oidc-clients/{id}/rotate-secret": {"POST"},
+		"/api/panel/oidc/requests/{handle}":          {"GET"},
+		"/api/panel/oidc/requests/{handle}/approve":  {"POST"},
+		"/api/panel/oidc/requests/{handle}/deny":     {"POST"},
+		"/api/panel/oidc/requests/{handle}/abort":    {"POST"},
 	} {
 		item := spec.Paths.Find(path)
 		if item == nil {

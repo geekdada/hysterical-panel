@@ -33,6 +33,8 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"OIDCClientCreateRequest":           OIDCClientCreateRequest{},
 		"OIDCClientUpdateRequest":           OIDCClientUpdateRequest{},
 		"OIDCClientSecretResponse":          OIDCClientSecretResponse{},
+		"OIDCAuthorizationRequest":          OIDCAuthorizationRequest{},
+		"OIDCAuthorizationDecision":         OIDCAuthorizationDecision{},
 		"Monitor":                           Monitor{},
 		"OfflineMonitorConfig":              OfflineMonitorConfig{},
 		"HighTrafficMonitorConfig":          HighTrafficMonitorConfig{},
@@ -159,6 +161,8 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"OIDCClient":                     {"id", "client_id", "name", "redirect_uris", "allowed_scopes", "refresh_enabled", "skip_consent", "enabled", "created", "updated"},
 		"OIDCClientCreateRequest":        {"name", "redirect_uris"},
 		"OIDCClientSecretResponse":       {"client", "client_secret"},
+		"OIDCAuthorizationRequest":       {"client_name", "redirect_origin", "scopes", "consent_required", "reauthentication_required", "prompt_none", "expires_at"},
+		"OIDCAuthorizationDecision":      {"redirect_to"},
 	} {
 		if s := schemas[name]; s != nil && s.Value != nil {
 			s.Value.Required = append(s.Value.Required, fields...)
@@ -1617,6 +1621,69 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			withAuth(op)
 			return op
 		}(),
+	})
+
+	// ── /oidc/requests (consent) ──────────────────────────────────────────
+	handleParam := &openapi3.ParameterRef{
+		Value: &openapi3.Parameter{
+			Name:        "handle",
+			In:          "path",
+			Required:    true,
+			Description: "Authorization request handle from the consent page URL",
+			Schema:      &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
+		},
+	}
+	decisionOp := func(id, summary string, auth bool) *openapi3.Operation {
+		op := &openapi3.Operation{
+			OperationID: id,
+			Summary:     summary,
+			Tags:        []string{"connected apps"},
+			Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+				Value: &openapi3.Response{
+					Description: ptr("Where the browser goes next"),
+					Content:     content(ref("OIDCAuthorizationDecision")),
+				},
+			})),
+		}
+		op.Responses.Set("404", notFound)
+		if auth {
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("403", forbidden)
+			withAuth(op)
+		}
+		return op
+	}
+	t.Paths.Set("/api/panel/oidc/requests/{handle}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{handleParam},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "getOIDCAuthorizationRequest",
+				Summary:     "Describe a pending Connected App sign-in for the consent page",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Pending authorization request"),
+						Content:     content(ref("OIDCAuthorizationRequest")),
+					},
+				})),
+			}
+			op.Responses.Set("403", forbidden)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+	t.Paths.Set("/api/panel/oidc/requests/{handle}/approve", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{handleParam},
+		Post:       decisionOp("approveOIDCAuthorizationRequest", "Approve a Connected App sign-in and return the redirect with a code", true),
+	})
+	t.Paths.Set("/api/panel/oidc/requests/{handle}/deny", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{handleParam},
+		Post:       decisionOp("denyOIDCAuthorizationRequest", "Deny a Connected App sign-in", true),
+	})
+	t.Paths.Set("/api/panel/oidc/requests/{handle}/abort", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{handleParam},
+		Post:       decisionOp("abortOIDCAuthorizationRequest", "End a Connected App sign-in for a visitor who is not signed in", false),
 	})
 
 	// ── monitoring ────────────────────────────────────────────────────────

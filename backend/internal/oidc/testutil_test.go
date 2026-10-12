@@ -4,6 +4,7 @@ import (
 	"maps"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 
@@ -132,4 +133,35 @@ func authorizeForm(client *core.Record, overrides map[string]string) url.Values 
 		}
 	}
 	return form
+}
+
+var testNow = time.Date(2026, 10, 12, 8, 0, 0, 0, time.UTC)
+
+// signedInAt is a panel session whose sign-in time is known.
+func signedInAt(at time.Time) Session {
+	return Session{AuthTime: at, Known: true}
+}
+
+// newPendingHandle stores a valid authorization request and returns its handle.
+func newPendingHandle(t *testing.T, app core.App, client *core.Record, overrides map[string]string, now time.Time) string {
+	t.Helper()
+	req, failure := ParseAuthorizeRequest(app, authorizeForm(client, overrides))
+	if failure != nil {
+		t.Fatalf("authorize: %+v", failure)
+	}
+	handle, err := SaveAuthRequest(app, req, now)
+	if err != nil {
+		t.Fatalf("save request: %v", err)
+	}
+	return handle
+}
+
+// redirectQuery parses the query of a redirect back to the app.
+func redirectQuery(t *testing.T, redirect string) url.Values {
+	t.Helper()
+	u, err := url.Parse(redirect)
+	if err != nil {
+		t.Fatalf("parse redirect %q: %v", redirect, err)
+	}
+	return u.Query()
 }

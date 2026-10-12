@@ -120,6 +120,12 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.DELETE("/oidc-clients/{id}", h.deleteOIDCClient).Bind(adminOnly)
 	g.POST("/oidc-clients/{id}/rotate-secret", h.rotateOIDCClientSecret).Bind(adminOnly)
 
+	// OIDC consent (ADR-0010). Any usable User; 404 while the provider is off.
+	oidcServing := h.requireOIDCServing()
+	g.GET("/oidc/requests/{handle}", h.getOIDCAuthorizationRequest).Bind(oidcServing)
+	g.POST("/oidc/requests/{handle}/approve", h.approveOIDCAuthorizationRequest).Bind(oidcServing)
+	g.POST("/oidc/requests/{handle}/deny", h.denyOIDCAuthorizationRequest).Bind(oidcServing)
+
 	// monitoring
 	g.GET("/monitors", h.listMonitors).Bind(adminOnly)
 	g.POST("/monitors", h.createMonitor).Bind(adminOnly)
@@ -181,6 +187,9 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	// Public passkey login endpoints — no auth required.
 	se.Router.POST("/api/panel/passkeys/login/options", h.passkeyLoginOptions)
 	se.Router.POST("/api/panel/passkeys/login/finish", h.passkeyLoginFinish)
+
+	// Public OIDC abort for a User who is not signed in to the panel.
+	se.Router.POST("/api/panel/oidc/requests/{handle}/abort", h.abortOIDCAuthorizationRequest).Bind(h.requireOIDCServing())
 
 	// Public OAuth2 provider redirect_uri — no auth required. Kept out of
 	// openapi.go because providers call it, not the panel UI client.

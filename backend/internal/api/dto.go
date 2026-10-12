@@ -876,3 +876,20 @@ type OIDCClientSecretResponse struct {
 	Client       OIDCClient `json:"client"`
 	ClientSecret string     `json:"client_secret"`
 }
+
+// OIDCAuthorizationRequest describes a pending Connected App sign-in to the
+// consent page.
+type OIDCAuthorizationRequest struct {
+	ClientName               string   `json:"client_name"`
+	RedirectOrigin           string   `json:"redirect_origin"`
+	Scopes                   []string `json:"scopes"`
+	ConsentRequired          bool     `json:"consent_required"`
+	ReauthenticationRequired bool     `json:"reauthentication_required"`
+	PromptNone               bool     `json:"prompt_none"`
+	ExpiresAt                string   `json:"expires_at"`
+}
+
+// OIDCAuthorizationDecision is where the browser goes after a decision.
+type OIDCAuthorizationDecision struct {
+	RedirectTo string `json:"redirect_to"`
+}
