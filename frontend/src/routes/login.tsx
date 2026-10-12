@@ -7,12 +7,25 @@ import { oauthProvidersQueryOptions, panelConfigQueryOptions } from "~/api/queri
 import { AuthBrandMark, AuthShell } from "~/components/ui";
 import { localizeApiError } from "~/lib/api-error";
 import { defaultDashboardSearch } from "~/lib/dashboard-search";
+import { safeRedirectPath } from "~/lib/safe-redirect";
 import { useAppName } from "~/lib/use-app-name";
 import * as m from "~/paraglide/messages.js";
 
+interface LoginSearch {
+  redirect?: string;
+  reauth?: true;
+}
+
 export const Route = createFileRoute("/login")({
-  beforeLoad: ({ context }) => {
-    if (context.auth) {
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    redirect: safeRedirectPath(search.redirect),
+    reauth: search.reauth === true || search.reauth === "true" ? true : undefined,
+  }),
+  beforeLoad: ({ context, search }) => {
+    // A Connected App that asked for a fresh sign-in needs the form even
+    // when a panel session exists.
+    if (context.auth && !search.reauth) {
+      if (search.redirect) throw redirect({ href: search.redirect });
       throw redirect({ to: "/", search: defaultDashboardSearch() });
     }
   },
@@ -24,23 +37,25 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const appName = useAppName();
+  const search = Route.useSearch();
+  const destination = search.redirect ?? "/";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const loginMutation = useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) =>
       login(email, password),
     onSuccess: () => {
-      window.location.href = "/";
+      window.location.href = destination;
     },
   });
   const passkeyMutation = useMutation({
     mutationFn: () => loginWithPasskey(),
     onSuccess: () => {
-      window.location.href = "/";
+      window.location.href = destination;
     },
   });
   const oauthMutation = useMutation({
-    mutationFn: (providerName: string) => startOAuthLogin(providerName),
+    mutationFn: (providerName: string) => startOAuthLogin(providerName, search.redirect),
   });
   const configQuery = useQuery(panelConfigQueryOptions());
   const oauthProvidersQuery = useQuery(oauthProvidersQueryOptions());
@@ -85,7 +100,7 @@ function LoginPage() {
           {appName}
         </Card.Title>
         <Card.Description className="text-[13px] text-muted">
-          {m.auth_sign_in_continue()}
+          {search.reauth ? m.auth_reauth_desc() : m.auth_sign_in_continue()}
         </Card.Description>
       </Card.Header>
       <Card.Content className="px-6 pt-4 pb-6">

@@ -70,6 +70,8 @@ export interface PendingOAuth {
   intent: OAuthIntent;
   // The user who started a link, so the callback can refuse a switched account.
   userId?: string;
+  // Where a login returns afterwards. The callback checks it again.
+  returnTo?: string;
   provider: string;
   state: string;
   codeVerifier: string;
@@ -265,8 +267,8 @@ export async function fetchOAuthProviders(): Promise<OAuthProvider[]> {
  * verifier are fetched per attempt and kept in sessionStorage until the
  * provider redirects back to the callback route.
  */
-export function startOAuthLogin(providerName: string): Promise<void> {
-  return startOAuthFlow(providerName, { intent: "login" });
+export function startOAuthLogin(providerName: string, returnTo?: string): Promise<void> {
+  return startOAuthFlow(providerName, { intent: "login", returnTo });
 }
 
 /** Starts linking a provider account to the signed-in user, whatever its email. */
@@ -276,7 +278,7 @@ export function startOAuthLink(providerName: string, userId: string): Promise<vo
 
 async function startOAuthFlow(
   providerName: string,
-  target: Pick<PendingOAuth, "intent" | "userId">
+  target: Pick<PendingOAuth, "intent" | "userId" | "returnTo">
 ): Promise<void> {
   const challenges = await fetchOAuthChallenges();
   const provider = challenges.find((candidate) => candidate.name === providerName);

@@ -4,6 +4,7 @@ import { Card } from "@heroui/react";
 import { completeOAuth, takePendingOAuth, type OAuthIntent } from "~/api/auth";
 import { AuthBrandMark, AuthShell } from "~/components/ui";
 import { localizeApiError } from "~/lib/api-error";
+import { safeRedirectPath } from "~/lib/safe-redirect";
 import { useAppName } from "~/lib/use-app-name";
 import * as m from "~/paraglide/messages.js";
 
@@ -76,7 +77,9 @@ function OAuthCallbackPage() {
     }
     completeOAuth(pending, search.code, search.state)
       .then(() => {
-        window.location.replace(DONE_PATH[pendingIntent]);
+        const returnTo =
+          pendingIntent === "login" ? safeRedirectPath(pending?.returnTo) : undefined;
+        window.location.replace(returnTo ?? DONE_PATH[pendingIntent]);
       })
       .catch((err: unknown) => {
         setError(

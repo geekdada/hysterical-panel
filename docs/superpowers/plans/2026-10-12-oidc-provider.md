@@ -8553,7 +8553,7 @@ Branch `oidc/4-consent-ui` from `oidc/3-protocol` (including the review fixes `3
 
 ### Review Focus
 
-- A `redirect` value that leaves the panel must land on `/`: `//evil.example`, `/\evil.example`, `https://evil.example`, `/%09/evil.example`, `javascript:alert(1)`. Covered in Task 24 Step 2.
+- A `redirect` value that leaves the panel must land on `/`: `//evil.example`, `/\evil.example`, `https://evil.example`, `/\t/evil.example`, `/.//evil.example`, `javascript:alert(1)`. Covered in Task 24 Step 2.
 - A `prompt=none` request from a browser without a panel session must go back to the app with `login_required` and never show the sign-in form. Covered in Task 22 (`TestOIDCAuthorizeTellsTheConsentPageAboutPromptNone`) and exit check step 4.
 - Opening the consent page again after deciding, with the back button or a reload, must show the expired message and not loop or approve twice. Covered in exit check step 4.
 - Re-authentication must come back to the consent page whichever sign-in method the User picks. Password and passkey use `redirect` directly. OAuth2 goes through `returnTo` in Task 24, and the exit check covers the password path.
@@ -9284,7 +9284,8 @@ export function safeRedirectPath(value: unknown): string | undefined {
   } catch {
     return undefined;
   }
-  if (url.origin !== PANEL_ORIGIN) return undefined;
+  // Dot segments can normalize into a protocol-relative path, as in /.//host.
+  if (url.origin !== PANEL_ORIGIN || url.pathname.startsWith("//")) return undefined;
   return url.pathname + url.search + url.hash;
 }
 ```
@@ -9304,6 +9305,8 @@ import("./src/lib/safe-redirect.ts").then(({ safeRedirectPath }) => {
     "/\t/evil.example": undefined,
     "https://evil.example": undefined,
     "javascript:alert(1)": undefined,
+    "/.//evil.example": undefined,
+    "/a/..//evil.example": undefined,
     "": undefined,
   };
   let failed = 0;
