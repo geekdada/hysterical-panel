@@ -141,7 +141,7 @@ func (h *Handlers) register(e *core.RequestEvent) error {
 		return ok(e, RegisterResponse{RequiresVerification: true, VerificationSent: true})
 	}
 
-	authToken, err := u.NewAuthToken()
+	authToken, err := issueSessionToken(h.app, u)
 	if err != nil {
 		return apis.NewBadRequestError("failed to issue auth token", err)
 	}

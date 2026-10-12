@@ -73,3 +73,15 @@ func responseToken(t *testing.T, rec *httptest.ResponseRecorder) string {
 	}
 	return body.Token
 }
+
+func TestIssueSessionTokenRecordsSignIn(t *testing.T) {
+	app := newMigratedTestApp(t)
+	user := newUsersTestRecord(t, app, "oidc-register@example.com", "RegisterSecret123")
+	sessionToken, err := issueSessionToken(app, user)
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, ok, err := oidc.SessionAuthTime(app, sessionToken, time.Now()); err != nil || !ok {
+		t.Fatalf("registration token has no auth time: ok=%v err=%v", ok, err)
+	}
+}

@@ -27,6 +27,19 @@ func (h *Handlers) bindOIDCSessionAuthTimes() {
 	})
 }
 
+// issueSessionToken mints a panel session token outside PocketBase's auth
+// routes, where the auth hook never runs, and records it as a fresh sign-in.
+func issueSessionToken(app core.App, user *core.Record) (string, error) {
+	sessionToken, err := user.NewAuthToken()
+	if err != nil {
+		return "", err
+	}
+	if err := oidc.RecordSessionAuth(app, user, sessionToken, "register", "", time.Now()); err != nil {
+		log.Printf("[oidc] record session auth time for user %s: %v", user.Id, err)
+	}
+	return sessionToken, nil
+}
+
 // bearerToken reads the Authorization header the way PocketBase does: the
 // Bearer prefix is optional and case-insensitive.
 func bearerToken(r *http.Request) string {
