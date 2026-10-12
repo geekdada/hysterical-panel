@@ -3,10 +3,12 @@
 Run on 2026-10-12 with the OpenID Foundation conformance suite at commit `95a1ed4` (master, built locally). The harness and the steps to repeat the run are in [`scripts/oidc-conformance/`](../scripts/oidc-conformance/README.md).
 
 - Plan: `oidcc-basic-certification-test-plan`
-- Variant: `server_metadata=discovery`, `client_registration=static_client`, `client_auth_type=client_secret_basic` (the suite runs its `client_secret_post` module with that method)
-- Provider: a local panel built from `oidc/5-finish`, two Connected Apps with refresh enabled, issuer `http://127.0.0.1:8092/api/oidc`
+- Variant: `server_metadata=discovery`, `client_registration=static_client`, `client_auth_type=client_secret_basic`. The plan runs `oidcc-server-client-secret-post` with `client_secret_post`.
+- Provider: a local panel built from `a071b87` (no backend or frontend change since), two Connected Apps with refresh enabled, issuer `http://127.0.0.1:8092/api/oidc`
 
-The provider requires S256 PKCE from every client (ADR-0010), and only one module in this plan sends PKCE. A test proxy therefore adds a fixed challenge to `/authorize` and the matching verifier to `/token` when a request has none. `oidcc-ensure-request-with-valid-pkce-succeeds` sends its own PKCE, the proxy leaves it alone, and it passes. A real relying party must send PKCE itself.
+The provider requires S256 PKCE from every client (ADR-0010), and only one module in this plan sends PKCE. A test proxy therefore adds a fixed challenge to `/authorize` and the matching verifier to `/token` when a request has none. `oidcc-ensure-request-with-valid-pkce-succeeds` sends its own PKCE, the proxy leaves it alone, and it passes. A real relying party must send PKCE itself. Because the proxy fills PKCE in, this run cannot show that the provider rejects a request without it. The backend tests cover that: `internal/oidc/authorize_test.go` rejects a missing or non-S256 challenge, and `internal/oidc/tokens_test.go` rejects a missing or wrong verifier.
+
+The first full run opened every front-channel URL with GET, so `oidcc-ensure-post-request-succeeds` did not send its authorization request as a form POST. After the driver learned to submit POST entries, that module was run again on its own and passed with a real `POST /authorize`. The table counts the second result.
 
 ## Summary
 
@@ -29,7 +31,7 @@ The provider requires S256 PKCE from every client (ADR-0010), and only one modul
 
 ## Review
 
-These modules finish only after a person checks an uploaded screenshot. The driver uploaded the panel page the browser stopped on.
+These modules finish only after a person checks an uploaded screenshot. For the two re-authentication modules the driver uploaded the panel sign-in page it saw before signing in; for the two redirect URI modules, the error page the browser stopped on. All four screenshots were checked by hand and match the table. The suite still lists the modules as REVIEW because they were not marked in its UI.
 
 | Module | What the screenshot shows |
 |---|---|

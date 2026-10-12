@@ -14,10 +14,18 @@ const VERIFIER = "conformance-proxy-verifier-0123456789-abcdefghijklmnopqrstuvwx
 const CHALLENGE = createHash("sha256").update(VERIFIER).digest("base64url");
 const FORM = "application/x-www-form-urlencoded";
 
-function addChallenge(params) {
-  if (params.has("code_challenge")) return false;
-  params.set("code_challenge", CHALLENGE);
-  params.set("code_challenge_method", "S256");
+const PKCE_PARAMS = ["code_challenge", "code_challenge_method"];
+// Headers that describe the client connection, not the rewritten body.
+const HOP_BY_HOP = ["connection", "keep-alive", "transfer-encoding"];
+
+const hasPKCE = (params) => PKCE_PARAMS.some((name) => params.has(name));
+
+// addChallenge leaves any request that carries a PKCE parameter alone, so the
+// provider still sees a client's own plain or repeated values.
+function addChallenge(params, query) {
+  if (hasPKCE(params) || hasPKCE(query)) return false;
+  params.append("code_challenge", CHALLENGE);
+  params.append("code_challenge_method", "S256");
   return true;
 }
 
@@ -28,14 +36,14 @@ function addVerifier(params) {
 }
 
 function rewrite(req, url, body) {
-  const isForm = (req.headers["content-type"] ?? "").startsWith(FORM);
+  const isForm = (req.headers["content-type"] ?? "").toLowerCase().startsWith(FORM);
   if (url.pathname === "/api/oidc/authorize") {
-    if (req.method === "GET" && addChallenge(url.searchParams)) {
+    if (req.method === "GET" && addChallenge(url.searchParams, new URLSearchParams())) {
       console.log("[pkce-proxy] added code_challenge to GET /authorize");
     }
     if (req.method === "POST" && isForm) {
       const params = new URLSearchParams(body.toString());
-      if (addChallenge(params)) {
+      if (addChallenge(params, url.searchParams)) {
         console.log("[pkce-proxy] added code_challenge to POST /authorize");
         return Buffer.from(params.toString());
       }
@@ -55,10 +63,12 @@ http
   .createServer((req, res) => {
     const chunks = [];
     req.on("data", (chunk) => chunks.push(chunk));
+    req.on("error", (error) => console.log(`[pkce-proxy] client request failed: ${error.message}`));
     req.on("end", () => {
       const url = new URL(req.url, backend);
       const body = rewrite(req, url, Buffer.concat(chunks));
       const headers = { ...req.headers, "content-length": String(body.length) };
+      for (const name of HOP_BY_HOP) delete headers[name];
       const upstream = http.request(
         { host: backend.hostname, port: backend.port, method: req.method, path: url.pathname + url.search, headers },
         (upstreamRes) => {
@@ -67,6 +77,8 @@ http
         },
       );
       upstream.on("error", (error) => {
+        console.log(`[pkce-proxy] backend request failed: ${error.message}`);
+        if (res.headersSent) return res.destroy();
         res.writeHead(502, { "content-type": "text/plain" });
         res.end(`backend unreachable: ${error.message}`);
       });
