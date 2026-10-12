@@ -118,3 +118,37 @@ func jwkIDs(jwks JWKS) string {
 	}
 	return strings.Join(ids, ",")
 }
+
+func TestCreateFirstKeyReturnsKeyCreatedConcurrently(t *testing.T) {
+	app := newTestApp(t)
+	box := newTestBox(t, "master-a")
+	winner, _ := ActiveSigningKey(app, box, keyTime)
+	got, err := createFirstKey(app, box)
+	if err != nil || got.ID != winner.ID {
+		t.Fatalf("createFirstKey = %v err=%v, want the existing key %s", got, err, winner.ID)
+	}
+	if n := countRecords(t, app, SigningKeysCollection); n != 1 {
+		t.Fatalf("stored keys = %d, want 1", n)
+	}
+}
+
+// Requests that all saw the same undecryptable key must rotate it only once.
+func TestReplaceUndecryptableKeySkipsWhenAnotherRequestReplacedItFirst(t *testing.T) {
+	app := newTestApp(t)
+	stale, _ := ActiveSigningKey(app, newTestBox(t, "master-a"), keyTime)
+	box := newTestBox(t, "master-b")
+	if _, err := replaceUndecryptableKey(app, box, stale.ID, keyTime); err != nil {
+		t.Fatalf("first replacement: %v", err)
+	}
+	replaced, err := replaceUndecryptableKey(app, box, stale.ID, keyTime)
+	if err != nil {
+		t.Fatalf("second replacement: %v", err)
+	}
+	if n := countRecords(t, app, SigningKeysCollection); n != 2 {
+		t.Fatalf("stored keys = %d, want the stale key and one replacement", n)
+	}
+	active, _ := ActiveSigningKey(app, box, keyTime)
+	if replaced.ID != active.ID {
+		t.Fatalf("second caller got %s, want the active key %s", replaced.ID, active.ID)
+	}
+}

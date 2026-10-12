@@ -68,21 +68,47 @@ func ActiveSigningKey(app core.App, box *cryptobox.Box, now time.Time) (*Signing
 		return key, nil
 	}
 	log.Printf("[oidc] signing key %s no longer decrypts, rotating: %v", rec.GetString("kid"), err)
-	if _, err := RotateSigningKey(app, box, false, now); err != nil {
-		return nil, err
-	}
-	return ActiveSigningKey(app, box, now)
+	return replaceUndecryptableKey(app, box, rec.GetString("kid"), now)
 }
 
 // RotateSigningKey makes a new key active and retires the current one. With
 // dropPrevious every older key leaves JWKS at once, which also invalidates the
 // ID tokens they signed. Use that after a key compromise.
 func RotateSigningKey(app core.App, box *cryptobox.Box, dropPrevious bool, now time.Time) (string, error) {
-	key, rec, err := newSigningKeyRecord(app, box)
+	key, _, err := rotateSigningKey(app, box, dropPrevious, "", now)
 	if err != nil {
 		return "", err
 	}
+	return key.ID, nil
+}
+
+// replaceUndecryptableKey rotates staleKID out unless a concurrent request
+// already did, then returns the active key once instead of retrying.
+func replaceUndecryptableKey(app core.App, box *cryptobox.Box, staleKID string, now time.Time) (*SigningKey, error) {
+	key, rotated, err := rotateSigningKey(app, box, false, staleKID, now)
+	if err != nil || rotated {
+		return key, err
+	}
+	active, err := app.FindFirstRecordByFilter(SigningKeysCollection, "state = 'active'")
+	if err != nil {
+		return nil, err
+	}
+	return decodeSigningKey(active, box)
+}
+
+// rotateSigningKey skips the rotation when onlyIfActiveKID is set and is no
+// longer the active key.
+func rotateSigningKey(app core.App, box *cryptobox.Box, dropPrevious bool, onlyIfActiveKID string, now time.Time) (*SigningKey, bool, error) {
+	key, rec, err := newSigningKeyRecord(app, box)
+	if err != nil {
+		return nil, false, err
+	}
+	rotated := false
 	err = app.RunInTransaction(func(tx core.App) error {
+		if onlyIfActiveKID != "" && !isActiveKey(tx, onlyIfActiveKID) {
+			return nil
+		}
+		rotated = true
 		existing, err := tx.FindAllRecords(SigningKeysCollection)
 		if err != nil {
 			return err
@@ -94,10 +120,29 @@ func RotateSigningKey(app core.App, box *cryptobox.Box, dropPrevious bool, now t
 		}
 		return tx.Save(rec)
 	})
-	if err != nil {
-		return "", err
+	if err != nil || !rotated {
+		return nil, false, err
 	}
-	return key.ID, nil
+	return key, true, nil
+}
+
+func isActiveKey(app core.App, kid string) bool {
+	_, err := app.FindFirstRecordByFilter(SigningKeysCollection, "kid = {:kid} && state = 'active'", dbx.Params{"kid": kid})
+	return err == nil
+}
+
+// ActiveKeyDecrypts reports whether box can decrypt the active key. It is
+// true when no key exists yet.
+func ActiveKeyDecrypts(app core.App, box *cryptobox.Box) (bool, error) {
+	rec, err := app.FindFirstRecordByFilter(SigningKeysCollection, "state = 'active'")
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	_, err = decodeSigningKey(rec, box)
+	return err == nil, nil
 }
 
 // PublicJWKS lists the active key first, then keys retired within
