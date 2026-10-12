@@ -56,6 +56,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	}
 
 	h.bindAuthGate()
+	h.bindOIDCGrantRevocation()
 	h.bindOAuth2LoginOnly()
 	h.bindUserCreateAuthString()
 	h.bindOIDCSessionAuthTimes()

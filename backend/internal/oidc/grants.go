@@ -97,3 +97,19 @@ func revokeFamily(app core.App, family string, now time.Time) error {
 	).Execute()
 	return err
 }
+
+// Reasons stored in oidc_grants.revoke_reason.
+const (
+	RevokeReasonUserDisabled   = "user_disabled"
+	RevokeReasonUserUnverified = "user_unverified"
+)
+
+// RevokeUserGrants ends every remembered consent of a User. Their tokens
+// stop working because every lookup checks the grant.
+func RevokeUserGrants(app core.App, userID, reason string, now time.Time) error {
+	_, err := app.NonconcurrentDB().Update(GrantsCollection,
+		dbx.Params{"revoked_at": dbTime(now), "revoke_reason": reason},
+		dbx.NewExp("[[user]] = {:user} AND [[revoked_at]] = ''", dbx.Params{"user": userID}),
+	).Execute()
+	return err
+}
