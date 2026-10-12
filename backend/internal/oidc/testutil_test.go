@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -72,4 +73,33 @@ func countRecords(t *testing.T, app core.App, collection string) int {
 		t.Fatalf("list %s: %v", collection, err)
 	}
 	return len(recs)
+}
+
+const (
+	testIssuer      = "https://api.example.com/api/oidc"
+	testRedirectURI = "https://app.example.com/callback"
+)
+
+// newTestClient saves an enabled Connected App and returns it with its
+// plaintext secret. fields override the defaults.
+func newTestClient(t *testing.T, app core.App, fields map[string]any) (*core.Record, string) {
+	t.Helper()
+	clientID, err := NewClientID()
+	if err != nil {
+		t.Fatalf("client id: %v", err)
+	}
+	secret, secretHash, err := NewClientSecret()
+	if err != nil {
+		t.Fatalf("client secret: %v", err)
+	}
+	values := map[string]any{
+		"client_id":      clientID,
+		"name":           "Test app",
+		"secret_hash":    secretHash,
+		"redirect_uris":  []string{testRedirectURI},
+		"allowed_scopes": []string{ScopeOpenID, ScopeEmail},
+		"enabled":        true,
+	}
+	maps.Copy(values, fields)
+	return saveTestRecord(t, app, ClientsCollection, values), secret
 }

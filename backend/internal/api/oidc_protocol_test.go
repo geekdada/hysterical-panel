@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -131,5 +132,22 @@ func TestOIDCOutOfBandEnablePinsIssuerAndCreatesKey(t *testing.T) {
 	}
 	if pinned := env.h.loadSettings().OIDCIssuer; pinned != oidcTestIssuer {
 		t.Fatalf("pinned issuer = %q", pinned)
+	}
+}
+
+func TestRateLimiterBlockedPeeksWithoutCounting(t *testing.T) {
+	limiter := newPasskeyRateLimiter(2, time.Minute)
+	now := time.Now()
+	for hits := 0; hits < 2; hits++ {
+		if limiter.blocked("192.0.2.1", now) {
+			t.Fatalf("blocked after %d hits", hits)
+		}
+		limiter.allow("192.0.2.1", now)
+	}
+	if !limiter.blocked("192.0.2.1", now) {
+		t.Fatal("not blocked at the limit")
+	}
+	if limiter.blocked("192.0.2.1", now.Add(2*time.Minute)) {
+		t.Fatal("still blocked after the window")
 	}
 }
