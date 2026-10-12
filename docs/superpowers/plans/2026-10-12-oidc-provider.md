@@ -8515,3 +8515,1557 @@ Dispatch a `review:code-reviewer` agent on `git diff oidc/2-connected-apps...oid
 
 Record the layer 3 commits, test counts and review outcome in `.superpowers/sdd/2026-10-12-oidc-provider/progress.md`. Stop for the user's review before starting layer 4.
 
+
+---
+
+## Layer 4: `oidc/4-consent-ui`
+
+Branch `oidc/4-consent-ui` from `oidc/3-protocol` (including the review fixes `398b94b`, `23f04c3` and `d7c781a`).
+
+### Decisions for this layer
+
+- **`prompt=none` hint.** The consent page cannot read a request before the visitor signs in, but a `prompt=none` request must end with `login_required` at once instead of showing the sign-in form. `/api/oidc/authorize` therefore appends `&prompt=none` to the consent page URL for those requests. The hint only chooses between the abort call and the sign-in form. The abort endpoint decides the error from the stored request, so a forged hint cannot change what the app receives.
+- **Authorized apps API.** `GET /api/panel/users/{id}/oidc-grants` lists a User's unrevoked grants, and `DELETE /api/panel/users/{id}/oidc-grants/{grantId}` revokes one with reason `user_revoked`. Both use `requireActiveAdminOrSelf`, like oauth-links, and stay ungated by the provider switch, so a User can still revoke after an admin turns the provider off. Revoking ends every token under the grant, because each token lookup checks the grant.
+- **Authorized apps section.** The settings page shows it only when the User has at least one grant. Users who never authorized an app see nothing new. The admin user detail page does not get this section in this layer.
+- **`/login` parameters.** `redirect` accepts only a same-origin path, checked in `validateSearch` by `safeRedirectPath`. `reauth=true` shows the form to a signed-in User. Password, passkey and OAuth2 sign-in all return to `redirect`. OAuth2 carries it through the existing sessionStorage entry as `returnTo` and checks it again in the callback.
+- **Switch account** clears the panel cookie in the browser and opens `/login?redirect=<consent page>`. The panel has no server-side sign-out.
+- **Frame and referrer headers.** The consent route sets `Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer` through TanStack Start's route `headers` option. They apply to the server-rendered document. A relying party always sends the browser there with a full page load.
+- **Exit check RP.** The plan table names a next-auth dev app. The exit check uses a 100-line `openid-client` v6 script instead. next-auth 4 runs on `openid-client` v5, so the protocol checks are the same library family, and no Next.js app has to be scaffolded. `openid-client` validates the ID token signature, `iss`, `aud`, `nonce`, `at_hash` and the `iss` authorization response parameter.
+- **Not in this layer:** a cancel link on the sign-in page (the abort endpoint supports it, but closing the tab is enough), and Management API lookup by `id` (layer 5).
+
+### File structure
+
+| File | Responsibility |
+|---|---|
+| `backend/internal/oidc/grants.go` | adds `ActiveGrant`, `ListActiveGrants`, `RevokeGrant`, `ErrGrantNotFound`, `RevokeReasonUserRevoked` |
+| `backend/internal/api/oidc_grants.go` | list and revoke handlers, `publicOIDCGrant` |
+| `backend/internal/api/oidc_protocol.go` | `prompt=none` hint on the consent page URL |
+| `backend/internal/api/dto.go`, `openapi.go`, `api.go` | `OIDCGrant` DTO, two paths, two routes |
+| `frontend/src/api/queries.ts` | consent and grant fetchers, query options and keys |
+| `frontend/src/lib/api-error.ts` | localized consent and grant errors |
+| `frontend/src/lib/safe-redirect.ts` | `safeRedirectPath` |
+| `frontend/src/lib/oidc-scopes.ts` | `scopeLabel`, `formatScopes` |
+| `frontend/src/api/auth.ts`, `routes/login.tsx`, `routes/oauth-callback.tsx` | `redirect` and `reauth` |
+| `frontend/src/routes/oidc/error.tsx` | error page for untrusted requests |
+| `frontend/src/routes/oidc/authorize.tsx` | consent page |
+| `frontend/src/components/authorized-apps.tsx`, `routes/settings/index.tsx` | authorized apps section |
+| `frontend/messages/en.json`, `zh-cn.json` | all layer 4 copy |
+
+### Review Focus
+
+- A `redirect` value that leaves the panel must land on `/`: `//evil.example`, `/\evil.example`, `https://evil.example`, `/%09/evil.example`, `javascript:alert(1)`. Covered in Task 24 Step 2.
+- A `prompt=none` request from a browser without a panel session must go back to the app with `login_required` and never show the sign-in form. Covered in Task 22 (`TestOIDCAuthorizeTellsTheConsentPageAboutPromptNone`) and exit check step 4.
+- Opening the consent page again after deciding, with the back button or a reload, must show the expired message and not loop or approve twice. Covered in exit check step 4.
+- Re-authentication must come back to the consent page whichever sign-in method the User picks. Password and passkey use `redirect` directly. OAuth2 goes through `returnTo` in Task 24, and the exit check covers the password path.
+- Revoking an app must stop its existing access token and refresh token at once, and another User must not be able to list or revoke it. Covered in Task 21 (`TestOIDCGrantsListAndRevokeThroughThePanel`, `TestOIDCGrantsAreOwnerOrAdminOnly`).
+
+### Task 21: Authorized apps endpoints
+
+**Files:**
+- Modify: `backend/internal/oidc/grants.go`
+- Create: `backend/internal/api/oidc_grants.go`
+- Modify: `backend/internal/api/dto.go`, `backend/internal/api/openapi.go`, `backend/internal/api/api.go`
+- Test: `backend/internal/oidc/grants_test.go`, `backend/internal/api/oidc_grants_test.go`, `backend/internal/api/openapi_oidc_test.go`
+
+**Interfaces:**
+- Consumes: `upsertGrant`, `grantScopes`, `dbTime`, `GrantsCollection`, `ClientsCollection`, `ScopeOpenID`, `ScopeEmail` (package `oidc`); test helpers `newTestApp`, `newTestClient`, `newTestUser`, `testNow` (package `oidc`), `newOIDCTestEnv`, `env.tokens`, `env.panelGet`, `env.panelRequest`, `env.userInfo`, `env.approveCode`, `newUsersTestRecord`, `issueSessionToken`, `decodeBody` (package `api`).
+- Produces: `oidc.ActiveGrant{ID, ClientName string; Scopes []string; Created, LastUsedAt time.Time}`, `oidc.ListActiveGrants(app core.App, userID string) ([]ActiveGrant, error)`, `oidc.RevokeGrant(app core.App, userID, grantID string, now time.Time) error`, `oidc.ErrGrantNotFound`, `oidc.RevokeReasonUserRevoked`. DTO `OIDCGrant{id, client_name, scopes, created, last_used_at?}`. Routes `GET /api/panel/users/{id}/oidc-grants` (`listOIDCGrants`) and `DELETE /api/panel/users/{id}/oidc-grants/{grantId}` (`revokeOIDCGrant`).
+
+- [ ] **Step 1: Write the failing package test**
+
+Append to `backend/internal/oidc/grants_test.go` (add `"errors"` and `"slices"` to its imports if missing):
+
+```go
+func TestListAndRevokeActiveGrants(t *testing.T) {
+	app := newTestApp(t)
+	client, _ := newTestClient(t, app, nil)
+	user := newTestUser(t, app, "grants@example.com")
+	other := newTestUser(t, app, "other-grants@example.com")
+	grant, err := upsertGrant(app, user.Id, client.Id, []string{ScopeOpenID, ScopeEmail})
+	if err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+	otherGrant, err := upsertGrant(app, other.Id, client.Id, []string{ScopeOpenID})
+	if err != nil {
+		t.Fatalf("other grant: %v", err)
+	}
+
+	listed, err := ListActiveGrants(app, user.Id)
+	if err != nil || len(listed) != 1 || listed[0].ID != grant.Id || listed[0].ClientName != client.GetString("name") ||
+		!slices.Equal(listed[0].Scopes, []string{ScopeOpenID, ScopeEmail}) || listed[0].Created.IsZero() || !listed[0].LastUsedAt.IsZero() {
+		t.Fatalf("listed = %+v, %v", listed, err)
+	}
+	if err := RevokeGrant(app, user.Id, otherGrant.Id, testNow); !errors.Is(err, ErrGrantNotFound) {
+		t.Fatalf("revoking another user's grant: %v", err)
+	}
+	if err := RevokeGrant(app, user.Id, grant.Id, testNow); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	if err := RevokeGrant(app, user.Id, grant.Id, testNow); !errors.Is(err, ErrGrantNotFound) {
+		t.Fatalf("second revoke: %v", err)
+	}
+	stored, err := app.FindRecordById(GrantsCollection, grant.Id)
+	if err != nil || stored.GetString("revoke_reason") != RevokeReasonUserRevoked || stored.GetDateTime("revoked_at").IsZero() {
+		t.Fatalf("stored grant = %v, %v", stored, err)
+	}
+	if listed, err := ListActiveGrants(app, user.Id); err != nil || len(listed) != 0 {
+		t.Fatalf("after revoke = %+v, %v", listed, err)
+	}
+	if listed, err := ListActiveGrants(app, other.Id); err != nil || len(listed) != 1 {
+		t.Fatalf("other user's grants = %+v, %v", listed, err)
+	}
+}
+```
+
+- [ ] **Step 2: Run it to make sure it fails**
+
+Run: `cd backend && go test ./internal/oidc -run TestListAndRevokeActiveGrants`
+Expected: FAIL to compile with `undefined: ListActiveGrants`.
+
+- [ ] **Step 3: Implement listing and revocation**
+
+In `backend/internal/oidc/grants.go`, add `RevokeReasonUserRevoked` to the existing reason constants:
+
+```go
+// Reasons stored in oidc_grants.revoke_reason.
+const (
+	RevokeReasonUserDisabled   = "user_disabled"
+	RevokeReasonUserUnverified = "user_unverified"
+	RevokeReasonUserRevoked    = "user_revoked"
+)
+```
+
+Append to the same file:
+
+```go
+// ErrGrantNotFound reports a grant that does not exist, is already revoked
+// or belongs to another User.
+var ErrGrantNotFound = errors.New("connected app grant not found")
+
+// ActiveGrant is a remembered consent as the panel lists it. LastUsedAt is
+// zero until the app first receives tokens.
+type ActiveGrant struct {
+	ID         string
+	ClientName string
+	Scopes     []string
+	Created    time.Time
+	LastUsedAt time.Time
+}
+
+// ListActiveGrants returns a User's unrevoked grants, newest first.
+func ListActiveGrants(app core.App, userID string) ([]ActiveGrant, error) {
+	grants, err := app.FindRecordsByFilter(GrantsCollection, "user = {:user} && revoked_at = ''", "-created", 0, 0,
+		dbx.Params{"user": userID})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ActiveGrant, 0, len(grants))
+	for _, grant := range grants {
+		client, err := app.FindRecordById(ClientsCollection, grant.GetString("client"))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ActiveGrant{
+			ID:         grant.Id,
+			ClientName: client.GetString("name"),
+			Scopes:     grantScopes(grant),
+			Created:    grant.GetDateTime("created").Time(),
+			LastUsedAt: grant.GetDateTime("last_used_at").Time(),
+		})
+	}
+	return out, nil
+}
+
+// RevokeGrant ends one of a User's grants. Every token issued under it stops
+// working at once, because each token lookup checks the grant.
+func RevokeGrant(app core.App, userID, grantID string, now time.Time) error {
+	result, err := app.NonconcurrentDB().Update(GrantsCollection,
+		dbx.Params{"revoked_at": dbTime(now), "revoke_reason": RevokeReasonUserRevoked},
+		dbx.NewExp("[[id]] = {:id} AND [[user]] = {:user} AND [[revoked_at]] = ''",
+			dbx.Params{"id": grantID, "user": userID}),
+	).Execute()
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrGrantNotFound
+	}
+	return nil
+}
+```
+
+- [ ] **Step 4: Run it to make sure it passes**
+
+Run: `cd backend && go test ./internal/oidc -run TestListAndRevokeActiveGrants`
+Expected: PASS.
+
+- [ ] **Step 5: Write the failing route tests**
+
+Create `backend/internal/api/oidc_grants_test.go`:
+
+```go
+package api
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"testing"
+)
+
+func TestOIDCGrantsListAndRevokeThroughThePanel(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	tokens := env.tokens(nil)
+	path := "/api/panel/users/" + env.user.Id + "/oidc-grants"
+
+	res := env.panelGet(path)
+	grants := decodeBody[[]OIDCGrant](t, res)
+	if res.Code != http.StatusOK || len(grants) != 1 || grants[0].ClientName != "Help center" ||
+		!slices.Equal(grants[0].Scopes, []string{"openid", "email"}) || grants[0].Created == "" || grants[0].LastUsedAt == nil {
+		t.Fatalf("list = %d %s", res.Code, res.Body.String())
+	}
+
+	if res := env.panelRequest(http.MethodDelete, path+"/"+grants[0].ID); res.Code != http.StatusOK {
+		t.Fatalf("revoke = %d %s", res.Code, res.Body.String())
+	}
+	if res := env.userInfo("Bearer " + tokens.AccessToken); res.Code != http.StatusUnauthorized {
+		t.Fatalf("userinfo after revoke = %d", res.Code)
+	}
+	if res := env.panelRequest(http.MethodDelete, path+"/"+grants[0].ID); res.Code != http.StatusNotFound {
+		t.Fatalf("second revoke = %d %s", res.Code, res.Body.String())
+	}
+	if res := env.panelGet(path); len(decodeBody[[]OIDCGrant](t, res)) != 0 {
+		t.Fatalf("list after revoke = %s", res.Body.String())
+	}
+}
+
+func TestOIDCGrantsAreOwnerOrAdminOnly(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	env.approveCode(nil)
+	other := newUsersTestRecord(t, env.app, "other-oidc@example.com", "OtherOIDCSecret123")
+	session, err := issueSessionToken(env.app, other)
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	grants := decodeBody[[]OIDCGrant](t, env.panelGet("/api/panel/users/"+env.user.Id+"/oidc-grants"))
+	if len(grants) != 1 {
+		t.Fatalf("grants = %+v", grants)
+	}
+	for _, req := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/api/panel/users/"+env.user.Id+"/oidc-grants", nil),
+		httptest.NewRequest(http.MethodDelete, "/api/panel/users/"+env.user.Id+"/oidc-grants/"+grants[0].ID, nil),
+		// The other User's own path must not reach a grant that is not theirs.
+		httptest.NewRequest(http.MethodDelete, "/api/panel/users/"+other.Id+"/oidc-grants/"+grants[0].ID, nil),
+	} {
+		req.Header.Set("Authorization", session)
+		if res := env.do(req); res.Code != http.StatusForbidden && res.Code != http.StatusNotFound {
+			t.Fatalf("%s %s = %d", req.Method, req.URL.Path, res.Code)
+		}
+	}
+	if grants := decodeBody[[]OIDCGrant](t, env.panelGet("/api/panel/users/"+env.user.Id+"/oidc-grants")); len(grants) != 1 {
+		t.Fatalf("grant was revoked by another user: %+v", grants)
+	}
+}
+```
+
+Add the two paths to the map in `TestOpenAPIDescribesConnectedApps` in `backend/internal/api/openapi_oidc_test.go`:
+
+```go
+		"/api/panel/users/{id}/oidc-grants":           {"GET"},
+		"/api/panel/users/{id}/oidc-grants/{grantId}": {"DELETE"},
+```
+
+- [ ] **Step 6: Run them to make sure they fail**
+
+Run: `cd backend && go test ./internal/api -run 'TestOIDCGrants|TestOpenAPIDescribesConnectedApps'`
+Expected: FAIL to compile with `undefined: OIDCGrant`.
+
+- [ ] **Step 7: Add the DTO, handlers, routes and OpenAPI paths**
+
+In `backend/internal/api/dto.go`, after `OIDCAuthorizationDecision`:
+
+```go
+// OIDCGrant is a Connected App a User has authorized. last_used_at is absent
+// until the app first receives tokens.
+type OIDCGrant struct {
+	ID         string   `json:"id"`
+	ClientName string   `json:"client_name"`
+	Scopes     []string `json:"scopes"`
+	Created    string   `json:"created"`
+	LastUsedAt *string  `json:"last_used_at,omitempty"`
+}
+```
+
+Create `backend/internal/api/oidc_grants.go`:
+
+```go
+package api
+
+import (
+	"errors"
+	"time"
+
+	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
+
+	"hysterical-panel/internal/oidc"
+)
+
+// listOIDCGrants returns the Connected Apps a User has authorized.
+func (h *Handlers) listOIDCGrants(e *core.RequestEvent) error {
+	userID := e.Request.PathValue("id")
+	if _, err := h.app.FindRecordById("users", userID); err != nil {
+		return apis.NewNotFoundError("user not found", err)
+	}
+	grants, err := oidc.ListActiveGrants(h.app, userID)
+	if err != nil {
+		return apis.NewInternalServerError("failed to list connected app grants", err)
+	}
+	out := make([]OIDCGrant, 0, len(grants))
+	for _, grant := range grants {
+		out = append(out, publicOIDCGrant(grant))
+	}
+	return ok(e, out)
+}
+
+func (h *Handlers) revokeOIDCGrant(e *core.RequestEvent) error {
+	err := oidc.RevokeGrant(h.app, e.Request.PathValue("id"), e.Request.PathValue("grantId"), time.Now())
+	if errors.Is(err, oidc.ErrGrantNotFound) {
+		return apis.NewNotFoundError("connected app grant not found", nil)
+	}
+	if err != nil {
+		return apis.NewInternalServerError("failed to revoke connected app grant", err)
+	}
+	return ok(e, map[string]any{"deleted": true})
+}
+
+func publicOIDCGrant(grant oidc.ActiveGrant) OIDCGrant {
+	out := OIDCGrant{
+		ID:         grant.ID,
+		ClientName: grant.ClientName,
+		Scopes:     grant.Scopes,
+		Created:    grant.Created.UTC().Format(time.RFC3339),
+	}
+	if !grant.LastUsedAt.IsZero() {
+		lastUsed := grant.LastUsedAt.UTC().Format(time.RFC3339)
+		out.LastUsedAt = &lastUsed
+	}
+	return out
+}
+```
+
+In `backend/internal/api/api.go`, after the two `/users/{id}/oauth-links` routes:
+
+```go
+	g.GET("/users/{id}/oidc-grants", h.listOIDCGrants).Bind(activeAdminOrSelf)
+	g.DELETE("/users/{id}/oidc-grants/{grantId}", h.revokeOIDCGrant).Bind(activeAdminOrSelf)
+```
+
+In `backend/internal/api/openapi.go`, register the schema next to `"OIDCAuthorizationRequest": OIDCAuthorizationRequest{},`:
+
+```go
+		"OIDCGrant":                         OIDCGrant{},
+```
+
+and its required fields next to the `"OIDCAuthorizationRequest"` entry of the required-fields map:
+
+```go
+		"OIDCGrant":                      {"id", "client_name", "scopes", "created"},
+```
+
+Then add the two paths right after the `/api/panel/oidc/requests/{handle}/abort` path, in the same function:
+
+```go
+	grantIDParam := &openapi3.ParameterRef{
+		Value: &openapi3.Parameter{
+			Name:     "grantId",
+			In:       "path",
+			Required: true,
+			Schema:   &openapi3.SchemaRef{Value: openapi3.NewStringSchema()},
+		},
+	}
+	t.Paths.Set("/api/panel/users/{id}/oidc-grants", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listOIDCGrants",
+				Summary:     "List the Connected Apps a user has authorized (admin or self)",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Authorized apps, newest first"),
+						Content:     content(arrayRef("OIDCGrant")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+	t.Paths.Set("/api/panel/users/{id}/oidc-grants/{grantId}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID"), grantIDParam},
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "revokeOIDCGrant",
+				Summary:     "Revoke a Connected App's access to a user (admin or self)",
+				Tags:        []string{"connected apps"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Revocation confirmed"),
+						Content:     content(ref("DeleteResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+```
+
+- [ ] **Step 8: Run the tests and the gates**
+
+Run: `cd backend && gofmt -l . ; go build ./... && go vet ./... && go test ./internal/oidc ./internal/api`
+Expected: no gofmt output, PASS.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add backend/internal/oidc/grants.go backend/internal/oidc/grants_test.go backend/internal/api/oidc_grants.go backend/internal/api/oidc_grants_test.go backend/internal/api/dto.go backend/internal/api/openapi.go backend/internal/api/openapi_oidc_test.go backend/internal/api/api.go
+git commit -m "feat(backend): list and revoke authorized apps" -m "A User, or an admin for them, can list the Connected Apps the User has authorized and revoke one. Revoking marks the grant user_revoked, which ends every token issued under it, because each token lookup checks the grant. Another User gets 403 or 404 and the grant stays."
+```
+
+### Task 22: Tell the consent page about `prompt=none`
+
+**Files:**
+- Modify: `backend/internal/api/oidc_protocol.go` (`oidcAuthorize`)
+- Test: `backend/internal/api/oidc_protocol_test.go`
+
+**Interfaces:**
+- Consumes: `oidc.AuthorizeRequest.Prompt []string`, `oidc.PromptNone`, test helpers `newOIDCTestEnv`, `env.get`, `env.authorizeQuery`.
+- Produces: the consent page URL `/oidc/authorize?request=<handle>&prompt=none` for `prompt=none` requests, read by Task 26.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `backend/internal/api/oidc_protocol_test.go`:
+
+```go
+func TestOIDCAuthorizeTellsTheConsentPageAboutPromptNone(t *testing.T) {
+	env := newOIDCTestEnv(t, nil)
+	for prompt, want := range map[string]string{"none": "none", "": "", "consent": "", "login": ""} {
+		res := env.get("/api/oidc/authorize?" + env.authorizeQuery(map[string]string{"prompt": prompt}).Encode())
+		location, err := url.Parse(res.Header().Get("Location"))
+		if res.Code != http.StatusSeeOther || err != nil || location.Path != "/oidc/authorize" ||
+			location.Query().Get("request") == "" || location.Query().Get("prompt") != want {
+			t.Errorf("prompt=%q: %d %q", prompt, res.Code, res.Header().Get("Location"))
+		}
+	}
+}
+```
+
+- [ ] **Step 2: Run it to make sure it fails**
+
+Run: `cd backend && go test ./internal/api -run TestOIDCAuthorizeTellsTheConsentPageAboutPromptNone`
+Expected: FAIL with `prompt="none": 303 ".../oidc/authorize?request=..."`.
+
+- [ ] **Step 3: Append the hint**
+
+In `oidcAuthorize`, replace the final `return e.Redirect(...)` with:
+
+```go
+	consentPage := h.publicConfig.FrontendURL + "/oidc/authorize?request=" + url.QueryEscape(handle)
+	if slices.Contains(req.Prompt, oidc.PromptNone) {
+		// The page cannot read the request before the visitor signs in, and a
+		// prompt=none request must end at once instead of showing the sign-in
+		// form. The abort endpoint still decides the error from the stored
+		// request, so a forged hint changes nothing the app receives.
+		consentPage += "&prompt=none"
+	}
+	return e.Redirect(http.StatusSeeOther, consentPage)
+```
+
+Add `"slices"` to the standard library imports of `oidc_protocol.go`.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `cd backend && gofmt -l . ; go vet ./... && go test ./internal/api -run 'OIDC'`
+Expected: no gofmt output, PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add backend/internal/api/oidc_protocol.go backend/internal/api/oidc_protocol_test.go
+git commit -m "feat(backend): mark prompt=none on the consent url" -m "The consent page cannot read a request before the visitor signs in. A prompt=none request from a browser without a panel session must go back to the app with login_required at once, so /authorize now adds prompt=none to the consent page URL. The abort endpoint still picks the error from the stored request."
+```
+
+### Task 23: Frontend API layer and copy
+
+**Files:**
+- Modify: `frontend/src/api/queries.ts`, `frontend/src/lib/api-error.ts`
+- Create: `frontend/src/lib/oidc-scopes.ts`
+- Modify: `frontend/messages/en.json`, `frontend/messages/zh-cn.json`
+- Generated: `frontend/src/api/schema.d.ts` (gitignored)
+
+**Interfaces:**
+- Consumes: OpenAPI schemas `OIDCAuthorizationRequest`, `OIDCAuthorizationDecision`, `OIDCGrant` and the paths from Task 21 and layer 3.
+- Produces (all exported from `~/api/queries`): types `OIDCAuthorizationRequest`, `OIDCAuthorizationDecision`, `OIDCGrant`; `queryKeys.oidcRequest(handle)`, `queryKeys.userOIDCGrants(userId)`; `oidcAuthorizationRequestQueryOptions(handle)`, `approveOIDCAuthorizationRequest(handle)`, `denyOIDCAuthorizationRequest(handle)`, `abortOIDCAuthorizationRequest(handle)` (all resolve to `OIDCAuthorizationDecision`), `userOIDCGrantsQueryOptions(userId)`, `revokeUserOIDCGrant(userId, grantId)`. From `~/lib/oidc-scopes`: `scopeLabel(scope: string): string`, `formatScopes(scopes: string[]): string`. Every message key listed in Step 4.
+
+- [ ] **Step 1: Regenerate the API types**
+
+Run: `cd frontend && pnpm api:sync`
+Expected: `src/api/schema.d.ts` contains `OIDCGrant` and `/api/panel/users/{id}/oidc-grants`.
+
+- [ ] **Step 2: Add the fetchers**
+
+In `frontend/src/api/queries.ts`, next to the other `OIDCClient*` aliases:
+
+```ts
+type OIDCAuthorizationRequest = components["schemas"]["OIDCAuthorizationRequest"];
+type OIDCAuthorizationDecision = components["schemas"]["OIDCAuthorizationDecision"];
+type OIDCGrant = components["schemas"]["OIDCGrant"];
+```
+
+Add `OIDCAuthorizationRequest`, `OIDCAuthorizationDecision` and `OIDCGrant` to the `export type { ... }` list that already exports `OIDCClient`.
+
+In `queryKeys`, after `oidcClients`:
+
+```ts
+  oidcRequest: (handle: string) => [...queryKeys.all, "oidc-requests", handle] as const,
+  userOIDCGrants: (userId: string) => [...queryKeys.all, "users", userId, "oidc-grants"] as const,
+```
+
+After `rotateOIDCClientSecret`:
+
+```ts
+export function fetchOIDCAuthorizationRequest(handle: string): Promise<OIDCAuthorizationRequest> {
+  return apiRequest<OIDCAuthorizationRequest>(
+    apiClient.GET("/api/panel/oidc/requests/{handle}", { params: { path: { handle } } }),
+    m.error_oidc_request_load()
+  );
+}
+
+export function oidcAuthorizationRequestQueryOptions(handle: string) {
+  return queryOptions({
+    queryKey: queryKeys.oidcRequest(handle),
+    queryFn: () => fetchOIDCAuthorizationRequest(handle),
+    enabled: canQueryPanelApi() && handle !== "",
+    // A request is single-use. A cached view from an earlier visit could
+    // offer a decision the backend no longer accepts.
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+export function approveOIDCAuthorizationRequest(handle: string): Promise<OIDCAuthorizationDecision> {
+  return apiRequest<OIDCAuthorizationDecision>(
+    apiClient.POST("/api/panel/oidc/requests/{handle}/approve", { params: { path: { handle } } }),
+    m.error_oidc_request_decide()
+  );
+}
+
+export function denyOIDCAuthorizationRequest(handle: string): Promise<OIDCAuthorizationDecision> {
+  return apiRequest<OIDCAuthorizationDecision>(
+    apiClient.POST("/api/panel/oidc/requests/{handle}/deny", { params: { path: { handle } } }),
+    m.error_oidc_request_decide()
+  );
+}
+
+export function abortOIDCAuthorizationRequest(handle: string): Promise<OIDCAuthorizationDecision> {
+  return apiRequest<OIDCAuthorizationDecision>(
+    apiClient.POST("/api/panel/oidc/requests/{handle}/abort", { params: { path: { handle } } }),
+    m.error_oidc_request_decide()
+  );
+}
+
+export function fetchUserOIDCGrants(userId: string): Promise<OIDCGrant[]> {
+  return apiRequest<OIDCGrant[]>(
+    apiClient.GET("/api/panel/users/{id}/oidc-grants", { params: { path: { id: userId } } }),
+    m.error_oidc_grants_load()
+  );
+}
+
+export function userOIDCGrantsQueryOptions(userId: string) {
+  return queryOptions({
+    queryKey: queryKeys.userOIDCGrants(userId),
+    queryFn: () => fetchUserOIDCGrants(userId),
+    enabled: canQueryPanelApi(),
+  });
+}
+
+export function revokeUserOIDCGrant(userId: string, grantId: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/users/{id}/oidc-grants/{grantId}", {
+      params: { path: { id: userId, grantId } },
+    }),
+    m.error_oidc_grant_revoke()
+  );
+}
+```
+
+- [ ] **Step 3: Map the backend errors and add the scope helpers**
+
+In `frontend/src/lib/api-error.ts`, add to `API_ERROR_MAP` after the `oidc provider requires ...` entry:
+
+```ts
+  "authorization request not found or expired": () => m.error_oidc_request_expired(),
+  "reauthentication required": () => m.error_oidc_reauthentication_required(),
+  "account cannot sign in to connected apps": () => m.error_oidc_account_not_allowed(),
+  "connected app grant not found": () => m.error_oidc_grant_not_found(),
+```
+
+Create `frontend/src/lib/oidc-scopes.ts`:
+
+```ts
+import { getLocale } from "~/paraglide/runtime";
+import * as m from "~/paraglide/messages.js";
+
+const SCOPE_LABELS: Record<string, () => string> = {
+  openid: m.oidc_scope_openid,
+  email: m.oidc_scope_email,
+  offline_access: m.oidc_scope_offline_access,
+};
+
+/** Describes what a Connected App receives for a scope. */
+export function scopeLabel(scope: string): string {
+  return Object.hasOwn(SCOPE_LABELS, scope) ? SCOPE_LABELS[scope]() : scope;
+}
+
+/** Joins scope labels the way the current locale writes a list. */
+export function formatScopes(scopes: string[]): string {
+  return new Intl.ListFormat(getLocale(), { type: "conjunction" }).format(scopes.map(scopeLabel));
+}
+```
+
+- [ ] **Step 4: Add the copy**
+
+Add these keys to `frontend/messages/en.json`:
+
+```json
+  "auth_reauth_desc": "Sign in again to continue",
+  "oidc_error_title": "Can't continue to the app",
+  "oidc_error_invalid_request": "The app sent an incomplete sign-in request. Go back to the app and try again.",
+  "oidc_error_invalid_client": "This app is not registered with this panel, or an admin turned it off.",
+  "oidc_error_invalid_redirect_uri": "The app asked to return to an address it has not registered. Ask the app's owner to check its settings.",
+  "oidc_error_rate_limited": "Too many sign-in attempts. Wait a minute and try again.",
+  "oidc_error_unknown": "The sign-in request could not be completed. Go back to the app and try again.",
+  "oidc_error_home": "Go to the panel",
+  "oidc_consent_title": "{client} wants to use your account",
+  "oidc_consent_desc": "{client} will receive",
+  "oidc_consent_account": "Signed in as {email}",
+  "oidc_consent_switch_account": "Switch account",
+  "oidc_consent_redirect": "You will return to {origin}",
+  "oidc_consent_allow": "Allow",
+  "oidc_consent_deny": "Cancel",
+  "oidc_consent_loading": "Loading the sign-in request",
+  "oidc_consent_redirecting": "Returning to the app",
+  "oidc_consent_reauth_title": "Confirm it's you",
+  "oidc_consent_reauth_desc": "{client} asks you to sign in again before it continues.",
+  "oidc_consent_reauth_action": "Sign in again",
+  "oidc_consent_expired": "This sign-in request has expired or was already used. Go back to the app and start again.",
+  "oidc_consent_not_allowed": "Your account can't sign in to connected apps. It must be active and have a verified email.",
+  "oidc_consent_session_expired": "Your panel session has ended. Sign in again to continue.",
+  "oidc_consent_failed": "Something went wrong. Go back to the app and try again.",
+  "oidc_scope_openid": "Your account ID",
+  "oidc_scope_email": "Your email address",
+  "oidc_scope_offline_access": "Access while you are away from the app",
+  "settings_authorized_apps_title": "Authorized apps",
+  "settings_authorized_apps_desc": "Apps you allowed to sign you in with this account",
+  "settings_authorized_apps_authorized_at": "Authorized {time}",
+  "settings_authorized_apps_last_used": "Last used {time}",
+  "settings_authorized_apps_revoke": "Revoke",
+  "settings_authorized_apps_revoking": "Revoking",
+  "settings_authorized_apps_revoke_title": "Revoke {app}",
+  "settings_authorized_apps_revoke_confirm": "{app} loses access to your account and you are signed out of it. Next time you use it, it asks for your approval again.",
+  "error_oidc_request_load": "Failed to load the sign-in request",
+  "error_oidc_request_decide": "Failed to finish the sign-in request",
+  "error_oidc_request_expired": "This sign-in request has expired",
+  "error_oidc_reauthentication_required": "Sign in again to continue",
+  "error_oidc_account_not_allowed": "This account can't sign in to connected apps",
+  "error_oidc_grant_not_found": "This app is no longer authorized",
+  "error_oidc_grants_load": "Failed to load authorized apps",
+  "error_oidc_grant_revoke": "Failed to revoke access"
+```
+
+Add the same keys to `frontend/messages/zh-cn.json`:
+
+```json
+  "auth_reauth_desc": "请重新登录以继续",
+  "oidc_error_title": "无法继续前往应用",
+  "oidc_error_invalid_request": "应用发来的登录请求不完整。请返回应用重试。",
+  "oidc_error_invalid_client": "这个应用没有在本面板登记，或已被管理员停用。",
+  "oidc_error_invalid_redirect_uri": "应用要求跳回一个未登记的地址。请联系应用的维护者检查配置。",
+  "oidc_error_rate_limited": "登录尝试过多。请等一分钟再试。",
+  "oidc_error_unknown": "无法完成这次登录请求。请返回应用重试。",
+  "oidc_error_home": "前往面板",
+  "oidc_consent_title": "{client} 请求使用你的账号",
+  "oidc_consent_desc": "{client} 将获得",
+  "oidc_consent_account": "当前账号 {email}",
+  "oidc_consent_switch_account": "切换账号",
+  "oidc_consent_redirect": "随后返回 {origin}",
+  "oidc_consent_allow": "允许",
+  "oidc_consent_deny": "取消",
+  "oidc_consent_loading": "正在读取登录请求",
+  "oidc_consent_redirecting": "正在返回应用",
+  "oidc_consent_reauth_title": "确认是你本人",
+  "oidc_consent_reauth_desc": "{client} 要求你重新登录后再继续。",
+  "oidc_consent_reauth_action": "重新登录",
+  "oidc_consent_expired": "这个登录请求已过期或已使用。请返回应用重新开始。",
+  "oidc_consent_not_allowed": "你的账号无法登录接入应用，账号需已启用且邮箱已验证。",
+  "oidc_consent_session_expired": "面板登录已失效。请重新登录以继续。",
+  "oidc_consent_failed": "出现问题。请返回应用重试。",
+  "oidc_scope_openid": "你的账号 ID",
+  "oidc_scope_email": "你的邮箱地址",
+  "oidc_scope_offline_access": "你离开应用后仍可访问",
+  "settings_authorized_apps_title": "已授权的应用",
+  "settings_authorized_apps_desc": "你允许用此账号登录的应用。",
+  "settings_authorized_apps_authorized_at": "授权于 {time}",
+  "settings_authorized_apps_last_used": "最近使用 {time}",
+  "settings_authorized_apps_revoke": "撤销",
+  "settings_authorized_apps_revoking": "正在撤销",
+  "settings_authorized_apps_revoke_title": "撤销 {app}",
+  "settings_authorized_apps_revoke_confirm": "{app} 将无法再访问你的账号，你也会在该应用中退出登录。下次使用时它会重新请求你的同意。",
+  "error_oidc_request_load": "读取登录请求失败",
+  "error_oidc_request_decide": "完成登录请求失败",
+  "error_oidc_request_expired": "登录请求已过期",
+  "error_oidc_reauthentication_required": "请重新登录后继续",
+  "error_oidc_account_not_allowed": "此账号无法登录接入应用",
+  "error_oidc_grant_not_found": "该应用已不再被授权",
+  "error_oidc_grants_load": "读取已授权应用失败",
+  "error_oidc_grant_revoke": "撤销授权失败"
+```
+
+- [ ] **Step 5: Run the gates**
+
+Run: `cd frontend && pnpm build && pnpm typecheck && pnpm i18n:check`
+Expected: PASS. `pnpm build` runs first, because it compiles the new keys into `src/paraglide/`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add frontend/src/api/queries.ts frontend/src/lib/api-error.ts frontend/src/lib/oidc-scopes.ts frontend/messages/en.json frontend/messages/zh-cn.json
+git commit -m "feat(frontend): add consent and grant api layer" -m "Fetchers and query options for the consent endpoints and the authorized apps endpoints, localized backend errors, scope labels, and the copy for the layer 4 pages in en and zh-cn."
+```
+
+### Task 24: Return to the requesting page after sign-in
+
+**Files:**
+- Create: `frontend/src/lib/safe-redirect.ts`
+- Modify: `frontend/src/routes/login.tsx`, `frontend/src/api/auth.ts`, `frontend/src/routes/oauth-callback.tsx`
+
+**Interfaces:**
+- Consumes: `m.auth_reauth_desc` (Task 23).
+- Produces: `safeRedirectPath(value: unknown): string | undefined`; `/login` search `{ redirect?: string; reauth?: true }`; `startOAuthLogin(providerName: string, returnTo?: string)`; `PendingOAuth.returnTo?: string`.
+
+- [ ] **Step 1: Add the redirect check**
+
+Create `frontend/src/lib/safe-redirect.ts`:
+
+```ts
+const PANEL_ORIGIN = "http://panel.invalid";
+
+/**
+ * Returns value when it is a path on this panel, normalized, or undefined.
+ * A protocol-relative or absolute value would turn the sign-in page into an
+ * open redirect. Parsing against a fixed origin also catches the forms that
+ * browsers rewrite, such as backslashes and embedded tabs.
+ */
+export function safeRedirectPath(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+    return undefined;
+  }
+  let url: URL;
+  try {
+    url = new URL(value, PANEL_ORIGIN);
+  } catch {
+    return undefined;
+  }
+  if (url.origin !== PANEL_ORIGIN) return undefined;
+  return url.pathname + url.search + url.hash;
+}
+```
+
+- [ ] **Step 2: Check it against hostile values**
+
+Run from `frontend/`:
+
+```bash
+node --experimental-strip-types -e '
+import("./src/lib/safe-redirect.ts").then(({ safeRedirectPath }) => {
+  const cases = {
+    "/oidc/authorize?request=abc": "/oidc/authorize?request=abc",
+    "/settings#apps": "/settings#apps",
+    "//evil.example": undefined,
+    "/\\evil.example": undefined,
+    "/\t/evil.example": undefined,
+    "https://evil.example": undefined,
+    "javascript:alert(1)": undefined,
+    "": undefined,
+  };
+  let failed = 0;
+  for (const [input, want] of Object.entries(cases)) {
+    const got = safeRedirectPath(input);
+    if (got !== want) { failed++; console.error(JSON.stringify(input), "->", got, "want", want); }
+  }
+  console.log(failed ? "FAIL" : "PASS");
+  process.exit(failed ? 1 : 0);
+});'
+```
+
+Expected: `PASS`. This check is not committed, because the frontend has no test runner (AGENTS.md).
+
+- [ ] **Step 3: Accept `redirect` and `reauth` on `/login`**
+
+In `frontend/src/routes/login.tsx`, add the import:
+
+```ts
+import { safeRedirectPath } from "~/lib/safe-redirect";
+```
+
+Replace the route definition with:
+
+```tsx
+interface LoginSearch {
+  redirect?: string;
+  reauth?: true;
+}
+
+export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    redirect: safeRedirectPath(search.redirect),
+    reauth: search.reauth === true || search.reauth === "true" ? true : undefined,
+  }),
+  beforeLoad: ({ context, search }) => {
+    // A Connected App that asked for a fresh sign-in needs the form even
+    // when a panel session exists.
+    if (context.auth && !search.reauth) {
+      if (search.redirect) throw redirect({ href: search.redirect });
+      throw redirect({ to: "/", search: defaultDashboardSearch() });
+    }
+  },
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(panelConfigQueryOptions()).catch(() => undefined);
+  },
+  component: LoginPage,
+});
+```
+
+In `LoginPage`, read the search after `useAppName()`:
+
+```tsx
+  const search = Route.useSearch();
+  const destination = search.redirect ?? "/";
+```
+
+Change both `onSuccess` handlers of `loginMutation` and `passkeyMutation` from `window.location.href = "/";` to:
+
+```tsx
+      window.location.href = destination;
+```
+
+Change the OAuth mutation to carry the destination:
+
+```tsx
+  const oauthMutation = useMutation({
+    mutationFn: (providerName: string) => startOAuthLogin(providerName, search.redirect),
+  });
+```
+
+Change the card description to:
+
+```tsx
+        <Card.Description className="text-[13px] text-muted">
+          {search.reauth ? m.auth_reauth_desc() : m.auth_sign_in_continue()}
+        </Card.Description>
+```
+
+- [ ] **Step 4: Carry the destination through OAuth2**
+
+In `frontend/src/api/auth.ts`, add the field to `PendingOAuth` after `userId`:
+
+```ts
+  // Where a login returns afterwards. The callback checks it again.
+  returnTo?: string;
+```
+
+Replace `startOAuthLogin` and the `target` parameter type of `startOAuthFlow`:
+
+```ts
+export function startOAuthLogin(providerName: string, returnTo?: string): Promise<void> {
+  return startOAuthFlow(providerName, { intent: "login", returnTo });
+}
+```
+
+```ts
+async function startOAuthFlow(
+  providerName: string,
+  target: Pick<PendingOAuth, "intent" | "userId" | "returnTo">
+): Promise<void> {
+```
+
+In `frontend/src/routes/oauth-callback.tsx`, import the check:
+
+```ts
+import { safeRedirectPath } from "~/lib/safe-redirect";
+```
+
+and replace the `.then(...)` of `completeOAuth` with:
+
+```tsx
+      .then(() => {
+        const returnTo = pendingIntent === "login" ? safeRedirectPath(pending?.returnTo) : undefined;
+        window.location.replace(returnTo ?? DONE_PATH[pendingIntent]);
+      })
+```
+
+- [ ] **Step 5: Run the gates**
+
+Run: `cd frontend && pnpm typecheck && pnpm build`
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add frontend/src/lib/safe-redirect.ts frontend/src/routes/login.tsx frontend/src/api/auth.ts frontend/src/routes/oauth-callback.tsx
+git commit -m "feat(frontend): return to the requesting page after sign-in" -m "/login accepts redirect, limited to paths on this panel, and reauth=true, which shows the form to a signed-in User. Password, passkey and OAuth2 sign-in return to redirect. OAuth2 carries it in the pending sessionStorage entry and the callback checks it again. The consent page needs both for prompt=login and max_age."
+```
+
+### Task 25: OIDC error page
+
+**Files:**
+- Create: `frontend/src/routes/oidc/error.tsx`
+- Generated: `frontend/src/routeTree.gen.ts` (committed)
+
+**Interfaces:**
+- Consumes: reasons `invalid_request`, `invalid_client`, `invalid_redirect_uri`, `rate_limited` from `/api/oidc/authorize` (layer 3); `m.oidc_error_*` (Task 23).
+- Produces: route `/oidc/error?reason=`.
+
+- [ ] **Step 1: Create the page**
+
+```tsx
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { Card } from "@heroui/react";
+import { AuthBrandMark, AuthShell } from "~/components/ui";
+import { defaultDashboardSearch } from "~/lib/dashboard-search";
+import * as m from "~/paraglide/messages.js";
+
+// The backend sends the browser here when it cannot trust the app or its
+// redirect_uri, so the error must not go back to the app (RFC 6749 4.1.2.1).
+const REASONS: Record<string, () => string> = {
+  invalid_request: m.oidc_error_invalid_request,
+  invalid_client: m.oidc_error_invalid_client,
+  invalid_redirect_uri: m.oidc_error_invalid_redirect_uri,
+  rate_limited: m.oidc_error_rate_limited,
+};
+
+export const Route = createFileRoute("/oidc/error")({
+  validateSearch: (search: Record<string, unknown>): { reason?: string } => ({
+    reason: typeof search.reason === "string" ? search.reason : undefined,
+  }),
+  component: OIDCErrorPage,
+});
+
+function OIDCErrorPage() {
+  const { reason } = Route.useSearch();
+  const message =
+    reason && Object.hasOwn(REASONS, reason) ? REASONS[reason]() : m.oidc_error_unknown();
+
+  return (
+    <AuthShell>
+      <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
+        <AuthBrandMark />
+        <Card.Title className="text-[15px] font-semibold tracking-tight text-foreground">
+          {m.oidc_error_title()}
+        </Card.Title>
+      </Card.Header>
+      <Card.Content className="flex flex-col gap-3 px-6 pt-4 pb-6">
+        <p className="text-[13px] text-muted" role="alert">
+          {message}
+        </p>
+        <Link
+          to="/"
+          search={defaultDashboardSearch()}
+          className="text-[13px] font-medium text-accent hover:opacity-80"
+        >
+          {m.oidc_error_home()}
+        </Link>
+      </Card.Content>
+    </AuthShell>
+  );
+}
+```
+
+- [ ] **Step 2: Run the gates**
+
+Run: `cd frontend && pnpm build && pnpm typecheck`
+Expected: PASS. `pnpm build` regenerates `src/routeTree.gen.ts` with `/oidc/error`.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add frontend/src/routes/oidc/error.tsx frontend/src/routeTree.gen.ts
+git commit -m "feat(frontend): add the oidc error page" -m "/api/oidc/authorize sends the browser here when the app or its redirect_uri cannot be trusted, so the error cannot go back to the app. Unknown reasons, including inherited object keys, get a generic message."
+```
+
+### Task 26: Consent page
+
+**Files:**
+- Create: `frontend/src/routes/oidc/authorize.tsx`
+- Generated: `frontend/src/routeTree.gen.ts` (committed)
+
+**Interfaces:**
+- Consumes: `oidcAuthorizationRequestQueryOptions`, `approveOIDCAuthorizationRequest`, `denyOIDCAuthorizationRequest`, `abortOIDCAuthorizationRequest`, `PanelApiError`, `type OIDCAuthorizationRequest` (`~/api/queries`); `clearAuth` (`~/api/auth`); `scopeLabel` (`~/lib/oidc-scopes`); `/login` search `{ redirect, reauth }` (Task 24); the `prompt=none` hint (Task 22); `m.oidc_consent_*`, `m.oidc_scope_*` (Task 23). The backend answers 404 for an unknown or used request, 403 for a User who may not sign in, and 400 when approve needs a fresh sign-in.
+- Produces: route `/oidc/authorize?request=<handle>[&prompt=none]`.
+
+- [ ] **Step 1: Create the page**
+
+```tsx
+import { useEffect, useRef } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { Button, Card } from "@heroui/react";
+import { clearAuth } from "~/api/auth";
+import {
+  PanelApiError,
+  abortOIDCAuthorizationRequest,
+  approveOIDCAuthorizationRequest,
+  denyOIDCAuthorizationRequest,
+  oidcAuthorizationRequestQueryOptions,
+  type OIDCAuthorizationRequest,
+} from "~/api/queries";
+import { AuthBrandMark, AuthShell } from "~/components/ui";
+import { scopeLabel } from "~/lib/oidc-scopes";
+import { useAppName } from "~/lib/use-app-name";
+import * as m from "~/paraglide/messages.js";
+
+interface ConsentSearch {
+  request: string;
+  // Set by /api/oidc/authorize for prompt=none. It only chooses between an
+  // immediate abort and the sign-in form. The backend picks the error.
+  prompt?: "none";
+}
+
+export const Route = createFileRoute("/oidc/authorize")({
+  validateSearch: (search: Record<string, unknown>): ConsentSearch => ({
+    request: typeof search.request === "string" ? search.request : "",
+    prompt: search.prompt === "none" ? "none" : undefined,
+  }),
+  // The page grants access to the account, so no other site may frame it,
+  // and the request handle in its URL stays out of Referer headers.
+  headers: () => ({
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+  }),
+  beforeLoad: ({ context, search, location }) => {
+    if (!context.auth && search.request && search.prompt !== "none") {
+      throw redirect({ to: "/login", search: { redirect: location.href } });
+    }
+  },
+  component: ConsentPage,
+});
+
+function ConsentPage() {
+  const { auth } = Route.useRouteContext();
+  const { request } = Route.useSearch();
+  if (!request) return <ConsentMessage message={m.oidc_consent_expired()} />;
+  if (!auth) return <SilentAbort handle={request} />;
+  return <SignedInConsent handle={request} email={auth.user.email} />;
+}
+
+function consentPath(handle: string): string {
+  return `/oidc/authorize?request=${encodeURIComponent(handle)}`;
+}
+
+function errorStatus(error: unknown): number | undefined {
+  return error instanceof PanelApiError ? error.status : undefined;
+}
+
+function decisionErrorMessage(error: unknown): string {
+  switch (errorStatus(error)) {
+    case 404:
+      return m.oidc_consent_expired();
+    case 403:
+      return m.oidc_consent_not_allowed();
+    case 401:
+      return m.oidc_consent_session_expired();
+  }
+  return m.oidc_consent_failed();
+}
+
+// A prompt=none request from a browser without a panel session goes back to
+// the app with login_required without showing anything.
+function SilentAbort({ handle }: { handle: string }) {
+  const abort = useMutation({
+    mutationFn: () => abortOIDCAuthorizationRequest(handle),
+    onSuccess: (decision) => window.location.replace(decision.redirect_to),
+  });
+  const { mutate } = abort;
+  const ran = useRef(false);
+
+  useEffect(() => {
+    // The request is single-use, so StrictMode's second run must not resend it.
+    if (ran.current) return;
+    ran.current = true;
+    mutate();
+  }, [mutate]);
+
+  return (
+    <ConsentMessage
+      message={abort.isError ? decisionErrorMessage(abort.error) : m.oidc_consent_redirecting()}
+    />
+  );
+}
+
+function SignedInConsent({ handle, email }: { handle: string; email: string }) {
+  const navigate = useNavigate();
+  const requestQuery = useQuery(oidcAuthorizationRequestQueryOptions(handle));
+  const decision = useMutation({
+    mutationFn: (allow: boolean) =>
+      allow ? approveOIDCAuthorizationRequest(handle) : denyOIDCAuthorizationRequest(handle),
+    onSuccess: (result) => window.location.assign(result.redirect_to),
+  });
+  const view = requestQuery.data;
+  // Remembered consent and prompt=none skip the page. The backend turns a
+  // prompt=none request it cannot answer into an error for the app.
+  const automatic =
+    view !== undefined &&
+    (view.prompt_none || (!view.consent_required && !view.reauthentication_required));
+  const { mutate } = decision;
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!automatic || started.current) return;
+    started.current = true;
+    mutate(true);
+  }, [automatic, mutate]);
+
+  function signInAgain() {
+    void navigate({ to: "/login", search: { reauth: true, redirect: consentPath(handle) } });
+  }
+
+  function switchAccount() {
+    clearAuth();
+    void navigate({ to: "/login", search: { redirect: consentPath(handle) } });
+  }
+
+  const failure = requestQuery.error ?? decision.error;
+  if (failure) {
+    if (errorStatus(failure) === 400 && view) {
+      return <ReauthCard clientName={view.client_name} onSignIn={signInAgain} />;
+    }
+    const signIn =
+      errorStatus(failure) === 401
+        ? { label: m.oidc_consent_reauth_action(), onPress: signInAgain }
+        : undefined;
+    return <ConsentMessage message={decisionErrorMessage(failure)} action={signIn} />;
+  }
+  if (!view) return <ConsentMessage message={m.oidc_consent_loading()} />;
+  if (automatic || decision.isSuccess) {
+    return <ConsentMessage message={m.oidc_consent_redirecting()} />;
+  }
+  if (view.reauthentication_required) {
+    return <ReauthCard clientName={view.client_name} onSignIn={signInAgain} />;
+  }
+  return (
+    <ConsentCard
+      view={view}
+      email={email}
+      pending={decision.isPending}
+      onDecide={(allow) => decision.mutate(allow)}
+      onSwitchAccount={switchAccount}
+    />
+  );
+}
+
+function ConsentCard({
+  view,
+  email,
+  pending,
+  onDecide,
+  onSwitchAccount,
+}: {
+  view: OIDCAuthorizationRequest;
+  email: string;
+  pending: boolean;
+  onDecide: (allow: boolean) => void;
+  onSwitchAccount: () => void;
+}) {
+  return (
+    <AuthShell>
+      <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
+        <AuthBrandMark />
+        <Card.Title className="text-[15px] font-semibold tracking-tight text-foreground">
+          {m.oidc_consent_title({ client: view.client_name })}
+        </Card.Title>
+        <Card.Description className="text-[13px] text-muted">
+          {m.oidc_consent_redirect({ origin: view.redirect_origin })}
+        </Card.Description>
+      </Card.Header>
+      <Card.Content className="flex flex-col gap-4 px-6 pt-4 pb-6">
+        <div>
+          <p className="text-[13px] font-medium text-foreground">
+            {m.oidc_consent_desc({ client: view.client_name })}
+          </p>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
+            {view.scopes.map((scope) => (
+              <li key={scope} className="text-[13px] text-muted">
+                {scopeLabel(scope)}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+          <span className="min-w-0 truncate text-[13px] text-muted">
+            {m.oidc_consent_account({ email })}
+          </span>
+          <Button size="sm" variant="ghost" isDisabled={pending} onPress={onSwitchAccount}>
+            {m.oidc_consent_switch_account()}
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" fullWidth isDisabled={pending} onPress={() => onDecide(false)}>
+            {m.oidc_consent_deny()}
+          </Button>
+          <Button variant="primary" fullWidth isDisabled={pending} onPress={() => onDecide(true)}>
+            {m.oidc_consent_allow()}
+          </Button>
+        </div>
+      </Card.Content>
+    </AuthShell>
+  );
+}
+
+function ReauthCard({ clientName, onSignIn }: { clientName: string; onSignIn: () => void }) {
+  return (
+    <AuthShell>
+      <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
+        <AuthBrandMark />
+        <Card.Title className="text-[15px] font-semibold tracking-tight text-foreground">
+          {m.oidc_consent_reauth_title()}
+        </Card.Title>
+        <Card.Description className="text-[13px] text-muted">
+          {m.oidc_consent_reauth_desc({ client: clientName })}
+        </Card.Description>
+      </Card.Header>
+      <Card.Content className="px-6 pt-4 pb-6">
+        <Button variant="primary" fullWidth onPress={onSignIn}>
+          {m.oidc_consent_reauth_action()}
+        </Button>
+      </Card.Content>
+    </AuthShell>
+  );
+}
+
+function ConsentMessage({
+  message,
+  action,
+}: {
+  message: string;
+  action?: { label: string; onPress: () => void };
+}) {
+  const appName = useAppName();
+  return (
+    <AuthShell>
+      <Card.Header className="flex-col items-start gap-1 px-6 pt-6 pb-0">
+        <AuthBrandMark />
+        <Card.Title className="text-[15px] font-semibold tracking-tight text-foreground">
+          {appName}
+        </Card.Title>
+      </Card.Header>
+      <Card.Content className="flex flex-col gap-3 px-6 pt-4 pb-6">
+        <p className="text-[13px] text-muted" role="status">
+          {message}
+        </p>
+        {action && (
+          <Button variant="secondary" fullWidth onPress={action.onPress}>
+            {action.label}
+          </Button>
+        )}
+      </Card.Content>
+    </AuthShell>
+  );
+}
+```
+
+- [ ] **Step 2: Run the gates**
+
+Run: `cd frontend && pnpm build && pnpm typecheck && pnpm i18n:check`
+Expected: PASS. `pnpm build` regenerates `src/routeTree.gen.ts` with `/oidc/authorize`.
+
+- [ ] **Step 3: Check the response headers**
+
+Start the dev server on a free port (`pnpm exec vite dev --host 127.0.0.1 --port 3001`) and run:
+
+```bash
+curl -s -o /dev/null -D - 'http://127.0.0.1:3001/oidc/authorize?request=x&prompt=none' | grep -i -E 'content-security-policy|x-frame-options|referrer-policy'
+```
+
+Expected: `content-security-policy: frame-ancestors 'none'`, `x-frame-options: DENY` and `referrer-policy: no-referrer`. Stop the server.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add frontend/src/routes/oidc/authorize.tsx frontend/src/routeTree.gen.ts
+git commit -m "feat(frontend): add the connected app consent page" -m "The page names the app, the claims it receives, the address it returns to and the signed-in account, with Allow, Cancel and Switch account. Remembered consent and prompt=none approve without showing the page. prompt=login and max_age send the User through /login?reauth=true. A visitor without a panel session signs in first, except for prompt=none, which aborts at once. The document forbids framing and sends no Referer."
+```
+
+### Task 27: Authorized apps in settings
+
+**Files:**
+- Create: `frontend/src/components/authorized-apps.tsx`
+- Modify: `frontend/src/routes/settings/index.tsx`
+
+**Interfaces:**
+- Consumes: `userOIDCGrantsQueryOptions`, `revokeUserOIDCGrant`, `queryKeys.userOIDCGrants`, `queryErrorMessage`, `type OIDCGrant` (`~/api/queries`); `formatScopes` (`~/lib/oidc-scopes`); `DestructiveConfirmModal`, `ErrorAlert` (`~/components/ui`); `relTimeFromISO`, `useHydratedNow`; `m.settings_authorized_apps_*`, `m.error_oidc_grant_revoke` (Task 23).
+- Produces: `AuthorizedAppsSection({ userId }: { userId: string })`.
+
+- [ ] **Step 1: Create the section**
+
+```tsx
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@heroui/react";
+import {
+  queryErrorMessage,
+  queryKeys,
+  revokeUserOIDCGrant,
+  userOIDCGrantsQueryOptions,
+  type OIDCGrant,
+} from "~/api/queries";
+import { DestructiveConfirmModal, ErrorAlert } from "~/components/ui";
+import { relTimeFromISO } from "~/lib/format";
+import { formatScopes } from "~/lib/oidc-scopes";
+import { useHydratedNow } from "~/lib/use-hydrated-now";
+import * as m from "~/paraglide/messages.js";
+
+/** Settings page section listing the Connected Apps the User has authorized. */
+export function AuthorizedAppsSection({ userId }: { userId: string }) {
+  const queryClient = useQueryClient();
+  const now = useHydratedNow();
+  const [pendingGrant, setPendingGrant] = useState<OIDCGrant | null>(null);
+  const grantsQuery = useQuery(userOIDCGrantsQueryOptions(userId));
+  const revokeMutation = useMutation({
+    mutationFn: (grantId: string) => revokeUserOIDCGrant(userId, grantId),
+    onSuccess: () => {
+      setPendingGrant(null);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.userOIDCGrants(userId) });
+    },
+  });
+  const grants = grantsQuery.data ?? [];
+
+  // Users who never authorized an app have nothing to manage here.
+  if (grantsQuery.isPending || (grants.length === 0 && !grantsQuery.isError)) return null;
+
+  const appName = pendingGrant?.client_name ?? "";
+  return (
+    <>
+      <div className="mt-8 mb-5">
+        <h1 className="text-base font-semibold tracking-tight">
+          {m.settings_authorized_apps_title()}
+        </h1>
+        <p className="mt-0.5 text-[13px] text-muted">{m.settings_authorized_apps_desc()}</p>
+      </div>
+      <div className="overflow-hidden rounded-lg border bg-surface">
+        <ErrorAlert
+          message={grantsQuery.error ? queryErrorMessage(grantsQuery.error) : ""}
+          className="m-3"
+        />
+        <ul className="divide-y divide-separator">
+          {grants.map((grant) => (
+            <li key={grant.id} className="flex items-center justify-between gap-3 px-5 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-medium text-foreground">
+                  {grant.client_name}
+                </p>
+                <p className="mt-0.5 text-xs text-muted">{formatScopes(grant.scopes)}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {grant.last_used_at
+                    ? m.settings_authorized_apps_last_used({
+                        time: relTimeFromISO(grant.last_used_at, now),
+                      })
+                    : m.settings_authorized_apps_authorized_at({
+                        time: relTimeFromISO(grant.created, now),
+                      })}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                isDisabled={revokeMutation.isPending}
+                onPress={() => setPendingGrant(grant)}
+                className="border-danger text-danger hover:bg-danger-soft"
+              >
+                {m.settings_authorized_apps_revoke()}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <DestructiveConfirmModal
+        isOpen={pendingGrant !== null}
+        title={m.settings_authorized_apps_revoke_title({ app: appName })}
+        body={m.settings_authorized_apps_revoke_confirm({ app: appName })}
+        confirmLabel={m.settings_authorized_apps_revoke()}
+        pendingLabel={m.settings_authorized_apps_revoking()}
+        pending={revokeMutation.isPending}
+        error={
+          revokeMutation.error
+            ? queryErrorMessage(revokeMutation.error, m.error_oidc_grant_revoke())
+            : ""
+        }
+        onOpenChange={(open) => {
+          if (open) return;
+          setPendingGrant(null);
+          revokeMutation.reset();
+        }}
+        onConfirm={() => pendingGrant && revokeMutation.mutate(pendingGrant.id)}
+      />
+    </>
+  );
+}
+```
+
+- [ ] **Step 2: Mount it in settings**
+
+In `frontend/src/routes/settings/index.tsx`, import it next to `SocialLoginsSection`:
+
+```tsx
+import { AuthorizedAppsSection } from "~/components/authorized-apps";
+```
+
+and render it right after `{auth && <SocialLoginsSection userId={auth.user.id} />}`:
+
+```tsx
+      {auth && <AuthorizedAppsSection userId={auth.user.id} />}
+```
+
+- [ ] **Step 3: Run the gates**
+
+Run: `cd frontend && pnpm typecheck && pnpm i18n:check && pnpm build`
+Expected: PASS.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add frontend/src/components/authorized-apps.tsx frontend/src/routes/settings/index.tsx
+git commit -m "feat(frontend): list and revoke authorized apps" -m "Settings shows the Connected Apps the User has authorized, with the claims each receives and when it was last used. Revoking asks for confirmation and signs the User out of the app. The section stays hidden for Users who never authorized an app."
+```
+
+### Layer 4 exit check
+
+- [ ] **Step 1: Run every gate**
+
+Run: `cd backend && gofmt -l . ; go build ./... && go vet ./... && go test -timeout 300s ./...`
+Expected: no gofmt output, PASS.
+
+Run: `cd frontend && pnpm api:sync && pnpm build && pnpm typecheck && pnpm i18n:check`
+Expected: PASS.
+
+- [ ] **Step 2: Start the panel on throwaway ports**
+
+Never touch the dev servers on 3000 and 8090. Loopback http satisfies the provider's availability check.
+
+1. Backend in the background: `cd backend && go build -o /tmp/hp-oidc-bin . && PANEL_MASTER_KEY=live-check PANEL_BACKEND_URL_BASE=http://127.0.0.1:8091 PANEL_FRONTEND_URL_BASE=http://127.0.0.1:3001 MMDB_DIR=$PWD/mmdb /tmp/hp-oidc-bin serve --http 127.0.0.1:8091 --dir /tmp/hp-oidc-live`.
+2. Frontend in the background: `cd frontend && VITE_API_BASE_URL=http://127.0.0.1:8091 pnpm exec vite dev --host 127.0.0.1 --port 3001`.
+3. Create a superuser with `/tmp/hp-oidc-bin superuser upsert root@example.test RootPassword123 --dir /tmp/hp-oidc-live`, create an admin User through `/api/collections/users/records` as the superuser, enable the provider with `PATCH /api/panel/settings`, and create a Connected App with `refresh_enabled: true` and redirect URI `http://127.0.0.1:3002/callback`. Keep the client ID and secret.
+
+- [ ] **Step 3: Start the test RP**
+
+In `/tmp/hp-rp`, run `npm init -y && npm install openid-client@6`, write `rp.mjs` below, and start it in the background with `CLIENT_ID=... CLIENT_SECRET=... node rp.mjs`.
+
+```js
+import http from "node:http";
+import * as client from "openid-client";
+
+const issuer = new URL("http://127.0.0.1:8091/api/oidc");
+const redirectUri = "http://127.0.0.1:3002/callback";
+const config = await client.discovery(issuer, process.env.CLIENT_ID, process.env.CLIENT_SECRET, undefined, {
+  execute: [client.allowInsecureRequests],
+});
+let pending = null;
+let tokens = null;
+
+function send(res, status, body) {
+  res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
+  res.end(`<pre>${typeof body === "string" ? body : JSON.stringify(body, null, 2)}</pre>`);
+}
+
+http
+  .createServer(async (req, res) => {
+    const url = new URL(req.url, "http://127.0.0.1:3002");
+    try {
+      if (url.pathname === "/login") {
+        const verifier = client.randomPKCECodeVerifier();
+        pending = { verifier, state: client.randomState(), nonce: client.randomNonce() };
+        const params = {
+          redirect_uri: redirectUri,
+          scope: "openid email offline_access",
+          code_challenge: await client.calculatePKCECodeChallenge(verifier),
+          code_challenge_method: "S256",
+          state: pending.state,
+          nonce: pending.nonce,
+        };
+        for (const key of ["prompt", "max_age"]) {
+          if (url.searchParams.has(key)) params[key] = url.searchParams.get(key);
+        }
+        res.writeHead(302, { location: client.buildAuthorizationUrl(config, params).href });
+        return res.end();
+      }
+      if (url.pathname === "/callback") {
+        if (url.searchParams.has("error")) return send(res, 400, Object.fromEntries(url.searchParams));
+        tokens = await client.authorizationCodeGrant(config, url, {
+          pkceCodeVerifier: pending.verifier,
+          expectedState: pending.state,
+          expectedNonce: pending.nonce,
+          idTokenExpected: true,
+        });
+        return send(res, 200, { claims: tokens.claims(), scope: tokens.scope });
+      }
+      if (url.pathname === "/userinfo") {
+        return send(res, 200, await client.fetchUserInfo(config, tokens.access_token, tokens.claims().sub));
+      }
+      if (url.pathname === "/refresh") {
+        tokens = await client.refreshTokenGrant(config, tokens.refresh_token);
+        return send(res, 200, { claims: tokens.claims() });
+      }
+      send(res, 404, "not found");
+    } catch (error) {
+      send(res, 500, `${error.name}: ${error.message} ${error.code ?? ""}`);
+    }
+  })
+  .listen(3002, "127.0.0.1");
+```
+
+- [ ] **Step 4: Walk through the flows in a browser**
+
+Use the preview browser on `http://127.0.0.1:3002`. Expected at each step:
+
+1. `/login` goes to the panel sign-in page. Signing in as the admin shows the consent page with the app name, "Your account ID", "Your email address", the access-while-away line, `http://127.0.0.1:3002` and the account email. Allow returns to `/callback` with claims `sub`, `email`, `email_verified`, `auth_time` and `nonce` accepted by `openid-client`.
+2. The browser back button to the consent page shows the expired message.
+3. `/login` again returns to `/callback` without showing the consent page.
+4. `/login?prompt=none` returns with claims. After clearing the panel cookies, `/login?prompt=none` returns to `/callback` with `error=login_required` and no sign-in form.
+5. Signed in again, `/login?prompt=login` shows "Confirm it's you". Sign in again returns to the consent flow and then to `/callback`, with a newer `auth_time`.
+6. `/login?prompt=consent` shows the consent page. Cancel returns with `error=access_denied`.
+7. Switch account on the consent page opens the sign-in form, and signing in as a second User shows the consent page for that User.
+8. `/userinfo` and `/refresh` succeed. Panel settings shows the app under Authorized apps. Revoke, then `/userinfo` and `/refresh` fail with `invalid_token` and `invalid_grant`, and the section disappears.
+9. `http://127.0.0.1:3001/login?redirect=//evil.example` and `?redirect=https://evil.example`, when signed in, land on the panel dashboard.
+10. `http://127.0.0.1:3001/oidc/error?reason=invalid_redirect_uri` shows the redirect URI message, and `?reason=constructor` shows the generic one.
+
+Check the zh-cn copy on the consent page and settings section, and the dark theme on the consent page.
+
+- [ ] **Step 5: Clean up**
+
+Stop the RP, the frontend and the backend. Delete `/tmp/hp-oidc-live`, `/tmp/hp-oidc-bin` and `/tmp/hp-rp`.
+
+- [ ] **Step 6: Review the layer**
+
+Dispatch a `review:code-reviewer` agent on `git diff oidc/3-protocol...oidc/4-consent-ui` with this plan's Layer 4 decisions and Review Focus. Fix every Critical and Important finding in its own commit, then rerun Step 1.
+
+- [ ] **Step 7: Update the ledger and stop**
+
+Record the layer 4 commits, the browser results and the review outcome in `.superpowers/sdd/2026-10-12-oidc-provider/progress.md`. Stop for the user's review before starting layer 5.
