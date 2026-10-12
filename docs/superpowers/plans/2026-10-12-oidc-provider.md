@@ -10068,6 +10068,16 @@ Stop the RP, the frontend and the backend. Delete `/tmp/hp-oidc-live`, `/tmp/hp-
 
 Dispatch a `review:code-reviewer` agent on `git diff oidc/3-protocol...oidc/4-consent-ui` with this plan's Layer 4 decisions and Review Focus. Fix every Critical and Important finding in its own commit, then rerun Step 1.
 
+The review of this layer changed the code above in these places. The commits are the source of truth.
+
+- `SignedInConsent` takes `promptNone`. On a prompt=none request, a 401 or 403 from the request or decision endpoints renders `SilentAbort`, so a panel cookie the backend rejects still ends with `login_required`.
+- Decisions call `window.location.replace` instead of `assign`, so Back cannot restore a used consent page from the back-forward cache.
+- The four `error_oidc_*` keys and their `api-error.ts` entries are gone. `apiRequest` maps every 404 to `error_not_found`, and the consent page maps statuses itself, so the entries were unreachable.
+- `settings_authorized_apps_revoke_confirm` reads "{app} loses access to your account until you sign in to it again." `oidc_consent_not_allowed` names both the app and the account as possible causes.
+- Revoking a grant that answers 404 counts as success in `AuthorizedAppsSection`.
+- The back link on a failed OAuth2 sign-in keeps `redirect`, so the consent request is not lost.
+- `revokeOIDCGrant` returns `DeleteResponse{Deleted: true}`.
+
 - [ ] **Step 7: Update the ledger and stop**
 
 Record the layer 4 commits, the browser results and the review outcome in `.superpowers/sdd/2026-10-12-oidc-provider/progress.md`. Stop for the user's review before starting layer 5.
