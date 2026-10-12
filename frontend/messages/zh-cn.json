@@ -989,7 +989,7 @@
   "settings_authorized_apps_revoke": "撤销",
   "settings_authorized_apps_revoking": "正在撤销",
   "settings_authorized_apps_revoke_title": "撤销 {app}",
-  "settings_authorized_apps_revoke_confirm": "{app} 将无法再访问你的账号，你也会在该应用中退出登录。下次使用时它会重新请求你的同意。",
+  "settings_authorized_apps_revoke_confirm": "{app} 将无法再访问你的账号。下次登录该应用时，它会重新请求你的同意。",
   "error_oidc_request_load": "读取登录请求失败",
   "error_oidc_request_decide": "完成登录请求失败",
   "error_oidc_request_expired": "登录请求已过期",

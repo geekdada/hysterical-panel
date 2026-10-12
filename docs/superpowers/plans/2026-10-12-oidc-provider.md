@@ -9121,7 +9121,6 @@ In `frontend/src/lib/api-error.ts`, add to `API_ERROR_MAP` after the `oidc provi
 Create `frontend/src/lib/oidc-scopes.ts`:
 
 ```ts
-import { getLocale } from "~/paraglide/runtime";
 import * as m from "~/paraglide/messages.js";
 
 const SCOPE_LABELS: Record<string, () => string> = {
@@ -9135,9 +9134,9 @@ export function scopeLabel(scope: string): string {
   return Object.hasOwn(SCOPE_LABELS, scope) ? SCOPE_LABELS[scope]() : scope;
 }
 
-/** Joins scope labels the way the current locale writes a list. */
+/** Joins scope labels for a one-line summary. The labels are written to stand alone. */
 export function formatScopes(scopes: string[]): string {
-  return new Intl.ListFormat(getLocale(), { type: "conjunction" }).format(scopes.map(scopeLabel));
+  return scopes.map(scopeLabel).join(" · ");
 }
 ```
 
@@ -9180,7 +9179,7 @@ Add these keys to `frontend/messages/en.json`:
   "settings_authorized_apps_revoke": "Revoke",
   "settings_authorized_apps_revoking": "Revoking",
   "settings_authorized_apps_revoke_title": "Revoke {app}",
-  "settings_authorized_apps_revoke_confirm": "{app} loses access to your account and you are signed out of it. Next time you use it, it asks for your approval again.",
+  "settings_authorized_apps_revoke_confirm": "{app} loses access to your account. Next time you sign in to it, it asks for your approval again.",
   "error_oidc_request_load": "Failed to load the sign-in request",
   "error_oidc_request_decide": "Failed to finish the sign-in request",
   "error_oidc_request_expired": "This sign-in request has expired",
@@ -9228,7 +9227,7 @@ Add the same keys to `frontend/messages/zh-cn.json`:
   "settings_authorized_apps_revoke": "撤销",
   "settings_authorized_apps_revoking": "正在撤销",
   "settings_authorized_apps_revoke_title": "撤销 {app}",
-  "settings_authorized_apps_revoke_confirm": "{app} 将无法再访问你的账号，你也会在该应用中退出登录。下次使用时它会重新请求你的同意。",
+  "settings_authorized_apps_revoke_confirm": "{app} 将无法再访问你的账号。下次登录该应用时，它会重新请求你的同意。",
   "error_oidc_request_load": "读取登录请求失败",
   "error_oidc_request_decide": "完成登录请求失败",
   "error_oidc_request_expired": "登录请求已过期",

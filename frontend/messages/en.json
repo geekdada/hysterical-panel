@@ -989,7 +989,7 @@
   "settings_authorized_apps_revoke": "Revoke",
   "settings_authorized_apps_revoking": "Revoking",
   "settings_authorized_apps_revoke_title": "Revoke {app}",
-  "settings_authorized_apps_revoke_confirm": "{app} loses access to your account and you are signed out of it. Next time you use it, it asks for your approval again.",
+  "settings_authorized_apps_revoke_confirm": "{app} loses access to your account. Next time you sign in to it, it asks for your approval again.",
   "error_oidc_request_load": "Failed to load the sign-in request",
   "error_oidc_request_decide": "Failed to finish the sign-in request",
   "error_oidc_request_expired": "This sign-in request has expired",
