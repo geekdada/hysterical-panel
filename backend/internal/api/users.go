@@ -207,9 +207,9 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("invalid body", err)
 	}
 	// Capture the pre-mutation status so we can detect an active -> disabled
-	// transition after Save. That transition triggers a best-effort /kick
-	// fan-out to drop currently-established Hysteria sessions; reconnects are
-	// already denied by hysteriaAuth's 403 for disabled users.
+	// transition after Save. That transition and an Auth String change both
+	// trigger a best-effort /kick fan-out to drop currently-established
+	// sessions; node client auth already denies the reconnect.
 	wasActive := u.GetString("status") == "active"
 	currentAuthString, err := authstrings.CurrentValue(h.app, u.Id)
 	if err != nil {
@@ -261,7 +261,7 @@ func (h *Handlers) updateUser(e *core.RequestEvent) error {
 	if nextAuthString != nil {
 		currentAuthString = *nextAuthString
 	}
-	if wasActive && u.GetString("status") == "disabled" {
+	if nextAuthString != nil || (wasActive && u.GetString("status") == "disabled") {
 		go h.kickUser(u.Id)
 	}
 	ignored := h.loadIgnoredConnectionIPSet()
@@ -289,7 +289,9 @@ func (h *Handlers) deleteUser(e *core.RequestEvent) error {
 // resetUserAuthString rotates a user's Hysteria auth key. The new value is
 // server-generated (the client never supplies one) and the existing usage
 // counters / traffic history are preserved. The retired key stops authenticating
-// but remains available for legacy Node Client ID attribution.
+// but remains available for legacy Node Client ID attribution. Nodes never
+// re-check established sessions, so the rotation kicks the User ID. The new key
+// is not deployed to any client yet, so the kick only drops old-key sessions.
 func (h *Handlers) resetUserAuthString(e *core.RequestEvent) error {
 	u, err := h.app.FindRecordById("users", e.Request.PathValue("id"))
 	if err != nil {
@@ -305,6 +307,7 @@ func (h *Handlers) resetUserAuthString(e *core.RequestEvent) error {
 	}); err != nil {
 		return apis.NewBadRequestError("failed to reset auth key", err)
 	}
+	go h.kickUser(u.Id)
 	ignored := h.loadIgnoredConnectionIPSet()
 	return ok(e, publicUser(u, authString, h.ipLookup, ignored))
 }

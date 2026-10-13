@@ -6,7 +6,7 @@
 ## 模型
 
 两层：
-- **users** — 既是登录面板的人（`admin` 或 `user`），也是节点认证主体。节点凭据独立保存在 `user_auth_strings`：每个 User 只有一个 Current Auth String 可认证，Retired 历史仅用于旧 Node Client ID 归属。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick [user.id]` 扇出（3 并发、异步、失败仅记日志）。账号「可用」= `status=active` **且** `verified=true`。成功节点鉴权会更新 `last_connected_at` 与 `recent_connections`。
+- **users** — 既是登录面板的人（`admin` 或 `user`），也是节点认证主体。节点凭据独立保存在 `user_auth_strings`：每个 User 只有一个 Current Auth String 可认证，Retired 历史仅用于旧 Node Client ID 归属。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick [user.id]` 扇出（3 并发、异步、失败仅记日志）。轮换 Auth String（`PATCH /users/{id}` 改 `auth_string` 或 `POST /users/{id}/reset-auth-string`）同样触发该扇出，断开仍用旧凭据的会话。账号「可用」= `status=active` **且** `verified=true`。成功节点鉴权会更新 `last_connected_at` 与 `recent_connections`。
 - **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`），并保存最近一次成功 `/online` 的 Node 总设备数与观测时间。
 - **online_device_counts** — 每个 User/Node 的最新正数在线客户端实例投影；不保留历史。User 总数只汇总 Enabled Node 且跨 Node 不去重，Node 总数包含未知 Node Client ID。
 - **subscription_types / user_subscriptions** — 管理员定义额度与 30/360 天重置周期，授予 360 天订阅；节点鉴权要求当前窗口仍有额度。升级前的用户在首次授予前豁免，新用户（包括 admin）须由管理员授予。详见 [`docs/subscriptions.md`](../docs/subscriptions.md)。
@@ -97,7 +97,8 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 | POST | `/users/{id}/subscriptions` | 管理员授予一份订阅，当前已有一份时排队到其到期时间 |
 | POST / DELETE | `/users/{id}/subscriptions/{subscriptionId}/top-up`、`/users/{id}/subscriptions/{subscriptionId}` | 管理员给当前窗口增加 `allowance_bytes` 字节，或终止当前/排队订阅 |
 | POST | `/users/{id}/subscriptions/{subscriptionId}/reschedule` | 管理员改期当前订阅：`{ starts_at }`（UTC，不晚于 now，改期后仍覆盖 now，不早于上一份自然到期订阅的 `ends_at`，可与已终止的订阅重叠），排队订阅同步平移；本窗口用量与加额随之保留；返回全部授予记录 |
-| PATCH/DELETE | `/users/{id}` | 改/删 |
+| PATCH/DELETE | `/users/{id}` | 改/删；停用或修改 `auth_string` 时异步 Kick |
+| POST | `/users/{id}/reset-auth-string` | 随机生成新的 Current Auth String 并返回，旧值转 Retired，异步 Kick |
 | GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |
 | GET | `/users/{id}/live` | 实时 streams 诊断（admin；活跃流、域名榜、客户端连接维度） |

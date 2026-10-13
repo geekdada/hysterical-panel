@@ -86,7 +86,7 @@
 
 6. **`status` 是用户启停的单一来源，且真正生效；`verified` 是附加门禁。**
    `active`/`disabled` 两态。落地在三处：登录鉴权 `bindAuthGate`（`OnRecordAuthRequest("users")`，非 active 一律 403 `account is disabled`，覆盖登录与 token 刷新）；Hysteria 回调 `hysteriaAuth`（非 active 返回 403，拒绝客户端新连接）；采集器 `pollNode` 里非 active 用户**仍推进 cursor 但不计量**（避免重新启用时把停用期间的 counter 一次性灌进单个 bucket）。`disabled` 同时挡新连接 + 面板登录 + 停止记账；写 `status` 经 `validUserStatus` 校验。
-   **停用时（status `active`→`disabled`）会触发一次 best-effort `/kick` 扇出**：`updateUser` 检测到该转换后，起一个**后台 goroutine**（**不阻塞 PATCH 响应**），以 **3 并发**（信号量 `kickConcurrency`）对 `nodesForUser(userID)` 返回的每个节点 `POST /kick [user.id]`（5s/节点超时，整体 30s 上限）。失败只记日志（`[kick] ...`）、单个失败不影响其余、`nodesForUser` 返回空也直接结束。落地在 `internal/api/kick.go` 的 `kickUser` / `fanOutKicks`，Hysteria client 在 `internal/hysteria/client.go` 的 `Kick`。**只清新 Node Client ID 下的存量会话**：迁移前以 Auth String 为 ID 的短期连接自然排空；`node_client_auth.go` 的 403 继续阻止重连。其他状态转换不触发 `/kick`。
+   **停用时（status `active`→`disabled`）与轮换 Auth String 时会触发一次 best-effort `/kick` 扇出**：`updateUser` 检测到停用或 `auth_string` 变更、`resetUserAuthString` 轮换成功后，起一个**后台 goroutine**（**不阻塞 PATCH 响应**），以 **3 并发**（信号量 `kickConcurrency`）对 `nodesForUser(userID)` 返回的每个节点 `POST /kick [user.id]`（5s/节点超时，整体 30s 上限）。失败只记日志（`[kick] ...`）、单个失败不影响其余、`nodesForUser` 返回空也直接结束。落地在 `internal/api/kick.go` 的 `kickUser` / `fanOutKicks`，Hysteria client 在 `internal/hysteria/client.go` 的 `Kick`。**只清新 Node Client ID 下的存量会话**：迁移前以 Auth String 为 ID 的短期连接自然排空；`node_client_auth.go` 的 401/403 继续阻止重连。节点不会重新校验已建立的会话，所以轮换后必须 kick；新 Auth String 此时尚未下发给任何客户端，kick `user.id` 只断开旧凭据的会话。其他状态转换不触发 `/kick`。
    **账号「可用」= `status=active` 且 `verified=true`**：`bindAuthGate` 与 `hysteriaAuth` 都在 status 检查后再判 `verified`（非 verified → 403 `email not verified`）。admin 建号与邀请码注册者恒 `verified=true`，新门禁只挡「开放注册且无邀请码」的未验证用户，直到其点开验证邮件。
 
 7. **注册访问由 `app_settings` 三开关 + `registrationDecision` 收口，三开关是严格层级。**
@@ -183,7 +183,7 @@ hysterical-panel/
 │           ├── node_client_auth.go 节点 HTTP 鉴权共用契约（handleNodeClientAuth）
 │           ├── hysteria_auth.go  公开 /api/hysteria/auth 回调
 │           ├── anytls_auth.go    公开 /api/anytls/auth 回调
-│           ├── kick.go         停用时 best-effort /kick 扇出（kickUser / fanOutKicks，3 并发）
+│           ├── kick.go         停用 / 轮换 Auth String 时 best-effort /kick 扇出（kickUser / fanOutKicks，3 并发）
 │           ├── dto.go          OpenAPI 用的响应/请求结构体
 │           ├── openapi.go      生成 OpenAPI 3.1 spec
 │           └── *_test.go       register / kick / database / users_list / recent_connections / auth_string_anytls_hash / live 等单测
@@ -291,8 +291,8 @@ hysterical-panel/
 
 - 凡是返回 node 的响应**必须经过 `publicNode()` 剥除 api_secret**。新增 node 相关接口时务必走这个函数。
 - `PATCH /nodes/{id}` 的 `api_secret`：**缺省=不变，传空字符串=报错**（防止误清空）。
-- `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。`PATCH /users/{id}` 在状态从 `active`→`disabled` 时，**异步**对 `nodesForUser(userID)` 返回的每个节点扇出 `POST /kick [user.id]`（3 并发，5s/节点，best-effort，失败只记日志，不阻塞响应）；详见核心决策 #6。
-- `GET /users`（仅 admin）是**分页 / 排序 / 筛选**列表（`users_list.go`：`page`、`perPage`∈{25,50,100}、`search`、`sort` 白名单），`GET /users/stats` 给看板汇总。`POST /users/{id}/reset-auth-string`、`POST /nodes/{id}/reset-api-secret` 重新随机生成对应凭据并返回（节点 secret 仍脱敏）。
+- `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。`PATCH /users/{id}` 在状态从 `active`→`disabled` 或 `auth_string` 变更时，**异步**对 `nodesForUser(userID)` 返回的每个节点扇出 `POST /kick [user.id]`（3 并发，5s/节点，best-effort，失败只记日志，不阻塞响应）；详见核心决策 #6。
+- `GET /users`（仅 admin）是**分页 / 排序 / 筛选**列表（`users_list.go`：`page`、`perPage`∈{25,50,100}、`search`、`sort` 白名单），`GET /users/stats` 给看板汇总。`POST /users/{id}/reset-auth-string`、`POST /nodes/{id}/reset-api-secret` 重新随机生成对应凭据并返回（节点 secret 仍脱敏）；重置 Auth String 同样异步扇出 `/kick`。
 - **admin 全局看板**：`GET /traffic`、`GET /traffic/series`（`from`/`to` 必填，UTC）、`GET /nodes/traffic/summary` 是跨用户跨节点的全局聚合（`traffic_panel.go`），与下面单节点维度接口区分。
 - `GET /database/stats`、`POST /database/prune`（仅 admin，`database.go`）：查看库体量并按 **90 天 UTC 留存**裁剪 `traffic_hourly`；`traffic_daily` 不裁剪，超过 90 天的查询自动改读日汇总。
 - OAuth2 社交账号关联：`GET /users/{id}/oauth-links`、`DELETE /users/{id}/oauth-links/{linkId}`（`requireActiveAdminOrSelf`，`oauth2_links.go`），设置页（本人）与用户详情页（admin）共用。

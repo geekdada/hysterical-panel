@@ -144,6 +144,67 @@ func TestKickUserSendsStableUserID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cryptobox.New: %v", err)
 	}
+	received := startKickTargetNode(t, app, box)
+
+	(&Handlers{app: app, box: box}).kickUser("stable-user-id")
+	expectKick(t, received, "stable-user-id")
+}
+
+// TestAuthStringRotationKicksUser covers both rotation paths. Nodes never
+// re-check established sessions, so the old key keeps working until a kick.
+func TestAuthStringRotationKicksUser(t *testing.T) {
+	tests := []struct {
+		name   string
+		rotate func(t *testing.T, h *Handlers, app core.App, userID string)
+	}{
+		{"reset", func(t *testing.T, h *Handlers, app core.App, userID string) {
+			event, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+userID+"/reset-auth-string", nil)
+			event.Request.SetPathValue("id", userID)
+			if err := h.resetUserAuthString(event); err != nil {
+				t.Fatalf("resetUserAuthString: %v", err)
+			}
+		}},
+		{"patch", func(t *testing.T, h *Handlers, app core.App, userID string) {
+			event, _ := jsonRequestEvent(t, app, http.MethodPatch, "/api/panel/users/"+userID, map[string]any{
+				"auth_string": "PatchedSecret",
+			})
+			event.Request.SetPathValue("id", userID)
+			if err := h.updateUser(event); err != nil {
+				t.Fatalf("updateUser: %v", err)
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := newMigratedTestApp(t)
+			box, err := cryptobox.New("test-master-key")
+			if err != nil {
+				t.Fatalf("cryptobox.New: %v", err)
+			}
+			received := startKickTargetNode(t, app, box)
+			h := &Handlers{app: app, box: box}
+
+			createEvent, createResponse := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users", map[string]any{
+				"email": "kick-rotate@example.com", "password": "password12345", "auth_string": "OldSecret",
+			})
+			if err := h.createUser(createEvent); err != nil {
+				t.Fatalf("createUser: %v", err)
+			}
+			var created PanelUser
+			if err := json.Unmarshal(createResponse.Body.Bytes(), &created); err != nil {
+				t.Fatalf("decode created User: %v", err)
+			}
+
+			tt.rotate(t, h, app, created.ID)
+			expectKick(t, received, created.ID)
+		})
+	}
+}
+
+// startKickTargetNode saves an enabled node backed by a test server and
+// returns the channel that receives each /kick body.
+func startKickTargetNode(t *testing.T, app core.App, box *cryptobox.Box) <-chan []string {
+	t.Helper()
 	received := make(chan []string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var ids []string
@@ -153,7 +214,7 @@ func TestKickUserSendsStableUserID(t *testing.T) {
 		received <- ids
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	nodes, err := app.FindCollectionByNameOrId("nodes")
 	if err != nil {
@@ -171,12 +232,15 @@ func TestKickUserSendsStableUserID(t *testing.T) {
 	if err := app.Save(node); err != nil {
 		t.Fatalf("save node: %v", err)
 	}
+	return received
+}
 
-	(&Handlers{app: app, box: box}).kickUser("stable-user-id")
+func expectKick(t *testing.T, received <-chan []string, userID string) {
+	t.Helper()
 	select {
 	case ids := <-received:
-		if len(ids) != 1 || ids[0] != "stable-user-id" {
-			t.Fatalf("kick ids = %v, want [stable-user-id]", ids)
+		if len(ids) != 1 || ids[0] != userID {
+			t.Fatalf("kick ids = %v, want [%s]", ids, userID)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("kick request not received")

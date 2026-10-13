@@ -109,7 +109,7 @@ An on-demand, uncached diagnostic snapshot of current streams for a User or a No
 _Avoid_: realtime monitor, session log, online status (as the feature name), telemetry dump
 
 **Kick**:
-A best-effort request to Nodes to drop a User's already-established sessions, such as after disabling the User or exhausting their subscription. Clears existing sessions only; Status, Verified, and subscription access rules continue to block reconnects.
+A best-effort request to Nodes to drop a User's already-established sessions, such as after disabling the User, rotating their Auth String, or exhausting their subscription. Clears existing sessions only; Status, Verified, and subscription access rules continue to block reconnects.
 _Avoid_: ban, terminate, force logout, disconnect (as the feature name)
 
 **Invitation**:
