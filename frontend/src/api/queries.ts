@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { fetchOAuthProviders } from "./auth";
+import { fetchLoginMethods } from "./auth";
 import { apiClient } from "./client";
 import { fetchPanelConfig } from "./panel-config";
 import {
@@ -194,7 +194,7 @@ export const queryKeys = {
       range?.to ?? "",
     ] as const,
   config: () => [...queryKeys.all, "config"] as const,
-  oauthProviders: () => [...queryKeys.all, "oauth-providers"] as const,
+  loginMethods: () => [...queryKeys.all, "login-methods"] as const,
   userOAuthLinks: (userId: string) => [...queryKeys.all, "users", userId, "oauth-links"] as const,
   dashboardBase: () => [...queryKeys.all, "dashboard"] as const,
   dashboardNodes: () => [...queryKeys.dashboardBase(), "nodes"] as const,
@@ -300,12 +300,19 @@ export function panelConfigQueryOptions() {
   });
 }
 
-export function oauthProvidersQueryOptions() {
+export function loginMethodsQueryOptions() {
   return queryOptions({
-    queryKey: queryKeys.oauthProviders(),
-    queryFn: fetchOAuthProviders,
+    queryKey: queryKeys.loginMethods(),
+    queryFn: fetchLoginMethods,
     enabled: canQueryPanelApi(),
     staleTime: REFRESH_MS,
+  });
+}
+
+export function oauthProvidersQueryOptions() {
+  return queryOptions({
+    ...loginMethodsQueryOptions(),
+    select: (methods) => methods.oauthProviders,
   });
 }
 

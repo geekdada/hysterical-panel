@@ -61,7 +61,14 @@ interface OAuthProviderChallenge extends OAuthProvider {
 }
 
 interface AuthMethodsResponse {
+  otp?: { enabled?: boolean; duration?: number };
   oauth2?: { enabled?: boolean; providers?: OAuthProviderChallenge[] };
+}
+
+/** Sign-in methods the PocketBase users collection offers besides password and passkey. */
+export interface LoginMethods {
+  emailCode: { enabled: boolean; durationSeconds: number };
+  oauthProviders: OAuthProvider[];
 }
 
 export type OAuthIntent = "login" | "link";
@@ -250,16 +257,52 @@ export function clearAuth(): void {
   clearAuthCookies();
 }
 
-async function fetchOAuthChallenges(): Promise<OAuthProviderChallenge[]> {
-  const methods = await apiFetch<AuthMethodsResponse>("/api/collections/users/auth-methods");
+function fetchAuthMethods(): Promise<AuthMethodsResponse> {
+  return apiFetch<AuthMethodsResponse>("/api/collections/users/auth-methods");
+}
+
+function oauthChallenges(methods: AuthMethodsResponse): OAuthProviderChallenge[] {
   if (!methods.oauth2?.enabled) return [];
   return methods.oauth2.providers ?? [];
 }
 
-/** Lists the OAuth2 providers enabled on the PocketBase users collection. */
-export async function fetchOAuthProviders(): Promise<OAuthProvider[]> {
-  const challenges = await fetchOAuthChallenges();
-  return challenges.map(({ name, displayName }) => ({ name, displayName }));
+/** Reads which email code (OTP) and OAuth2 sign-in methods are enabled in /_/. */
+export async function fetchLoginMethods(): Promise<LoginMethods> {
+  const methods = await fetchAuthMethods();
+  return {
+    emailCode: {
+      enabled: methods.otp?.enabled ?? false,
+      durationSeconds: methods.otp?.duration ?? 0,
+    },
+    oauthProviders: oauthChallenges(methods).map(({ name, displayName }) => ({
+      name,
+      displayName,
+    })),
+  };
+}
+
+/**
+ * Asks PocketBase to email a one-time sign-in code. Unknown and disabled
+ * accounts get a dummy id and no email, so the caller always moves on to the
+ * code step and the response reveals nothing about the address.
+ */
+export async function requestEmailCode(email: string): Promise<string> {
+  const { otpId } = await apiFetch<{ otpId: string }>("/api/collections/users/request-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  return otpId;
+}
+
+/** Exchanges an emailed code for a panel session behind the same gate as password login. */
+export async function loginWithEmailCode(otpId: string, code: string): Promise<AuthUser> {
+  const auth = await apiFetch<AuthResponse>("/api/collections/users/auth-with-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ otpId, password: code }),
+  });
+  return storeAuthResponse(auth);
 }
 
 /**
@@ -280,7 +323,7 @@ async function startOAuthFlow(
   providerName: string,
   target: Pick<PendingOAuth, "intent" | "userId" | "returnTo">
 ): Promise<void> {
-  const challenges = await fetchOAuthChallenges();
+  const challenges = oauthChallenges(await fetchAuthMethods());
   const provider = challenges.find((candidate) => candidate.name === providerName);
   if (!provider) throw new Error(m.auth_oauth_provider_unavailable());
 
