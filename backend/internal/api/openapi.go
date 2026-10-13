@@ -950,7 +950,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		Post: func() *openapi3.Operation {
 			op := &openapi3.Operation{
 				OperationID: "resetUserAuthString",
-				Summary:     "Regenerate a user's Hysteria auth key (admin)",
+				Summary:     "Regenerate a user's Hysteria auth key (active admin or self)",
 				Tags:        []string{"users"},
 				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
