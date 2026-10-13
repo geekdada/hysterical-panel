@@ -242,6 +242,8 @@
   "settings_passkeys_desc": "使用本设备上保存的通行密钥，无需密码即可登录。",
   "settings_social_logins_title": "社交账号登录",
   "settings_social_logins_desc": "用你的第三方账号登录本面板。",
+  "settings_auth_key_title": "认证密钥",
+  "settings_auth_key_desc": "客户端连接节点时使用此密钥。",
   "settings_social_logins_meta": "已关联 {count} 个",
   "settings_social_logins_empty": "还没有关联的社交账号。用邮箱与面板相同的社交账号登录一次，就会自动关联。",
   "settings_social_logins_empty_title": "没有关联的社交账号",

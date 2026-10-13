@@ -242,6 +242,8 @@
   "settings_passkeys_desc": "Sign in without a password using a passkey stored on this device.",
   "settings_social_logins_title": "Social sign-in",
   "settings_social_logins_desc": "Sign in to this panel with your accounts from other services",
+  "settings_auth_key_title": "Auth key",
+  "settings_auth_key_desc": "Your clients use this key to connect to nodes.",
   "settings_social_logins_meta": "{count} linked",
   "settings_social_logins_empty": "No linked accounts. Signing in with a provider account that uses your panel email links it automatically.",
   "settings_social_logins_empty_title": "No linked accounts",

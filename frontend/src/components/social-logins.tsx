@@ -122,7 +122,7 @@ export function SocialLoginsSection({ userId }: { userId: string }) {
 }
 
 /** User detail page section, where admins manage another user's links. */
-export function UserSocialLoginsSection({ userId, isSelf }: { userId: string; isSelf: boolean }) {
+export function UserSocialLoginsSection({ userId }: { userId: string }) {
   const state = useOAuthLinks(userId);
   if (state.hidden) return null;
 
@@ -141,7 +141,7 @@ export function UserSocialLoginsSection({ userId, isSelf }: { userId: string; is
       ) : state.links.length === 0 ? (
         <Teaching
           title={m.settings_social_logins_empty_title()}
-          hint={isSelf ? m.settings_social_logins_empty() : m.settings_social_logins_empty_other()}
+          hint={m.settings_social_logins_empty_other()}
         />
       ) : (
         <OAuthLinkList state={state} />

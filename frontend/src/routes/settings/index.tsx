@@ -43,6 +43,7 @@ import {
   PageShell,
 } from "~/components/ui";
 import { AuthorizedAppsSection } from "~/components/authorized-apps";
+import { ResetAuthKeyButton } from "~/components/reset-auth-key";
 import { SocialLoginsSection } from "~/components/social-logins";
 import { UserMenu } from "~/components/user-menu";
 import { relTimeFromISO } from "~/lib/format";
@@ -124,6 +125,7 @@ function SettingsPage() {
 
       {auth && <SocialLoginsSection userId={auth.user.id} />}
       {auth && <AuthorizedAppsSection userId={auth.user.id} />}
+      {auth && <AuthKeySection userId={auth.user.id} />}
 
       {isAdmin && (
         <>
@@ -543,6 +545,24 @@ function PasskeyRow({
         {deleting ? m.common_deleting() : m.common_delete()}
       </Button>
     </li>
+  );
+}
+
+function AuthKeySection({ userId }: { userId: string }) {
+  return (
+    <>
+      <div className="mt-8 mb-5">
+        <h1 className="text-base font-semibold tracking-tight">{m.settings_auth_key_title()}</h1>
+        <p className="mt-0.5 text-[13px] text-muted">{m.settings_auth_key_desc()}</p>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border bg-surface px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[13px] text-muted">{m.user_manage_reset_desc()}</p>
+        <div className="shrink-0">
+          <ResetAuthKeyButton userId={userId} />
+        </div>
+      </div>
+    </>
   );
 }
 

@@ -1,15 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Chip, Modal, TextArea } from "@heroui/react";
-import {
-  clearAuth,
-  deletePasskey,
-  isPasskeySoftError,
-  listPasskeys,
-  registerPasskey,
-  type Passkey,
-} from "~/api/auth";
+import { Button, Chip, TextArea } from "@heroui/react";
+import { clearAuth, deletePasskey, listPasskeys, type Passkey } from "~/api/auth";
 import { requireAdminOrSelf } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
@@ -21,7 +14,6 @@ import {
   panelConfigQueryOptions,
   queryErrorMessage,
   queryKeys,
-  resetUserAuthString,
   toTrafficRangeQuery,
   updateUser,
   updateUserStatus,
@@ -37,6 +29,8 @@ import { SubscriptionSection } from "~/components/subscription-section";
 import { CurrentSpeedSection } from "~/components/current-speed";
 import { FiringAlertsSection } from "~/components/firing-alerts";
 import { UserSocialLoginsSection } from "~/components/social-logins";
+import { UserAuthorizedAppsSection } from "~/components/authorized-apps";
+import { ResetAuthKeyButton } from "~/components/reset-auth-key";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
@@ -111,6 +105,7 @@ function AccountDetailPage() {
   const { auth } = Route.useRouteContext();
   const navigate = useNavigate();
   const isAdmin = auth?.user.role === "admin";
+  const isSelf = auth?.user.id === userId;
   const tz = useActiveTimeZone();
 
   const [trafficRange, setTrafficRange] = useState<LocalDateRange>(() =>
@@ -224,14 +219,14 @@ function AccountDetailPage() {
 
           {isAdmin && <LiveSection userId={userId} />}
 
-          {isAdmin && user && <PasskeysSection userId={userId} isSelf={auth?.user.id === userId} />}
-
-          {isAdmin && user && (
-            <UserSocialLoginsSection userId={userId} isSelf={auth?.user.id === userId} />
-          )}
-
-          {isAdmin && user && (
-            <ManageSection userId={userId} user={user} isSelf={auth?.user.id === userId} />
+          {/* An admin manages their own account from the settings page. */}
+          {isAdmin && user && !isSelf && (
+            <>
+              <PasskeysSection userId={userId} />
+              <UserSocialLoginsSection userId={userId} />
+              <UserAuthorizedAppsSection userId={userId} />
+              <ManageSection userId={userId} user={user} />
+            </>
           )}
         </>
       )}
@@ -563,18 +558,8 @@ function ManageRow({
   );
 }
 
-function ManageSection({
-  userId,
-  user,
-  isSelf,
-}: {
-  userId: string;
-  user: UserDetail;
-  isSelf: boolean;
-}) {
+function ManageSection({ userId, user }: { userId: string; user: UserDetail }) {
   const queryClient = useQueryClient();
-  const [resetOpen, setResetOpen] = useState(false);
-  const [resetResult, setResetResult] = useState<PanelUser | null>(null);
   const [draftRemark, setDraftRemark] = useState(user.remark ?? "");
 
   useEffect(() => {
@@ -591,14 +576,6 @@ function ManageSection({
     onSuccess: invalidateAllUsers,
   });
 
-  const resetMutation = useMutation({
-    mutationFn: () => resetUserAuthString(userId),
-    onSuccess: (updated) => {
-      setResetResult(updated);
-      invalidateAllUsers();
-    },
-  });
-
   const remarkMutation = useMutation({
     mutationFn: (remark: string) => updateUser(userId, { remark }),
     onSuccess: invalidateAllUsers,
@@ -608,13 +585,10 @@ function ManageSection({
   const toggleError = toggleMutation.error
     ? queryErrorMessage(toggleMutation.error, m.error_user_update_network())
     : "";
-  const resetError = resetMutation.error
-    ? queryErrorMessage(resetMutation.error, m.error_user_reset_auth_network())
-    : "";
   const remarkError = remarkMutation.error
     ? queryErrorMessage(remarkMutation.error, m.error_user_update_network())
     : "";
-  const error = toggleError || resetError || remarkError;
+  const error = toggleError || remarkError;
   const canSaveRemark = draftRemark !== (user.remark ?? "");
 
   function handleToggleStatus() {
@@ -622,185 +596,82 @@ function ManageSection({
     toggleMutation.mutate({ status: next });
   }
 
-  function handleResetOpenChange(open: boolean) {
-    setResetOpen(open);
-    if (!open) {
-      resetMutation.reset();
-      setResetResult(null);
-    }
-  }
-
-  function handleResetConfirm() {
-    resetMutation.mutate();
-  }
-
   function handleSaveRemark() {
     remarkMutation.mutate(draftRemark);
   }
 
   return (
-    <>
-      <Section title={m.user_manage_title()}>
-        <ErrorAlert message={error} className="m-3 mb-0" />
-        <div className="flex flex-col gap-4 p-4">
-          <ManageRow
-            label={m.user_manage_status_label()}
-            description={
-              active ? m.user_manage_status_active_desc() : m.user_manage_status_disabled_desc()
-            }
-            action={
+    <Section title={m.user_manage_title()}>
+      <ErrorAlert message={error} className="m-3 mb-0" />
+      <div className="flex flex-col gap-4 p-4">
+        <ManageRow
+          label={m.user_manage_status_label()}
+          description={
+            active ? m.user_manage_status_active_desc() : m.user_manage_status_disabled_desc()
+          }
+          action={
+            <Button
+              size="sm"
+              variant={active ? "danger-soft" : "primary"}
+              isPending={toggleMutation.isPending}
+              onPress={handleToggleStatus}
+            >
+              {active ? m.users_deactivate() : m.users_activate()}
+            </Button>
+          }
+        />
+
+        <div className="h-px bg-separator" />
+
+        <ManageRow
+          label={m.user_manage_reset_label()}
+          description={m.user_manage_reset_desc()}
+          action={<ResetAuthKeyButton userId={userId} />}
+        />
+
+        <div className="h-px bg-separator" />
+
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-[13px] font-medium text-foreground">
+              {m.user_manage_remark_label()}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-muted">{m.user_manage_remark_desc()}</p>
+          </div>
+          <div className="flex w-full flex-col gap-2">
+            <TextArea
+              aria-label={m.user_manage_remark_label()}
+              rows={3}
+              maxLength={2000}
+              variant="secondary"
+              fullWidth
+              style={{ resize: "vertical" }}
+              placeholder={m.user_manage_remark_placeholder()}
+              value={draftRemark}
+              onChange={(event) => setDraftRemark(event.target.value)}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs tabular-nums text-muted">{draftRemark.length}/2000</span>
               <Button
                 size="sm"
-                variant={active ? "danger-soft" : "primary"}
-                isPending={toggleMutation.isPending}
-                isDisabled={isSelf}
-                onPress={handleToggleStatus}
+                variant="primary"
+                isPending={remarkMutation.isPending}
+                isDisabled={!canSaveRemark || remarkMutation.isPending}
+                onPress={handleSaveRemark}
               >
-                {active ? m.users_deactivate() : m.users_activate()}
+                {remarkMutation.isPending
+                  ? m.user_manage_remark_saving()
+                  : m.user_manage_remark_save()}
               </Button>
-            }
-          />
-
-          <div className="h-px bg-separator" />
-
-          <ManageRow
-            label={m.user_manage_reset_label()}
-            description={m.user_manage_reset_desc()}
-            action={
-              <Button
-                size="sm"
-                variant="secondary"
-                onPress={() => {
-                  setResetResult(null);
-                  resetMutation.reset();
-                  setResetOpen(true);
-                }}
-              >
-                {m.user_manage_reset_auth_key()}
-              </Button>
-            }
-          />
-
-          <div className="h-px bg-separator" />
-
-          <div className="flex flex-col gap-3">
-            <div>
-              <p className="text-[13px] font-medium text-foreground">
-                {m.user_manage_remark_label()}
-              </p>
-              <p className="mt-0.5 text-xs leading-5 text-muted">{m.user_manage_remark_desc()}</p>
-            </div>
-            <div className="flex w-full flex-col gap-2">
-              <TextArea
-                aria-label={m.user_manage_remark_label()}
-                rows={3}
-                maxLength={2000}
-                variant="secondary"
-                fullWidth
-                style={{ resize: "vertical" }}
-                placeholder={m.user_manage_remark_placeholder()}
-                value={draftRemark}
-                onChange={(event) => setDraftRemark(event.target.value)}
-              />
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs tabular-nums text-muted">{draftRemark.length}/2000</span>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  isPending={remarkMutation.isPending}
-                  isDisabled={!canSaveRemark || remarkMutation.isPending}
-                  onPress={handleSaveRemark}
-                >
-                  {remarkMutation.isPending
-                    ? m.user_manage_remark_saving()
-                    : m.user_manage_remark_save()}
-                </Button>
-              </div>
             </div>
           </div>
         </div>
-      </Section>
-
-      <ResetAuthKeyModal
-        isOpen={resetOpen}
-        onOpenChange={handleResetOpenChange}
-        pending={resetMutation.isPending}
-        error={resetMutation.isError && !resetResult ? resetError : ""}
-        result={resetResult}
-        onConfirm={handleResetConfirm}
-      />
-    </>
+      </div>
+    </Section>
   );
 }
 
-function ResetAuthKeyModal({
-  isOpen,
-  onOpenChange,
-  pending,
-  error,
-  result,
-  onConfirm,
-}: {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  pending: boolean;
-  error: string;
-  result: PanelUser | null;
-  onConfirm: () => void;
-}) {
-  return (
-    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Container size="sm" placement="auto">
-        <Modal.Dialog>
-          <Modal.CloseTrigger />
-          <Modal.Header>
-            <Modal.Heading>{m.user_manage_reset_confirm_title()}</Modal.Heading>
-            <p className="mt-1.5 text-sm leading-5 text-muted">
-              {m.user_manage_reset_confirm_body()}
-            </p>
-          </Modal.Header>
-          <Modal.Body>
-            {error && (
-              <p className="text-[13px] text-danger" role="alert">
-                {error}
-              </p>
-            )}
-
-            {result && (
-              <div className="rounded-lg border bg-surface-secondary p-3">
-                <div className="flex items-center gap-2 text-[13px]">
-                  <Dot tone="ok" />
-                  <span className="font-medium">{m.user_manage_reset_done()}</span>
-                </div>
-                <p className="mt-1 text-xs text-muted">{m.user_manage_reset_new_key_hint()}</p>
-                {result.auth_string && (
-                  <div className="group/key mt-2 flex items-center gap-1.5">
-                    <span className="min-w-0 truncate font-mono text-[12px] text-muted">
-                      {result.auth_string}
-                    </span>
-                    <CopyButton value={result.auth_string} label={m.common_copy_auth_key()} />
-                  </div>
-                )}
-              </div>
-            )}
-          </Modal.Body>
-          <Modal.Footer>
-            <Button slot="close" variant="secondary">
-              {result ? m.common_cancel() : m.user_manage_reset_cancel()}
-            </Button>
-            {!result && (
-              <Button variant="danger" isPending={pending} isDisabled={pending} onPress={onConfirm}>
-                {pending ? m.user_manage_reset_submitting() : m.user_manage_reset_submit()}
-              </Button>
-            )}
-          </Modal.Footer>
-        </Modal.Dialog>
-      </Modal.Container>
-    </Modal.Backdrop>
-  );
-}
-
-function PasskeysSection({ userId, isSelf }: { userId: string; isSelf: boolean }) {
+function PasskeysSection({ userId }: { userId: string }) {
   const queryClient = useQueryClient();
   const passkeysKey = ["panel", "users", userId, "passkeys"] as const;
   const configQuery = useQuery({
@@ -815,12 +686,6 @@ function PasskeysSection({ userId, isSelf }: { userId: string; isSelf: boolean }
     queryFn: () => listPasskeys(userId),
     enabled: canQueryPanelApi() && enabled,
   });
-  const addMutation = useMutation({
-    mutationFn: () => registerPasskey(userId, m.user_passkeys_default_name(), false),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: passkeysKey });
-    },
-  });
   const deleteMutation = useMutation({
     mutationFn: ({ passkeyId }: { passkeyId: string }) => deletePasskey(userId, passkeyId),
     onSuccess: () => {
@@ -832,42 +697,21 @@ function PasskeysSection({ userId, isSelf }: { userId: string; isSelf: boolean }
 
   const rows = passkeysQuery.data ?? [];
   const loading = passkeysQuery.isPending;
-  const addError =
-    addMutation.error && !isPasskeySoftError(addMutation.error)
-      ? queryErrorMessage(addMutation.error, m.error_passkey_add())
-      : "";
   const deleteError = deleteMutation.error
     ? queryErrorMessage(deleteMutation.error, m.error_passkey_delete())
     : "";
-  const error = passkeysQuery.error
-    ? queryErrorMessage(passkeysQuery.error)
-    : addError || deleteError;
+  const error = passkeysQuery.error ? queryErrorMessage(passkeysQuery.error) : deleteError;
 
   return (
     <Section
       title={m.user_passkeys_title()}
       meta={loading ? undefined : m.user_passkeys_meta({ count: String(rows.length) })}
-      action={
-        isSelf ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            isDisabled={addMutation.isPending}
-            onPress={() => addMutation.mutate()}
-          >
-            {addMutation.isPending ? m.user_passkeys_adding() : m.user_passkeys_add()}
-          </Button>
-        ) : undefined
-      }
     >
       <ErrorAlert message={error} className="m-3" />
       {loading ? (
         <TableSkeleton rows={2} />
       ) : rows.length === 0 ? (
-        <Teaching
-          title={m.user_passkeys_empty_title()}
-          hint={isSelf ? m.user_passkeys_empty_hint_self() : m.user_passkeys_empty_hint_other()}
-        />
+        <Teaching title={m.user_passkeys_empty_title()} hint={m.user_passkeys_empty_hint_other()} />
       ) : (
         <PasskeysTable
           rows={rows}
