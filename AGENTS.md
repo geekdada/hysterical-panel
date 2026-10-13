@@ -17,7 +17,7 @@
 - 自主轮询采集各节点流量与最新在线设备数，做用户级 / 节点级聚合 + admin 全局看板。
 - 用户管理（分页/排序/筛选列表）+ 实时诊断面板。
 - 作为 Hysteria 2 / anytls 节点的 `auth.type: http` 回调端点，按 `auth_string`（anytls 按其 hash）鉴权客户端连接。
-- 面板登录支持密码 + passkey（WebAuthn）+ PocketBase OAuth2（只登录已有账号，不注册）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
+- 面板登录支持密码 + passkey（WebAuthn）+ PocketBase 邮箱验证码 OTP（免密码，非 MFA）+ PocketBase OAuth2（只登录已有账号，不注册）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
 - 可选的 OIDC Provider：admin 登记 Connected App 后，其他站点可用面板账号登录（Authorization Code + PKCE，见 ADR-0010）。只发 `sub` / `email` / `email_verified`，不发 Auth String。
 - 可选的 Email Sendout：admin 在面板里写事务邮件，经 PocketBase SMTP 发给一个或全部可用 User；持久化队列、只发一次、失败手动重发，见 ADR-0008。
 - **不做**：支付/账单、节点部署。订阅仅作为节点访问与流量额度门禁，见 `docs/subscriptions.md`。Monitoring 支持基于 Observation 的 Node Monitor（offline / high-traffic）和基于订阅状态的 User Monitor（low allowance / expiring subscription，ADR-0009），共用 Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
@@ -157,6 +157,7 @@ hysterical-panel/
 │           ├── passkeys.go     WebAuthn 注册 / 登录 / 列举 / 删除（go-webauthn）
 │           ├── oauth2_login.go OAuth2 只登录已有账号（拒绝新建用户）+ provider 回调转发
 │           ├── oauth2_links.go 用户 OAuth2 关联列举 / 取消（admin 或本人）
+│           ├── otp_login.go    邮箱验证码登录门禁：无 SMTP 返回 503，停用用户不发信
 │           ├── oidc_protocol.go  /api/oidc/* 协议端点（discovery / jwks / authorize / token / userinfo / revoke）+ 限流
 │           ├── oidc_clients.go   Connected App CRUD + secret 轮换（admin）
 │           ├── oidc_consent.go   同意页用的 /oidc/requests/{handle} 读取 / approve / deny / abort
@@ -194,9 +195,9 @@ hysterical-panel/
     ├── messages/               i18n 文案（en.json / zh-cn.json）；编译产物落 src/paraglide/（gitignore）
     ├── scripts/                i18n-check.mjs（校验翻译完整）等
     └── src/
-        ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/OAuth2/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
+        ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/OTP/OAuth2/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
         ├── routes/             文件式路由（index / login / oauth-callback / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / settings/connected-apps / oidc/authorize / oidc/error / invitations / nodes / users）
-        ├── components/         traffic.tsx / traffic-range-picker.tsx / social-logins.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx / authorized-apps.tsx
+        ├── components/         traffic.tsx / traffic-range-picker.tsx / social-logins.tsx / oauth-provider-icon.tsx / email-code-login.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx / authorized-apps.tsx
         ├── emails/             Email Sendout 编辑器（@react-email/editor）+ 固定服务邮件外框（serializerPlugin.BaseTemplate）
         ├── paraglide/          Paraglide 编译产物（生成，gitignore，勿手改）
         ├── lib/                展示与工具 helper（format / theme / locale / timezone / cn / use-* hooks 等）
@@ -323,6 +324,8 @@ hysterical-panel/
 `POST /api/mgmt/users`、`GET /api/mgmt/users` — Management API（公开但 Bearer 鉴权，未启用返回 404；见决策 #10）。供外部系统按 id/email/auth_string 查号或建号，**不进 OpenAPI**，契约见 backend/README.md。Connected App 拿到的 `sub` 即 User ID，用 `?id=` 查。
 
 `/api/oidc/*` — OIDC Provider 协议端点（discovery、jwks、authorize、token、userinfo、revoke），由 Connected App 与浏览器调用，**不进 OpenAPI**，关闭时 404。`/authorize` 校验后 303 到前端 `/oidc/authorize?request=<handle>`，同意页响应头带 `frame-ancestors 'none'` 与 `Referrer-Policy: no-referrer`。见决策 #11 与 backend/README.md。
+
+**邮箱验证码登录**：在 `/_/` 的 users collection 启用 OTP（不是 MFA），登录页读 `auth-methods` 的 `otp.enabled` 显示入口，走内置 `request-otp` → `auth-with-otp`，仍过 `bindAuthGate`。`otp_login.go` 在 SMTP 未启用时返回 503，并让非 active 用户拿到与未知邮箱相同的假 `otpId`、不发信。未验证用户用验证码登录后 PocketBase 会置 `verified=true` 并重置密码。登录页与设置页的 OAuth2 按钮按 PocketBase provider 名显示单色品牌图标（`components/oauth-provider-icon.tsx`，`simple-icons`），通用 `oidc*` 等认不出的 provider 不显示图标。详见 backend/README.md。
 
 **找回密码**（无自建后端代码，纯走 PocketBase 内置）：前端 `/forgot-password` 调内置 `POST /api/collections/users/request-password-reset`（`{email}`，恒 204，内置反枚举 + 2 分钟重发节流）；`/reset-password?token=` 调内置 `POST /api/collections/users/confirm-password-reset`（`{token,password,passwordConfirm}`，成功且 token 邮箱匹配会顺带置 `verified=true`）。两端点不触发 `OnRecordAuthRequest`，不受 `bindAuthGate` 阻挡（`disabled` 用户可重置但仍无法登录）。前端函数在 `src/api/auth.ts` 的 `requestPasswordReset`/`confirmPasswordReset`。**部署须一次性配置**：把 PocketBase `Settings → Application URL` 设为前端域名，并把 users collection 的 **Reset password** 邮件模板链接由默认的 `{APP_URL}/_/#/auth/confirm-password-reset/{TOKEN}` 改成 `{APP_URL}/reset-password?token={TOKEN}`，否则邮件链接落到 PocketBase 后台而非前端重置页。该模板邮件走内置 SMTP，不经 `mailer.go`。
 
