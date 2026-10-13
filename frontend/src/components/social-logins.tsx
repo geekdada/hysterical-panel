@@ -10,6 +10,7 @@ import {
   userOAuthLinksQueryOptions,
   type OAuthLink,
 } from "~/api/queries";
+import { OAuthProviderIcon } from "~/components/oauth-provider-icon";
 import {
   DestructiveConfirmModal,
   ErrorAlert,
@@ -189,6 +190,7 @@ function LinkProviderModal({
                 isDisabled={pendingProvider !== undefined}
                 onPress={() => linkMutation.mutate(provider.name)}
               >
+                <OAuthProviderIcon provider={provider.name} />
                 {pendingProvider === provider.name ? m.auth_redirecting() : provider.displayName}
               </Button>
             ))}
@@ -211,8 +213,9 @@ function OAuthLinkList({ state, className }: { state: OAuthLinksState; className
         return (
           <li key={link.id} className="flex items-center justify-between gap-3 px-5 py-3">
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-medium text-foreground">
-                {state.providerLabel(link)}
+              <p className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                <OAuthProviderIcon provider={link.provider} className="size-3.5" />
+                <span className="truncate">{state.providerLabel(link)}</span>
               </p>
               <p className="mt-0.5 text-xs text-muted">
                 {m.settings_social_logins_linked_at({ time: relTimeFromISO(link.created, now) })}

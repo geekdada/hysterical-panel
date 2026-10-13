@@ -247,6 +247,9 @@ importers:
       recharts:
         specifier: ^3.9.0
         version: 3.9.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@16.13.1)(react@19.2.7)(redux@5.0.1)
+      simple-icons:
+        specifier: ^16.35.0
+        version: 16.35.0
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.1
@@ -3226,6 +3229,10 @@ packages:
   signal-exit@4.1.0:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
+
+  simple-icons@16.35.0:
+    resolution: {integrity: sha512-TCfl/2+GTrx0nCo4pEWGvxhOb8c6NsqOU1OpwjtF4lwJAthB8IYVD0fuIMjLMg6JFuG1YBO0t1iETQqJLqkoJA==}
+    engines: {node: '>=0.12.18'}
 
   sisteransi@1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
@@ -6556,6 +6563,8 @@ snapshots:
   shell-quote@1.12.0: {}
 
   signal-exit@4.1.0: {}
+
+  simple-icons@16.35.0: {}
 
   sisteransi@1.0.5: {}
 
