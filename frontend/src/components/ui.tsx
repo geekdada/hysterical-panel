@@ -18,6 +18,7 @@ import {
   Tooltip,
 } from "@heroui/react";
 import { BreadcrumbTitleProvider, BreadcrumbBar } from "~/components/breadcrumbs";
+import { LocaleToggle } from "~/components/locale-toggle";
 import { appNameInitial, useAppName } from "~/lib/use-app-name";
 import { cn } from "~/lib/cn";
 import { defaultDashboardSearch } from "~/lib/dashboard-search";
@@ -99,8 +100,9 @@ export function AuthBrandMark() {
 // verify, forgot-password). Pages pass their Card.Header/Content as children.
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background p-4 text-foreground">
+    <div className="flex min-h-svh flex-col items-center justify-center gap-4 bg-background p-4 text-foreground">
       <Card className="w-full max-w-sm border bg-surface">{children}</Card>
+      <LocaleToggle />
     </div>
   );
 }
