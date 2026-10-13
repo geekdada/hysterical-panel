@@ -2,11 +2,14 @@ package api
 
 import (
 	"fmt"
+	"html"
 	"net/mail"
 	"net/url"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/mailer"
+
+	"hysterical-panel/internal/sendouts"
 )
 
 // smtpEnabled reports whether PocketBase has SMTP configured. When false the
@@ -17,8 +20,7 @@ func (h *Handlers) smtpEnabled() bool {
 }
 
 func (h *Handlers) sender() mail.Address {
-	meta := h.app.Settings().Meta
-	return mail.Address{Name: meta.SenderName, Address: meta.SenderAddress}
+	return sendouts.Sender(h.app)
 }
 
 // inviteLink builds the public registration link carrying an invite code. When
@@ -41,12 +43,13 @@ func (h *Handlers) sendInviteEmail(to, link string) (bool, error) {
 	if !h.smtpEnabled() {
 		return false, nil
 	}
+	from := h.sender()
 	msg := &mailer.Message{
-		From:    h.sender(),
+		From:    from,
 		To:      []mail.Address{{Address: to}},
-		Subject: "You're invited to Hysterical Panel",
-		HTML:    fmt.Sprintf(`<p>You've been invited to Hysterical Panel.</p><p><a href="%s">Create your account</a></p><p>Or open this link: %s</p>`, link, link),
-		Text:    fmt.Sprintf("You've been invited to Hysterical Panel.\n\nCreate your account: %s\n", link),
+		Subject: fmt.Sprintf("You're invited to %s", from.Name),
+		HTML:    fmt.Sprintf(`<p>You've been invited to %s.</p><p><a href="%s">Create your account</a></p><p>Or open this link: %s</p>`, html.EscapeString(from.Name), link, link),
+		Text:    fmt.Sprintf("You've been invited to %s.\n\nCreate your account: %s\n", from.Name, link),
 	}
 	if err := h.app.NewMailClient().Send(msg); err != nil {
 		return false, err
@@ -64,11 +67,12 @@ func (h *Handlers) sendVerificationEmail(user *core.Record) error {
 		return err
 	}
 	link := h.verifyLink(token)
+	from := h.sender()
 	msg := &mailer.Message{
-		From:    h.sender(),
+		From:    from,
 		To:      []mail.Address{{Address: user.Email()}},
-		Subject: "Verify your Hysterical Panel email",
-		HTML:    fmt.Sprintf(`<p>Confirm your email to activate your Hysterical Panel account.</p><p><a href="%s">Verify email</a></p><p>Or open this link: %s</p>`, link, link),
+		Subject: fmt.Sprintf("Verify your %s email", from.Name),
+		HTML:    fmt.Sprintf(`<p>Confirm your email to activate your %s account.</p><p><a href="%s">Verify email</a></p><p>Or open this link: %s</p>`, html.EscapeString(from.Name), link, link),
 		Text:    fmt.Sprintf("Confirm your email to activate your account: %s\n", link),
 	}
 	return h.app.NewMailClient().Send(msg)

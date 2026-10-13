@@ -244,7 +244,7 @@ auth:
 
 启用方式：`PATCH /api/panel/settings`，置 `management_api_enabled=true`；首次启用时服务器自动生成 token 并在响应 `management_api_token` 字段返回明文（仅此一次）。响应中 `management_api_token_set` 标识当前是否已配置 token。需要更换 token 时调 `POST /api/panel/management-api/rotate`，返回新的明文 token（同样仅一次）。
 
-> 邮件（邀请信、邮箱验证信）走 PocketBase 内置 SMTP（在 `/_/` 后台 Settings → Mail 配置），无新增环境变量。未配置 SMTP 时邀请接口仍返回 `link` 供手动分享，但开放无码注册因依赖验证邮件而不可用。找回密码邮件同样走内置 SMTP，但用的是 PocketBase 自带的 **Reset password** 模板（需按上文把链接改指向前端 `/reset-password`），不经 `mailer.go`。
+> 邮件（邀请信、邮箱验证信）走 PocketBase 内置 SMTP（在 `/_/` 后台 Settings → Mail 配置），无新增环境变量。面板自己发的邮件（邀请信、验证信、Email Sendout）发件人名取 **Settings → Application Name**，为空才回退到 Mail 设置里的 Sender name；发件地址仍是 Sender address。PocketBase 内置模板邮件（找回密码、OTP 验证码）照旧用 Sender name。未配置 SMTP 时邀请接口仍返回 `link` 供手动分享，但开放无码注册因依赖验证邮件而不可用。找回密码邮件同样走内置 SMTP，但用的是 PocketBase 自带的 **Reset password** 模板（需按上文把链接改指向前端 `/reset-password`），不经 `mailer.go`。
 
 ## OIDC Provider（Connected App 登录）
 

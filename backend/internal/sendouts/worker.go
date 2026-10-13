@@ -166,9 +166,8 @@ func (s *Service) recipientUser(row *core.Record) (*core.Record, string, string)
 }
 
 func (s *Service) message(sendout *core.Record, to string) *mailer.Message {
-	meta := s.app.Settings().Meta
 	return &mailer.Message{
-		From:    mail.Address{Name: meta.SenderName, Address: meta.SenderAddress},
+		From:    Sender(s.app),
 		To:      []mail.Address{{Address: to}},
 		Subject: sendout.GetString("subject"),
 		HTML:    sendout.GetString("html"),
