@@ -171,6 +171,15 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 
 **部署需做一次配置**：默认重置邮件链接指向 PocketBase 后台（`{APP_URL}/_/#/auth/confirm-password-reset/{TOKEN}`）。要让链接落到前端重置页，请在 `/_/` 后台把 **Settings → Application URL** 设为前端域名，并把 users collection 的 **Reset password** 邮件模板链接改成 `{APP_URL}/reset-password?token={TOKEN}`。同样依赖 SMTP；未配置 SMTP 则找回密码不可用。
 
+### 邮箱验证码登录（PocketBase OTP，免密码）
+
+在 `/_/` 后台 users collection 的 **Options → One-time password (OTP)** 启用，面板不新增环境变量。这里是单独使用 OTP 登录，不是 MFA；users collection 开着 MFA 时 OTP 会变成第二因素，登录页的验证码入口无法单独完成登录。前端登录页读内置 `GET /api/collections/users/auth-methods` 的 `otp.enabled` 决定是否显示「通过邮箱验证码登录」，流程分两步：内置 `POST /api/collections/users/request-otp`（`{email}`）返回 `otpId` 并发信，再调内置 `POST /api/collections/users/auth-with-otp`（`{otpId,password:<验证码>}`）换取与密码登录同形的 token+record。
+
+- 验证码长度、有效期与邮件模板都在同一处 OTP 选项里配置。PocketBase 对每个账号限制 180 秒内最多 5 次验证，验证码用过即删。
+- `OnRecordRequestOTPRequest("users")`（`otp_login.go`）：SMTP 未启用时返回 503 `email sign-in is unavailable: SMTP is not configured`，因为 sendmail 兜底会静默丢信；`status` 非 active 的用户与不存在的邮箱一样拿到假 `otpId`、不发信，响应不暴露账号是否存在。
+- 登录仍过 `bindAuthGate` 的 `status` / `verified` 门禁。未验证用户可以收到验证码，用验证码登录时 PocketBase 会置 `verified=true` 并重置其密码（防预注册劫持），之后可经找回密码重新设置。
+- 有 passkey 的账号也能用验证码登录（密码登录对其关闭）。
+
 ### OAuth2 登录（只登录不注册）
 
 provider 在 `/_/` 后台 users collection 的 **Options → OAuth2** 里启用和配置，面板不新增环境变量。前端登录页调内置 `GET /api/collections/users/auth-methods` 列出已启用的 provider，点击后跳转到 provider 授权页。provider 回跳后端公开的 `GET|POST /api/panel/oauth2-redirect`，它只把 `code` / `state` / `error` 以 303 转发到 `PANEL_FRONTEND_URL_BASE + /oauth-callback`（未配置则为相对路径 `/oauth-callback`，只适用于前后端同域）。前端校验 `state` 后调内置 `POST /api/collections/users/auth-with-oauth2`（带 PKCE `codeVerifier`）换取与密码登录同形的 token+record。
