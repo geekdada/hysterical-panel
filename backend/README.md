@@ -196,14 +196,17 @@ users collection 的 List / View / Create / Update / Delete API 规则由迁移 
 
 ### Hysteria 回调 `POST /api/hysteria/auth`（供 Hysteria 节点调用）
 
-给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<current-auth-string>","tx":1000000}`；后端只按 `user_auth_strings` 中的 Current Auth String 匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<user.id>"}`，其它返回非 200。稳定 User ID 会用于节点后续 `/traffic`、`/online`、`/dump/streams` 与 `/kick`；Retired Auth String 不能认证，但仍可把迁移前连接的统计归属回 User。成功鉴权会异步更新连接元数据。
+给 Hysteria 2 节点的 `auth.type: http` 用，每次客户端连接时由节点回调。请求体形如 `{"addr":"1.2.3.4:5678","auth":"<current-auth-string>","tx":1000000}`；后端只按 `user_auth_strings` 中的 Current Auth String 匹配，命中且 `status=active` 且 `verified=true` 时返回 `200 {"ok":true,"id":"<user.id>"}`；拒绝时 body 恒为 `{"ok":false}`，状态码标明原因（见下表）。稳定 User ID 会用于节点后续 `/traffic`、`/online`、`/dump/streams` 与 `/kick`；Retired Auth String 不能认证，但仍可把迁移前连接的统计归属回 User。成功鉴权会异步更新连接元数据。
 
 | 状态码 | 含义 |
 |---|---|
 | 200 | 验证通过，body 含 `ok` 与 `id` |
 | 400 | 请求体缺失 `auth` 或不是合法 JSON |
 | 401 | `auth` 不匹配任何 Current Auth String |
-| 403 | 用户存在但 `status=disabled` 或 `verified=false` |
+| 403 | 用户存在但 `status=disabled`、`verified=false` 或没有可用订阅 |
+| 500 | 订阅检查失败 |
+
+除 200 外 body 都是 `{"ok":false}`。
 
 节点侧 `server.yaml` 示例：
 ```yaml

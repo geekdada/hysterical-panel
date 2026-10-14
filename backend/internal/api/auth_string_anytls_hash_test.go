@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -74,6 +75,44 @@ func TestNodeAuthReturnsStableUserIDAndRejectsRetiredCredentials(t *testing.T) {
 	}
 	assertNodeAuthID(t, h, false, "NextSecret", user.Id)
 	assertNodeAuthID(t, h, true, token.Sha256Hex("NextSecret"), user.Id)
+	assertNodeAuthRejected(t, nodeAuth(t, h, false, "CurrentSecret"), http.StatusUnauthorized)
+	assertNodeAuthRejected(t, nodeAuth(t, h, true, token.Sha256Hex("CurrentSecret")), http.StatusUnauthorized)
+}
+
+func TestNodeAuthRejectsInvalidRequestsWithOKFalse(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := &Handlers{app: app}
+	for _, anytls := range []bool{false, true} {
+		assertNodeAuthRejected(t, nodeAuth(t, h, anytls, "UnknownSecret"), http.StatusUnauthorized)
+		assertNodeAuthRejected(t, nodeAuth(t, h, anytls, ""), http.StatusBadRequest)
+	}
+}
+
+func nodeAuth(t *testing.T, h *Handlers, anytls bool, auth string) *httptest.ResponseRecorder {
+	t.Helper()
+	event, response := jsonRequestEvent(t, h.app, http.MethodPost, "/auth", map[string]any{"addr": "192.0.2.1:1234", "auth": auth})
+	handler := h.hysteriaAuth
+	if anytls {
+		handler = h.anytlsAuth
+	}
+	if err := handler(event); err != nil {
+		t.Fatalf("node auth: %v", err)
+	}
+	return response
+}
+
+func assertNodeAuthRejected(t *testing.T, response *httptest.ResponseRecorder, wantStatus int) {
+	t.Helper()
+	if response.Code != wantStatus {
+		t.Fatalf("node auth status = %d, want %d", response.Code, wantStatus)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(body) != 1 || body["ok"] != false {
+		t.Fatalf("node auth rejection body = %s, want {\"ok\":false}", response.Body.String())
+	}
 }
 
 func TestManagementLookupMatchesOnlyCurrentAuthString(t *testing.T) {

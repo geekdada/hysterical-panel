@@ -2,9 +2,9 @@ package api
 
 import (
 	"log"
+	"net/http"
 	"time"
 
-	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"hysterical-panel/internal/subscriptions"
 )
@@ -33,9 +33,9 @@ type nodeClientAuthRequest struct {
 // the user from the request's auth value; the response always uses user.id as
 // the stable identifier consumed by the Node's stats and kick APIs.
 //
-// Failure semantics follow the node contract: any non-200 status rejects the
-// client. We never log the auth value itself (it's a credential), only addr
-// and the rejection reason.
+// Every rejection answers {"ok":false} as the Hysteria contract requires, while
+// keeping a descriptive status code for logs. We never log the auth value itself
+// (it's a credential), only addr and the rejection reason.
 func (h *Handlers) handleNodeClientAuth(
 	e *core.RequestEvent,
 	logPrefix string,
@@ -43,31 +43,29 @@ func (h *Handlers) handleNodeClientAuth(
 ) error {
 	var in nodeClientAuthRequest
 	if err := e.BindBody(&in); err != nil {
-		return apis.NewBadRequestError("invalid body", err)
+		return rejectNodeClient(e, http.StatusBadRequest, logPrefix, in.Addr, "invalid body")
 	}
 	if in.Auth == "" {
-		return apis.NewBadRequestError("auth required", nil)
+		return rejectNodeClient(e, http.StatusBadRequest, logPrefix, in.Addr, "auth required")
 	}
 
 	user, err := lookup(in.Auth)
 	if err != nil || user == nil {
-		log.Printf("[%s] reject addr=%s: unknown auth", logPrefix, in.Addr)
-		return apis.NewUnauthorizedError("invalid auth", nil)
+		return rejectNodeClient(e, http.StatusUnauthorized, logPrefix, in.Addr, "unknown auth")
 	}
 	if user.GetString("status") != "active" {
-		log.Printf("[%s] reject addr=%s: account disabled", logPrefix, in.Addr)
-		return apis.NewForbiddenError("account is disabled", nil)
+		return rejectNodeClient(e, http.StatusForbidden, logPrefix, in.Addr, "account disabled")
 	}
 	if !user.GetBool("verified") {
-		log.Printf("[%s] reject addr=%s: email not verified", logPrefix, in.Addr)
-		return apis.NewForbiddenError("email not verified", nil)
+		return rejectNodeClient(e, http.StatusForbidden, logPrefix, in.Addr, "email not verified")
 	}
 	allowed, err := subscriptions.Allowed(h.app, user, time.Now().UTC())
 	if err != nil {
-		return apis.NewInternalServerError("subscription check failed", err)
+		log.Printf("[%s] subscription check failed for user %s: %v", logPrefix, user.Id, err)
+		return rejectNodeClient(e, http.StatusInternalServerError, logPrefix, in.Addr, "subscription check failed")
 	}
 	if !allowed {
-		return apis.NewForbiddenError("no available subscription", nil)
+		return rejectNodeClient(e, http.StatusForbidden, logPrefix, in.Addr, "no available subscription")
 	}
 
 	userID := user.Id
@@ -95,4 +93,11 @@ func (h *Handlers) handleNodeClientAuth(
 		"ok": true,
 		"id": user.Id,
 	})
+}
+
+// rejectNodeClient logs the reason and answers with the {"ok":false} body that
+// Hysteria and anytls expect for a refused client.
+func rejectNodeClient(e *core.RequestEvent, status int, logPrefix, addr, reason string) error {
+	log.Printf("[%s] reject addr=%s: %s", logPrefix, addr, reason)
+	return e.JSON(status, map[string]any{"ok": false})
 }

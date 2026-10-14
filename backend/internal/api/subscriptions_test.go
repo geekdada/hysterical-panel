@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,11 +22,11 @@ func TestMeteredUserWithoutSubscriptionCannotAuthenticateNode(t *testing.T) {
 	if err := app.Save(user); err != nil {
 		t.Fatal(err)
 	}
-	e, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/hysteria/auth", map[string]any{"auth": "RequiresGrantKey"})
-	err := (&Handlers{app: app}).handleNodeClientAuth(e, "test", func(string) (*core.Record, error) { return user, nil })
-	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "no available subscription") {
-		t.Fatalf("node auth without a grant = %v", err)
+	e, response := jsonRequestEvent(t, app, http.MethodPost, "/api/hysteria/auth", map[string]any{"auth": "RequiresGrantKey"})
+	if err := (&Handlers{app: app}).handleNodeClientAuth(e, "test", func(string) (*core.Record, error) { return user, nil }); err != nil {
+		t.Fatalf("node auth without a grant: %v", err)
 	}
+	assertNodeAuthRejected(t, response, http.StatusForbidden)
 }
 
 func TestExpiryReconciliationPreservesSeamlessRenewal(t *testing.T) {
