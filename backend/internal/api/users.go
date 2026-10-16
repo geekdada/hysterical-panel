@@ -40,6 +40,10 @@ func (h *Handlers) getUser(e *core.RequestEvent) error {
 		public["remark"] = u.GetString("remark")
 	}
 	public["online_devices"] = onlineDevices
+	lastLoginIP, recentLoginIPs := loginIPsFromRecord(u, h.ipLookup)
+	public["last_login_at"] = u.GetString("last_login_at")
+	public["last_login_ip"] = lastLoginIP
+	public["recent_login_ips"] = recentLoginIPs
 	return ok(e, public)
 }
 

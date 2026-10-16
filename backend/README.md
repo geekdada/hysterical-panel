@@ -6,7 +6,7 @@
 ## 模型
 
 两层：
-- **users** — 既是登录面板的人（`admin` 或 `user`），也是节点认证主体。节点凭据独立保存在 `user_auth_strings`：每个 User 只有一个 Current Auth String 可认证，Retired 历史仅用于旧 Node Client ID 归属。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick [user.id]` 扇出（3 并发、异步、失败仅记日志）。轮换 Auth String（`PATCH /users/{id}` 改 `auth_string` 或 `POST /users/{id}/reset-auth-string`）同样触发该扇出，断开仍用旧凭据的会话。账号「可用」= `status=active` **且** `verified=true`。成功节点鉴权会更新 `last_connected_at` 与 `recent_connections`。
+- **users** — 既是登录面板的人（`admin` 或 `user`），也是节点认证主体。节点凭据独立保存在 `user_auth_strings`：每个 User 只有一个 Current Auth String 可认证，Retired 历史仅用于旧 Node Client ID 归属。`admin` 可管理全局资源；`user` 只能查看自己的账号诊断。`status`（`active`/`disabled`）控制启停：`disabled` 用户无法登录面板、也不再被采集器记账，并会触发一次 best-effort `/kick [user.id]` 扇出（3 并发、异步、失败仅记日志）。轮换 Auth String（`PATCH /users/{id}` 改 `auth_string` 或 `POST /users/{id}/reset-auth-string`）同样触发该扇出，断开仍用旧凭据的会话。账号「可用」= `status=active` **且** `verified=true`。成功节点鉴权会更新 `last_connected_at` 与 `recent_connections`。每次面板登录（密码、passkey、邮箱验证码、OAuth2、经邀请码注册后的自动登录；token 刷新不算）会更新 `last_login_at`、`last_login_ip` 与最近 5 个唯一登录 IP `recent_login_ips`。
 - **nodes** — 一个 Hysteria 实例的接口信息（`api_url` + 加密的 `api_secret`），并保存最近一次成功 `/online` 的 Node 总设备数与观测时间。
 - **online_device_counts** — 每个 User/Node 的最新正数在线客户端实例投影；不保留历史。User 总数只汇总 Enabled Node 且跨 Node 不去重，Node 总数包含未知 Node Client ID。
 - **subscription_types / user_subscriptions** — 管理员定义额度与 30/360 天重置周期，授予 360 天订阅；节点鉴权要求当前窗口仍有额度。升级前的用户在首次授予前豁免，新用户（包括 admin）须由管理员授予。详见 [`docs/subscriptions.md`](../docs/subscriptions.md)。
@@ -63,7 +63,7 @@ docker run --rm \
 headers 里填代理设置的头（仓库自带的 `deploy/nginx/default.conf` 用 `X-Real-IP`）。
 PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代理地址。注册、passkey
 和 `/api/oidc/*` 的按 IP 限流就变成所有人共用一份额度，一个人刷满后别人也会收到
-429。直接对外暴露、前面没有代理时不要填，否则客户端可以伪造这个头绕过限流。
+429；用户详情里的面板登录 IP 也全部记成代理地址。直接对外暴露、前面没有代理时不要填，否则客户端可以伪造这个头绕过限流。
 
 ## 采集器
 
@@ -90,7 +90,7 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 | GET | `/users` | 分页列表；`?page=1&per_page=25&search=&sort=created`（search 对 email/remark/role/status 子串匹配，auth_string 仅完整相等）→ `{ items, total, page, per_page }`；每个 item 附 `current_subscription`（覆盖当前时刻的授予，无则 `null`），终身 `used_tx` / `used_rx` 只对未授予过订阅的旧豁免用户返回（其余为 `null`）。`sort=[-]subscription_used|subscription_tx|subscription_rx` 按当前窗口用量排序，无当前订阅的用户无论升降序都排在最后（按创建时间） |
 | GET | `/users/stats` | 用户总数与 active 数 `{ total, active }` |
 | POST | `/users` | 新建（email+password+auth_string） |
-| GET | `/users/{id}` | 详情（admin 或本人） |
+| GET | `/users/{id}` | 详情（admin 或本人），含上次面板登录时间、IP 与最近 5 个登录 IP（附 ASN / 国家） |
 | GET | `/subscription-types` | 管理员列出订阅类型 |
 | POST / PATCH / DELETE | `/subscription-types`、`/subscription-types/{id}` | 管理员创建、修改、删除尚未授予的类型；已授予过的类型只可隐藏或修改额度 |
 | GET | `/users/{id}/subscriptions` | 授予记录；当前授予附本窗口用量 `used_bytes` = `used_tx_bytes` + `used_rx_bytes`，每份授予附整期用量 `grant_tx_bytes` / `grant_rx_bytes`（admin 或本人） |

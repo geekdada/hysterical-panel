@@ -49,6 +49,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"PanelUser":                         PanelUser{},
 		"UserDetail":                        UserDetail{},
 		"RecentConnection":                  RecentConnection{},
+		"LoginIP":                           LoginIP{},
 		"UserListItem":                      UserListItem{},
 		"UserListResponse":                  UserListResponse{},
 		"UserStatsResponse":                 UserStatsResponse{},

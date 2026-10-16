@@ -133,7 +133,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..35）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..36）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -154,6 +154,7 @@ hysterical-panel/
 │           ├── users.go        用户 CRUD + reset-auth-string
 │           ├── users_list.go   分页 / 排序 / 筛选的用户列表 + /users/stats
 │           ├── recent_connections.go 用户最近连接 IP 的派生与脱敏序列化
+│           ├── recent_logins.go 面板登录时间 / IP 记录（OnRecordAuthRequest，跳过 token 刷新）与序列化
 │           ├── passkeys.go     WebAuthn 注册 / 登录 / 列举 / 删除（go-webauthn）
 │           ├── oauth2_login.go OAuth2 只登录已有账号（拒绝新建用户）+ provider 回调转发
 │           ├── oauth2_links.go 用户 OAuth2 关联列举 / 取消（admin 或本人）
@@ -215,6 +216,7 @@ hysterical-panel/
 - `user_subscriptions` — 360 天的用户授予记录、当前窗口按 tx / rx 分开的使用量与手动加额，以及跨窗口不清零的整期 tx / rx 用量（Grant Usage）；门禁只看 tx+rx 总和，见 `docs/subscriptions.md` 与 ADR-0007
 - 通用 record API 规则（List/View/Create/Update/Delete）由迁移 `1730000030` 锁为仅 superuser，防止用户自改 `role` / `status` / 用量或匿名建号；面板一律走 `/api/panel/*`
 - `last_connected_at` (date)、`recent_connections` (json) — Hysteria 鉴权成功后更新；`recent_connections` 只保留最近 10 个唯一客户端 IP（不含端口），MMDB ASN / 国家等信息在 API 序列化时临时补充，不落库
+- `last_login_at` (date)、`last_login_ip` (text)、`recent_login_ips` (json, string 数组) — 每次面板登录成功后同步写入（`recent_logins.go`），token 刷新不算；`recent_login_ips` 只保留最近 5 个唯一 IP、不带时间，不受 `ignored_connection_ips` 过滤。只由 `GET /users/{id}`（admin 或本人）返回，ASN / 国家同样在序列化时补充。IP 取自 `e.RealIP()`，反代后须配置 PocketBase 的 User IP proxy headers
 
 `user_auth_strings`：
 

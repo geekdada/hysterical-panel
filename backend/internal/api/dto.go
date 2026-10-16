@@ -241,10 +241,20 @@ type PanelUser struct {
 
 // UserDetail is returned by GET /users/{id}. OnlineDevices is the sum of the
 // latest known counts across the enabled nodes visible to the user.
+// LastLoginAt is empty and LastLoginIP is null before the first panel sign-in.
 type UserDetail struct {
 	PanelUser
-	Remark        string `json:"remark"`
-	OnlineDevices *int64 `json:"online_devices"`
+	Remark         string    `json:"remark"`
+	OnlineDevices  *int64    `json:"online_devices"`
+	LastLoginAt    string    `json:"last_login_at"`
+	LastLoginIP    *LoginIP  `json:"last_login_ip"`
+	RecentLoginIPs []LoginIP `json:"recent_login_ips"`
+}
+
+// LoginIP is a client IP a User signed in to the panel from.
+type LoginIP struct {
+	IP     string  `json:"ip"`
+	IPMeta *IPMeta `json:"ip_meta,omitempty"`
 }
 
 // RecentConnection is one recent successful Hysteria auth source for a user.
