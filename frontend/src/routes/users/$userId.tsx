@@ -31,6 +31,7 @@ import { FiringAlertsSection } from "~/components/firing-alerts";
 import { UserSocialLoginsSection } from "~/components/social-logins";
 import { UserAuthorizedAppsSection } from "~/components/authorized-apps";
 import { ResetAuthKeyButton } from "~/components/reset-auth-key";
+import { IPMetaCells } from "~/components/ip-meta-cells";
 import {
   defaultLocalTrafficRange,
   granularityForLocalRange,
@@ -217,6 +218,8 @@ function AccountDetailPage() {
             />
           )}
 
+          {user && <PanelSignInsSection user={user} />}
+
           {isAdmin && <LiveSection userId={userId} />}
 
           {/* An admin manages their own account from the settings page. */}
@@ -258,9 +261,10 @@ function AccountRail({
           <RailSkeletonCell labelClassName="max-w-10" valueClassName="max-w-24" />
           <RailSkeletonCell labelClassName="max-w-16" valueClassName="max-w-24" />
         </div>
-        <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
+        <div className="grid border-t border-border divide-y divide-border md:grid-cols-5 md:divide-x md:divide-y-0">
           <RailSkeletonCell labelClassName="max-w-12" valueClassName="max-w-16" />
           <RailSkeletonCell labelClassName="max-w-14" valueClassName="max-w-20" />
+          <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-24" />
           <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-24" />
           <RailSkeletonCell labelClassName="max-w-24" valueClassName="max-w-24" />
         </div>
@@ -326,7 +330,7 @@ function AccountRail({
           </span>
         </RailItem>
       </div>
-      <div className="grid border-t border-border divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
+      <div className="grid border-t border-border divide-y divide-border md:grid-cols-5 md:divide-x md:divide-y-0">
         <RailItem label={m.common_role()}>
           <span className="font-mono text-[13px] text-foreground">
             {user?.role || m.common_em_dash()}
@@ -360,6 +364,13 @@ function AccountRail({
           >
             {user?.last_connected_at
               ? relTimeFromISO(user.last_connected_at, now)
+              : m.common_never()}
+          </span>
+        </RailItem>
+        <RailItem label={m.user_rail_last_login()}>
+          <span className="text-[13px] tabular-nums">
+            {user?.last_login_at
+              ? formatLocaleDateTime(new Date(user.last_login_at).getTime(), undefined, tz)
               : m.common_never()}
           </span>
         </RailItem>
@@ -457,47 +468,11 @@ function RecentConnectionsSection({
             </thead>
             <tbody className="divide-y divide-separator">
               {rows.map((row, i) => {
-                const ip = row.ip || m.common_em_dash();
-                const meta = row.ip_meta;
-                const countryTitle = meta?.country_name || meta?.country_code || "";
                 const canIgnore = Boolean(row.ip) && ignoringIp !== row.ip;
                 const isIgnoring = Boolean(row.ip) && ignoringIp === row.ip;
                 return (
                   <tr key={`${row.ip || "ip"}-${i}`} className="hover:bg-surface-secondary">
-                    <Td>
-                      {meta?.ipinfo_url ? (
-                        <a
-                          href={meta.ipinfo_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block max-w-[260px] truncate font-mono text-xs text-foreground underline decoration-border underline-offset-2 transition-colors duration-150 hover:text-accent"
-                          title={m.common_ipinfo_open({ target: meta.ip || ip })}
-                        >
-                          {ip}
-                        </a>
-                      ) : (
-                        <span className="block max-w-[260px] truncate font-mono text-xs" title={ip}>
-                          {ip}
-                        </span>
-                      )}
-                    </Td>
-                    <Td className="whitespace-nowrap font-mono text-xs text-muted">
-                      {meta?.asn || m.common_em_dash()}
-                    </Td>
-                    <Td className="whitespace-nowrap text-xs text-muted">
-                      {meta?.country_code ? (
-                        <span title={countryTitle}>
-                          <span className="font-mono text-foreground">{meta.country_code}</span>
-                          {meta.country_name && (
-                            <span className="ml-1 hidden max-w-[140px] truncate align-bottom sm:inline-block">
-                              {meta.country_name}
-                            </span>
-                          )}
-                        </span>
-                      ) : (
-                        m.common_em_dash()
-                      )}
-                    </Td>
+                    <IPMetaCells ip={row.ip} meta={row.ip_meta} />
                     <Td className="whitespace-nowrap text-right font-mono text-xs tabular-nums text-muted">
                       <span
                         title={
@@ -530,6 +505,48 @@ function RecentConnectionsSection({
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function PanelSignInsSection({ user }: { user: UserDetail }) {
+  const rows = user.recent_login_ips ?? [];
+  const lastIp = user.last_login_ip?.ip;
+
+  return (
+    <Section title={m.user_sign_ins_title()}>
+      {rows.length === 0 ? (
+        <Teaching title={m.user_sign_ins_empty_title()} hint={m.user_sign_ins_empty_hint()} />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-border bg-surface-secondary text-left">
+                <Th>{m.common_th_ip()}</Th>
+                <Th>{m.common_th_asn()}</Th>
+                <Th>{m.common_th_country()}</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-separator">
+              {rows.map((row, i) => (
+                <tr key={`${row.ip || "ip"}-${i}`} className="hover:bg-surface-secondary">
+                  <IPMetaCells
+                    ip={row.ip}
+                    meta={row.ip_meta}
+                    badge={
+                      lastIp && row.ip === lastIp ? (
+                        <Chip size="sm" variant="soft">
+                          {m.user_sign_ins_latest()}
+                        </Chip>
+                      ) : undefined
+                    }
+                  />
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
