@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getCoreRowModel,
@@ -6,7 +6,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Link, createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 import { Button, Chip, Input, Label, Modal, TextField, Tooltip } from "@heroui/react";
 import { CircleInfo } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
@@ -202,10 +202,18 @@ function UsersTable({
   onToggleStatus: (user: UserListItem) => void;
 }) {
   const routerNavigate = useNavigate({ from: Route.fullPath });
-  const updateSearch: typeof routerNavigate = (options) =>
-    routerNavigate({ ...options, replace: true });
+  const updateSearch = useCallback<typeof routerNavigate>(
+    (options) => routerNavigate({ ...options, replace: true }),
+    [routerNavigate]
+  );
   const tz = useActiveTimeZone();
-  const [searchDraft, setSearchDraft] = useState(listSearch.search);
+  // The route match commits only after the loader's request resolves, but the
+  // location updates as soon as we navigate. Syncing the draft from the match
+  // would overwrite whatever was typed while that request was in flight.
+  const urlSearch = useLocation({
+    select: (location) => parseUsersListSearch(location.search).search,
+  });
+  const [searchDraft, setSearchDraft] = useState(urlSearch);
   const sorting = useMemo<SortingState>(
     () => [{ id: sortColumnId(listSearch.sort), desc: isSortDesc(listSearch.sort) }],
     [listSearch.sort]
@@ -252,11 +260,11 @@ function UsersTable({
   const tableRows = table.getRowModel().rows;
 
   useEffect(() => {
-    setSearchDraft(listSearch.search);
-  }, [listSearch.search]);
+    setSearchDraft(urlSearch);
+  }, [urlSearch]);
 
   useEffect(() => {
-    if (searchDraft === listSearch.search) return;
+    if (searchDraft === urlSearch) return;
     const id = window.setTimeout(() => {
       updateSearch({
         search: (prev) => ({
@@ -267,7 +275,7 @@ function UsersTable({
       });
     }, 300);
     return () => window.clearTimeout(id);
-  }, [searchDraft, listSearch.search, updateSearch]);
+  }, [searchDraft, urlSearch, updateSearch]);
 
   return (
     <div>
