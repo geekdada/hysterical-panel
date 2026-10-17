@@ -195,3 +195,7 @@ _Avoid_: Notification, Broadcast, Announcement, Campaign, newsletter
 **Sendout Recipient**:
 One User addressed by an Email Sendout, carrying that User's own delivery outcome. A single-recipient Sendout has exactly one.
 _Avoid_: Delivery, Notification, subscriber
+
+**Resource Link**:
+An administrator-curated pointer to an off-panel web resource, shown in the same admin-defined order to every User on their user page. Opening one goes through the panel, which counts the visit before sending the visitor on; anyone holding the link can open it without signing in.
+_Avoid_: Bookmark, Shortcut, External Link, Quick Link
