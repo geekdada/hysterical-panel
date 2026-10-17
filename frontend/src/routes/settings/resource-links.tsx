@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -33,6 +33,8 @@ import { breadcrumbStaticData } from "~/lib/breadcrumb-meta";
 import { formatLocaleCount, relTimeFromISO } from "~/lib/format";
 import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
+
+const REORDER_SCOPE = "resource-links-reorder";
 
 export const Route = createFileRoute("/settings/resource-links")({
   beforeLoad: ({ context }) => requireAdmin(context.auth),
@@ -99,7 +101,7 @@ function ResourceLinksPage() {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.managedResourceLinks() });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.resourceLinks() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.resourceLinks(), exact: true });
   };
 
   const saveMutation = useMutation({
@@ -111,7 +113,16 @@ function ResourceLinksPage() {
     },
   });
 
+  // Drops run one at a time. A failed drop rolls back to the last order the
+  // server confirmed, not to the optimistic order of an earlier queued drop.
+  const confirmedOrder = useRef<ManagedResourceLink[] | undefined>(undefined);
+  const pendingReorders = () =>
+    queryClient.isMutating({
+      predicate: (mutation) => mutation.options.scope?.id === REORDER_SCOPE,
+    });
+
   const reorderMutation = useMutation({
+    scope: { id: REORDER_SCOPE },
     mutationFn: async (ids: string[]) => {
       try {
         return await reorderResourceLinks(ids);
@@ -121,10 +132,12 @@ function ResourceLinksPage() {
       }
     },
     onMutate: async (ids) => {
+      const startsChain = pendingReorders() === 1;
       await queryClient.cancelQueries({ queryKey: queryKeys.managedResourceLinks() });
       const previous = queryClient.getQueryData<ManagedResourceLink[]>(
         queryKeys.managedResourceLinks()
       );
+      if (startsChain) confirmedOrder.current = previous;
       if (previous) {
         const byId = new Map(previous.map((link) => [link.id, link]));
         const ordered = ids.flatMap((id) => {
@@ -133,19 +146,24 @@ function ResourceLinksPage() {
         });
         queryClient.setQueryData(queryKeys.managedResourceLinks(), ordered);
       }
-      return { previous };
     },
     onSuccess: (links) => {
-      queryClient.setQueryData(queryKeys.managedResourceLinks(), links);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.resourceLinks() });
+      confirmedOrder.current = links;
+      // A queued drop already shows a newer optimistic order.
+      if (pendingReorders() === 1) {
+        queryClient.setQueryData(queryKeys.managedResourceLinks(), links);
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.resourceLinks(), exact: true });
     },
-    onError: (error, _ids, context) => {
+    onError: (error) => {
       if (error instanceof PanelApiError && error.status === 409) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.managedResourceLinks() });
         return;
       }
-      if (context?.previous) {
-        queryClient.setQueryData(queryKeys.managedResourceLinks(), context.previous);
+      // A queued drop sends an order that already includes this move.
+      if (pendingReorders() > 1) return;
+      if (confirmedOrder.current) {
+        queryClient.setQueryData(queryKeys.managedResourceLinks(), confirmedOrder.current);
       }
     },
   });
