@@ -25,7 +25,6 @@ import {
   ErrorAlert,
   PageShell,
   PanelMessage,
-  Section,
   TableSkeleton,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
@@ -226,13 +225,8 @@ function ResourceLinksPage() {
       headerLeft={<BrandLink />}
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-base font-semibold tracking-tight">{m.resource_links_title()}</h1>
-          <p className="mt-0.5 max-w-2xl text-[13px] text-muted">
-            {m.resource_links_description()}
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-base font-semibold tracking-tight">{m.resource_links_title()}</h1>
         <Button size="sm" variant="primary" onPress={openCreate}>
           <Plus className="size-3.5" aria-hidden />
           {m.resource_links_add()}
@@ -277,13 +271,12 @@ function ResourceLinksPage() {
         onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
       />
 
-      <Section className="mt-6" title={m.settings_resource_links_manage()}>
+      <section className="mt-6 overflow-hidden rounded-lg border bg-surface">
         {linksQuery.isPending ? (
           <TableSkeleton />
         ) : links.length === 0 ? (
           <PanelMessage>
-            <span className="block font-medium text-foreground">{m.resource_links_empty()}</span>
-            <span className="mt-1 block">{m.resource_links_description()}</span>
+            <span className="font-medium text-foreground">{m.resource_links_empty()}</span>
           </PanelMessage>
         ) : (
           <ListBox
@@ -320,7 +313,7 @@ function ResourceLinksPage() {
             ))}
           </ListBox>
         )}
-      </Section>
+      </section>
 
       {links.length > 1 && (
         <p className="mt-2 px-0.5 text-xs text-muted">{m.resource_links_reorder_hint()}</p>
