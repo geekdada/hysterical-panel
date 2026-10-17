@@ -52,6 +52,8 @@ const API_ERROR_MAP: Record<string, () => string> = {
     m.error_oidc_scopes_invalid(),
   "oidc provider requires an https panel_backend_url_base and panel_frontend_url_base": () =>
     m.error_oidc_unavailable(),
+  "invalid url": () => m.error_resource_link_url_invalid(),
+  "title is too long": () => m.error_resource_link_title_too_long(),
 };
 
 export function localizeApiError(message: string): string {

@@ -693,6 +693,8 @@
   "error_resource_link_delete_network": "删除资源链接时网络错误",
   "error_resource_links_reorder": "无法调整资源链接顺序",
   "error_resource_links_reorder_conflict": "链接列表已变化，请刷新后重试",
+  "error_resource_link_url_invalid": "请输入有效的 http 或 https 链接",
+  "error_resource_link_title_too_long": "标题不能超过 200 个字符",
   "error_notification_channels_load": "无法加载通知通道。",
   "error_notification_channel_save": "无法保存通知通道。",
   "error_notification_channel_save_network": "保存通知通道时网络错误。",

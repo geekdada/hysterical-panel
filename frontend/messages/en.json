@@ -693,6 +693,8 @@
   "error_resource_link_delete_network": "Network error while deleting the resource link",
   "error_resource_links_reorder": "Couldn't reorder resource links",
   "error_resource_links_reorder_conflict": "The link list changed. Reload and try again",
+  "error_resource_link_url_invalid": "Enter a valid http or https URL",
+  "error_resource_link_title_too_long": "Use a title of 200 characters or fewer",
   "error_notification_channels_load": "Couldn't load notification channels.",
   "error_notification_channel_save": "Couldn't save the notification channel.",
   "error_notification_channel_save_network": "Network error while saving the notification channel.",
