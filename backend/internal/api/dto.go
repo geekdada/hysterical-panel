@@ -955,3 +955,8 @@ type ResourceLinkUpdateRequest struct {
 type ResourceLinkOrderRequest struct {
 	IDs []string `json:"ids"`
 }
+
+// ResourceLinkVisitResponse is the target a public visit resolves to.
+type ResourceLinkVisitResponse struct {
+	URL string `json:"url"`
+}

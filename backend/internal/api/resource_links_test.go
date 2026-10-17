@@ -8,10 +8,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 
 	"hysterical-panel/internal/cryptobox"
 )
@@ -283,8 +286,8 @@ func TestReorderResourceLinksRejectsMismatchedSet(t *testing.T) {
 }
 
 // The handlers above are called directly, so this goes through the real
-// router to prove the route-level guards. Task 3 extends this table with the
-// public visit and favicon routes.
+// router to prove the route-level guards. The public visit and favicon routes
+// must answer anonymous requests.
 func TestResourceLinkRoutesGuards(t *testing.T) {
 	app := newMigratedTestApp(t)
 	user := newUsersTestRecord(t, app, "resource-guard@example.com", "GuardSecret123")
@@ -292,6 +295,9 @@ func TestResourceLinkRoutesGuards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("token: %v", err)
 	}
+	admin := newResourceLinkAdmin(t, app)
+	page := newResourceLinkPageServer(t)
+	link := createResourceLink(t, &Handlers{app: app}, admin, map[string]any{"url": page.URL + "/"})
 	r, err := apis.NewRouter(app)
 	if err != nil {
 		t.Fatalf("router: %v", err)
@@ -306,13 +312,16 @@ func TestResourceLinkRoutesGuards(t *testing.T) {
 	routes := []struct {
 		method, path string
 		adminOnly    bool
+		public       bool
 	}{
-		{http.MethodGet, "/api/panel/resource-links", false},
-		{http.MethodGet, "/api/panel/resource-links/manage", true},
-		{http.MethodPost, "/api/panel/resource-links", true},
-		{http.MethodPut, "/api/panel/resource-links/order", true},
-		{http.MethodPatch, "/api/panel/resource-links/any", true},
-		{http.MethodDelete, "/api/panel/resource-links/any", true},
+		{http.MethodGet, "/api/panel/resource-links", false, false},
+		{http.MethodGet, "/api/panel/resource-links/manage", true, false},
+		{http.MethodPost, "/api/panel/resource-links", true, false},
+		{http.MethodPut, "/api/panel/resource-links/order", true, false},
+		{http.MethodPatch, "/api/panel/resource-links/any", true, false},
+		{http.MethodDelete, "/api/panel/resource-links/any", true, false},
+		{http.MethodPost, "/api/resource-links/" + link.ID + "/visit", false, true},
+		{http.MethodGet, "/api/resource-links/" + link.ID + "/favicon", false, true},
 	}
 	for _, route := range routes {
 		want := http.StatusForbidden
@@ -328,12 +337,164 @@ func TestResourceLinkRoutesGuards(t *testing.T) {
 			t.Errorf("%s %s as plain User = %d, want %d: %s", route.method, route.path, res.Code, want, res.Body.String())
 		}
 
+		wantAnon := http.StatusUnauthorized
+		if route.public {
+			wantAnon = http.StatusOK
+		}
 		anon := httptest.NewRequest(route.method, route.path, strings.NewReader("{}"))
 		anon.Header.Set("Content-Type", "application/json")
 		res = httptest.NewRecorder()
 		mux.ServeHTTP(res, anon)
-		if res.Code != http.StatusUnauthorized {
-			t.Errorf("%s %s without a token = %d, want 401", route.method, route.path, res.Code)
+		if res.Code != wantAnon {
+			t.Errorf("%s %s without a token = %d, want %d", route.method, route.path, res.Code, wantAnon)
 		}
 	}
+}
+
+func TestVisitResourceLinkCountsAndReturnsTarget(t *testing.T) {
+	app := newMigratedTestApp(t)
+	admin := newResourceLinkAdmin(t, app)
+	h := &Handlers{app: app}
+	link := createResourceLink(t, h, admin, map[string]any{"url": closedResourceLinkServerURL(t)})
+
+	before := time.Now().UTC().Add(-time.Minute)
+	e, rec := panelEvent(t, app, http.MethodPost, "/api/resource-links/"+link.ID+"/visit", link.ID, nil, nil)
+	if err := h.visitResourceLink(e); err != nil {
+		t.Fatalf("visit: %v", err)
+	}
+	if got := decodeBody[ResourceLinkVisitResponse](t, rec); got.URL != link.URL {
+		t.Fatalf("url = %q, want %q", got.URL, link.URL)
+	}
+
+	stored, err := app.FindRecordById("resource_links", link.ID)
+	if err != nil {
+		t.Fatalf("find link: %v", err)
+	}
+	if stored.GetInt("visit_count") != 1 {
+		t.Fatalf("visit_count = %d, want 1", stored.GetInt("visit_count"))
+	}
+	visitedAt, err := types.ParseDateTime(stored.GetString("last_visited_at"))
+	if err != nil {
+		t.Fatalf("parse last_visited_at %q: %v", stored.GetString("last_visited_at"), err)
+	}
+	if visitedAt.Time().Location() != time.UTC {
+		t.Fatalf("last_visited_at location = %v, want UTC", visitedAt.Time().Location())
+	}
+	if visitedAt.Time().Before(before) || visitedAt.Time().After(time.Now().UTC().Add(time.Minute)) {
+		t.Fatalf("last_visited_at = %v, want around now", visitedAt.Time())
+	}
+}
+
+func TestVisitResourceLinkCountsConcurrentHits(t *testing.T) {
+	app := newMigratedTestApp(t)
+	admin := newResourceLinkAdmin(t, app)
+	h := &Handlers{app: app}
+	link := createResourceLink(t, h, admin, map[string]any{"url": closedResourceLinkServerURL(t)})
+
+	const hits = 20
+	events := make([]*core.RequestEvent, hits)
+	for i := range events {
+		events[i], _ = panelEvent(t, app, http.MethodPost, "/api/resource-links/"+link.ID+"/visit", link.ID, nil, nil)
+	}
+
+	errs := make([]error, hits)
+	var wg sync.WaitGroup
+	for i := range events {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = h.visitResourceLink(events[i])
+		}(i)
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("hit %d: %v", i, err)
+		}
+	}
+
+	stored, err := app.FindRecordById("resource_links", link.ID)
+	if err != nil {
+		t.Fatalf("find link: %v", err)
+	}
+	if stored.GetInt("visit_count") != hits {
+		t.Fatalf("visit_count = %d, want %d", stored.GetInt("visit_count"), hits)
+	}
+}
+
+func TestVisitResourceLinkUnknownID(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := &Handlers{app: app}
+
+	e, _ := panelEvent(t, app, http.MethodPost, "/api/resource-links/missing/visit", "missing", nil, nil)
+	assertAPIError(t, h.visitResourceLink(e), http.StatusNotFound, "resource link not found")
+}
+
+func TestResourceLinkFaviconServesStoredIconWithCacheHeaders(t *testing.T) {
+	app := newMigratedTestApp(t)
+	admin := newResourceLinkAdmin(t, app)
+	h := &Handlers{app: app}
+	page := newResourceLinkPageServer(t)
+	link := createResourceLink(t, h, admin, map[string]any{"url": page.URL + "/"})
+	if link.FaviconVersion == "" {
+		t.Fatalf("link has no stored favicon: %+v", link)
+	}
+
+	e, rec := panelEvent(t, app, http.MethodGet, "/api/resource-links/"+link.ID+"/favicon", link.ID, nil, nil)
+	if err := h.resourceLinkFavicon(e); err != nil {
+		t.Fatalf("favicon: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if !bytes.Equal(rec.Body.Bytes(), resourceLinkTestIcon) {
+		t.Fatalf("body = %q, want the stored icon", rec.Body.Bytes())
+	}
+	headers := map[string]string{
+		"Content-Type":           "image/png",
+		"Cache-Control":          "public, max-age=86400",
+		"ETag":                   `"` + link.FaviconVersion + `"`,
+		"X-Content-Type-Options": "nosniff",
+	}
+	for name, want := range headers {
+		if got := rec.Header().Get(name); got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestResourceLinkFaviconNotModified(t *testing.T) {
+	app := newMigratedTestApp(t)
+	admin := newResourceLinkAdmin(t, app)
+	h := &Handlers{app: app}
+	page := newResourceLinkPageServer(t)
+	link := createResourceLink(t, h, admin, map[string]any{"url": page.URL + "/"})
+
+	e, rec := panelEvent(t, app, http.MethodGet, "/api/resource-links/"+link.ID+"/favicon", link.ID, nil, nil)
+	e.Request.Header.Set("If-None-Match", `"`+link.FaviconVersion+`"`)
+	if err := h.resourceLinkFavicon(e); err != nil {
+		t.Fatalf("favicon: %v", err)
+	}
+	if rec.Code != http.StatusNotModified {
+		t.Fatalf("status = %d, want 304", rec.Code)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("body = %q, want empty", rec.Body.Bytes())
+	}
+}
+
+func TestResourceLinkFaviconMissing(t *testing.T) {
+	app := newMigratedTestApp(t)
+	admin := newResourceLinkAdmin(t, app)
+	h := &Handlers{app: app}
+	link := createResourceLink(t, h, admin, map[string]any{"url": closedResourceLinkServerURL(t)})
+	if link.FaviconVersion != "" {
+		t.Fatalf("link unexpectedly has an icon: %+v", link)
+	}
+
+	e, _ := panelEvent(t, app, http.MethodGet, "/api/resource-links/"+link.ID+"/favicon", link.ID, nil, nil)
+	assertAPIError(t, h.resourceLinkFavicon(e), http.StatusNotFound, "resource link not found")
+
+	e, _ = panelEvent(t, app, http.MethodGet, "/api/resource-links/missing/favicon", "missing", nil, nil)
+	assertAPIError(t, h.resourceLinkFavicon(e), http.StatusNotFound, "resource link not found")
 }

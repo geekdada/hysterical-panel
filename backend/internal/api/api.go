@@ -209,6 +209,11 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	se.Router.GET("/api/panel/oauth2-redirect", h.oauth2Redirect)
 	se.Router.POST("/api/panel/oauth2-redirect", h.oauth2Redirect)
 
+	// Public resource link endpoints — no auth required. Anyone with a link id
+	// may count a visit or read the stored favicon.
+	se.Router.POST("/api/resource-links/{id}/visit", h.visitResourceLink)
+	se.Router.GET("/api/resource-links/{id}/favicon", h.resourceLinkFavicon)
+
 	// openapi schema — no auth required (contains no secrets)
 	se.Router.GET("/api/openapi.json", handleOpenAPISpec)
 

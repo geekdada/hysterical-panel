@@ -6,13 +6,16 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 
 	"hysterical-panel/internal/linkmeta"
 )
@@ -286,4 +289,65 @@ func resourceLinkOrderMatches(ids []string, recs []*core.Record) bool {
 		}
 	}
 	return true
+}
+
+// visitResourceLink counts every hit in one UPDATE so concurrent visits never
+// lose increments. The row check also rejects unknown ids without a read.
+func (h *Handlers) visitResourceLink(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	result, err := h.app.DB().NewQuery(
+		"UPDATE resource_links SET visit_count = visit_count + 1, last_visited_at = {:now} WHERE id = {:id}",
+	).Bind(dbx.Params{"now": types.NowDateTime().String(), "id": id}).Execute()
+	if err != nil {
+		return apis.NewInternalServerError("failed to record resource link visit", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return apis.NewInternalServerError("failed to record resource link visit", err)
+	}
+	if affected == 0 {
+		return apis.NewNotFoundError("resource link not found", nil)
+	}
+	rec, err := h.app.FindRecordById("resource_links", id)
+	if err != nil {
+		return apis.NewNotFoundError("resource link not found", err)
+	}
+	return ok(e, ResourceLinkVisitResponse{URL: rec.GetString("url")})
+}
+
+// resourceLinkFavicon serves the stored icon copy, so a visit never calls the
+// target site. The client caches it for a day and revalidates by hash.
+func (h *Handlers) resourceLinkFavicon(e *core.RequestEvent) error {
+	rec, err := h.app.FindRecordById("resource_links", e.Request.PathValue("id"))
+	if err != nil {
+		return apis.NewNotFoundError("resource link not found", err)
+	}
+	icon, err := storedResourceLinkFavicon(rec)
+	if err != nil {
+		return apis.NewNotFoundError("resource link not found", err)
+	}
+	etag := `"` + rec.GetString("favicon_hash") + `"`
+	e.Response.Header().Set("Content-Type", rec.GetString("favicon_type"))
+	e.Response.Header().Set("Cache-Control", "public, max-age=86400")
+	e.Response.Header().Set("ETag", etag)
+	e.Response.Header().Set("X-Content-Type-Options", "nosniff")
+	if e.Request.Header.Get("If-None-Match") == etag {
+		e.Response.WriteHeader(http.StatusNotModified)
+		return nil
+	}
+	e.Response.WriteHeader(http.StatusOK)
+	_, err = e.Response.Write(icon)
+	return err
+}
+
+func storedResourceLinkFavicon(rec *core.Record) ([]byte, error) {
+	encoded := rec.GetString("favicon_data")
+	if encoded == "" {
+		return nil, errors.New("no stored favicon")
+	}
+	icon, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil || len(icon) == 0 {
+		return nil, errors.New("invalid stored favicon")
+	}
+	return icon, nil
 }
