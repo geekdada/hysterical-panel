@@ -16,7 +16,9 @@ export const Route = createFileRoute("/l/$id/")({
             status: 302,
             headers: {
               ...NO_STORE,
-              Location: url,
+              // Stored URLs keep their original text, so non-ASCII paths and IDN
+              // hosts must be serialized before they are valid header values.
+              Location: new URL(url).href,
               "Referrer-Policy": "no-referrer",
             },
           });
