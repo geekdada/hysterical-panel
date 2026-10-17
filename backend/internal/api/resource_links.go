@@ -147,22 +147,38 @@ func (h *Handlers) createResourceLink(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewBadRequestError(err.Error(), nil)
 	}
-	order, err := h.nextResourceLinkSortOrder()
+	meta := fetchResourceLinkMetadata(e, pageURL)
+	var rec *core.Record
+	err = h.app.RunInTransaction(func(txApp core.App) error {
+		rec, err = saveNewResourceLink(txApp, pageURL, title, meta)
+		return err
+	})
 	if err != nil {
-		return apis.NewBadRequestError("failed to read resource links", err)
-	}
-	rec, err := h.newResourceLinkRecord(pageURL, title, order, fetchResourceLinkMetadata(e, pageURL))
-	if err != nil {
-		return apis.NewBadRequestError("failed to create resource link", err)
-	}
-	if err := h.app.Save(rec); err != nil {
-		return apis.NewBadRequestError("failed to save resource link", err)
+		return err
 	}
 	return ok(e, managedResourceLink(rec))
 }
 
-func (h *Handlers) nextResourceLinkSortOrder() (int, error) {
-	recs, err := h.app.FindRecordsByFilter("resource_links", "", "-sort_order", 1, 0)
+// saveNewResourceLink picks sort_order after the fetch and in the same
+// transaction as the insert. A link added during a slow fetch never gets the
+// same position.
+func saveNewResourceLink(txApp core.App, pageURL, title string, meta linkmeta.Metadata) (*core.Record, error) {
+	order, err := nextResourceLinkSortOrder(txApp)
+	if err != nil {
+		return nil, apis.NewBadRequestError("failed to read resource links", err)
+	}
+	rec, err := newResourceLinkRecord(txApp, pageURL, title, order, meta)
+	if err != nil {
+		return nil, apis.NewBadRequestError("failed to create resource link", err)
+	}
+	if err := txApp.Save(rec); err != nil {
+		return nil, apis.NewBadRequestError("failed to save resource link", err)
+	}
+	return rec, nil
+}
+
+func nextResourceLinkSortOrder(app core.App) (int, error) {
+	recs, err := app.FindRecordsByFilter("resource_links", "", "-sort_order", 1, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -172,8 +188,8 @@ func (h *Handlers) nextResourceLinkSortOrder() (int, error) {
 	return recs[0].GetInt("sort_order") + 1, nil
 }
 
-func (h *Handlers) newResourceLinkRecord(pageURL, title string, order int, meta linkmeta.Metadata) (*core.Record, error) {
-	coll, err := h.app.FindCollectionByNameOrId("resource_links")
+func newResourceLinkRecord(app core.App, pageURL, title string, order int, meta linkmeta.Metadata) (*core.Record, error) {
+	coll, err := app.FindCollectionByNameOrId("resource_links")
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +202,8 @@ func (h *Handlers) newResourceLinkRecord(pageURL, title string, order int, meta 
 }
 
 func (h *Handlers) updateResourceLink(e *core.RequestEvent) error {
-	rec, err := h.app.FindRecordById("resource_links", e.Request.PathValue("id"))
+	id := e.Request.PathValue("id")
+	current, err := h.app.FindRecordById("resource_links", id)
 	if err != nil {
 		return apis.NewNotFoundError("resource link not found", err)
 	}
@@ -194,35 +211,76 @@ func (h *Handlers) updateResourceLink(e *core.RequestEvent) error {
 	if err := e.BindBody(&in); err != nil {
 		return apis.NewBadRequestError("invalid body", err)
 	}
-	if err := applyResourceLinkUpdate(e, rec, in); err != nil {
+	changes, err := prepareResourceLinkUpdate(e, current, in)
+	if err != nil {
 		return apis.NewBadRequestError(err.Error(), nil)
 	}
-	if err := h.app.Save(rec); err != nil {
-		return apis.NewBadRequestError("failed to save resource link", err)
+	var rec *core.Record
+	err = h.app.RunInTransaction(func(txApp core.App) error {
+		rec, err = saveResourceLinkUpdate(txApp, id, changes)
+		return err
+	})
+	if err != nil {
+		return err
 	}
 	return ok(e, managedResourceLink(rec))
 }
 
-func applyResourceLinkUpdate(e *core.RequestEvent, rec *core.Record, in ResourceLinkUpdateRequest) error {
+// saveResourceLinkUpdate re-reads the record so a visit or reorder committed
+// during the metadata fetch is not overwritten with stale values.
+func saveResourceLinkUpdate(txApp core.App, id string, changes resourceLinkChanges) (*core.Record, error) {
+	rec, err := txApp.FindRecordById("resource_links", id)
+	if err != nil {
+		return nil, apis.NewNotFoundError("resource link not found", err)
+	}
+	changes.apply(rec)
+	if err := txApp.Save(rec); err != nil {
+		return nil, apis.NewBadRequestError("failed to save resource link", err)
+	}
+	return rec, nil
+}
+
+// resourceLinkChanges holds a validated PATCH. Nil fields stay unchanged.
+type resourceLinkChanges struct {
+	title *string
+	url   *string
+	meta  *linkmeta.Metadata
+}
+
+func prepareResourceLinkUpdate(e *core.RequestEvent, rec *core.Record, in ResourceLinkUpdateRequest) (resourceLinkChanges, error) {
+	var changes resourceLinkChanges
 	if in.Title != nil {
 		title, err := normalizeResourceLinkTitle(*in.Title)
 		if err != nil {
-			return err
+			return changes, err
 		}
-		rec.Set("title", title)
+		changes.title = &title
 	}
 	if in.URL == nil {
-		return nil
+		return changes, nil
 	}
 	pageURL, err := normalizeResourceLinkURL(*in.URL)
 	if err != nil {
-		return err
+		return changes, err
 	}
+	changes.url = &pageURL
 	if pageURL != rec.GetString("url") {
-		applyResourceLinkMetadata(rec, fetchResourceLinkMetadata(e, pageURL))
+		meta := fetchResourceLinkMetadata(e, pageURL)
+		changes.meta = &meta
 	}
-	rec.Set("url", pageURL)
-	return nil
+	return changes, nil
+}
+
+func (c resourceLinkChanges) apply(rec *core.Record) {
+	if c.title != nil {
+		rec.Set("title", *c.title)
+	}
+	if c.url != nil {
+		rec.Set("url", *c.url)
+	}
+	if c.meta != nil {
+		applyResourceLinkMetadata(rec, *c.meta)
+	}
 }
 
 func (h *Handlers) deleteResourceLink(e *core.RequestEvent) error {

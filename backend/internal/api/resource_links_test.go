@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -181,6 +182,58 @@ func TestUpdateResourceLinkRefetchesOnlyOnURLChange(t *testing.T) {
 	updated = decodeBody[ManagedResourceLink](t, rec)
 	if updated.FetchedTitle != "" || updated.FaviconVersion != "" || updated.Title != "Mine" {
 		t.Fatalf("URL update = %+v", updated)
+	}
+}
+
+// newRacingResourceLinkPageServer serves a titled page. Before replying to the
+// page request it bumps visit_count by 5 and sets sort_order to 7, which acts
+// as a visit and a reorder committed during the metadata fetch.
+func newRacingResourceLinkPageServer(t *testing.T, app core.App, linkID string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/page" {
+			http.NotFound(w, r)
+			return
+		}
+		_, err := app.DB().NewQuery(
+			"UPDATE resource_links SET visit_count = visit_count + 5, sort_order = 7 WHERE id = {:id}",
+		).Bind(dbx.Params{"id": linkID}).Execute()
+		if err != nil {
+			t.Errorf("concurrent update: %v", err)
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = io.WriteString(w, `<html><head><title>Raced</title></head></html>`)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestUpdateResourceLinkKeepsChangesMadeDuringFetch(t *testing.T) {
+	app := newMigratedTestApp(t)
+	admin := newResourceLinkAdmin(t, app)
+	h := &Handlers{app: app}
+	created := createResourceLink(t, h, admin, map[string]any{"url": closedResourceLinkServerURL(t)})
+	page := newRacingResourceLinkPageServer(t, app, created.ID)
+
+	e, rec := panelEvent(t, app, http.MethodPatch, "/api/panel/resource-links/"+created.ID, created.ID,
+		map[string]any{"url": page.URL + "/page"}, admin)
+	if err := h.updateResourceLink(e); err != nil {
+		t.Fatalf("update URL: %v", err)
+	}
+	updated := decodeBody[ManagedResourceLink](t, rec)
+	if updated.FetchedTitle != "Raced" || updated.VisitCount != 5 {
+		t.Fatalf("update response = %+v", updated)
+	}
+	stored, err := app.FindRecordById("resource_links", created.ID)
+	if err != nil {
+		t.Fatalf("find link: %v", err)
+	}
+	if stored.GetInt("visit_count") != 5 || stored.GetInt("sort_order") != 7 {
+		t.Fatalf("visit_count = %d, sort_order = %d, want 5 and 7",
+			stored.GetInt("visit_count"), stored.GetInt("sort_order"))
+	}
+	if stored.GetString("url") != page.URL+"/page" || stored.GetString("fetched_title") != "Raced" {
+		t.Fatalf("url = %q, fetched_title = %q", stored.GetString("url"), stored.GetString("fetched_title"))
 	}
 }
 
