@@ -51,7 +51,9 @@ func Fetch(ctx context.Context, pageURL string) Metadata {
 
 	var meta Metadata
 	var iconHref string
-	if contentType := resp.Header.Get("Content-Type"); isHTML(contentType) {
+	// An error page's title names the error, not the site, so only a 2xx
+	// page is parsed. /favicon.ico is still tried either way.
+	if contentType := resp.Header.Get("Content-Type"); isSuccess(resp.StatusCode) && isHTML(contentType) {
 		meta.Title, iconHref = parseHead(resp.Body, contentType)
 	}
 	meta.Icon, meta.IconType = fetchIcon(ctx, iconCandidates(resp.Request.URL, iconHref))
@@ -65,6 +67,10 @@ func get(ctx context.Context, target string) (*http.Response, error) {
 	}
 	req.Header.Set("User-Agent", userAgent)
 	return client.Do(req)
+}
+
+func isSuccess(status int) bool {
+	return status >= 200 && status <= 299
 }
 
 func isHTML(contentType string) bool {
@@ -211,7 +217,7 @@ func fetchIconAt(ctx context.Context, target string) ([]byte, string, bool) {
 		return nil, "", false
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+	if !isSuccess(resp.StatusCode) {
 		return nil, "", false
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxIconBytes+1))

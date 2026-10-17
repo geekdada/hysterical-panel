@@ -251,6 +251,45 @@ func TestFetchNonHTMLStillFindsFavicon(t *testing.T) {
 	}
 }
 
+func TestFetchIgnoresTitleOfErrorPage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusForbidden)
+		io.WriteString(w, `<html><head><title>Just a moment...</title></head></html>`)
+	}))
+	t.Cleanup(srv.Close)
+
+	meta := Fetch(context.Background(), srv.URL+"/")
+
+	if meta.Title != "" {
+		t.Fatalf("Title = %q, want empty for a 403 page", meta.Title)
+	}
+}
+
+func TestFetchErrorPageStillFindsFavicon(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, `<html><head><title>404 Not Found</title></head></html>`)
+	})
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/x-icon")
+		w.Write(icoBytes)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	meta := Fetch(context.Background(), srv.URL+"/")
+
+	if meta.Title != "" {
+		t.Fatalf("Title = %q, want empty for a 404 page", meta.Title)
+	}
+	if !bytes.Equal(meta.Icon, icoBytes) {
+		t.Fatalf("Icon = %q, want favicon from /favicon.ico", meta.Icon)
+	}
+}
+
 func TestFetchHonoursContextDeadline(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
