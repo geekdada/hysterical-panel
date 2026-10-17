@@ -916,3 +916,42 @@ type OIDCGrant struct {
 	Created    string   `json:"created"`
 	LastUsedAt *string  `json:"last_used_at,omitempty"`
 }
+
+// ── Resource Links ────────────────────────────────────────────────────────────
+
+// ResourceLink is the link a User sees. It never carries the target URL.
+type ResourceLink struct {
+	ID             string `json:"id"`
+	Title          string `json:"title"`
+	FaviconVersion string `json:"favicon_version"` // "" = no stored icon
+}
+
+// ManagedResourceLink is the admin view of a link, including fetch results and
+// visit stats.
+type ManagedResourceLink struct {
+	ResourceLink
+	URL           string `json:"url"`
+	ManualTitle   string `json:"manual_title"`
+	FetchedTitle  string `json:"fetched_title"`
+	VisitCount    int64  `json:"visit_count"`
+	LastVisitedAt string `json:"last_visited_at"` // "" = never
+	Created       string `json:"created"`
+}
+
+// ResourceLinkCreateRequest is the body for POST /resource-links.
+type ResourceLinkCreateRequest struct {
+	URL   string `json:"url"`
+	Title string `json:"title,omitempty"`
+}
+
+// ResourceLinkUpdateRequest is the body for PATCH /resource-links/{id}. An
+// empty title clears the manual title.
+type ResourceLinkUpdateRequest struct {
+	URL   *string `json:"url,omitempty"`
+	Title *string `json:"title,omitempty"`
+}
+
+// ResourceLinkOrderRequest is the body for PUT /resource-links/order.
+type ResourceLinkOrderRequest struct {
+	IDs []string `json:"ids"`
+}

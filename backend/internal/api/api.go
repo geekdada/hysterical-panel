@@ -109,6 +109,14 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.POST("/ignored-connection-ips", h.createIgnoredConnectionIP).Bind(adminOnly)
 	g.DELETE("/ignored-connection-ips/{id}", h.deleteIgnoredConnectionIP).Bind(adminOnly)
 
+	// resource links (admin-curated links shown to every User)
+	g.GET("/resource-links", h.listResourceLinks)
+	g.GET("/resource-links/manage", h.listManagedResourceLinks).Bind(adminOnly)
+	g.POST("/resource-links", h.createResourceLink).Bind(adminOnly)
+	g.PUT("/resource-links/order", h.reorderResourceLinks).Bind(adminOnly)
+	g.PATCH("/resource-links/{id}", h.updateResourceLink).Bind(adminOnly)
+	g.DELETE("/resource-links/{id}", h.deleteResourceLink).Bind(adminOnly)
+
 	// notification channels (global outbound destinations; no rules or automatic delivery)
 	g.GET("/notification-channels", h.listNotificationChannels).Bind(adminOnly)
 	g.POST("/notification-channels", h.createNotificationChannel).Bind(adminOnly)
