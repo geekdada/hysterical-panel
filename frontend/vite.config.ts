@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -8,9 +8,18 @@ import { nitro } from "nitro/vite";
 
 const appVersion = readFileSync(new URL("../VERSION", import.meta.url), "utf8").trim();
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   server: {
     port: 3000,
+    proxy: {
+      // Nitro's dev middleware treats Sec-Fetch-Dest: image requests as static
+      // assets and never reaches the /l/:id/favicon route, so dev proxies it.
+      "^/l/[^/]+/favicon": {
+        target: loadEnv(mode, process.cwd(), "").VITE_API_BASE_URL || "http://localhost:8090",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/l\/([^/]+)\/favicon/, "/api/resource-links/$1/favicon"),
+      },
+    },
   },
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
@@ -36,4 +45,4 @@ export default defineConfig({
     viteReact(),
     tailwindcss(),
   ],
-});
+}));
