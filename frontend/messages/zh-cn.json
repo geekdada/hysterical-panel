@@ -479,6 +479,7 @@
   "users_activate": "启用",
   "users_deactivate": "停用",
   "user_fallback_account": "账户",
+  "resource_links_list_label": "资源链接",
   "user_not_found_title": "账户不存在",
   "user_not_found_hint": "可能已被删除或移动。",
   "user_sign_out": "退出登录",

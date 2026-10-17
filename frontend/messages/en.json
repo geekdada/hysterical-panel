@@ -479,6 +479,7 @@
   "users_activate": "Activate",
   "users_deactivate": "Deactivate",
   "user_fallback_account": "Account",
+  "resource_links_list_label": "Resource links",
   "user_not_found_title": "Account not found",
   "user_not_found_hint": "It may have been deleted or moved.",
   "user_sign_out": "Sign out",

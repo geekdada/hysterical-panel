@@ -27,6 +27,7 @@ import { TrafficRangePicker } from "~/components/traffic-range-picker";
 import { TrafficChart } from "~/components/traffic";
 import { SubscriptionSection } from "~/components/subscription-section";
 import { CurrentSpeedSection } from "~/components/current-speed";
+import { ResourceLinks } from "~/components/resource-links";
 import { FiringAlertsSection } from "~/components/firing-alerts";
 import { UserSocialLoginsSection } from "~/components/social-logins";
 import { UserAuthorizedAppsSection } from "~/components/authorized-apps";
@@ -189,6 +190,8 @@ function AccountDetailPage() {
           <AccountRail user={user} loading={loading && !user} now={now} />
 
           {isAdmin && user && <UserAlertsSection userId={userId} now={now} />}
+
+          <ResourceLinks />
 
           {user && (
             <SubscriptionSection
