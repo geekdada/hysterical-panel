@@ -10,6 +10,7 @@ import {
   Database,
   Envelope,
   Gear,
+  Link as LinkIcon,
   PlugConnection,
   Pulse,
   Xmark,
@@ -180,6 +181,25 @@ function SettingsPage() {
                 {m.settings_subscriptions_manage()}
               </span>
               <span className="block text-xs text-muted">{m.subscriptions_description()}</span>
+            </span>
+            <ChevronRight
+              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+              aria-hidden
+            />
+          </Link>
+
+          <Link
+            to="/settings/resource-links"
+            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+              <LinkIcon className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-foreground">
+                {m.settings_resource_links_manage()}
+              </span>
+              <span className="block text-xs text-muted">{m.resource_links_description()}</span>
             </span>
             <ChevronRight
               className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"

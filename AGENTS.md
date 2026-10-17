@@ -200,8 +200,8 @@ hysterical-panel/
     ├── scripts/                i18n-check.mjs（校验翻译完整）等
     └── src/
         ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/OTP/OAuth2/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
-        ├── routes/             文件式路由（index / login / oauth-callback / register / verify / forgot-password / reset-password / analytics / settings / settings/emails / settings/connected-apps / oidc/authorize / oidc/error / invitations / nodes / users）
-        ├── components/         traffic.tsx / traffic-range-picker.tsx / social-logins.tsx / oauth-provider-icon.tsx / email-code-login.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx / authorized-apps.tsx
+        ├── routes/             文件式路由（index / login / oauth-callback / register / verify / forgot-password / reset-password / analytics / l/$id / settings / settings/emails / settings/connected-apps / settings/resource-links / oidc/authorize / oidc/error / invitations / nodes / users）
+        ├── components/         traffic.tsx / traffic-range-picker.tsx / resource-links.tsx / social-logins.tsx / oauth-provider-icon.tsx / email-code-login.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx / authorized-apps.tsx
         ├── emails/             Email Sendout 编辑器（@react-email/editor）+ 固定服务邮件外框（serializerPlugin.BaseTemplate）
         ├── paraglide/          Paraglide 编译产物（生成，gitignore，勿手改）
         ├── lib/                展示与工具 helper（format / theme / locale / timezone / cn / use-* hooks 等）

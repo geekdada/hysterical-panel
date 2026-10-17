@@ -25,6 +25,7 @@ import { Route as UsersIndexRouteImport } from './routes/users/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
 import { Route as SettingsSubscriptionsRouteImport } from './routes/settings/subscriptions'
+import { Route as SettingsResourceLinksRouteImport } from './routes/settings/resource-links'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsMonitoringRouteImport } from './routes/settings/monitoring'
 import { Route as SettingsManagementApiRouteImport } from './routes/settings/management-api'
@@ -119,6 +120,11 @@ const UsersUserIdRoute = UsersUserIdRouteImport.update({
 const SettingsSubscriptionsRoute = SettingsSubscriptionsRouteImport.update({
   id: '/subscriptions',
   path: '/subscriptions',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsResourceLinksRoute = SettingsResourceLinksRouteImport.update({
+  id: '/resource-links',
+  path: '/resource-links',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
@@ -220,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/settings/management-api': typeof SettingsManagementApiRoute
   '/settings/monitoring': typeof SettingsMonitoringRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
+  '/settings/resource-links': typeof SettingsResourceLinksRoute
   '/settings/subscriptions': typeof SettingsSubscriptionsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
@@ -250,6 +257,7 @@ export interface FileRoutesByTo {
   '/settings/management-api': typeof SettingsManagementApiRoute
   '/settings/monitoring': typeof SettingsMonitoringRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
+  '/settings/resource-links': typeof SettingsResourceLinksRoute
   '/settings/subscriptions': typeof SettingsSubscriptionsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings': typeof SettingsIndexRoute
@@ -284,6 +292,7 @@ export interface FileRoutesById {
   '/settings/management-api': typeof SettingsManagementApiRoute
   '/settings/monitoring': typeof SettingsMonitoringRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
+  '/settings/resource-links': typeof SettingsResourceLinksRoute
   '/settings/subscriptions': typeof SettingsSubscriptionsRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
@@ -319,6 +328,7 @@ export interface FileRouteTypes {
     | '/settings/management-api'
     | '/settings/monitoring'
     | '/settings/notifications'
+    | '/settings/resource-links'
     | '/settings/subscriptions'
     | '/users/$userId'
     | '/settings/'
@@ -349,6 +359,7 @@ export interface FileRouteTypes {
     | '/settings/management-api'
     | '/settings/monitoring'
     | '/settings/notifications'
+    | '/settings/resource-links'
     | '/settings/subscriptions'
     | '/users/$userId'
     | '/settings'
@@ -382,6 +393,7 @@ export interface FileRouteTypes {
     | '/settings/management-api'
     | '/settings/monitoring'
     | '/settings/notifications'
+    | '/settings/resource-links'
     | '/settings/subscriptions'
     | '/users/$userId'
     | '/settings/'
@@ -524,6 +536,13 @@ declare module '@tanstack/react-router' {
       path: '/subscriptions'
       fullPath: '/settings/subscriptions'
       preLoaderRoute: typeof SettingsSubscriptionsRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/resource-links': {
+      id: '/settings/resource-links'
+      path: '/resource-links'
+      fullPath: '/settings/resource-links'
+      preLoaderRoute: typeof SettingsResourceLinksRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
     '/settings/notifications': {
@@ -670,6 +689,7 @@ interface SettingsRouteRouteChildren {
   SettingsManagementApiRoute: typeof SettingsManagementApiRoute
   SettingsMonitoringRoute: typeof SettingsMonitoringRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
+  SettingsResourceLinksRoute: typeof SettingsResourceLinksRoute
   SettingsSubscriptionsRoute: typeof SettingsSubscriptionsRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -681,6 +701,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsManagementApiRoute: SettingsManagementApiRoute,
   SettingsMonitoringRoute: SettingsMonitoringRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
+  SettingsResourceLinksRoute: SettingsResourceLinksRoute,
   SettingsSubscriptionsRoute: SettingsSubscriptionsRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
