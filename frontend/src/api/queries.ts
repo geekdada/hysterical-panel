@@ -66,6 +66,11 @@ type Invitation = components["schemas"]["Invitation"];
 type InvitationCreateRequest = components["schemas"]["InvitationCreateRequest"];
 type IgnoredConnectionIP = components["schemas"]["IgnoredConnectionIP"];
 type IgnoredConnectionIPCreateRequest = components["schemas"]["IgnoredConnectionIPCreateRequest"];
+type ResourceLink = components["schemas"]["ResourceLink"];
+type ManagedResourceLink = components["schemas"]["ManagedResourceLink"];
+type ResourceLinkCreateRequest = components["schemas"]["ResourceLinkCreateRequest"];
+type ResourceLinkUpdateRequest = components["schemas"]["ResourceLinkUpdateRequest"];
+type ResourceLinkVisitResponse = components["schemas"]["ResourceLinkVisitResponse"];
 type AppSettings = components["schemas"]["SettingsResponse"];
 type SettingsUpdateRequest = components["schemas"]["SettingsUpdateRequest"];
 type ManagementAPIToken = components["schemas"]["ManagementAPITokenResponse"];
@@ -94,6 +99,10 @@ export type {
   InvitationCreateRequest,
   IgnoredConnectionIP,
   IgnoredConnectionIPCreateRequest,
+  ResourceLink,
+  ManagedResourceLink,
+  ResourceLinkCreateRequest,
+  ResourceLinkUpdateRequest,
   AppSettings,
   SettingsUpdateRequest,
   ManagementAPIToken,
@@ -216,6 +225,8 @@ export const queryKeys = {
   databaseStats: () => [...queryKeys.all, "database", "stats"] as const,
   invitations: () => [...queryKeys.all, "invitations"] as const,
   ignoredConnectionIPs: () => [...queryKeys.all, "ignored-connection-ips"] as const,
+  resourceLinks: () => [...queryKeys.all, "resource-links"] as const,
+  managedResourceLinks: () => [...queryKeys.all, "resource-links", "manage"] as const,
   notificationChannels: () => [...queryKeys.all, "notification-channels"] as const,
   oidcClients: () => [...queryKeys.all, "oidc-clients"] as const,
   oidcRequest: (handle: string) => [...queryKeys.all, "oidc-requests", handle] as const,
@@ -886,6 +897,82 @@ export function deleteIgnoredConnectionIP(id: string): Promise<{ deleted: boolea
     m.error_ignored_ip_delete(),
     m.error_ignored_ip_delete_network()
   );
+}
+
+export function fetchResourceLinks(): Promise<ResourceLink[]> {
+  return apiRequest<ResourceLink[]>(
+    apiClient.GET("/api/panel/resource-links"),
+    m.error_resource_links_load()
+  );
+}
+
+export function fetchManagedResourceLinks(): Promise<ManagedResourceLink[]> {
+  return apiRequest<ManagedResourceLink[]>(
+    apiClient.GET("/api/panel/resource-links/manage"),
+    m.error_resource_links_load()
+  );
+}
+
+export function createResourceLink(body: ResourceLinkCreateRequest): Promise<ManagedResourceLink> {
+  return apiRequest<ManagedResourceLink>(
+    apiClient.POST("/api/panel/resource-links", { body }),
+    m.error_resource_link_save(),
+    m.error_resource_link_save_network()
+  );
+}
+
+export function updateResourceLink(
+  id: string,
+  body: ResourceLinkUpdateRequest
+): Promise<ManagedResourceLink> {
+  return apiRequest<ManagedResourceLink>(
+    apiClient.PATCH("/api/panel/resource-links/{id}", {
+      params: { path: { id } },
+      body,
+    }),
+    m.error_resource_link_save(),
+    m.error_resource_link_save_network()
+  );
+}
+
+export function deleteResourceLink(id: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/resource-links/{id}", {
+      params: { path: { id } },
+    }),
+    m.error_resource_link_delete(),
+    m.error_resource_link_delete_network()
+  );
+}
+
+export async function reorderResourceLinks(ids: string[]): Promise<ManagedResourceLink[]> {
+  try {
+    return await apiRequest<ManagedResourceLink[]>(
+      apiClient.PUT("/api/panel/resource-links/order", { body: { ids } }),
+      m.error_resource_links_reorder()
+    );
+  } catch (error) {
+    if (error instanceof PanelApiError && error.status === 409) {
+      throw new PanelApiError(m.error_resource_links_reorder_conflict(), 409);
+    }
+    throw error;
+  }
+}
+
+// Used by the redirect route, so a missing link must not look like a failure.
+export async function visitResourceLink(id: string): Promise<string | null> {
+  try {
+    const visit = await apiRequest<ResourceLinkVisitResponse>(
+      apiClient.POST("/api/resource-links/{id}/visit", {
+        params: { path: { id } },
+      }),
+      m.error_resource_links_load()
+    );
+    return visit.url;
+  } catch (error) {
+    if (error instanceof PanelApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 export function fetchNotificationChannels(): Promise<NotificationChannel[]> {

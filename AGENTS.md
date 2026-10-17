@@ -20,6 +20,7 @@
 - 面板登录支持密码 + passkey（WebAuthn）+ PocketBase 邮箱验证码 OTP（免密码，非 MFA）+ PocketBase OAuth2（只登录已有账号，不注册）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
 - 可选的 OIDC Provider：admin 登记 Connected App 后，其他站点可用面板账号登录（Authorization Code + PKCE，见 ADR-0010）。只发 `sub` / `email` / `email_verified`，不发 Auth String。
 - 可选的 Email Sendout：admin 在面板里写事务邮件，经 PocketBase SMTP 发给一个或全部可用 User；持久化队列、只发一次、失败手动重发，见 ADR-0008。
+- Resource Links：admin 维护一组对所有已登录 User 可见的有序外链；保存时抓取一次标题与 favicon，点击经公开端点计数后跳转，面板只保存元数据与图标副本。
 - **不做**：支付/账单、节点部署。订阅仅作为节点访问与流量额度门禁，见 `docs/subscriptions.md`。Monitoring 支持基于 Observation 的 Node Monitor（offline / high-traffic）和基于订阅状态的 User Monitor（low allowance / expiring subscription，ADR-0009），共用 Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
 
 ## 常用命令
@@ -133,7 +134,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..36）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..37）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -147,6 +148,7 @@ hysterical-panel/
 │       ├── currentspeed/       User×Node Current Speed 的按节点清零
 │       ├── oidc/               OIDC Provider 核心：授权请求、同意、code / token、签名密钥、清理 cron、`oidc rotate-signing-key` CLI
 │       ├── sendouts/           Email Sendout 队列（创建/取消/重发/计数）+ 单 worker 限速投递
+│       ├── linkmeta/           外链页面标题与 favicon 抓取（体积/重定向/超时上限）+ test
 │       └── api/                /api/panel 路由（+ /api/mgmt、公开回调）
 │           ├── api.go          路由注册 + 4 个鉴权守卫（含 verified / active 门禁）+ 脱敏辅助 + nodesForUser
 │           ├── config.go       公开 GET /api/panel/config（静态字段 + 实时 app 名称与注册开关 + passkeys 标志）
@@ -171,6 +173,7 @@ hysterical-panel/
 │           ├── database.go     GET /database/stats + POST /database/prune（90 天留存，只裁剪小时数据）
 │           ├── invitations.go  邀请码 CRUD + inviteValid
 │           ├── ignored_connection_ips.go 全局忽略 IP CRUD
+│           ├── resource_links.go 外链 CRUD / 重排 / 公开访问计数与 favicon 服务
 │           ├── notification_channels.go 通知 Channel CRUD / 测试 / passkey URL reveal
 │           ├── email_sendouts.go Email Sendout 接口（校验、收件人展开、历史、取消/重发）
 │           ├── register.go     公开自助注册 + registrationDecision + auth_string 生成
@@ -242,6 +245,8 @@ hysterical-panel/
 
 `ignored_connection_ips`：`ip` (text, unique, required) — 全局忽略的客户端 IP；命中后不再写入 `users.recent_connections`（`last_connected_at` 仍更新），API 返回时过滤历史记录。admin 通过 `GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 管理。
 
+`resource_links`：admin 维护、对所有已登录 User 可见的有序外链。`url` (text, required)、`title`（手动标题，优先）、`fetched_title`、`favicon_data`（base64 图标副本，**`Hidden`**）、`favicon_type`、`favicon_hash`（16 位，作 ETag 与前端缓存键）、`sort_order`、`visit_count`、`last_visited_at`、`created` / `updated`。新建与改 URL 时用 `internal/linkmeta` 同步抓取一次：页面 ≤512 KiB、图标 ≤100 KiB、最多 3 次重定向、整体 10s 上限，接受任意 `image/*`（含 SVG）；无图标时清空 favicon 三字段，抓取失败不阻止保存。展示标题为 `title` → `fetched_title` → hostname。
+
 `notification_channels`：admin 管理的一条出站目的地配置。`name` + 隐藏的大小写归一化 `name_key` 唯一；`service` 是非秘密的 Beszel-compatible Shoutrrr service；完整 URL 落在隐藏的 **AES-GCM 密文** `url_encrypted`，普通 API 永不返回。`enabled` 默认 false；`last_test_status`（`never`/`succeeded`/`failed`）及安全错误码记录显式测试结果。**一条 Channel 只含一个 URL；触发逻辑属于 Monitor。** 已保存 URL 只可经当前 admin 的新鲜、单次、Channel-scoped passkey assertion reveal。
 
 `monitor_observations`：Collector 成功采集后写入的 Node 时间区间点（`observed_at`、`elapsed_seconds`、`tx_bytes`、`rx_bytes`），保留 25 小时。漏采不补零；首轮没有可靠 elapsed 时不写。
@@ -303,6 +308,7 @@ hysterical-panel/
 - 节点维度接口 `GET /nodes/{id}/traffic/summary|series`、`GET /nodes/{id}/live` 是**单节点跨用户**视角，仅 admin。
 - Current Speed：`GET /users/{id}/current-speed`（admin 或本人）返回该 User 在各可见 Node 上非零的速度与合计；`GET /nodes/{id}/current-speed`（admin）返回 Node 自身速度与速度最高的 10 个 User。两者直接读 `traffic_cursor`，不请求节点，与 Live 无关。
 - `GET|PATCH /settings`、`POST /management-api/rotate`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验注册开关层级（`invitations_enabled` 依赖 `open_registration`；`require_invite_for_open` 依赖 `invitations_enabled`），并在首次置 `management_api_enabled=true` 时生成明文 token 回显一次（见决策 #10）；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
+- Resource Links 接口 `GET /resource-links`（任意已登录用户，只返回 `id` / `title` / `favicon_version`，**不含目标 URL**）；`GET /resource-links/manage`、`POST /resource-links`、`PUT /resource-links/order`、`PATCH|DELETE /resource-links/{id}` 仅 admin、进 OpenAPI。`PUT /order` 的 `{ ids }` 必须恰好覆盖全部链接各一次，否则 409 `resource link order is out of date`，不会半应用。新建与改 URL 时同步抓取标题与 favicon（`internal/linkmeta`，10s 上限）；`title` 缺省用抓取结果，再回退 hostname。
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts`、`GET /users/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段（含 kind、阈值）会静默 cancel 旧 Alert 并立即重评估。User Monitor 请求传 `evaluation_window_seconds` / `node_scope` / 非空 `node_ids` 返回 400。
 - OIDC 接口均进 OpenAPI：`GET|POST /oidc-clients`、`PATCH|DELETE /oidc-clients/{id}`、`POST /oidc-clients/{id}/rotate-secret` 仅 admin；同意页用的 `GET /oidc/requests/{handle}`、`POST /oidc/requests/{handle}/approve` 要求已登录且通过 `oidc.UserMayUse`，`deny` 只要求已登录；`POST /oidc/requests/{handle}/abort` 公开，持有 handle 即可结束请求（`prompt=none` 回 `login_required`，其余回 `access_denied`），与 `/authorize` 共用每 IP 60 次/分钟额度。这四个同意页接口在提供方关闭时 404。`GET /users/{id}/oidc-grants`、`DELETE /users/{id}/oidc-grants/{grantId}` 走 `requireActiveAdminOrSelf`。见决策 #11。
@@ -326,6 +332,10 @@ hysterical-panel/
 `POST /api/mgmt/users`、`GET /api/mgmt/users` — Management API（公开但 Bearer 鉴权，未启用返回 404；见决策 #10）。供外部系统按 id/email/auth_string 查号或建号，**不进 OpenAPI**，契约见 backend/README.md。Connected App 拿到的 `sub` 即 User ID，用 `?id=` 查。
 
 `/api/oidc/*` — OIDC Provider 协议端点（discovery、jwks、authorize、token、userinfo、revoke），由 Connected App 与浏览器调用，**不进 OpenAPI**，关闭时 404。`/authorize` 校验后 303 到前端 `/oidc/authorize?request=<handle>`，同意页响应头带 `frame-ancestors 'none'` 与 `Referrer-Policy: no-referrer`。见决策 #11 与 backend/README.md。
+
+`POST /api/resource-links/{id}/visit` — 公开、无鉴权：单条 SQL UPDATE 原子地把 `visit_count += 1`、写 `last_visited_at`，返回 `{ url }`；未知 id 404。列表响应不含目标 URL，前端 `/l/{id}` 服务端路由调用它拿到 URL 后再跳转。
+
+`GET /api/resource-links/{id}/favicon` — 公开、无鉴权：返回保存的图标字节，`Content-Type` 用抓取结果，`Cache-Control: public, max-age=86400`，`ETag` 为 `favicon_hash`；`If-None-Match` 命中返回 304，未知 id 或无图标 404。**已接受的风险**：图标原样从面板 origin 提供，SVG 也在允许范围内，而 `/api/resource-links/*` 不带 CSP；面板 token cookie 不是 HttpOnly，恶意 SVG 因此可在面板 origin 执行脚本。这是明确的产品取舍（链接由 admin 添加，但目标站点内容仍是外部输入），不要擅自加内容消毒或收紧格式而破坏图标保真。
 
 **邮箱验证码登录**：在 `/_/` 的 users collection 启用 OTP（不是 MFA），登录页读 `auth-methods` 的 `otp.enabled` 显示入口，走内置 `request-otp` → `auth-with-otp`，仍过 `bindAuthGate`。`otp_login.go` 在 SMTP 未启用时返回 503，并让非 active 用户拿到与未知邮箱相同的假 `otpId`、不发信。未验证用户用验证码登录后 PocketBase 会置 `verified=true` 并重置密码。登录页与设置页的 OAuth2 按钮按 PocketBase provider 名显示单色品牌图标（`components/oauth-provider-icon.tsx`，`simple-icons`），通用 `oidc*` 等认不出的 provider 不显示图标。详见 backend/README.md。
 

@@ -87,6 +87,12 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"InvitationCreateRequest":           InvitationCreateRequest{},
 		"IgnoredConnectionIP":               IgnoredConnectionIP{},
 		"IgnoredConnectionIPCreateRequest":  IgnoredConnectionIPCreateRequest{},
+		"ResourceLink":                      ResourceLink{},
+		"ManagedResourceLink":               ManagedResourceLink{},
+		"ResourceLinkCreateRequest":         ResourceLinkCreateRequest{},
+		"ResourceLinkUpdateRequest":         ResourceLinkUpdateRequest{},
+		"ResourceLinkOrderRequest":          ResourceLinkOrderRequest{},
+		"ResourceLinkVisitResponse":         ResourceLinkVisitResponse{},
 		"SettingsResponse":                  SettingsResponse{},
 		"SettingsUpdateRequest":             SettingsUpdateRequest{},
 		"ManagementAPITokenResponse":        ManagementAPITokenResponse{},
@@ -166,6 +172,11 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"OIDCGrant":                      {"id", "client_name", "scopes", "created"},
 		"OIDCAuthorizationRequest":       {"client_name", "redirect_origin", "scopes", "consent_required", "reauthentication_required", "prompt_none", "expires_at"},
 		"OIDCAuthorizationDecision":      {"redirect_to"},
+		"ResourceLink":                   {"id", "title", "favicon_version"},
+		"ManagedResourceLink":            {"id", "title", "favicon_version", "url", "manual_title", "fetched_title", "visit_count", "last_visited_at", "created"},
+		"ResourceLinkCreateRequest":      {"url"},
+		"ResourceLinkOrderRequest":       {"ids"},
+		"ResourceLinkVisitResponse":      {"url"},
 	} {
 		if s := schemas[name]; s != nil && s.Value != nil {
 			s.Value.Required = append(s.Value.Required, fields...)
@@ -1912,6 +1923,179 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			}
 			op.Responses.Set("404", notFound)
 			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /resource-links ────────────────────────────────────────────────────
+	// Public paths live outside /api/panel; every other path in this block
+	// requires a session.
+	resourceLinkIDParam := idParam("Resource link ID")
+	t.Paths.Set("/api/panel/resource-links", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listResourceLinks",
+				Summary:     "List the links shown to every User",
+				Tags:        []string{"resource-links"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Resource links in display order"),
+						Content:     content(arrayRef("ResourceLink")),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "createResourceLink",
+				Summary:     "Create a resource link and fetch its title and favicon",
+				Tags:        []string{"resource-links"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("ResourceLinkCreateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Created resource link"),
+						Content:     content(ref("ManagedResourceLink")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			withAuth(op)
+			return op
+		}(),
+	})
+	t.Paths.Set("/api/panel/resource-links/manage", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "listManagedResourceLinks",
+				Summary:     "List resource links with URLs and visit stats",
+				Tags:        []string{"resource-links"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Managed resource links in display order"),
+						Content:     content(arrayRef("ManagedResourceLink")),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+	})
+	reorder := &openapi3.Operation{
+		OperationID: "reorderResourceLinks",
+		Summary:     "Replace the display order",
+		Tags:        []string{"resource-links"},
+		RequestBody: &openapi3.RequestBodyRef{
+			Value: openapi3.NewRequestBody().
+				WithRequired(true).
+				WithJSONSchemaRef(ref("ResourceLinkOrderRequest")),
+		},
+		Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+			Value: &openapi3.Response{
+				Description: ptr("Resource links in their new order"),
+				Content:     content(arrayRef("ManagedResourceLink")),
+			},
+		})),
+	}
+	// The id list must name every stored link exactly once; a stale list is
+	// rejected instead of partially applied.
+	reorder.Responses.Set("409", errRef(409, "Resource link order is out of date"))
+	withAuth(reorder)
+	t.Paths.Set("/api/panel/resource-links/order", &openapi3.PathItem{Put: reorder})
+	t.Paths.Set("/api/panel/resource-links/{id}", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{resourceLinkIDParam},
+		Patch: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "updateResourceLink",
+				Summary:     "Update a link's URL or manual title",
+				Tags:        []string{"resource-links"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("ResourceLinkUpdateRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Updated resource link"),
+						Content:     content(ref("ManagedResourceLink")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+		Delete: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "deleteResourceLink",
+				Summary:     "Delete a resource link",
+				Tags:        []string{"resource-links"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Deletion confirmed"),
+						Content:     content(ref("DeleteResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── public /api/resource-links/{id} ────────────────────────────────────
+	faviconContent := openapi3.Content{
+		"image/*": &openapi3.MediaType{
+			Schema: &openapi3.SchemaRef{Value: &openapi3.Schema{
+				Type:   &openapi3.Types{"string"},
+				Format: "binary",
+			}},
+		},
+	}
+	t.Paths.Set("/api/resource-links/{id}/visit", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{resourceLinkIDParam},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "visitResourceLink",
+				Summary:     "Count a visit and resolve the target URL",
+				Tags:        []string{"resource-links"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Target URL"),
+						Content:     content(ref("ResourceLinkVisitResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("404", notFound)
+			op.Security = &openapi3.SecurityRequirements{}
+			return op
+		}(),
+	})
+	t.Paths.Set("/api/resource-links/{id}/favicon", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{resourceLinkIDParam},
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "getResourceLinkFavicon",
+				Summary:     "Serve the stored favicon",
+				Tags:        []string{"resource-links"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Stored favicon bytes"),
+						Content:     faviconContent,
+					},
+				})),
+			}
+			op.Responses.Set("304", &openapi3.ResponseRef{
+				Value: openapi3.NewResponse().WithDescription("Favicon unchanged for this ETag"),
+			})
+			op.Responses.Set("404", notFound)
+			op.Security = &openapi3.SecurityRequirements{}
 			return op
 		}(),
 	})

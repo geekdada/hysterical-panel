@@ -124,6 +124,12 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 | GET | `/ignored-connection-ips` | 全局忽略的客户端 IP 列表（用于最近连接统计） |
 | POST | `/ignored-connection-ips` | 忽略一个 IP（body `{ "ip": "1.2.3.4" }`；已存在则幂等返回） |
 | DELETE | `/ignored-connection-ips/{id}` | 取消忽略 |
+| GET | `/resource-links` | 任意已登录用户可见的有序外链（`id` / `title` / `favicon_version`，不含目标 URL） |
+| GET | `/resource-links/manage` | 管理员查看含 URL、抓取结果与访问次数的完整列表 |
+| POST | `/resource-links` | 新建（`{ url, title? }`）；同步抓取标题与 favicon，手动 `title` 优先 |
+| PUT | `/resource-links/order` | 用 `{ ids }` 重排；须恰好覆盖全部链接各一次，集合已变化返回 409 `resource link order is out of date` |
+| PATCH | `/resource-links/{id}` | 修改 URL 或手动标题（传空标题 = 清除，回退到抓取标题）；URL 变化时重新抓取 |
+| DELETE | `/resource-links/{id}` | 删除 |
 | GET | `/email-sendouts/context` | 写信页所需：`app_name`、`frontend_url`、`smtp_enabled`、可用 User 数、发送速率 |
 | GET | `/email-sendouts/eligible-recipients?search=` | 按邮箱子串查可用 User（`status=active && verified=true`），最多 20 条 |
 | GET | `/email-sendouts` | Email Sendout 列表（新到旧，含各状态计数与推导出的 `status`） |
@@ -193,6 +199,13 @@ provider 在 `/_/` 后台 users collection 的 **Options → OAuth2** 里启用�
 - 账号匹配依赖 provider 返回的邮箱可信，只启用会校验邮箱所有权的 provider。
 
 users collection 的 List / View / Create / Update / Delete API 规则由迁移 `1730000030` 锁为仅 superuser。PocketBase 默认规则允许匿名建号、允许用户改自己的 `role` / `status` / 用量字段；锁定后 OAuth2 也无法经通用建号接口创建用户。面板只走 `/api/panel/*` 与内置 auth 端点，不依赖这些规则。
+
+### 外链跳转与图标（公开）
+
+- `POST /api/resource-links/{id}/visit`：`visit_count += 1`、写 `last_visited_at`，返回 `{ "url": "<target>" }`；未知 id 404。前端 `/l/{id}` 服务端路由调用它后再跳转。
+- `GET /api/resource-links/{id}/favicon`：返回保存的图标副本，不请求目标站点；`Cache-Control: public, max-age=86400`，`ETag` 为 `favicon_hash`，命中 `If-None-Match` 返回 304；未知 id 或无图标 404。
+- 抓取在保存时同步发生（`internal/linkmeta`）：页面 ≤512 KiB、图标 ≤100 KiB、最多 3 次重定向、整体 10s 上限，接受任意 `image/*`（含 SVG）；抓取失败不阻止保存。
+- **已接受的取舍**：图标从面板 origin 原样提供（含 SVG），这些公开路由没有 CSP，而面板 token cookie 不是 HttpOnly，恶意 SVG 可在面板 origin 执行脚本。链接由 admin 添加，但目标内容仍是外部输入，此风险是已知且有意的选择。
 
 ### Hysteria 回调 `POST /api/hysteria/auth`（供 Hysteria 节点调用）
 
