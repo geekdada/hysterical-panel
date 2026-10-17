@@ -36,8 +36,10 @@ import { Route as NodesNewRouteImport } from './routes/nodes/new'
 import { Route as NodesNodeIdRouteImport } from './routes/nodes/$nodeId'
 import { Route as SettingsEmailsRouteRouteImport } from './routes/settings/emails/route'
 import { Route as SettingsEmailsIndexRouteImport } from './routes/settings/emails/index'
+import { Route as LIdIndexRouteImport } from './routes/l/$id/index'
 import { Route as SettingsEmailsNewRouteImport } from './routes/settings/emails/new'
 import { Route as SettingsEmailsSendoutIdRouteImport } from './routes/settings/emails/$sendoutId'
+import { Route as LIdFaviconRouteImport } from './routes/l/$id/favicon'
 
 const VerifyRoute = VerifyRouteImport.update({
   id: '/verify',
@@ -174,6 +176,11 @@ const SettingsEmailsIndexRoute = SettingsEmailsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SettingsEmailsRouteRoute,
 } as any)
+const LIdIndexRoute = LIdIndexRouteImport.update({
+  id: '/l/$id/',
+  path: '/l/$id/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsEmailsNewRoute = SettingsEmailsNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -183,6 +190,11 @@ const SettingsEmailsSendoutIdRoute = SettingsEmailsSendoutIdRouteImport.update({
   id: '/$sendoutId',
   path: '/$sendoutId',
   getParentRoute: () => SettingsEmailsRouteRoute,
+} as any)
+const LIdFaviconRoute = LIdFaviconRouteImport.update({
+  id: '/l/$id/favicon',
+  path: '/l/$id/favicon',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -212,8 +224,10 @@ export interface FileRoutesByFullPath {
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
+  '/l/$id/favicon': typeof LIdFaviconRoute
   '/settings/emails/$sendoutId': typeof SettingsEmailsSendoutIdRoute
   '/settings/emails/new': typeof SettingsEmailsNewRoute
+  '/l/$id/': typeof LIdIndexRoute
   '/settings/emails/': typeof SettingsEmailsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -240,8 +254,10 @@ export interface FileRoutesByTo {
   '/users/$userId': typeof UsersUserIdRoute
   '/settings': typeof SettingsIndexRoute
   '/users': typeof UsersIndexRoute
+  '/l/$id/favicon': typeof LIdFaviconRoute
   '/settings/emails/$sendoutId': typeof SettingsEmailsSendoutIdRoute
   '/settings/emails/new': typeof SettingsEmailsNewRoute
+  '/l/$id': typeof LIdIndexRoute
   '/settings/emails': typeof SettingsEmailsIndexRoute
 }
 export interface FileRoutesById {
@@ -272,8 +288,10 @@ export interface FileRoutesById {
   '/users/$userId': typeof UsersUserIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
+  '/l/$id/favicon': typeof LIdFaviconRoute
   '/settings/emails/$sendoutId': typeof SettingsEmailsSendoutIdRoute
   '/settings/emails/new': typeof SettingsEmailsNewRoute
+  '/l/$id/': typeof LIdIndexRoute
   '/settings/emails/': typeof SettingsEmailsIndexRoute
 }
 export interface FileRouteTypes {
@@ -305,8 +323,10 @@ export interface FileRouteTypes {
     | '/users/$userId'
     | '/settings/'
     | '/users/'
+    | '/l/$id/favicon'
     | '/settings/emails/$sendoutId'
     | '/settings/emails/new'
+    | '/l/$id/'
     | '/settings/emails/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -333,8 +353,10 @@ export interface FileRouteTypes {
     | '/users/$userId'
     | '/settings'
     | '/users'
+    | '/l/$id/favicon'
     | '/settings/emails/$sendoutId'
     | '/settings/emails/new'
+    | '/l/$id'
     | '/settings/emails'
   id:
     | '__root__'
@@ -364,8 +386,10 @@ export interface FileRouteTypes {
     | '/users/$userId'
     | '/settings/'
     | '/users/'
+    | '/l/$id/favicon'
     | '/settings/emails/$sendoutId'
     | '/settings/emails/new'
+    | '/l/$id/'
     | '/settings/emails/'
   fileRoutesById: FileRoutesById
 }
@@ -384,6 +408,8 @@ export interface RootRouteChildren {
   VerifyRoute: typeof VerifyRoute
   OidcAuthorizeRoute: typeof OidcAuthorizeRoute
   OidcErrorRoute: typeof OidcErrorRoute
+  LIdFaviconRoute: typeof LIdFaviconRoute
+  LIdIndexRoute: typeof LIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -577,6 +603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsEmailsIndexRouteImport
       parentRoute: typeof SettingsEmailsRouteRoute
     }
+    '/l/$id/': {
+      id: '/l/$id/'
+      path: '/l/$id'
+      fullPath: '/l/$id/'
+      preLoaderRoute: typeof LIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/emails/new': {
       id: '/settings/emails/new'
       path: '/new'
@@ -590,6 +623,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/emails/$sendoutId'
       preLoaderRoute: typeof SettingsEmailsSendoutIdRouteImport
       parentRoute: typeof SettingsEmailsRouteRoute
+    }
+    '/l/$id/favicon': {
+      id: '/l/$id/favicon'
+      path: '/l/$id/favicon'
+      fullPath: '/l/$id/favicon'
+      preLoaderRoute: typeof LIdFaviconRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -678,6 +718,8 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyRoute: VerifyRoute,
   OidcAuthorizeRoute: OidcAuthorizeRoute,
   OidcErrorRoute: OidcErrorRoute,
+  LIdFaviconRoute: LIdFaviconRoute,
+  LIdIndexRoute: LIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
