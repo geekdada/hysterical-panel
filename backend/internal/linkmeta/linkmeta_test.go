@@ -193,17 +193,33 @@ func TestFetchRejectsOversizedIcon(t *testing.T) {
 	}
 }
 
-func TestFetchStopsAfterThreeRedirects(t *testing.T) {
+func redirectChain(t *testing.T, hops int, finalBody string) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
-	for i := 0; i < 4; i++ {
+	for i := 0; i < hops; i++ {
 		next := fmt.Sprintf("/%d", i+1)
 		mux.HandleFunc(fmt.Sprintf("/%d", i), func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, next, http.StatusFound)
 		})
 	}
-	mux.HandleFunc("/4", htmlPage(`<html><head><title>Too far</title></head></html>`))
+	mux.HandleFunc(fmt.Sprintf("/%d", hops), htmlPage(finalBody))
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestFetchFollowsThreeRedirects(t *testing.T) {
+	srv := redirectChain(t, 3, `<html><head><title>Far enough</title></head></html>`)
+
+	meta := Fetch(context.Background(), srv.URL+"/0")
+
+	if meta.Title != "Far enough" {
+		t.Fatalf("Title = %q, want %q", meta.Title, "Far enough")
+	}
+}
+
+func TestFetchStopsAfterFourRedirects(t *testing.T) {
+	srv := redirectChain(t, 4, `<html><head><title>Too far</title></head></html>`)
 
 	meta := Fetch(context.Background(), srv.URL+"/0")
 

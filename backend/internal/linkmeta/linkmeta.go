@@ -33,7 +33,7 @@ type Metadata struct {
 
 var client = &http.Client{
 	CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-		if len(via) >= 3 {
+		if len(via) > 3 {
 			return errors.New("too many redirects")
 		}
 		return nil
