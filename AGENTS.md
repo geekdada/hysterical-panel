@@ -191,7 +191,7 @@ hysterical-panel/
 │           ├── kick.go         停用 / 轮换 Auth String 时 best-effort /kick 扇出（kickUser / fanOutKicks，3 并发）
 │           ├── dto.go          OpenAPI 用的响应/请求结构体
 │           ├── openapi.go      生成 OpenAPI 3.1 spec
-│           └── *_test.go       register / kick / database / users_list / recent_connections / auth_string_anytls_hash / live 等单测
+│           └── *_test.go       register / kick / database / users_list / recent_connections / auth_string_anytls_hash / live / resource_links / openapi_resource_links 等单测
 └── frontend/
     ├── vite.config.ts          TanStack Start + react + tailwind + paraglide 插件；从 ../VERSION 注入 __APP_VERSION__
     ├── tsconfig.json           路径别名 ~/* → src/*
@@ -335,7 +335,7 @@ hysterical-panel/
 
 `POST /api/resource-links/{id}/visit` — 公开、无鉴权：单条 SQL UPDATE 原子地把 `visit_count += 1`、写 `last_visited_at`，返回 `{ url }`；未知 id 404。列表响应不含目标 URL，前端 `/l/{id}` 服务端路由调用它拿到 URL 后再跳转。
 
-`GET /api/resource-links/{id}/favicon` — 公开、无鉴权：返回保存的图标字节，`Content-Type` 用抓取结果，`Cache-Control: public, max-age=86400`，`ETag` 为 `favicon_hash`；`If-None-Match` 命中返回 304，未知 id 或无图标 404。**已接受的风险**：图标原样从面板 origin 提供，SVG 也在允许范围内，而 `/api/resource-links/*` 不带 CSP；面板 token cookie 不是 HttpOnly，恶意 SVG 因此可在面板 origin 执行脚本。这是明确的产品取舍（链接由 admin 添加，但目标站点内容仍是外部输入），不要擅自加内容消毒或收紧格式而破坏图标保真。
+`GET /api/resource-links/{id}/favicon` — 公开、无鉴权：返回保存的图标字节，`Content-Type` 用抓取结果，`Cache-Control: public, max-age=86400`，`ETag` 为 `favicon_hash`；`If-None-Match` 命中返回 304，未知 id 或无图标 404。**已接受的风险**：图标原样从面板 origin 提供，SVG 也在允许范围内，而 `/api/resource-links/*` 不带 CSP；浏览器实际加载的是前端代理 `/l/:id/favicon`，它同样不带 CSP；面板 token cookie 不是 HttpOnly，恶意 SVG 因此可在面板 origin 执行脚本。这是明确的产品取舍（链接由 admin 添加，但目标站点内容仍是外部输入），不要擅自加内容消毒或收紧格式而破坏图标保真。
 
 **邮箱验证码登录**：在 `/_/` 的 users collection 启用 OTP（不是 MFA），登录页读 `auth-methods` 的 `otp.enabled` 显示入口，走内置 `request-otp` → `auth-with-otp`，仍过 `bindAuthGate`。`otp_login.go` 在 SMTP 未启用时返回 503，并让非 active 用户拿到与未知邮箱相同的假 `otpId`、不发信。未验证用户用验证码登录后 PocketBase 会置 `verified=true` 并重置密码。登录页与设置页的 OAuth2 按钮按 PocketBase provider 名显示单色品牌图标（`components/oauth-provider-icon.tsx`，`simple-icons`），通用 `oidc*` 等认不出的 provider 不显示图标。详见 backend/README.md。
 
@@ -358,6 +358,8 @@ hysterical-panel/
 - **鉴权**：登录直接打 PocketBase 内置 `/api/collections/users/auth-with-password`（`src/api/auth.ts`），token+record 存 cookie；`client.ts` 的 middleware **每请求**从 cookie 读 token 塞 `Authorization`（无共享模块状态，防跨请求泄漏）。SSR 安全靠 `createIsomorphicFn`：服务端读 request cookie、客户端读 document.cookie。
 - **路由守卫**：`src/api/guards.ts`，在路由 `beforeLoad` 里用，与后端守卫对齐（非 admin 访问 admin 页 → 跳自己的账号页）。
 - 路径别名 `~/*` → `src/*`；`VITE_API_BASE_URL` 指向后端（dev 默认 `http://localhost:8090`，见 `.env.local`）；`__APP_VERSION__` 由 vite 从根 `VERSION` 注入。
+- `vite.config.ts` 有一条仅 dev 生效的 `server.proxy`：把 `/l/:id/favicon` 转到后端 `/api/resource-links/:id/favicon`。Nitro 的 dev 中间件把带 `Sec-Fetch-Dest: image` 的请求当静态资源处理、不进应用路由，不加代理图标在 `pnpm dev` 下 404；生产构建不受影响。
+- `react-aria-components` 锁定为 HeroUI 依赖的同一版本：`useDragAndDrop` 必须与 HeroUI ListBox 来自同一份副本，升级时两者一起升。
 
 ## 运行与安全
 
@@ -392,7 +394,7 @@ hysterical-panel/
 - 新增或写入 datetime 字段时默认 **UTC**；勿用 `time.Now()` 无 `.UTC()` 落库。
 - 改动后端后至少跑 `go build ./...` 和 `go vet ./...`，确保零告警；改了接口契约要 `make openapi` + 前端 `pnpm api:sync`。
 - 验证启动：带 `PANEL_MASTER_KEY` 跑 `serve`，确认 collection 建出、未授权访问 `/api/panel/*` 返回 401。
-- 已有测试覆盖 `internal/config`、`internal/ipmeta`、`internal/sendouts`（queue/worker），及 `internal/api` 的 live 聚合 / register / kick / database / users_list / recent_connections / auth_string_anytls_hash / email_sendouts，`internal/monitoring` 的 User Monitor 生命周期与通知文案，以及 `internal/oidc`（授权请求、同意、code / token、重放、签名密钥、清理）与 `internal/api` 的 `oidc_*` / management_api 接口；继续补测优先 `collector.delta`（reset 边界）和 live 聚合逻辑。
+- 已有测试覆盖 `internal/config`、`internal/ipmeta`、`internal/linkmeta`（标题 / 图标抓取与各项上限）、`internal/sendouts`（queue/worker），及 `internal/api` 的 live 聚合 / register / kick / database / users_list / recent_connections / auth_string_anytls_hash / email_sendouts / resource_links / openapi_resource_links，`internal/monitoring` 的 User Monitor 生命周期与通知文案，以及 `internal/oidc`（授权请求、同意、code / token、重放、签名密钥、清理）与 `internal/api` 的 `oidc_*` / management_api 接口；继续补测优先 `collector.delta`（reset 边界）和 live 聚合逻辑。
 - **改前端可见文案务必 `messages/en.json` 与 `messages/zh-cn.json` 同步加键**，并 `pnpm i18n:check`；新增组件不要硬编码文案。
 - 字段名、collection 名、API 契约一旦定下前端会依赖，改动需同步更新 `dto.go` / OpenAPI / README 并通知前端。
 
