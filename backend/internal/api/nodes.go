@@ -121,6 +121,12 @@ func (h *Handlers) updateNode(e *core.RequestEvent) error {
 	if err := e.BindBody(&in); err != nil {
 		return apis.NewBadRequestError("invalid body", err)
 	}
+	return h.applyNodeUpdate(e, n, in)
+}
+
+// applyNodeUpdate saves a partial update to a live node. Disabling it also
+// clears its Current Speed, Online Device Count and firing Alerts.
+func (h *Handlers) applyNodeUpdate(e *core.RequestEvent, n *core.Record, in nodeInput) error {
 	if in.Name != nil {
 		n.Set("name", *in.Name)
 	}
@@ -154,6 +160,7 @@ func (h *Handlers) updateNode(e *core.RequestEvent) error {
 			n.Set("online_devices_observed_at", time.Now().UTC())
 		}
 	}
+	var err error
 	clearProjections := in.Enabled != nil && !*in.Enabled
 	if clearProjections {
 		err = h.saveNodeClearingProjections(n)

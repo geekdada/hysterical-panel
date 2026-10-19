@@ -125,7 +125,7 @@ The panel's HTTP auth callback for Nodes deciding whether a client may connect. 
 _Avoid_: webhook (as the feature name), AAA, login API, auth server
 
 **Management API**:
-An optional, default-absent external channel for systems to query or create Users with a Bearer token. Distinct from panel login and Node Client Auth; when disabled it must not advertise itself.
+An optional, default-absent external channel for systems to query or create Users and to register, edit, enable, disable, test or soft-delete Nodes with a Bearer token. Distinct from panel login and Node Client Auth; when disabled it must not advertise itself.
 _Avoid_: admin API, public API, provisioning API, service account API (as the product name)
 
 **Connected App**:

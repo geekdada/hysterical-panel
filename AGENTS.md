@@ -17,7 +17,7 @@
 - 自主轮询采集各节点流量与最新在线设备数，做用户级 / 节点级聚合 + admin 全局看板。
 - 用户管理（分页/排序/筛选列表）+ 实时诊断面板。
 - 作为 Hysteria 2 / anytls 节点的 `auth.type: http` 回调端点，按 `auth_string`（anytls 按其 hash）鉴权客户端连接。
-- 面板登录支持密码 + passkey（WebAuthn）+ PocketBase 邮箱验证码 OTP（免密码，非 MFA）+ PocketBase OAuth2（只登录已有账号，不注册）；可选开启 Management API（Bearer token）供外部系统建号 / 查号。
+- 面板登录支持密码 + passkey（WebAuthn）+ PocketBase 邮箱验证码 OTP（免密码，非 MFA）+ PocketBase OAuth2（只登录已有账号，不注册）；可选开启 Management API（Bearer token）供外部系统建号 / 查号与管理节点。
 - 可选的 OIDC Provider：admin 登记 Connected App 后，其他站点可用面板账号登录（Authorization Code + PKCE，见 ADR-0010）。只发 `sub` / `email` / `email_verified`，不发 Auth String。
 - 可选的 Email Sendout：admin 在面板里写事务邮件，经 PocketBase SMTP 发给一个或全部可用 User；持久化队列、只发一次、失败手动重发，见 ADR-0008。
 - Resource Links：admin 维护一组对所有已登录 User 可见的有序外链；保存时抓取一次标题与 favicon，点击经公开端点计数后跳转，面板只保存元数据与图标副本。
@@ -99,8 +99,8 @@
 9. **Passkey（WebAuthn）是密码之外的第二登录方式，不替代密码。**
    基于 `go-webauthn/webauthn`，落在 `internal/api/passkeys.go` + 两张 collection：`passkey_credentials`（每凭据一行，私有 `credential` JSON `Hidden`）、`passkey_sessions`（challenge 暂存，`passkeyChallengeTTL` 5min，用后即焚）。登录走公开的 `POST /api/panel/passkeys/login/{options,finish}`（finish 成功签发与密码登录同形的 token+record，同样过 `bindAuthGate` 的 status/verified 门禁）；注册/列举/删除挂在 `/users/{id}/passkeys/*`，受 `requireActiveSelf` / `requireActiveAdminOrSelf` 守。**RP ID 与允许的 origin 由 `PANEL_WEBAUTHN_RP_ID` / `PANEL_WEBAUTHN_ORIGINS` 配置；未配（且无静态面板 origin）则 passkey 整体禁用**，`/config` 的 `passkeys` 标志据此告诉前端是否渲染入口。
 
-10. **Management API 是「默认不存在」的外部建号通道。**
-    `/api/mgmt/*`（`management_api.go`）公开无面板登录，唯一门禁是 `Authorization: Bearer <token>`。**功能未启用时一律返回 404（不泄露其存在）**，启用但 token 错返回 401。开关与 token **哈希**存在 `app_settings`（`management_api_enabled` / `management_api_token_hash`，只存 `sha256` hex，明文 token 仅在启用/轮换响应里回显一次）：admin 经 `PATCH /settings` 首次启用时自动生成，或 `POST /management-api/rotate` 轮换。当前仅 `GET /api/mgmt/users`（按 id、email 或 auth_string 精确查）与 `POST /api/mgmt/users`（建号，自动生成密码与 auth_string、均不返回）。详见 backend/README.md。
+10. **Management API 是「默认不存在」的外部管理通道。**
+    `/api/mgmt/*`（`management_api.go`）公开无面板登录，唯一门禁是 `Authorization: Bearer <token>`。**功能未启用时一律返回 404（不泄露其存在）**，启用但 token 错返回 401。开关与 token **哈希**存在 `app_settings`（`management_api_enabled` / `management_api_token_hash`，只存 `sha256` hex，明文 token 仅在启用/轮换响应里回显一次）：admin 经 `PATCH /settings` 首次启用时自动生成，或 `POST /management-api/rotate` 轮换。用户只有 `GET /api/mgmt/users`（按 id、email 或 auth_string 精确查）与 `POST /api/mgmt/users`（建号，自动生成密码与 auth_string、均不返回）。节点有 `GET|POST /api/mgmt/nodes`、`GET|PATCH|DELETE /api/mgmt/nodes/{id}`、`POST /api/mgmt/nodes/{id}/test`，直接复用面板 handler（开启 / 关闭即 PATCH `enabled`，DELETE 为软删除）；唯一差别在 `management_api_nodes.go` 的 `mgmtUpdateNode`：`api_url` 变了必须同时传新 `api_secret`，否则 400（ADR-0011）。前端文档页 `/settings/management-api` 与 backend/README.md 需同步维护。
 
 11. **OIDC Provider 是手写的窄 profile，只服务 admin 登记的 Connected App（ADR-0010）。**
     后端在 `internal/oidc`（状态、密钥、token、授权）+ `internal/api/oidc_*.go`（HTTP）。只有 Authorization Code + PKCE `S256`（每个请求都必须带），只有 confidential client（`client_secret_basic` / `client_secret_post`，secret 只存 sha256、只回显一次）。`/api/oidc/*` 不进 OpenAPI，`app_settings.oidc_enabled=false` 时一律 404；issuer = `PANEL_BACKEND_URL_BASE + "/api/oidc"`，须 https（loopback 可 http），开启时固定到 `oidc_issuer`，之后地址变了就 404 直到 admin 关了再开。
@@ -170,6 +170,7 @@ hysterical-panel/
 │           ├── oidc_user_hook.go User 停用 / 取消验证时撤销授权
 │           ├── settings.go     app_settings 读写（注册开关 + management API token + email sendout 发送速率）
 │           ├── management_api.go 公开 /api/mgmt/* + requireMgmtToken（未启用 404）
+│           ├── management_api_nodes.go Management API 节点 PATCH（改 api_url 须同时换 secret）
 │           ├── database.go     GET /database/stats + POST /database/prune（90 天留存，只裁剪小时数据）
 │           ├── invitations.go  邀请码 CRUD + inviteValid
 │           ├── ignored_connection_ips.go 全局忽略 IP CRUD
@@ -329,7 +330,7 @@ hysterical-panel/
 
 **OAuth2 登录**：provider 在 `/_/` 的 users collection 里配置。前端登录页读内置 `GET /api/collections/users/auth-methods` 渲染按钮；provider 回调公开的 `GET|POST /api/panel/oauth2-redirect`（不进 OpenAPI），它把 `code` / `state` / `error` 303 转发到 `PANEL_FRONTEND_URL_BASE + /oauth-callback`，前端再调内置 `auth-with-oauth2`。`oauth2_login.go` 拒绝新建用户（403 `no account matches this sign-in`），只按已绑定身份或邮箱匹配已有账号；仍过 `bindAuthGate`。各 provider 回调地址须登记为 `<后端公开地址>/api/panel/oauth2-redirect`，不是 PocketBase 的 `/api/oauth2-redirect`；前后端不同源时须设 `PANEL_FRONTEND_URL_BASE`。Apple 的 `form_post` 由 POST 分支接收。「社交账号登录」区域的关联管理走 `/users/{id}/oauth-links`，见上方面板接口。设置页可主动关联未关联的 provider：前端带当前 session token 调 `auth-with-oauth2`，PocketBase 优先关联到 token 对应用户，与邮箱无关；身份已属于其他用户时 hook 返回 409，不切换账号。详见 backend/README.md。
 
-`POST /api/mgmt/users`、`GET /api/mgmt/users` — Management API（公开但 Bearer 鉴权，未启用返回 404；见决策 #10）。供外部系统按 id/email/auth_string 查号或建号，**不进 OpenAPI**，契约见 backend/README.md。Connected App 拿到的 `sub` 即 User ID，用 `?id=` 查。
+`POST /api/mgmt/users`、`GET /api/mgmt/users`、`/api/mgmt/nodes*` — Management API（公开但 Bearer 鉴权，未启用返回 404；见决策 #10）。供外部系统按 id/email/auth_string 查号或建号，以及新增 / 修改 / 开启 / 关闭 / 测试 / 软删除节点，**不进 OpenAPI**，契约见 backend/README.md。Connected App 拿到的 `sub` 即 User ID，用 `?id=` 查。
 
 `/api/oidc/*` — OIDC Provider 协议端点（discovery、jwks、authorize、token、userinfo、revoke），由 Connected App 与浏览器调用，**不进 OpenAPI**，关闭时 404。`/authorize` 校验后 303 到前端 `/oidc/authorize?request=<handle>`，同意页响应头带 `frame-ancestors 'none'` 与 `Referrer-Policy: no-referrer`。见决策 #11 与 backend/README.md。
 

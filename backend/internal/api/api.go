@@ -230,13 +230,19 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	se.Router.POST("/api/anytls/auth", h.anytlsAuth)
 
 	// Management API: external integrations (not the panel UI) call these to
-	// look up and create users via a shared bearer token. Gated at runtime by
+	// manage users and nodes via a shared bearer token. Gated at runtime by
 	// the management_api_enabled flag and a stored token hash. Kept out of
 	// openapi.go for the same reason as /api/hysteria/auth.
 	mgmt := se.Router.Group("/api/mgmt")
 	mgmt.Bind(h.requireMgmtToken())
 	mgmt.GET("/users", h.mgmtGetUser)
 	mgmt.POST("/users", h.mgmtCreateUser)
+	mgmt.GET("/nodes", h.listNodes)
+	mgmt.POST("/nodes", h.createNode)
+	mgmt.GET("/nodes/{id}", h.getNode)
+	mgmt.PATCH("/nodes/{id}", h.mgmtUpdateNode)
+	mgmt.DELETE("/nodes/{id}", h.deleteNode)
+	mgmt.POST("/nodes/{id}/test", h.testNode)
 	h.bindOIDCRoutes(se)
 	return h
 }

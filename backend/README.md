@@ -81,7 +81,7 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/nodes` | 列表（含 health，不含 secret） |
-| POST | `/nodes` | 新建（secret 加密存储） |
+| POST | `/nodes` | 新建（secret 加密存储），返回 **201** |
 | PATCH | `/nodes/{id}` | 修改（secret 缺省=不变，传空=报错） |
 | DELETE | `/nodes/{id}` | 删除 |
 | POST | `/nodes/{id}/test` | 立即验证连通性 |
@@ -249,12 +249,20 @@ auth:
 
 ### 管理接口（Management API）`/api/mgmt/*`（供外部系统调用）
 
-供**外部系统**（非面板前端）通过共享 bearer token 查询与创建用户。**默认关闭**，需管理员在 `/settings` 页面启用。启用时由服务器自动生成 token（明文仅显示一次，需立即复制保存），token 经 SHA-256 哈希存储，无法回读；管理员可随时 rotate。与 `/api/hysteria/auth` 一样不进 `openapi.json`。
+供**外部系统**（非面板前端）通过共享 bearer token 查询与创建用户，以及管理节点。**默认关闭**，需管理员在 `/settings` 页面启用。启用时由服务器自动生成 token（明文仅显示一次，需立即复制保存），token 经 SHA-256 哈希存储，无法回读；管理员可随时 rotate。与 `/api/hysteria/auth` 一样不进 `openapi.json`。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/mgmt/users?id=`、`?email=` 或 `?auth_string=` | 按 User ID、email 或 Current `auth_string` 精确查询单个用户（三选一，不能同时给）；Retired 值不匹配。Connected App 拿到的 `sub` 就是 User ID，可直接用 `?id=` 查。返回 `PanelUser` 形状（含 Current `auth_string`） |
 | POST | `/api/mgmt/users` | 请求体 `{ email }`，自动生成密码与 `auth_string`（不返回）。返回 `{ id, email, status }`，状态码 **201**。创建后用户需走找回密码流程拿到登录凭证 |
+| GET | `/api/mgmt/nodes` | 未删除的节点列表，按创建时间倒序。与面板 `GET /api/panel/nodes` 同形（`Node`，不含 `api_secret`） |
+| GET | `/api/mgmt/nodes/{id}` | 单个节点；不存在或已软删除返回 404 |
+| POST | `/api/mgmt/nodes` | 新建节点，`name` / `api_url` / `api_secret` 必填，`poll_interval` 默认 30、`enabled` 默认 true。返回 `Node`，状态码 **201** |
+| PATCH | `/api/mgmt/nodes/{id}` | 部分更新 `name` / `api_url` / `api_secret` / `poll_interval` / `enabled`，开启与关闭就是改 `enabled`，副作用与面板一致（关闭时清零当前速度与在线设备数、取消 Alert）。**`api_url` 与存储值不同时必须同时传 `api_secret`，否则 400**（防止持 token 者把节点指向自己的服务器、截获采集器发出的旧 secret，见 ADR-0011）；`api_secret` 传空字符串同样 400 |
+| DELETE | `/api/mgmt/nodes/{id}` | 软删除（同面板），返回 `{ deleted: true }`；已删除再删返回 404，不提供恢复 |
+| POST | `/api/mgmt/nodes/{id}/test` | 用已存储的 `api_url` + secret 测连通性，已关闭的节点也可测。恒 200：`{ ok: true, latency_ms }` 或 `{ ok: false, error }` |
+
+节点接口直接复用面板 handler，只有 PATCH 多了上面的 `api_url` 规则。关闭节点只停止采集、对用户可见与 Kick 扇出；Node Client Auth 不区分来源节点，客户端仍能经已关闭的节点连接。
 
 所有 `/api/mgmt/*` 请求必须带 `Authorization: Bearer <token>`。功能未启用时返回 **404**（避免泄露表面存在）；token 缺失或不匹配返回 **401**。
 
