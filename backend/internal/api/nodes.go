@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -107,7 +108,7 @@ func (h *Handlers) createNode(e *core.RequestEvent) error {
 	if err := h.app.Save(n); err != nil {
 		return apis.NewBadRequestError("failed to save node", err)
 	}
-	return ok(e, publicNode(n))
+	return e.JSON(http.StatusCreated, publicNode(n))
 }
 
 func (h *Handlers) updateNode(e *core.RequestEvent) error {

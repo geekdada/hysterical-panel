@@ -570,7 +570,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 						WithRequired(true).
 						WithJSONSchemaRef(ref("NodeCreateRequest")),
 				},
-				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+				Responses: openapi3.NewResponses(openapi3.WithStatus(201, &openapi3.ResponseRef{
 					Value: &openapi3.Response{
 						Description: ptr("Created node"),
 						Content:     content(ref("Node")),
