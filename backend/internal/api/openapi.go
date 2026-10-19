@@ -107,16 +107,9 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"EmailSendoutResendResponse":        EmailSendoutResendResponse{},
 	}
 
-	// Generate each schema with its own generator to avoid shared internal
-	// schema objects leaking enums between types.
-	schemas := make(openapi3.Schemas, len(schemaDefs))
-	for name, typ := range schemaDefs {
-		g := openapi3gen.NewGenerator()
-		ref, err := g.NewSchemaRefForValue(typ, nil)
-		if err != nil {
-			return nil, fmt.Errorf("schema %q: %w", name, err)
-		}
-		schemas[name] = ref
+	schemas, err := generateSchemas(schemaDefs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Add enum constraints that struct tags can't express.
@@ -2221,6 +2214,20 @@ func MarshalOpenAPISpec() ([]byte, error) {
 }
 
 func ptr(s string) *string { return &s }
+
+// generateSchemas builds one schema per DTO value. Each type gets its own
+// generator so shared internal schema objects cannot leak enums between types.
+func generateSchemas(defs map[string]any) (openapi3.Schemas, error) {
+	schemas := make(openapi3.Schemas, len(defs))
+	for name, typ := range defs {
+		ref, err := openapi3gen.NewGenerator().NewSchemaRefForValue(typ, nil)
+		if err != nil {
+			return nil, fmt.Errorf("schema %q: %w", name, err)
+		}
+		schemas[name] = ref
+	}
+	return schemas, nil
+}
 
 // handleOpenAPISpec serves the generated OpenAPI JSON document.
 func handleOpenAPISpec(e *core.RequestEvent) error {

@@ -7,10 +7,41 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/hook"
+	"github.com/pocketbase/pocketbase/tools/router"
 
 	"hysterical-panel/internal/authstrings"
 	"hysterical-panel/internal/token"
 )
+
+// managementRoute is one /api/mgmt route. The same table registers the
+// routes and lets tests check that openapi_management.go documents each one.
+type managementRoute struct {
+	method  string
+	path    string
+	handler func(*core.RequestEvent) error
+}
+
+func (h *Handlers) managementRoutes() []managementRoute {
+	return []managementRoute{
+		{http.MethodGet, "/users", h.mgmtGetUser},
+		{http.MethodPost, "/users", h.mgmtCreateUser},
+		{http.MethodGet, "/nodes", h.listNodes},
+		{http.MethodPost, "/nodes", h.createNode},
+		{http.MethodGet, "/nodes/{id}", h.getNode},
+		{http.MethodPatch, "/nodes/{id}", h.mgmtUpdateNode},
+		{http.MethodDelete, "/nodes/{id}", h.deleteNode},
+		{http.MethodPost, "/nodes/{id}/test", h.testNode},
+		{http.MethodGet, "/openapi.json", h.managementOpenAPISpec},
+	}
+}
+
+// bindManagementRoutes registers every management route behind the token gate.
+func (h *Handlers) bindManagementRoutes(group *router.RouterGroup[*core.RequestEvent]) {
+	group.Bind(h.requireMgmtToken())
+	for _, r := range h.managementRoutes() {
+		group.Route(r.method, r.path, r.handler)
+	}
+}
 
 // requireMgmtToken gates the /api/mgmt/* surface. The endpoints are public
 // (no panel login), so a bearer token is the sole gatekeeper. When the feature
@@ -34,19 +65,6 @@ func (h *Handlers) requireMgmtToken() *hook.Handler[*core.RequestEvent] {
 			return e.Next()
 		},
 	}
-}
-
-// mgmtCreateUserRequest is the body for POST /api/mgmt/users.
-type mgmtCreateUserRequest struct {
-	Email string `json:"email"`
-}
-
-// mgmtCreateUserResponse confirms a user was created without echoing any
-// credential. The integrator relies on the reset-password flow for access.
-type mgmtCreateUserResponse struct {
-	ID     string `json:"id"`
-	Email  string `json:"email"`
-	Status string `json:"status"`
 }
 
 // mgmtGetUser looks up a single user by User ID, exact email or Current Auth
@@ -98,7 +116,7 @@ func countNonEmpty(values ...string) int {
 // mgmtCreateUser provisions a user from an email only. Password and
 // auth_string are system-generated and never returned.
 func (h *Handlers) mgmtCreateUser(e *core.RequestEvent) error {
-	var in mgmtCreateUserRequest
+	var in ManagementUserCreateRequest
 	if err := e.BindBody(&in); err != nil {
 		return apis.NewBadRequestError("invalid body", err)
 	}
@@ -129,7 +147,7 @@ func (h *Handlers) mgmtCreateUser(e *core.RequestEvent) error {
 	if err := h.saveNewUserWithAuthString(u, authString); err != nil {
 		return apis.NewBadRequestError("failed to create user (email may be taken)", err)
 	}
-	return e.JSON(http.StatusCreated, mgmtCreateUserResponse{
+	return e.JSON(http.StatusCreated, ManagementUserCreateResponse{
 		ID:     u.Id,
 		Email:  u.GetString("email"),
 		Status: u.GetString("status"),

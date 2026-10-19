@@ -741,6 +741,21 @@ type PanelConfigResponse struct {
 	InvitationsEnabled        bool `json:"invitations_enabled"`
 }
 
+// ── Management API ────────────────────────────────────────────────────────────
+
+// ManagementUserCreateRequest is the body for POST /api/mgmt/users.
+type ManagementUserCreateRequest struct {
+	Email string `json:"email"`
+}
+
+// ManagementUserCreateResponse confirms a user was created without echoing
+// any credential. The integrator relies on the reset-password flow for access.
+type ManagementUserCreateResponse struct {
+	ID     string `json:"id"`
+	Email  string `json:"email"`
+	Status string `json:"status"`
+}
+
 // ── Shared ────────────────────────────────────────────────────────────────────
 
 // DeleteResponse is returned by DELETE endpoints.
