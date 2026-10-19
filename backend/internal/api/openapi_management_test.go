@@ -215,3 +215,20 @@ func TestOpenAPIDescribesManagementSpecRoute(t *testing.T) {
 		}
 	}
 }
+
+func TestManagementSpecMarksRequiredBodyFields(t *testing.T) {
+	spec, err := BuildManagementOpenAPISpec("")
+	if err != nil {
+		t.Fatalf("build spec: %v", err)
+	}
+	cases := map[string][]string{
+		"NodeCreateRequest":           {"name", "api_url", "api_secret"},
+		"ManagementUserCreateRequest": {"email"},
+	}
+	for name, want := range cases {
+		got := spec.Components.Schemas[name].Value.Required
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("%s required = %v, want %v", name, got, want)
+		}
+	}
+}

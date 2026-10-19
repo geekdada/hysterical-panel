@@ -211,6 +211,9 @@ func BuildManagementOpenAPISpec(serverURL string) (*openapi3.T, error) {
 	if err != nil {
 		return nil, err
 	}
+	// openapi3gen never marks fields required; these match the handlers' checks.
+	schemas["NodeCreateRequest"].Value.Required = []string{"name", "api_url", "api_secret"}
+	schemas["ManagementUserCreateRequest"].Value.Required = []string{"email"}
 	schemas["ErrorResponse"].Value.Example = exampleJSON(ErrorResponse{
 		Status: http.StatusUnauthorized, Message: "invalid token", Data: map[string]any{},
 	})

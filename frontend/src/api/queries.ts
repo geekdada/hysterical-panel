@@ -8,6 +8,7 @@ import {
   shouldSuppressSessionError,
 } from "./session";
 import type { components } from "./schema";
+import type { OpenAPI3 } from "openapi-typescript";
 import {
   granularityForLocalRange,
   localRangeToUtcQuery,
@@ -253,6 +254,7 @@ export const queryKeys = {
   nodeAlerts: (nodeId: string) => [...queryKeys.all, "nodes", nodeId, "alerts"] as const,
   userAlerts: (userId: string) => [...queryKeys.all, "users", userId, "alerts"] as const,
   settings: () => [...queryKeys.all, "settings"] as const,
+  managementApiSpec: () => [...queryKeys.all, "management-api-spec"] as const,
   subscriptionTypes: () => [...queryKeys.all, "subscription-types"] as const,
   userSubscriptions: (userId: string) =>
     [...queryKeys.all, "users", userId, "subscriptions"] as const,
@@ -810,6 +812,21 @@ export function resetNodeAPISecret(nodeId: string): Promise<NodeAPISecretReset> 
 
 export function fetchSettings(): Promise<AppSettings> {
   return apiRequest<AppSettings>(apiClient.GET("/api/panel/settings"), m.error_settings_load());
+}
+
+export function fetchManagementApiSpec(): Promise<OpenAPI3> {
+  return apiRequest<OpenAPI3>(
+    apiClient.GET("/api/panel/management-api/openapi.json"),
+    m.mgmt_api_spec_load_error()
+  );
+}
+
+export function managementApiSpecQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.managementApiSpec(),
+    queryFn: fetchManagementApiSpec,
+    enabled: canQueryPanelApi(),
+  });
 }
 
 export function settingsQueryOptions() {
