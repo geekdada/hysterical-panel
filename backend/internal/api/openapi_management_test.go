@@ -10,6 +10,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 func TestManagementSpecMatchesRoutes(t *testing.T) {
@@ -36,7 +37,10 @@ func TestManagementSpecMatchesRoutes(t *testing.T) {
 	}
 }
 
-func TestManagementSpecExamplesMatchSchemas(t *testing.T) {
+// loadManagementSpec round-trips the spec through the loader so every $ref
+// resolves to a schema that VisitJSON can use.
+func loadManagementSpec(t *testing.T) *openapi3.T {
+	t.Helper()
 	spec, err := BuildManagementOpenAPISpec("https://panel.example.com")
 	if err != nil {
 		t.Fatalf("build spec: %v", err)
@@ -52,6 +56,11 @@ func TestManagementSpecExamplesMatchSchemas(t *testing.T) {
 	if err := doc.Validate(context.Background()); err != nil {
 		t.Fatalf("validate spec: %v", err)
 	}
+	return doc
+}
+
+func TestManagementSpecExamplesMatchSchemas(t *testing.T) {
+	doc := loadManagementSpec(t)
 
 	checkMedia := func(where string, media *openapi3.MediaType) {
 		if media == nil || media.Example == nil {
@@ -229,6 +238,85 @@ func TestManagementSpecMarksRequiredBodyFields(t *testing.T) {
 		got := spec.Components.Schemas[name].Value.Required
 		if strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Fatalf("%s required = %v, want %v", name, got, want)
+		}
+	}
+}
+
+// TestManagementResponsesMatchSpec runs the real handlers, because the node
+// handlers build their responses as maps rather than from the spec's DTOs.
+func TestManagementResponsesMatchSpec(t *testing.T) {
+	doc := loadManagementSpec(t)
+	app, h := newMgmtNodeTestHandlers(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+	call := func(handler func(*core.RequestEvent) error, method, template, id, query string, body any) map[string]any {
+		t.Helper()
+		return mgmtSpecCall(t, doc, app, handler, method, template, id, query, body)
+	}
+
+	created := call(h.createNode, http.MethodPost, "/api/mgmt/nodes", "", "", map[string]any{
+		"name": "edge", "api_url": server.URL, "api_secret": "node-secret",
+	})
+	id, _ := created["id"].(string)
+	call(h.listNodes, http.MethodGet, "/api/mgmt/nodes", "", "", nil)
+	call(h.getNode, http.MethodGet, "/api/mgmt/nodes/{id}", id, "", nil)
+	call(h.mgmtUpdateNode, http.MethodPatch, "/api/mgmt/nodes/{id}", id, "", map[string]any{"enabled": false})
+	call(h.testNode, http.MethodPost, "/api/mgmt/nodes/{id}/test", id, "", nil)
+	call(h.deleteNode, http.MethodDelete, "/api/mgmt/nodes/{id}", id, "", nil)
+
+	call(h.mgmtCreateUser, http.MethodPost, "/api/mgmt/users", "", "", map[string]any{"email": "spec@example.com"})
+	call(h.mgmtGetUser, http.MethodGet, "/api/mgmt/users", "", "email=spec@example.com", nil)
+}
+
+// mgmtSpecCall checks that the status is documented, that the body matches its
+// schema, and that the body has no keys the schema lacks. The last check
+// catches renamed keys, which VisitJSON allows because no field is required.
+func mgmtSpecCall(t *testing.T, doc *openapi3.T, app core.App, handler func(*core.RequestEvent) error,
+	method, template, id, query string, body any) map[string]any {
+	t.Helper()
+	target := strings.Replace(template, "{id}", id, 1)
+	if query != "" {
+		target += "?" + query
+	}
+	event, res := jsonRequestEvent(t, app, method, target, body)
+	event.Request.SetPathValue("id", id)
+	if err := handler(event); err != nil {
+		t.Fatalf("%s %s: %v", method, template, err)
+	}
+	response := doc.Paths.Find(template).GetOperation(method).Responses.Status(res.Code)
+	if response == nil {
+		t.Fatalf("%s %s returned undocumented status %d", method, template, res.Code)
+	}
+	schema := response.Value.Content.Get("application/json").Schema.Value
+	var decoded any
+	if err := json.Unmarshal(res.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("%s %s: decode body: %v", method, template, err)
+	}
+	if err := schema.VisitJSON(decoded); err != nil {
+		t.Fatalf("%s %s body does not match the spec: %v", method, template, err)
+	}
+	assertNoUndocumentedKeys(t, method+" "+template, schema, decoded)
+	object, _ := decoded.(map[string]any)
+	return object
+}
+
+func assertNoUndocumentedKeys(t *testing.T, where string, schema *openapi3.Schema, value any) {
+	t.Helper()
+	if items, ok := value.([]any); ok && schema.Items != nil {
+		for _, item := range items {
+			assertNoUndocumentedKeys(t, where, schema.Items.Value, item)
+		}
+		return
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return
+	}
+	for key := range object {
+		if _, documented := schema.Properties[key]; !documented {
+			t.Fatalf("%s returned key %q that the spec does not document", where, key)
 		}
 	}
 }

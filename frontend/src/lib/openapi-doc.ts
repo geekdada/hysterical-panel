@@ -140,9 +140,15 @@ export function curlCommand(origin: string, entry: DocOperation, doc: OpenAPI3):
   const lines = [`curl ${method}"${url}"`, `  -H "Authorization: Bearer YOUR_TOKEN"`];
   const body = requestBodyExample(doc, entry);
   if (body !== undefined) {
-    lines.push(`  -H "Content-Type: application/json"`, `  -d '${JSON.stringify(body)}'`);
+    lines.push(`  -H "Content-Type: application/json"`, `  -d ${shellQuote(JSON.stringify(body))}`);
   }
   return lines.join(" \\\n");
+}
+
+// Single quotes stop the shell from expanding the JSON. A quote inside the
+// value has to close the string, add an escaped quote, then reopen it.
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 // "@" is legal in a query string, and email examples read better unescaped.

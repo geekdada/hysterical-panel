@@ -46,7 +46,7 @@ var (
 		APIURL:         "https://tokyo-1.example.com:25413",
 		PollInterval:   30,
 		Enabled:        true,
-		LastPolledAt:   "2026-06-01T08:30:00.000Z",
+		LastPolledAt:   "2026-06-01 08:30:00.000Z",
 		Health:         "ok",
 		CurrentTxSpeed: 131072,
 		CurrentRxSpeed: 524288,
@@ -68,10 +68,10 @@ var (
 			AuthString:           "qZ4yN8tR2vL6wB1k",
 			SubscriptionRequired: true,
 			Status:               "active",
-			Created:              "2026-06-01T08:30:00.000Z",
-			LastConnectedAt:      "2026-06-02T10:15:00.000Z",
+			Created:              "2026-06-01 08:30:00.000Z",
+			LastConnectedAt:      "2026-06-02 10:15:00.000Z",
 			RecentConnections: []RecentConnection{
-				{IP: "203.0.113.7", LastSeenAt: "2026-06-02T10:15:00.000Z"},
+				{IP: "203.0.113.7", LastSeenAt: "2026-06-02T10:15:00Z"},
 			},
 		},
 		UsedTx: 1048576,
@@ -151,7 +151,7 @@ func managementOperations() []mgmtOperation {
 			description: `Change any of name, api_url, api_secret, poll_interval and enabled. Omitted fields keep their values.
 - A new api_url needs a new api_secret in the same request, so the panel never sends the old secret to a different address.
 - api_secret cannot be an empty string.
-- Send enabled false to disable a node and enabled true to enable it again. The panel stops polling a disabled node, hides it from Users and leaves it out of kicks. Its Current Speed and Online Device Count drop to 0.
+- Send enabled false to disable a node and enabled true to enable it again. The panel stops polling a disabled node, hides it from Users and leaves it out of kicks. Its Current Speed and Online Device Count drop to 0, and its firing Alerts are cancelled.
 - Clients can still connect through a disabled node until you stop the node service itself.`,
 			params:      openapi3.Parameters{nodeID},
 			bodySchema:  "NodeUpdateRequest",
@@ -197,27 +197,10 @@ func managementOperations() []mgmtOperation {
 // /api/mgmt/*. It is separate from BuildOpenAPISpec so the panel's generated
 // client never includes Management API types. serverURL is omitted when empty.
 func BuildManagementOpenAPISpec(serverURL string) (*openapi3.T, error) {
-	schemas, err := generateSchemas(map[string]any{
-		"Node":                         Node{},
-		"NodeCreateRequest":            NodeCreateRequest{},
-		"NodeUpdateRequest":            NodeUpdateRequest{},
-		"NodeTestResponse":             NodeTestResponse{},
-		"PanelUser":                    PanelUser{},
-		"ManagementUserCreateRequest":  ManagementUserCreateRequest{},
-		"ManagementUserCreateResponse": ManagementUserCreateResponse{},
-		"DeleteResponse":               DeleteResponse{},
-		"ErrorResponse":                ErrorResponse{},
-	})
+	schemas, err := managementSchemas()
 	if err != nil {
 		return nil, err
 	}
-	// openapi3gen never marks fields required; these match the handlers' checks.
-	schemas["NodeCreateRequest"].Value.Required = []string{"name", "api_url", "api_secret"}
-	schemas["ManagementUserCreateRequest"].Value.Required = []string{"email"}
-	schemas["ErrorResponse"].Value.Example = exampleJSON(ErrorResponse{
-		Status: http.StatusUnauthorized, Message: "invalid token", Data: map[string]any{},
-	})
-
 	t := &openapi3.T{
 		OpenAPI: "3.1.0",
 		Info: &openapi3.Info{
@@ -251,6 +234,30 @@ func BuildManagementOpenAPISpec(serverURL string) (*openapi3.T, error) {
 		item.SetOperation(op.method, op.build())
 	}
 	return t, nil
+}
+
+func managementSchemas() (openapi3.Schemas, error) {
+	schemas, err := generateSchemas(map[string]any{
+		"Node":                         Node{},
+		"NodeCreateRequest":            NodeCreateRequest{},
+		"NodeUpdateRequest":            NodeUpdateRequest{},
+		"NodeTestResponse":             NodeTestResponse{},
+		"PanelUser":                    PanelUser{},
+		"ManagementUserCreateRequest":  ManagementUserCreateRequest{},
+		"ManagementUserCreateResponse": ManagementUserCreateResponse{},
+		"DeleteResponse":               DeleteResponse{},
+		"ErrorResponse":                ErrorResponse{},
+	})
+	if err != nil {
+		return nil, err
+	}
+	// openapi3gen never marks fields required; these match the handlers' checks.
+	schemas["NodeCreateRequest"].Value.Required = []string{"name", "api_url", "api_secret"}
+	schemas["ManagementUserCreateRequest"].Value.Required = []string{"email"}
+	schemas["ErrorResponse"].Value.Example = exampleJSON(ErrorResponse{
+		Status: http.StatusUnauthorized, Message: "Invalid token.", Data: map[string]any{},
+	})
+	return schemas, nil
 }
 
 func (op mgmtOperation) build() *openapi3.Operation {
