@@ -1377,6 +1377,25 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		}(),
 	})
 
+	// ── /management-api/openapi.json ─────────────────────────────────────
+	t.Paths.Set("/api/panel/management-api/openapi.json", &openapi3.PathItem{
+		Get: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "getManagementAPISpec",
+				Summary:     "Get the Management API OpenAPI document, even while the API is turned off",
+				Tags:        []string{"settings"},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("OpenAPI 3.1 document for /api/mgmt/*"),
+						Content:     content(&openapi3.SchemaRef{Value: openapi3.NewObjectSchema().WithAnyAdditionalProperties()}),
+					},
+				})),
+			}
+			withAuth(op)
+			return op
+		}(),
+	})
+
 	// ── /notification-channels ────────────────────────────────────────────
 	t.Paths.Set("/api/panel/notification-channels", &openapi3.PathItem{
 		Get: func() *openapi3.Operation {
@@ -2231,7 +2250,16 @@ func generateSchemas(defs map[string]any) (openapi3.Schemas, error) {
 
 // handleOpenAPISpec serves the generated OpenAPI JSON document.
 func handleOpenAPISpec(e *core.RequestEvent) error {
-	b, err := MarshalOpenAPISpec()
+	spec, err := BuildOpenAPISpec()
+	if err != nil {
+		return err
+	}
+	return writeSpecJSON(e, spec)
+}
+
+// writeSpecJSON writes an OpenAPI document as uncached, indented JSON.
+func writeSpecJSON(e *core.RequestEvent, spec *openapi3.T) error {
+	b, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {
 		return err
 	}

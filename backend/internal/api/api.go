@@ -98,6 +98,7 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.GET("/settings", h.getSettings).Bind(adminOnly)
 	g.PATCH("/settings", h.updateSettings).Bind(adminOnly)
 	g.POST("/management-api/rotate", h.rotateManagementAPIToken).Bind(adminOnly)
+	g.GET("/management-api/openapi.json", h.managementOpenAPISpec).Bind(adminOnly)
 
 	// invitations
 	g.GET("/invitations", h.listInvitations).Bind(adminOnly)

@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
 	"hysterical-panel/internal/version"
@@ -330,8 +329,12 @@ func int64Ptr(v int64) *int64 { return &v }
 
 func boolPtr(v bool) *bool { return &v }
 
-// managementOpenAPISpec is replaced in the next change; until then the route
-// stays hidden like any unknown path.
+// managementOpenAPISpec serves the Management API spec. It backs both the
+// token-gated /api/mgmt/openapi.json and the admin-only panel route.
 func (h *Handlers) managementOpenAPISpec(e *core.RequestEvent) error {
-	return apis.NewNotFoundError("", nil)
+	spec, err := BuildManagementOpenAPISpec(h.publicConfig.APIURL)
+	if err != nil {
+		return err
+	}
+	return writeSpecJSON(e, spec)
 }

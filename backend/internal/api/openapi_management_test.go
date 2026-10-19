@@ -3,10 +3,13 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pocketbase/pocketbase/apis"
 )
 
 func TestManagementSpecMatchesRoutes(t *testing.T) {
@@ -120,5 +123,95 @@ func TestManagementSpecUsesBearerAuth(t *testing.T) {
 	}
 	if _, ok := spec.Security[0]["bearerAuth"]; !ok {
 		t.Fatalf("security = %+v, want bearerAuth", spec.Security)
+	}
+}
+
+func TestManagementSpecRouteIsGated(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := &Handlers{app: app, publicConfig: PanelConfigResponse{APIURL: "https://panel.example.com"}}
+	r, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatalf("NewRouter: %v", err)
+	}
+	h.bindManagementRoutes(r.Group("/api/mgmt"))
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatalf("BuildMux: %v", err)
+	}
+	get := func(authorization string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/mgmt/openapi.json", nil)
+		req.Header.Set("Authorization", authorization)
+		res := httptest.NewRecorder()
+		mux.ServeHTTP(res, req)
+		return res
+	}
+
+	if res := get("Bearer good-token"); res.Code != http.StatusNotFound {
+		t.Fatalf("disabled feature status = %d, want 404", res.Code)
+	}
+	settings, err := h.settingsRecord()
+	if err != nil {
+		t.Fatalf("settingsRecord: %v", err)
+	}
+	settings.Set("management_api_enabled", true)
+	settings.Set("management_api_token_hash", hashManagementAPIToken("good-token"))
+	if err := app.Save(settings); err != nil {
+		t.Fatalf("save settings: %v", err)
+	}
+	if res := get("Bearer wrong"); res.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong token status = %d, want 401", res.Code)
+	}
+	res := get("Bearer good-token")
+	if res.Code != http.StatusOK {
+		t.Fatalf("good token status = %d, want 200", res.Code)
+	}
+	var body struct {
+		OpenAPI string `json:"openapi"`
+		Servers []struct {
+			URL string `json:"url"`
+		} `json:"servers"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode spec: %v", err)
+	}
+	if body.OpenAPI != "3.1.0" || len(body.Servers) != 1 || body.Servers[0].URL != "https://panel.example.com" {
+		t.Fatalf("spec = %+v", body)
+	}
+}
+
+func TestPanelManagementSpecWorksWhileFeatureDisabled(t *testing.T) {
+	app := newMigratedTestApp(t)
+	h := &Handlers{app: app}
+	event, res := jsonRequestEvent(t, app, http.MethodGet, "/api/panel/management-api/openapi.json", nil)
+	if err := h.managementOpenAPISpec(event); err != nil {
+		t.Fatalf("managementOpenAPISpec: %v", err)
+	}
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.Code)
+	}
+	var body struct {
+		Paths map[string]any `json:"paths"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode spec: %v", err)
+	}
+	if body.Paths["/api/mgmt/nodes"] == nil {
+		t.Fatalf("spec paths = %v, want /api/mgmt/nodes", body.Paths)
+	}
+}
+
+func TestOpenAPIDescribesManagementSpecRoute(t *testing.T) {
+	spec, err := BuildOpenAPISpec()
+	if err != nil {
+		t.Fatalf("build spec: %v", err)
+	}
+	item := spec.Paths.Find("/api/panel/management-api/openapi.json")
+	if item == nil || item.Get == nil || item.Get.OperationID != "getManagementAPISpec" {
+		t.Fatalf("missing getManagementAPISpec, item = %+v", item)
+	}
+	for path := range spec.Paths.Map() {
+		if strings.HasPrefix(path, "/api/mgmt") {
+			t.Fatalf("public spec must not include %s", path)
+		}
 	}
 }
