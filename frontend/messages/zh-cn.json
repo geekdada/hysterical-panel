@@ -9,6 +9,7 @@
   "subscriptions_unit_gib": "GiB",
   "subscriptions_reset": "重置周期",
   "subscriptions_reset_hint": "首次授予后不可更改。",
+  "subscriptions_allowance_edit_hint": "正在生效的周期保持原额度，修改从每位用户的下一个周期开始生效。",
   "subscriptions_monthly": "每 30 天",
   "subscriptions_annual": "每 360 天",
   "subscriptions_add": "新增类型",

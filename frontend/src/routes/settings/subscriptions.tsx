@@ -2,7 +2,16 @@ import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Button, FieldError, Input, Label, Modal, NumberField, TextField } from "@heroui/react";
+import {
+  Button,
+  Description,
+  FieldError,
+  Input,
+  Label,
+  Modal,
+  NumberField,
+  TextField,
+} from "@heroui/react";
 import { Pencil, Plus, TrashBin } from "@gravity-ui/icons";
 import { requireAdmin } from "~/api/guards";
 import {
@@ -350,6 +359,8 @@ function SubscriptionTypeForm({
                         </NumberField.Group>
                         {invalid ? (
                           <FieldError>{m.subscriptions_allowance_invalid()}</FieldError>
+                        ) : editing?.assigned ? (
+                          <Description>{m.subscriptions_allowance_edit_hint()}</Description>
                         ) : null}
                       </NumberField>
                     );

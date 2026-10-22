@@ -104,9 +104,9 @@ export function SubscriptionSection({
     .map((item) => queryErrorMessage(item, m.subscription_load_error()));
   const selectedId = selected || availableTypes[0]?.id || "";
 
+  // No prefill: the window's allowance can differ from the Type's current one.
   function openTopUp(item: UserSubscription) {
-    const type = (typesQuery.data ?? []).find((entry) => entry.id === item.subscription_type);
-    setGib(type ? type.allowance_bytes / GIB : Number.NaN);
+    setGib(Number.NaN);
     setGibTouched(false);
     setTopUpFieldKey((key) => key + 1);
     topUp.reset();
@@ -535,7 +535,12 @@ function TopUpModal({
               <Button slot="close" variant="secondary" isDisabled={pending}>
                 {m.common_cancel()}
               </Button>
-              <Button type="submit" variant="primary" isDisabled={pending} isPending={pending}>
+              <Button
+                type="submit"
+                variant="primary"
+                isDisabled={pending || bytes == null}
+                isPending={pending}
+              >
                 {pending ? m.subscription_topup_pending() : m.subscription_topup()}
               </Button>
             </Modal.Footer>

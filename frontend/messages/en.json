@@ -9,6 +9,7 @@
   "subscriptions_unit_gib": "GiB",
   "subscriptions_reset": "Reset interval",
   "subscriptions_reset_hint": "Locks after the first grant.",
+  "subscriptions_allowance_edit_hint": "Windows already in effect keep their allowance. The change applies from each user's next window.",
   "subscriptions_monthly": "Every 30 days",
   "subscriptions_annual": "Every 360 days",
   "subscriptions_add": "Add type",
