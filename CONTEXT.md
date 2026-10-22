@@ -61,7 +61,7 @@ Aggregated tx/rx bytes attributed to a User on a Node over time (hourly/daily bu
 _Avoid_: bandwidth, transfer, consumption, metering
 
 **Subscription Type**:
-An admin-managed definition of a 360-day subscription's positive Traffic allowance and its 30-day or 360-day reset interval. Allowance changes affect every referencing User Subscription; the interval cannot change once the Type has been granted, and a granted Type can be hidden but not deleted.
+An admin-managed definition of a 360-day subscription's positive Traffic allowance and its 30-day or 360-day reset interval. An allowance change applies only to Allowance Windows that have not started yet, including later windows of current grants and queued grants. A window already in effect keeps its allowance. The interval cannot change once the Type has been granted, and a granted Type can be hidden but not deleted.
 _Avoid_: tariff, product, price plan, tier
 
 **User Subscription**:
@@ -81,7 +81,7 @@ A preexisting User who has not yet been granted a subscription and may still con
 _Avoid_: unlimited Subscription Type, free subscription
 
 **Allowance Window**:
-One 30-day or 360-day portion of a User Subscription in which tx and rx Traffic across Nodes share the Subscription Type's allowance. Windows run from the grant's exact UTC start time; unused allowance does not carry forward, and delayed Collector polls may leave a negative remaining allowance after settlement.
+One 30-day or 360-day portion of a User Subscription in which tx and rx Traffic across Nodes share one allowance taken from the Subscription Type. The window's base allowance is the Type's allowance when the window starts and does not change while the window is in effect. Windows run from the grant's exact UTC start time; unused allowance does not carry forward, and delayed Collector polls may leave a negative remaining allowance after settlement.
 _Avoid_: calendar month, billing cycle, cycle (it also gets used for a User Subscription), User lifetime Traffic
 
 **Grant Usage**:
@@ -89,7 +89,7 @@ The tx and rx Traffic counted against one User Subscription across all of its Al
 _Avoid_: lifetime Traffic, window usage, total usage
 
 **Allowance Top-up**:
-An administrator's addition of one current Subscription Type allowance to the current Allowance Window without changing Traffic already used. Repeated additions accumulate until the window ends or an edit to the Type's allowance replaces that window's effective allowance.
+An administrator's addition of a positive byte amount, entered for each top-up, to the current Allowance Window without changing Traffic already used. Repeated additions accumulate until the window ends. Subscription Type allowance edits do not remove them.
 _Avoid_: reset used Traffic, clear counters, renew subscription
 
 **Online Device Count**:
