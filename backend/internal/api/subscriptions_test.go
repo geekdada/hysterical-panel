@@ -160,66 +160,84 @@ func TestConcurrentGrantsNeverCreateMoreThanOneQueuedSubscription(t *testing.T) 
 	}
 }
 
-func TestTypeEditReplacesCurrentTopUpsWithoutChangingUsed(t *testing.T) {
+func TestTypeEditKeepsWindowsInEffect(t *testing.T) {
 	app := newMigratedTestApp(t)
 	user := newUsersTestRecord(t, app, "adjusted@example.com", "AdjustedKey")
+	idle := newUsersTestRecord(t, app, "idle@example.com", "IdleKey")
 	h := &Handlers{app: app}
 	typeEvent, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/subscription-types", map[string]any{"name": "Starter", "allowance_bytes": 100, "reset_days": 30})
 	if err := h.createSubscriptionType(typeEvent); err != nil {
 		t.Fatal(err)
 	}
 	types, _ := app.FindRecordsByFilter("subscription_types", "", "", 1, 0)
-	grantEvent, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions", map[string]any{"subscription_type": types[0].Id})
-	grantEvent.Request.SetPathValue("id", user.Id)
-	if err := h.grantSubscription(grantEvent); err != nil {
-		t.Fatal(err)
+	grant := func(u *core.Record) {
+		e, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+u.Id+"/subscriptions", map[string]any{"subscription_type": types[0].Id})
+		e.Request.SetPathValue("id", u.Id)
+		if err := h.grantSubscription(e); err != nil {
+			t.Fatal(err)
+		}
 	}
-	grants, _ := app.FindRecordsByFilter("user_subscriptions", "user = {:u}", "", 1, 0, map[string]any{"u": user.Id})
-	for i := 0; i < 2; i++ {
-		e, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+grants[0].Id+"/top-up", map[string]any{"allowance_bytes": 100})
+	topUp := func(grantID string, bytes int64) {
+		e, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+grantID+"/top-up", map[string]any{"allowance_bytes": bytes})
 		e.Request.SetPathValue("id", user.Id)
-		e.Request.SetPathValue("subscriptionId", grants[0].Id)
+		e.Request.SetPathValue("subscriptionId", grantID)
 		if err := h.topUpSubscription(e); err != nil {
 			t.Fatal(err)
 		}
 	}
+	editAllowance := func(body map[string]any) {
+		e, _ := jsonRequestEvent(t, app, http.MethodPatch, "/api/panel/subscription-types/"+types[0].Id, body)
+		e.Request.SetPathValue("id", types[0].Id)
+		if err := h.updateSubscriptionType(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	allowanceAt := func(u *core.Record, at time.Time) int64 {
+		t.Helper()
+		state, err := subscriptions.Current(app, u.Id, at)
+		if err != nil || state == nil {
+			t.Fatalf("state at %s = %v, err = %v", at, state, err)
+		}
+		return state.Allowance
+	}
+	grant(user)
+	grant(idle)
+	grant(idle)
+	grants, _ := app.FindRecordsByFilter("user_subscriptions", "user = {:u}", "", 1, 0, map[string]any{"u": user.Id})
+	queued, _ := app.FindRecordsByFilter("user_subscriptions", "user = {:u}", "-starts_at", 1, 0, map[string]any{"u": idle.Id})
+	topUp(grants[0].Id, 100)
+	topUp(grants[0].Id, 100)
 	if _, err := subscriptions.AddUsage(app, user.Id, time.Now().UTC(), 70, 50); err != nil {
 		t.Fatal(err)
 	}
+
+	editAllowance(map[string]any{"allowance_bytes": 200})
+	now := time.Now().UTC()
+	if got := allowanceAt(user, now); got != 300 {
+		t.Fatalf("used window after edit = %d; want 100 base + 200 top-up", got)
+	}
+	if got := allowanceAt(idle, now); got != 100 {
+		t.Fatalf("unused window in effect after edit = %d; want 100", got)
+	}
+	nextWindow := now.Add(30*24*time.Hour + time.Hour)
+	if got := allowanceAt(user, nextWindow); got != 200 {
+		t.Fatalf("next window after edit = %d; want 200", got)
+	}
+	if got := allowanceAt(idle, queued[0].GetDateTime("starts_at").Time()); got != 200 {
+		t.Fatalf("queued grant after edit = %d; want 200", got)
+	}
+
+	topUp(grants[0].Id, 200)
 	state, err := subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Allowance != 300 {
-		t.Fatalf("before edit = %v, err = %v", state, err)
-	}
-	patch, _ := jsonRequestEvent(t, app, http.MethodPatch, "/api/panel/subscription-types/"+types[0].Id, map[string]any{"allowance_bytes": 200})
-	patch.Request.SetPathValue("id", types[0].Id)
-	if err := h.updateSubscriptionType(patch); err != nil {
-		t.Fatal(err)
-	}
-	state, err = subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Allowance != 200 || state.Used != (subscriptions.Usage{Tx: 70, Rx: 50}) {
-		t.Fatalf("after edit = %v, err = %v; want allowance 200 used 70/50", state, err)
-	}
-	topUp, _ := jsonRequestEvent(t, app, http.MethodPost, "/api/panel/users/"+user.Id+"/subscriptions/"+grants[0].Id+"/top-up", map[string]any{"allowance_bytes": 200})
-	topUp.Request.SetPathValue("id", user.Id)
-	topUp.Request.SetPathValue("subscriptionId", grants[0].Id)
-	if err := h.topUpSubscription(topUp); err != nil {
-		t.Fatal(err)
-	}
-	state, err = subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Allowance != 400 || state.Used != (subscriptions.Usage{Tx: 70, Rx: 50}) {
-		t.Fatalf("after new top-up = %v, err = %v; want allowance 400 used 70/50", state, err)
+	if err != nil || state == nil || state.Allowance != 500 || state.Used != (subscriptions.Usage{Tx: 70, Rx: 50}) {
+		t.Fatalf("after new top-up = %v, err = %v; want allowance 500 used 70/50", state, err)
 	}
 	if got := subscriptions.GrantUsage(state.Grant); got != (subscriptions.Usage{Tx: 70, Rx: 50}) {
 		t.Fatalf("grant usage after edit and top-ups = %+v; want 70/50", got)
 	}
-	unchanged, _ := jsonRequestEvent(t, app, http.MethodPatch, "/api/panel/subscription-types/"+types[0].Id, map[string]any{"name": "Renamed", "allowance_bytes": 200})
-	unchanged.Request.SetPathValue("id", types[0].Id)
-	if err := h.updateSubscriptionType(unchanged); err != nil {
-		t.Fatal(err)
-	}
-	state, err = subscriptions.Current(app, user.Id, time.Now().UTC())
-	if err != nil || state == nil || state.Allowance != 400 {
-		t.Fatalf("no-op allowance edit cleared top-up: %v, err = %v", state, err)
+	editAllowance(map[string]any{"name": "Renamed", "allowance_bytes": 50})
+	if got := allowanceAt(user, time.Now().UTC()); got != 500 {
+		t.Fatalf("second edit changed the window in effect: %d; want 500", got)
 	}
 	changeReset, _ := jsonRequestEvent(t, app, http.MethodPatch, "/api/panel/subscription-types/"+types[0].Id, map[string]any{"reset_days": 360})
 	changeReset.Request.SetPathValue("id", types[0].Id)
@@ -227,7 +245,6 @@ func TestTypeEditReplacesCurrentTopUpsWithoutChangingUsed(t *testing.T) {
 		t.Fatal("assigned type reset interval changed")
 	}
 }
-
 func TestTopUpAddsRequestedBytes(t *testing.T) {
 	app := newMigratedTestApp(t)
 	user := newUsersTestRecord(t, app, "topup@example.com", "TopUpKey")
@@ -287,7 +304,7 @@ func TestTerminatedSubscriptionExposesActualEndTimeAndGrantUsage(t *testing.T) {
 	grant.Set("starts_at", start)
 	grant.Set("ends_at", start.Add(360*24*time.Hour))
 	grant.Set("terminated_at", time.Now().UTC())
-	subscriptions.SetWindow(grant, 0, subscriptions.Usage{Tx: 40, Rx: 5}, 0)
+	subscriptions.SetWindow(grant, 0, subscriptions.Usage{Tx: 40, Rx: 5}, 0, 0)
 	grant.Set("grant_tx_bytes", 40)
 	grant.Set("grant_rx_bytes", 5)
 	if err := app.Save(grant); err != nil {

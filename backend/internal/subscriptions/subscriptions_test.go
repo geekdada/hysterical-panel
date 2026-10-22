@@ -214,7 +214,8 @@ func TestRescheduleMovesQueuedGrantAndKeepsWindowUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	current = reloadGrant(t, app, current.Id)
-	subscriptions.SetWindow(current, 0, subscriptions.Usage{Tx: 30, Rx: 10}, 25)
+	// A base allowance other than the Type's 100 shows that it moves too.
+	subscriptions.SetWindow(current, 0, subscriptions.Usage{Tx: 30, Rx: 10}, 25, 80)
 	if err := app.Save(current); err != nil {
 		t.Fatal(err)
 	}
@@ -231,8 +232,8 @@ func TestRescheduleMovesQueuedGrantAndKeepsWindowUsage(t *testing.T) {
 	if !state.Grant.GetDateTime("starts_at").Time().Equal(newStart) || !state.Grant.GetDateTime("ends_at").Time().Equal(newStart.Add(360*day)) {
 		t.Fatalf("rescheduled interval = %s..%s", state.Grant.GetString("starts_at"), state.Grant.GetString("ends_at"))
 	}
-	if state.Window != 1 || state.Used != (subscriptions.Usage{Tx: 30, Rx: 10}) || state.Allowance != 125 {
-		t.Fatalf("rescheduled window = %d used %+v allowance %d; want window 1, 30/10, 125", state.Window, state.Used, state.Allowance)
+	if state.Window != 1 || state.Used != (subscriptions.Usage{Tx: 30, Rx: 10}) || state.Allowance != 105 {
+		t.Fatalf("rescheduled window = %d used %+v allowance %d; want window 1, 30/10, 105", state.Window, state.Used, state.Allowance)
 	}
 	if got := subscriptions.GrantUsage(state.Grant); got != (subscriptions.Usage{Tx: 30, Rx: 10}) {
 		t.Fatalf("grant usage = %+v; want 30/10", got)

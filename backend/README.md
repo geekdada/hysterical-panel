@@ -92,11 +92,11 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 | POST | `/users` | 新建（email+password+auth_string） |
 | GET | `/users/{id}` | 详情（admin 或本人），含上次面板登录时间、IP 与最近 5 个登录 IP（附 ASN / 国家） |
 | GET | `/subscription-types` | 管理员列出订阅类型 |
-| POST / PATCH / DELETE | `/subscription-types`、`/subscription-types/{id}` | 管理员创建、修改、删除尚未授予的类型；已授予过的类型只可隐藏或修改额度 |
+| POST / PATCH / DELETE | `/subscription-types`、`/subscription-types/{id}` | 管理员创建、修改、删除尚未授予的类型；已授予过的类型只可隐藏或修改额度；修改额度只对尚未开始的窗口生效，正在生效的窗口保留原额度与加额 |
 | GET | `/users/{id}/subscriptions` | 授予记录；当前授予附本窗口用量 `used_bytes` = `used_tx_bytes` + `used_rx_bytes`，每份授予附整期用量 `grant_tx_bytes` / `grant_rx_bytes`（admin 或本人） |
 | POST | `/users/{id}/subscriptions` | 管理员授予一份订阅，当前已有一份时排队到其到期时间 |
 | POST / DELETE | `/users/{id}/subscriptions/{subscriptionId}/top-up`、`/users/{id}/subscriptions/{subscriptionId}` | 管理员给当前窗口增加 `allowance_bytes` 字节，或终止当前/排队订阅 |
-| POST | `/users/{id}/subscriptions/{subscriptionId}/reschedule` | 管理员改期当前订阅：`{ starts_at }`（UTC，不晚于 now，改期后仍覆盖 now，不早于上一份自然到期订阅的 `ends_at`，可与已终止的订阅重叠），排队订阅同步平移；本窗口用量与加额随之保留；返回全部授予记录 |
+| POST | `/users/{id}/subscriptions/{subscriptionId}/reschedule` | 管理员改期当前订阅：`{ starts_at }`（UTC，不晚于 now，改期后仍覆盖 now，不早于上一份自然到期订阅的 `ends_at`，可与已终止的订阅重叠），排队订阅同步平移；本窗口用量、加额与额度随之保留；返回全部授予记录 |
 | PATCH/DELETE | `/users/{id}` | 改/删；停用或修改 `auth_string` 时异步 Kick |
 | POST | `/users/{id}/reset-auth-string` | 随机生成新的 Current Auth String 并返回，旧值转 Retired，异步 Kick（active 的 admin 或本人） |
 | GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |

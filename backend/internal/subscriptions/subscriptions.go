@@ -63,12 +63,36 @@ func WindowUsage(grant *core.Record, index int) (Usage, int64) {
 	return used, storedBytes(grant, "extra_bytes")
 }
 
+// WindowAllowance returns window index's base allowance, before top-ups. A
+// window follows the Type's allowance until it is fixed, and a Type edit fixes
+// every window in effect, so a window keeps the allowance it started with.
+func WindowAllowance(grant *core.Record, index int, typeAllowance int64) int64 {
+	if grant.GetInt("window_index") == index {
+		if fixed := storedBytes(grant, "window_allowance_bytes"); fixed > 0 {
+			return fixed
+		}
+	}
+	return typeAllowance
+}
+
 // SetWindow replaces the grant's window state without saving the record.
-func SetWindow(grant *core.Record, index int, used Usage, extra int64) {
+func SetWindow(grant *core.Record, index int, used Usage, extra, allowance int64) {
 	grant.Set("window_index", index)
 	grant.Set("used_tx_bytes", used.Tx)
 	grant.Set("used_rx_bytes", used.Rx)
 	grant.Set("extra_bytes", extra)
+	grant.Set("window_allowance_bytes", allowance)
+}
+
+// FixWindow stores typeAllowance as window index's base allowance unless the
+// window already has one. It reports whether the grant needs saving.
+func FixWindow(grant *core.Record, index int, typeAllowance int64) bool {
+	if grant.GetInt("window_index") == index && storedBytes(grant, "window_allowance_bytes") > 0 {
+		return false
+	}
+	used, extra := WindowUsage(grant, index)
+	SetWindow(grant, index, used, extra, typeAllowance)
+	return true
 }
 
 // GrantUsage is the Traffic counted across every window of the grant. Window
@@ -89,6 +113,7 @@ type State struct {
 	Window    int
 	Used      Usage
 	Extra     int64
+	Base      int64
 	Allowance int64
 	Remaining int64
 }
@@ -117,12 +142,12 @@ func Current(app core.App, userID string, at time.Time) (*State, error) {
 		return nil, fmt.Errorf("invalid subscription window for %s", grant.Id)
 	}
 	used, extra := WindowUsage(grant, index)
-	base := storedBytes(typ, "allowance_bytes")
+	base := WindowAllowance(grant, index, storedBytes(typ, "allowance_bytes"))
 	if base <= 0 || extra < 0 || !used.valid() || !GrantUsage(grant).valid() || base > math.MaxInt64-extra {
 		return nil, fmt.Errorf("invalid subscription allowance for %s", grant.Id)
 	}
 	allowance := base + extra
-	return &State{Grant: grant, Type: typ, Window: index, Used: used, Extra: extra, Allowance: allowance, Remaining: allowance - used.Total()}, nil
+	return &State{Grant: grant, Type: typ, Window: index, Used: used, Extra: extra, Base: base, Allowance: allowance, Remaining: allowance - used.Total()}, nil
 }
 
 // WindowEndsAt is the exclusive end of the current Allowance Window.
@@ -166,7 +191,7 @@ func AddUsage(app core.App, userID string, at time.Time, tx, rx int64) (bool, er
 	if err != nil {
 		return false, err
 	}
-	SetWindow(state.Grant, state.Window, used, state.Extra)
+	SetWindow(state.Grant, state.Window, used, state.Extra, state.Base)
 	state.Grant.Set("grant_tx_bytes", grantUsed.Tx)
 	state.Grant.Set("grant_rx_bytes", grantUsed.Rx)
 	if err := app.Save(state.Grant); err != nil {
@@ -184,8 +209,8 @@ var (
 
 // Reschedule moves the current grant's whole interval so it starts at start,
 // and moves a queued grant by the same amount so the two stay back to back.
-// Window usage and top-ups follow to the window that covers now, so access
-// does not change. The caller must run this in a transaction.
+// Window usage, top-ups and base allowance follow to the window that covers
+// now, so access does not change. The caller must run this in a transaction.
 func Reschedule(app core.App, userID, grantID string, start, now time.Time) error {
 	state, err := Current(app, userID, now)
 	if err != nil {
@@ -223,7 +248,7 @@ func Reschedule(app core.App, userID, grantID string, start, now time.Time) erro
 			return ErrRescheduleOverlap
 		}
 	}
-	SetWindow(state.Grant, index, state.Used, state.Extra)
+	SetWindow(state.Grant, index, state.Used, state.Extra, state.Base)
 	moveGrant(state.Grant, shift)
 	if err := app.Save(state.Grant); err != nil {
 		return err

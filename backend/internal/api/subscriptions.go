@@ -63,7 +63,6 @@ func (h *Handlers) updateSubscriptionType(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("invalid body", err)
 	}
 	var updated *core.Record
-	var kicks []string
 	err := h.app.RunInTransaction(func(app core.App) error {
 		record, err := app.FindRecordById("subscription_types", e.Request.PathValue("id"))
 		if err != nil {
@@ -92,26 +91,10 @@ func (h *Handlers) updateSubscriptionType(e *core.RequestEvent) error {
 			if *in.AllowanceBytes <= 0 {
 				return apis.NewBadRequestError("allowance_bytes must be positive", nil)
 			}
-			record.Set("allowance_bytes", *in.AllowanceBytes)
-			grants, err := app.FindRecordsByFilter("user_subscriptions", "subscription_type = {:id} && terminated_at = ''", "", 0, 0, map[string]any{"id": record.Id})
-			if err != nil {
+			if err := fixWindowsInEffect(app, record, time.Now().UTC()); err != nil {
 				return err
 			}
-			now := time.Now().UTC()
-			for _, grant := range grants {
-				if now.Before(grant.GetDateTime("starts_at").Time()) || !now.Before(grant.GetDateTime("ends_at").Time()) {
-					continue
-				}
-				index, _ := subscriptions.WindowAt(grant.GetDateTime("starts_at").Time(), now, record.GetInt("reset_days"))
-				used, _ := subscriptions.WindowUsage(grant, index)
-				subscriptions.SetWindow(grant, index, used, 0)
-				if err := app.Save(grant); err != nil {
-					return err
-				}
-				if used.Total() >= *in.AllowanceBytes {
-					kicks = append(kicks, grant.GetString("user"))
-				}
-			}
+			record.Set("allowance_bytes", *in.AllowanceBytes)
 		}
 		if err := app.Save(record); err != nil {
 			return err
@@ -122,10 +105,28 @@ func (h *Handlers) updateSubscriptionType(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	for _, id := range kicks {
-		go h.kickUser(id)
-	}
 	return ok(e, publicSubscriptionType(updated))
+}
+
+// fixWindowsInEffect keeps the Type's current allowance in every window in
+// effect, so an allowance edit applies only from each grant's next window.
+// The edit therefore never exhausts a window and never Kicks.
+func fixWindowsInEffect(app core.App, typ *core.Record, now time.Time) error {
+	grants, err := app.FindRecordsByFilter("user_subscriptions", "subscription_type = {:id} && terminated_at = ''", "", 0, 0, map[string]any{"id": typ.Id})
+	if err != nil {
+		return err
+	}
+	allowance := int64(typ.GetInt("allowance_bytes"))
+	for _, grant := range grants {
+		index, inEffect := subscriptions.WindowAt(grant.GetDateTime("starts_at").Time(), now, typ.GetInt("reset_days"))
+		if !inEffect || !subscriptions.FixWindow(grant, index, allowance) {
+			continue
+		}
+		if err := app.Save(grant); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *Handlers) deleteSubscriptionType(e *core.RequestEvent) error {
@@ -171,7 +172,7 @@ func grantView(app core.App, grant *core.Record, now time.Time) (UserSubscriptio
 		index, _ := subscriptions.WindowAt(start, now, typ.GetInt("reset_days"))
 		used, extra := subscriptions.WindowUsage(grant, index)
 		out.UsedTxBytes, out.UsedRxBytes, out.UsedBytes = used.Tx, used.Rx, used.Total()
-		out.AllowanceBytes += extra
+		out.AllowanceBytes = subscriptions.WindowAllowance(grant, index, out.AllowanceBytes) + extra
 		out.WindowEndsAt = subscriptions.WindowEnd(start, end, index, typ.GetInt("reset_days")).UTC().Format(time.RFC3339)
 	}
 	out.RemainingBytes = out.AllowanceBytes - out.UsedBytes
@@ -335,7 +336,7 @@ func (h *Handlers) topUpSubscription(e *core.RequestEvent) error {
 		if in.AllowanceBytes > math.MaxInt64-state.Allowance {
 			return apis.NewBadRequestError("allowance overflow", nil)
 		}
-		subscriptions.SetWindow(grant, state.Window, state.Used, state.Extra+in.AllowanceBytes)
+		subscriptions.SetWindow(grant, state.Window, state.Used, state.Extra+in.AllowanceBytes, state.Base)
 		if err := app.Save(grant); err != nil {
 			return err
 		}

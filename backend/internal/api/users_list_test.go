@@ -166,7 +166,7 @@ func TestCurrentSubscriptionsByUserKeepsOnlyGrantCoveringNow(t *testing.T) {
 		return grant
 	}
 	used := saveGrant(current, now.Add(-day), time.Time{})
-	subscriptions.SetWindow(used, 0, subscriptions.Usage{Tx: 30, Rx: 12}, 0)
+	subscriptions.SetWindow(used, 0, subscriptions.Usage{Tx: 30, Rx: 12}, 0, 0)
 	if err := app.Save(used); err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestFindUsersBySubscriptionUsageRanksOnlyCurrentGrants(t *testing.T) {
 		grant.Set("subscription_type", typ.Id)
 		grant.Set("starts_at", start)
 		grant.Set("ends_at", start.Add(360*day))
-		subscriptions.SetWindow(grant, window, subscriptions.Usage{Tx: tx, Rx: rx}, 0)
+		subscriptions.SetWindow(grant, window, subscriptions.Usage{Tx: tx, Rx: rx}, 0, 0)
 		if err := app.Save(grant); err != nil {
 			t.Fatal(err)
 		}
