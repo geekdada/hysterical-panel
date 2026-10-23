@@ -79,10 +79,24 @@ var (
 	}
 )
 
+var exampleManagementSubscriptionType = ManagementSubscriptionType{
+	ID: "typ_8f3k2j1d0s9a7gx", Name: "Monthly", AllowanceBytes: 107374182400, ResetDays: 30,
+}
+
+var exampleUserSubscription = UserSubscription{
+	ID: "sub_8f3k2j1d0s9a7gx", SubscriptionType: "typ_8f3k2j1d0s9a7gx", TypeName: "Monthly",
+	Status: "current", StartsAt: "2026-06-01 08:30:00.000Z", EndsAt: "2027-05-27 08:30:00.000Z",
+	WindowEndsAt: "2026-07-01T08:30:00Z", AllowanceBytes: 107374182400,
+	UsedBytes: 1073741824, UsedTxBytes: 268435456, UsedRxBytes: 805306368,
+	RemainingBytes: 106300440576, GrantTxBytes: 268435456, GrantRxBytes: 805306368,
+}
+
 var nodeNotFound = mgmtError{404, "The node does not exist or has been deleted"}
 
 func managementOperations() []mgmtOperation {
 	nodeID := pathParam("id", "Node ID", "k2m9x7c4v1b8n3q")
+	userID := pathParam("id", "User ID", "rec_8f3k2j1d0s9a7gx")
+	subscriptionID := pathParam("subscriptionId", "User Subscription ID", "sub_8f3k2j1d0s9a7gx")
 	return []mgmtOperation{
 		{
 			method: http.MethodGet, path: "/api/mgmt/users", id: "mgmtGetUser", tag: "Users",
@@ -113,6 +127,75 @@ func managementOperations() []mgmtOperation {
 			successSchema:  schemaRef("ManagementUserCreateResponse"),
 			successExample: ManagementUserCreateResponse{ID: "rec_8f3k2j1d0s9a7gx", Email: "user@example.com", Status: "active"},
 			errors:         []mgmtError{{400, "Invalid body, missing email, or email already taken"}},
+		},
+		{
+			method: http.MethodGet, path: "/api/mgmt/subscription-types", id: "mgmtListSubscriptionTypes", tag: "Subscriptions",
+			summary: "List available subscription types",
+			description: `List Subscription Types that can be granted, sorted by name.
+- Hidden types are omitted and cannot be used for new grants.`,
+			status: http.StatusOK, successDesc: "Available Subscription Types",
+			successSchema: schemaArrayRef("ManagementSubscriptionType"), successExample: []ManagementSubscriptionType{exampleManagementSubscriptionType},
+		},
+		{
+			method: http.MethodGet, path: "/api/mgmt/users/{id}/subscriptions", id: "mgmtListUserSubscriptions", tag: "Subscriptions",
+			summary: "List a user's subscriptions",
+			description: `List every User Subscription by descending starts_at.
+- The response includes current, queued, expired and terminated history.
+- Window usage is zero unless the grant is current. Grant Usage covers all of its windows.`,
+			params: openapi3.Parameters{userID},
+			status: http.StatusOK, successDesc: "The user's subscription history",
+			successSchema: schemaArrayRef("UserSubscription"), successExample: []UserSubscription{exampleUserSubscription},
+			errors: []mgmtError{{404, "The user does not exist"}},
+		},
+		{
+			method: http.MethodPost, path: "/api/mgmt/users/{id}/subscriptions", id: "mgmtGrantSubscription", tag: "Subscriptions",
+			summary: "Grant a subscription",
+			description: `Grant a Subscription Type to a User.
+- Without a current grant, the 360-day grant starts immediately. Otherwise it queues after the current grant.
+- Only one queued grant is allowed. Its start cannot be customized.
+- The first grant permanently makes the User require a subscription.
+- Hidden Subscription Types cannot be granted.
+- Grant is not idempotent: a repeated request can queue a renewal. After an unknown outcome, list the subscriptions before retrying.`,
+			params: openapi3.Parameters{userID}, bodySchema: "SubscriptionGrantRequest",
+			bodyExample: SubscriptionGrantRequest{SubscriptionType: exampleManagementSubscriptionType.ID},
+			status:      http.StatusOK, successDesc: "The created grant",
+			successSchema: schemaRef("UserSubscription"), successExample: exampleUserSubscription,
+			errors: []mgmtError{
+				{400, "The body is invalid or the Subscription Type is unavailable"},
+				{404, "The user does not exist"},
+				{409, "A future subscription is already queued"},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/mgmt/users/{id}/subscriptions/{subscriptionId}/top-up", id: "mgmtTopUpSubscription", tag: "Subscriptions",
+			summary: "Top up a current subscription",
+			description: `Add allowance_bytes to the current Allowance Window without changing its usage.
+- allowance_bytes is a positive integer number of bytes.
+- Only a current grant can be topped up.
+- Top-up is not idempotent: every accepted request adds its amount again. After an unknown outcome, list the subscriptions before retrying.`,
+			params: openapi3.Parameters{userID, subscriptionID}, bodySchema: "SubscriptionTopUpRequest",
+			bodyExample: SubscriptionTopUpRequest{AllowanceBytes: 1073741824},
+			status:      http.StatusOK, successDesc: "The updated grant",
+			successSchema: schemaRef("UserSubscription"), successExample: exampleUserSubscription,
+			errors: []mgmtError{
+				{400, "The body or amount is invalid, or the allowance would overflow"},
+				{404, "The subscription does not exist or belongs to another user"},
+				{409, "Only a current subscription can be topped up"},
+			},
+		},
+		{
+			method: http.MethodDelete, path: "/api/mgmt/users/{id}/subscriptions/{subscriptionId}", id: "mgmtTerminateSubscription", tag: "Subscriptions",
+			summary: "Terminate or cancel a subscription",
+			description: `Terminate a current grant or cancel a queued grant. The grant remains in subscription history.
+- Terminating a current grant starts a best-effort Kick of existing connections.
+- Cancelling a queued grant does not Kick.`,
+			params: openapi3.Parameters{userID, subscriptionID},
+			status: http.StatusOK, successDesc: "Termination or cancellation confirmed",
+			successSchema: schemaRef("DeleteResponse"), successExample: DeleteResponse{Deleted: true},
+			errors: []mgmtError{
+				{404, "The subscription does not exist or belongs to another user"},
+				{409, "The subscription has already ended"},
+			},
 		},
 		{
 			method: http.MethodGet, path: "/api/mgmt/nodes", id: "mgmtListNodes", tag: "Nodes",
@@ -211,6 +294,7 @@ func BuildManagementOpenAPISpec(serverURL string) (*openapi3.T, error) {
 		Paths: openapi3.NewPaths(),
 		Tags: openapi3.Tags{
 			{Name: "Users"},
+			{Name: "Subscriptions"},
 			{Name: "Nodes", Description: "Node responses never include api_secret. Every node endpoint treats a deleted node as missing."},
 			{Name: "Specification"},
 		},
@@ -245,6 +329,10 @@ func managementSchemas() (openapi3.Schemas, error) {
 		"PanelUser":                    PanelUser{},
 		"ManagementUserCreateRequest":  ManagementUserCreateRequest{},
 		"ManagementUserCreateResponse": ManagementUserCreateResponse{},
+		"ManagementSubscriptionType":   ManagementSubscriptionType{},
+		"SubscriptionGrantRequest":     SubscriptionGrantRequest{},
+		"SubscriptionTopUpRequest":     SubscriptionTopUpRequest{},
+		"UserSubscription":             UserSubscription{},
 		"DeleteResponse":               DeleteResponse{},
 		"ErrorResponse":                ErrorResponse{},
 	})
@@ -254,6 +342,9 @@ func managementSchemas() (openapi3.Schemas, error) {
 	// openapi3gen never marks fields required; these match the handlers' checks.
 	schemas["NodeCreateRequest"].Value.Required = []string{"name", "api_url", "api_secret"}
 	schemas["ManagementUserCreateRequest"].Value.Required = []string{"email"}
+	schemas["ManagementSubscriptionType"].Value.Required = []string{"id", "name", "allowance_bytes", "reset_days"}
+	schemas["SubscriptionGrantRequest"].Value.Required = []string{"subscription_type"}
+	schemas["SubscriptionTopUpRequest"].Value.Required = []string{"allowance_bytes"}
 	schemas["ErrorResponse"].Value.Example = exampleJSON(ErrorResponse{
 		Status: http.StatusUnauthorized, Message: "Invalid token.", Data: map[string]any{},
 	})

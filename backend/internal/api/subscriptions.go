@@ -13,6 +13,13 @@ import (
 	"hysterical-panel/internal/subscriptions"
 )
 
+const (
+	// PocketBase normalizes API error messages with inflector.Sentenize.
+	subscriptionQueuedConflictMessage     = "A future subscription is already queued."
+	subscriptionNotCurrentConflictMessage = "Only a current subscription can be topped up."
+	subscriptionEndedConflictMessage      = "Subscription has already ended."
+)
+
 func publicSubscriptionType(record *core.Record) SubscriptionType {
 	return SubscriptionType{
 		ID: record.Id, Name: record.GetString("name"),
@@ -275,7 +282,7 @@ func (h *Handlers) grantSubscription(e *core.RequestEvent) error {
 			start = to
 		}
 		if future {
-			return apis.NewBadRequestError("a future subscription is already queued", nil)
+			return apis.NewBadRequestError(subscriptionQueuedConflictMessage, nil)
 		}
 		coll, err := app.FindCollectionByNameOrId("user_subscriptions")
 		if err != nil {
@@ -330,7 +337,7 @@ func (h *Handlers) topUpSubscription(e *core.RequestEvent) error {
 			return err
 		}
 		if state == nil || state.Grant.Id != grant.Id {
-			return apis.NewBadRequestError("only a current subscription can be topped up", nil)
+			return apis.NewBadRequestError(subscriptionNotCurrentConflictMessage, nil)
 		}
 		// Bound the effective allowance, not only the top-up total, so Current can still read the grant.
 		if in.AllowanceBytes > math.MaxInt64-state.Allowance {
@@ -362,7 +369,7 @@ func (h *Handlers) terminateSubscription(e *core.RequestEvent) error {
 		}
 		now := time.Now().UTC()
 		if !grant.GetDateTime("terminated_at").IsZero() || !now.Before(grant.GetDateTime("ends_at").Time()) {
-			return apis.NewBadRequestError("subscription has already ended", nil)
+			return apis.NewBadRequestError(subscriptionEndedConflictMessage, nil)
 		}
 		kick = !now.Before(grant.GetDateTime("starts_at").Time())
 		grant.Set("terminated_at", now)

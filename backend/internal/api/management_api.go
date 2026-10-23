@@ -25,6 +25,11 @@ func (h *Handlers) managementRoutes() []managementRoute {
 	return []managementRoute{
 		{http.MethodGet, "/users", h.mgmtGetUser},
 		{http.MethodPost, "/users", h.mgmtCreateUser},
+		{http.MethodGet, "/subscription-types", h.mgmtListSubscriptionTypes},
+		{http.MethodGet, "/users/{id}/subscriptions", h.listUserSubscriptions},
+		{http.MethodPost, "/users/{id}/subscriptions", h.mgmtGrantSubscription},
+		{http.MethodPost, "/users/{id}/subscriptions/{subscriptionId}/top-up", h.mgmtTopUpSubscription},
+		{http.MethodDelete, "/users/{id}/subscriptions/{subscriptionId}", h.mgmtTerminateSubscription},
 		{http.MethodGet, "/nodes", h.listNodes},
 		{http.MethodPost, "/nodes", h.createNode},
 		{http.MethodGet, "/nodes/{id}", h.getNode},

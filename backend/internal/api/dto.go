@@ -310,6 +310,13 @@ type UserUpdateRequest struct {
 	Remark     *string `json:"remark,omitempty"`
 }
 
+type ManagementSubscriptionType struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	AllowanceBytes int64  `json:"allowance_bytes"`
+	ResetDays      int    `json:"reset_days"`
+}
+
 type SubscriptionType struct {
 	ID             string `json:"id"`
 	Name           string `json:"name"`

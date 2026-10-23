@@ -28,11 +28,18 @@ Status: implemented. This document records the subscription behavior and impleme
 - Admins can create, list, edit, and remove Subscription Types. They may change the byte allowance at any time; once a Type has ever been granted, its reset interval is fixed and it cannot be deleted. It can be hidden from new grants without invalidating existing or queued grants. Allowance must be positive; there is no zero-allowance or unlimited Type.
 - Remove the unused `users.quota_bytes` field and its User API input and output. Subscription Type allowance is the sole configured quota.
 - A metered User's detail page shows the current and queued grants, dates, current window allowance, used amount with its tx and rx split, and remaining amount. A collapsed history lists expired and terminated grants with their dates and Grant Usage tx and rx. The User list shows the current window's used / allowance, tx and rx instead of lifetime User Traffic. Sorting by those columns ranks Users with a current grant by window used, tx or rx; everyone else follows in either direction, ordered by creation. If none is usable, show "no available subscription". For a legacy exempt User, show an exemption marker in the existing User detail attributes and in the User list's subscription column, where the tx and rx columns show that User's lifetime Traffic. Do not add a subscription section to that exempt User's detail page.
-- Admins manage Types, grants, cancellation, termination, and top-ups. User detail data is available to the admin and that User; grant changes are admin-only. Panel routes and DTOs follow the existing `/api/panel/*` OpenAPI contract. Node auth callbacks remain outside the panel OpenAPI contract.
+- Admins manage Types, grants, cancellation, termination, and top-ups in the panel. User detail data is available to the admin and that User; panel grant changes are admin-only. Panel routes and DTOs follow the existing `/api/panel/*` OpenAPI contract. Node auth callbacks remain outside the panel OpenAPI contract.
+
+## Management API
+
+- The existing Management API token can list non-hidden Subscription Types and list, grant, top up, terminate, or cancel User Subscriptions with the same lifecycle rules. It cannot reschedule grants, write Types, or combine User creation with a grant. See [ADR-0013](adr/0013-management-api-user-subscriptions.md).
+- Grant and Top-up are not idempotent. Repeated Top-ups add their amounts again, and a repeated Grant can queue a renewal. After an unknown outcome, callers must list the User Subscriptions before deciding whether to retry.
+- Management API state conflicts return 409: an existing queued grant, Top-up on a non-current grant, or termination of an ended grant. Panel responses keep their existing status codes.
+- Management API routes and examples live in its own OpenAPI document. Terminating a current grant uses the same best-effort Kick as the panel, and all ended grants remain in history.
 
 ## Implementation checks
 
-- Enforce one current and at most one queued grant under concurrent admin requests. A failed first grant must not change `subscription_required`.
+- Enforce one current and at most one queued grant under concurrent grant requests. A failed first grant must not change `subscription_required`.
 - Keep a window's usage and Node counter cursor consistent when a poll is committed. Today the Collector saves cursor, lifetime totals, and hourly/daily aggregates separately; adding an allowance must not turn a partial save into permanently missing subscription usage.
 - Check active access at Node Client Auth time, and schedule expiry and exhaustion Kicks without changing User Status. On restart, reconcile any grant whose end passed while the process was down.
 - Cover the 30-day and 360-day boundaries, clock-independent UTC arithmetic, a late cross-window poll, a counter reset, concurrent grants, repeated top-ups, Type edits during a window in effect, and the migration exemption in tests.

@@ -89,7 +89,7 @@ The tx and rx Traffic counted against one User Subscription across all of its Al
 _Avoid_: lifetime Traffic, window usage, total usage
 
 **Allowance Top-up**:
-An administrator's addition of a positive byte amount, entered for each top-up, to the current Allowance Window without changing Traffic already used. Repeated additions accumulate until the window ends. Subscription Type allowance edits do not remove them.
+An addition of a positive byte amount, entered for each top-up by an administrator or through the Management API, to the current Allowance Window without changing Traffic already used. Repeated additions accumulate until the window ends. Subscription Type allowance edits do not remove them.
 _Avoid_: reset used Traffic, clear counters, renew subscription
 
 **Online Device Count**:
@@ -125,7 +125,7 @@ The panel's HTTP auth callback for Nodes deciding whether a client may connect. 
 _Avoid_: webhook (as the feature name), AAA, login API, auth server
 
 **Management API**:
-An optional, default-absent external channel for systems to query or create Users and to register, edit, enable, disable, test or soft-delete Nodes with a Bearer token. Distinct from panel login and Node Client Auth; when disabled it must not advertise itself.
+An optional, default-absent external channel for systems to query or create Users, read Subscription Types, list and grant User Subscriptions, top up or end them, and register, edit, enable, disable, test or soft-delete Nodes with a Bearer token. Distinct from panel login and Node Client Auth; when disabled it must not advertise itself.
 _Avoid_: admin API, public API, provisioning API, service account API (as the product name)
 
 **Connected App**:

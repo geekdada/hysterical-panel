@@ -37,6 +37,77 @@ func TestManagementSpecMatchesRoutes(t *testing.T) {
 	}
 }
 
+func TestManagementSpecSubscriptionContract(t *testing.T) {
+	spec, err := BuildManagementOpenAPISpec("")
+	if err != nil {
+		t.Fatalf("build spec: %v", err)
+	}
+	typeSchema := spec.Components.Schemas["ManagementSubscriptionType"]
+	if typeSchema == nil || typeSchema.Value == nil {
+		t.Fatal("ManagementSubscriptionType schema is missing")
+	}
+	if len(typeSchema.Value.Properties) != 4 || len(typeSchema.Value.Required) != 4 {
+		t.Fatalf("type schema properties = %v, required = %v", typeSchema.Value.Properties, typeSchema.Value.Required)
+	}
+	for _, name := range []string{"id", "name", "allowance_bytes", "reset_days"} {
+		if typeSchema.Value.Properties[name] == nil {
+			t.Errorf("type schema has no %q property", name)
+		}
+	}
+	for schemaName, field := range map[string]string{
+		"SubscriptionGrantRequest": "subscription_type",
+		"SubscriptionTopUpRequest": "allowance_bytes",
+	} {
+		schema := spec.Components.Schemas[schemaName]
+		if schema == nil || schema.Value == nil {
+			t.Errorf("%s schema is missing", schemaName)
+			continue
+		}
+		if len(schema.Value.Required) != 1 || schema.Value.Required[0] != field {
+			t.Errorf("%s required fields = %v, want [%s]", schemaName, schema.Value.Required, field)
+		}
+	}
+
+	cases := []struct {
+		method, path, id string
+		errorStatuses    []string
+		nonIdempotent    bool
+	}{
+		{http.MethodGet, "/api/mgmt/subscription-types", "mgmtListSubscriptionTypes", nil, false},
+		{http.MethodGet, "/api/mgmt/users/{id}/subscriptions", "mgmtListUserSubscriptions", []string{"404"}, false},
+		{http.MethodPost, "/api/mgmt/users/{id}/subscriptions", "mgmtGrantSubscription", []string{"400", "404", "409"}, true},
+		{http.MethodPost, "/api/mgmt/users/{id}/subscriptions/{subscriptionId}/top-up", "mgmtTopUpSubscription", []string{"400", "404", "409"}, true},
+		{http.MethodDelete, "/api/mgmt/users/{id}/subscriptions/{subscriptionId}", "mgmtTerminateSubscription", []string{"404", "409"}, false},
+	}
+	for _, tc := range cases {
+		item := spec.Paths.Find(tc.path)
+		if item == nil {
+			t.Errorf("%s is missing", tc.path)
+			continue
+		}
+		op := item.GetOperation(tc.method)
+		if op == nil {
+			t.Errorf("%s %s is missing", tc.method, tc.path)
+			continue
+		}
+		if op.OperationID != tc.id {
+			t.Errorf("%s %s operationId = %q, want %q", tc.method, tc.path, op.OperationID, tc.id)
+		}
+		for _, status := range []string{"400", "404", "409"} {
+			want := false
+			for _, expected := range tc.errorStatuses {
+				want = want || status == expected
+			}
+			if got := op.Responses.Value(status) != nil; got != want {
+				t.Errorf("%s %s documents %s = %t, want %t", tc.method, tc.path, status, got, want)
+			}
+		}
+		if got := strings.Contains(op.Description, "not idempotent"); got != tc.nonIdempotent {
+			t.Errorf("%s %s non-idempotency warning = %t, want %t", tc.method, tc.path, got, tc.nonIdempotent)
+		}
+	}
+}
+
 // loadManagementSpec round-trips the spec through the loader so every $ref
 // resolves to a schema that VisitJSON can use.
 func loadManagementSpec(t *testing.T) *openapi3.T {

@@ -249,7 +249,7 @@ auth:
 
 ### 管理接口（Management API）`/api/mgmt/*`（供外部系统调用）
 
-供**外部系统**（非面板前端）通过共享 bearer token 查询与创建用户，以及管理节点。**默认关闭**，需管理员在 `/settings` 页面启用。启用时由服务器自动生成 token（明文仅显示一次，需立即复制保存），token 经 SHA-256 哈希存储，无法回读；管理员可随时 rotate。它不进 `openapi.json`，而是有自己的 OpenAPI spec（`internal/api/openapi_management.go`）。
+供**外部系统**（非面板前端）通过共享 bearer token 查询与创建用户、读取可用 Subscription Type、授予 / 查询 / 加额 / 终止或取消 User Subscription，以及管理节点。**默认关闭**，需管理员在 `/settings` 页面启用。启用时由服务器自动生成 token（明文仅显示一次，需立即复制保存），token 经 SHA-256 哈希存储，无法回读；管理员可随时 rotate。它不进 `openapi.json`，而是有自己的 OpenAPI spec（`internal/api/openapi_management.go`）。订阅操作复用面板生命周期，但不开放 Subscription Reschedule 或 Type 写操作。Grant 与 Top-up **不幂等**：重复 Top-up 会重复加量，重复 Grant 可能排出 queued；结果未知时先 GET 核对再决定是否重试（[ADR-0013](../docs/adr/0013-management-api-user-subscriptions.md)）。
 
 接口列表、规则和示例都在 spec 里：用同一个 token 请求 `GET /api/mgmt/openapi.json` 即可拿到与当前后端一致的文档。admin 也可以在面板 `/settings/management-api` 阅读渲染后的版本，该页面读取 `GET /api/panel/management-api/openapi.json`，功能关闭时同样可用。
 
