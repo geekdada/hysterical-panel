@@ -109,10 +109,11 @@
 
 ## 技术栈与版本
 
-- Go（go.mod 锁 1.26.2，但语言特性按 1.21+ 写）。
-- **PocketBase v0.39.0**，以 **framework 方式**引入（不是当二进制用）。
+- Go（go.mod 锁 1.27.3，PocketBase v0.40 起要求 1.27；`backend/Dockerfile` 的 `golang` 镜像版本要同步）。
+- **PocketBase v0.40.6**，以 **framework 方式**引入（不是当二进制用）。
   - 用的是 v0.23+ 的 API：`core.App`、`app.OnServe().BindFunc`、`core.RequestEvent`、`core.NewBaseCollection`、`se.Router.Group(...).Bind(...)`、`hook.Handler[*core.RequestEvent]`。
   - 升级 PocketBase 大版本前务必查 [CHANGELOG](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md)；0.22→0.23 改动很大，0.23→0.39 对本项目主要是依赖与 `pb_data` 系统迁移。
+  - v0.40 起 `e.JSON` / `e.BindBody` 走 `encoding/json/v2`：nil slice / map 输出 `[]` / `{}` 而不是 `null`；`omitempty` 不再省略 `false` 和 `0`，但会省略指向 `""` 的指针。要表达「没有值」用 nil 指针，要省略零值用 `omitzero`。自己调用的 `encoding/json` 仍是 v1 语义。
 - SQLite（PocketBase 自带 modernc 驱动，纯 Go，无 CGO）。
 - 关键依赖：`caarlos0/env/v11`（环境变量）、`oschwald/maxminddb-golang/v2`（IP 元数据 MMDB）、`getkin/kin-openapi`（OpenAPI 生成）、`go-webauthn/webauthn`（passkey）、`spf13/cobra`（PocketBase 自带，`main.go` 加了 `openapi-schema` 子命令）。
 - 前端：TanStack Start / Router（React 19，SSR，文件式路由）、HeroUI v3（beta，基于 React Aria，**Tailwind v4**，无 Provider）、`@tanstack/react-query`（数据获取，`src/api/queries.ts` + `query-provider.tsx`）、`@tanstack/react-table`（用户列表）、`@tanstack/react-form`、recharts、`openapi-fetch` + `openapi-typescript`、`@simplewebauthn/browser`（passkey）、`@inlang/paraglide-js`（i18n，`en` / `zh-cn`）。
