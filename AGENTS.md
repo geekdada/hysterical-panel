@@ -109,7 +109,7 @@
 
 ## 技术栈与版本
 
-- Go（go.mod 锁 1.27.3，PocketBase v0.40 起要求 1.27；`backend/Dockerfile` 的 `golang` 镜像版本要同步）。
+- Go（go.mod 锁 1.27.3，PocketBase v0.40 起要求 1.27；`backend/Dockerfile` 的 `golang` 镜像版本与根目录 `.tool-versions`（asdf）要同步）。
 - **PocketBase v0.40.6**，以 **framework 方式**引入（不是当二进制用）。
   - 用的是 v0.23+ 的 API：`core.App`、`app.OnServe().BindFunc`、`core.RequestEvent`、`core.NewBaseCollection`、`se.Router.Group(...).Bind(...)`、`hook.Handler[*core.RequestEvent]`。
   - 升级 PocketBase 大版本前务必查 [CHANGELOG](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md)；0.22→0.23 改动很大，0.23→0.39 对本项目主要是依赖与 `pb_data` 系统迁移。
@@ -235,7 +235,7 @@ hysterical-panel/
 `nodes`：
 
 - `name`、`api_url` (url)、`api_secret` (text, **AES-GCM 加密存储**)
-- `poll_interval` (number, 秒, 默认 30)、`enabled` (bool)
+- `poll_interval` (number, 秒，默认 30)、`enabled` (bool)
 - `last_polled_at` (date)、`last_error` (text) — 用于 health 判断
 - `current_tx_speed`、`current_rx_speed` (number, int64, B/s) — Current Speed：采集器每轮把该 Node 上各 User 的 `traffic_cursor` 速度加总得出，禁用/删除/采集失败置 0
 - `online_devices` (number, int64)、`online_devices_observed_at` (date) — 最近一次成功 `/online` 的 Node 总数与观测时间；总数包含无法映射到现有用户的 auth string，首次成功前 API 返回 `null`，禁用/删除时置 0
@@ -353,7 +353,7 @@ hysterical-panel/
 
 ## 前端（./frontend）
 
-- 设计语言以**仓库根** `PRODUCT.md` 的 **Design Language** 为唯一来源（Linear 风、默认 follow `prefers-color-scheme`，**但提供 Light / Dark / System 手动切换**——`theme-toggle.tsx` 写 localStorage `hp:theme`，`__root.tsx` 内联 head 脚本做 SSR 防闪 + 跟随系统切换）。token 落在 `src/styles/globals.css`（覆盖 HeroUI v3 默认），改设计就改那里。`PRODUCT.md` 的 “Avoid” 列了要躲开的 AI-dashboard 套路（hero metric 卡片、卡片网格、渐变文字、玻璃拟态、UI 文案里的破折号等）。
+- 设计语言以**仓库根** `PRODUCT.md` 的 **Design Language** 为唯一来源（Linear 风、默认 follow `prefers-color-scheme`，**但提供 Light / Dark / System 手动切换**——`theme-toggle.tsx` 写 localStorage `hp:theme`，`__root.tsx` 内联 head 脚本做 SSR 防闪 + 跟随系统切换）。token 落在 `src/styles/globals.css`（覆盖 HeroUI v3 默认），改设计就改那里。`PRODUCT.md` 的“Avoid”列了要躲开的 AI-dashboard 套路（hero metric 卡片、卡片网格、渐变文字、玻璃拟态、UI 文案里的破折号等）。
 - **类型化 API**：`src/api/client.ts` 用 `openapi-fetch` + 生成的 `schema.d.ts`（`paths`）。不要手写请求/响应类型；改后端契约后跑 `pnpm api:sync`。
 - **数据获取走 TanStack Query**：query/mutation 集中在 `src/api/queries.ts`，`query-provider.tsx` 挂 client。组件别直接调 `client.ts`，复用既有 hooks。
 - **表单一律用 TanStack Form**：字段值与校验放进 `@tanstack/react-form` 的 `useForm`，用 `form.Field` 渲染字段，用 `form.Subscribe` 读取派生状态（如提交按钮是否可用）。不要用 `useState` 拼表单状态。参考 `src/routes/nodes/new.tsx`、`src/routes/settings/emails/new.tsx`。
