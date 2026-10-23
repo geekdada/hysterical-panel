@@ -59,6 +59,7 @@
 | `pnpm i18n:check` | 校验每个 message key 在所有 locale（`en` / `zh-cn`）都有非空翻译（`scripts/i18n-check.mjs`，CI 门禁） |
 | `pnpm api:sync` | 重生成后端 `openapi.json` 再生成 `src/api/schema.d.ts`（= `api:schema` + `api:types`） |
 
+- TypeScript 按官方方式并装：`@typescript/native` 别名指向 TS 7，提供 `tsc`（`pnpm typecheck` 用它）；`typescript` 别名指向 `@typescript/typescript6`，提供 `tsc6` 与 TS 6 API，供 openapi-typescript、Paraglide 等直接 import `typescript` 的工具使用。TS 7 不带 API，别把 `typescript` 改回 7。
 - **改了后端 DTO / 路由后必须 `pnpm api:sync`**，否则前端类型与后端契约漂移。
 - `src/routeTree.gen.ts`（已提交）、`src/api/schema.d.ts` 与 `src/paraglide/`（后两者 gitignore）是**生成产物，勿手改**。
 - **i18n 由 Paraglide 经 vite 插件编译进 `src/paraglide/`**：全新 checkout 直接 `pnpm typecheck` 会因该目录不存在而失败，先跑一次 `pnpm dev` / `pnpm build` 生成它再 typecheck。改了 `messages/*.json` 务必两个 locale 同步加键，并 `pnpm i18n:check`。
