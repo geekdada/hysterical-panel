@@ -38,7 +38,7 @@ export function ResourceLinks() {
     <Surface className="mt-6 w-full rounded-lg border px-4 py-1">
       <ul aria-label={m.resource_links_list_label()} className="divide-y divide-border">
         {links.map((link) => (
-          <li key={link.id} className="min-w-0 max-w-full py-2">
+          <li key={link.id} className="min-w-0 max-w-full py-2 flex items-center">
             <Link href={`/l/${link.id}`} target="_blank" rel="noopener noreferrer">
               <div className="mr-2">
                 <ResourceLinkFavicon id={link.id} version={link.favicon_version} />
