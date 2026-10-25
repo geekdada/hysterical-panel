@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -128,6 +129,9 @@ func (h *Handlers) updateNode(e *core.RequestEvent) error {
 // clears its Current Speed, Online Device Count and firing Alerts.
 func (h *Handlers) applyNodeUpdate(e *core.RequestEvent, n *core.Record, in nodeInput) error {
 	if in.Name != nil {
+		if strings.TrimSpace(*in.Name) == "" {
+			return apis.NewBadRequestError("name cannot be empty", nil)
+		}
 		n.Set("name", *in.Name)
 	}
 	if in.APIURL != nil {
