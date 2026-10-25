@@ -2,9 +2,12 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/pocketbase/pocketbase/core"
 
 	"hysterical-panel/internal/hysteria"
 )
@@ -119,4 +122,50 @@ func (h *Handlers) kickUser(userID string) {
 			log.Printf("[kick] user %s node %s (%s): %v", userID, r.nodeID, r.nodeName, r.err)
 		}
 	}
+}
+
+// nodeClientKicker is the part of the Hysteria client kickOnlineClients needs.
+type nodeClientKicker interface {
+	Online(ctx context.Context) (map[string]int64, error)
+	Kick(ctx context.Context, ids []string) error
+}
+
+// kickOnlineClients disconnects every client the node currently reports as
+// online. It returns the number of kicked Node Client IDs.
+func kickOnlineClients(ctx context.Context, cl nodeClientKicker) (int, error) {
+	online, err := cl.Online(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list online clients: %w", err)
+	}
+	ids := make([]string, 0, len(online))
+	for id := range online {
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	if err := cl.Kick(ctx, ids); err != nil {
+		return 0, err
+	}
+	return len(ids), nil
+}
+
+// kickNode drops every established session on a node that was just disabled.
+// Like kickUser it runs detached and only logs failures. The node keeps
+// running, so clients may reconnect until the node itself is stopped.
+func (h *Handlers) kickNode(node *core.Record) {
+	nodeID, nodeName := node.Id, node.GetString("name")
+	secret, err := h.box.Decrypt(node.GetString("api_secret"))
+	if err != nil {
+		log.Printf("[kick] node %s (%s): decrypt secret: %v", nodeID, nodeName, err)
+		return
+	}
+	cl := hysteria.New(node.GetString("api_url"), secret, kickPerNodeTimeout)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), kickOverallTimeout)
+		defer cancel()
+		if _, err := kickOnlineClients(ctx, cl); err != nil {
+			log.Printf("[kick] node %s (%s): %v", nodeID, nodeName, err)
+		}
+	}()
 }

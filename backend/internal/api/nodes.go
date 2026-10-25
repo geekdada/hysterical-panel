@@ -126,7 +126,8 @@ func (h *Handlers) updateNode(e *core.RequestEvent) error {
 }
 
 // applyNodeUpdate saves a partial update to a live node. Disabling it also
-// clears its Current Speed, Online Device Count and firing Alerts.
+// clears its Current Speed, Online Device Count and firing Alerts, and kicks
+// every client that is online on it.
 func (h *Handlers) applyNodeUpdate(e *core.RequestEvent, n *core.Record, in nodeInput) error {
 	if in.Name != nil {
 		if strings.TrimSpace(*in.Name) == "" {
@@ -151,8 +152,8 @@ func (h *Handlers) applyNodeUpdate(e *core.RequestEvent, n *core.Record, in node
 	if in.PollInterval != nil && *in.PollInterval > 0 {
 		n.Set("poll_interval", *in.PollInterval)
 	}
+	wasEnabled := n.GetBool("enabled")
 	if in.Enabled != nil {
-		wasEnabled := n.GetBool("enabled")
 		n.Set("enabled", *in.Enabled)
 		if !wasEnabled && *in.Enabled {
 			n.Set("enabled_at", time.Now().UTC())
@@ -174,7 +175,10 @@ func (h *Handlers) applyNodeUpdate(e *core.RequestEvent, n *core.Record, in node
 	if err != nil {
 		return apis.NewBadRequestError("failed to save node", err)
 	}
-	if in.Enabled != nil && !*in.Enabled && h.monitoring != nil {
+	if wasEnabled && clearProjections {
+		h.kickNode(n)
+	}
+	if clearProjections && h.monitoring != nil {
 		if err := h.monitoring.CancelNodeAlerts(n.Id, "node_disabled"); err != nil {
 			return apis.NewBadRequestError("failed to cancel node alerts", err)
 		}
