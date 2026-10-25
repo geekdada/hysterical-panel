@@ -31,6 +31,7 @@ type DatabasePrune = components["schemas"]["DatabasePruneResponse"];
 type DatabaseStats = components["schemas"]["DatabaseStatsResponse"];
 type Node = components["schemas"]["Node"];
 type NodeCreateRequest = components["schemas"]["NodeCreateRequest"];
+type NodeUpdateRequest = components["schemas"]["NodeUpdateRequest"];
 type NodeLive = components["schemas"]["NodeLiveResponse"];
 type NodeTest = components["schemas"]["NodeTestResponse"];
 type NodeAPISecretReset = components["schemas"]["NodeAPISecretResetResponse"];
@@ -787,6 +788,17 @@ export function testNode(nodeId: string): Promise<NodeTest> {
     }),
     m.error_node_test(),
     m.error_node_test_network()
+  );
+}
+
+export function updateNode(nodeId: string, body: NodeUpdateRequest): Promise<Node> {
+  return apiRequest<Node>(
+    apiClient.PATCH("/api/panel/nodes/{id}", {
+      params: { path: { id: nodeId } },
+      body,
+    }),
+    m.error_node_update(),
+    m.error_node_update_network()
   );
 }
 

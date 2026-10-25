@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Chip, Modal } from "@heroui/react";
+import { useForm } from "@tanstack/react-form";
+import { Button, Chip, FieldError, Input, Modal, TextField } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
 import type { components } from "~/api/schema";
 import {
@@ -15,6 +16,7 @@ import {
   queryKeys,
   resetNodeAPISecret,
   toTrafficRangeQuery,
+  updateNode,
 } from "~/api/queries";
 import { markResponsePrivate } from "~/api/ssr";
 import { TrafficRangePicker } from "~/components/traffic-range-picker";
@@ -241,6 +243,7 @@ function NodeDetailPage() {
 
           {node && (
             <>
+              <NodeManageSection nodeId={nodeId} node={node} />
               <NodeDangerSection
                 deletePending={deleteMutation.isPending}
                 resetPending={resetMutation.isPending}
@@ -517,9 +520,215 @@ function TrafficSection({
   );
 }
 
+/* ── Manage node ───────────────────────────────────────────────────────── */
+
+const NODE_NAME_MAX_LENGTH = 128;
+
+function validateNodeName(value: string) {
+  const name = value.trim();
+  if (!name) return m.nodes_add_name_required();
+  if (name.length > NODE_NAME_MAX_LENGTH) return m.nodes_add_name_too_long();
+  return undefined;
+}
+
+function NodeManageSection({ nodeId, node }: { nodeId: string; node: Node }) {
+  const queryClient = useQueryClient();
+  const [disableOpen, setDisableOpen] = useState(false);
+  const name = node.name ?? "";
+  const enabled = node.enabled ?? false;
+
+  const updateMutation = useMutation({
+    mutationFn: (body: { name?: string; enabled?: boolean }) => updateNode(nodeId, body),
+    onSuccess: (_, body) => {
+      if (body.enabled === false) setDisableOpen(false);
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.all, "nodes", nodeId] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardBase() });
+    },
+  });
+
+  const form = useForm({
+    defaultValues: { name },
+    onSubmit: async ({ value }) => {
+      try {
+        await updateMutation.mutateAsync({ name: value.name.trim() });
+      } catch {
+        // The mutation owns rendering the submission error.
+      }
+    },
+  });
+
+  useEffect(() => {
+    form.reset({ name });
+  }, [form, name]);
+
+  const error = updateMutation.error
+    ? queryErrorMessage(updateMutation.error, m.error_node_update_network())
+    : "";
+  const statusPending = updateMutation.isPending && updateMutation.variables?.enabled !== undefined;
+  const namePending = updateMutation.isPending && updateMutation.variables?.name !== undefined;
+
+  function handleDisableOpenChange(open: boolean) {
+    setDisableOpen(open);
+    if (!open) updateMutation.reset();
+  }
+
+  return (
+    <Section title={m.node_manage_title()}>
+      <ErrorAlert message={disableOpen ? "" : error} className="m-3 mb-0" />
+      <div className="flex flex-col gap-4 p-4">
+        <ActionRow
+          label={m.nodes_add_name_label()}
+          description={m.node_manage_name_desc()}
+          action={
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void form.handleSubmit();
+              }}
+              className="flex items-center gap-2"
+              noValidate
+              autoComplete="off"
+            >
+              <form.Field
+                name="name"
+                validators={{ onChange: ({ value }) => validateNodeName(value) }}
+              >
+                {(field) => (
+                  <TextField
+                    name="name"
+                    size="sm"
+                    aria-label={m.nodes_add_name_label()}
+                    value={field.state.value}
+                    onChange={field.handleChange}
+                    onBlur={field.handleBlur}
+                    isInvalid={field.state.meta.errors.length > 0}
+                    className="w-full sm:w-56"
+                  >
+                    <Input
+                      placeholder={m.nodes_add_name_placeholder()}
+                      autoComplete="off"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      data-form-type="other"
+                    />
+                    <FieldError>{field.state.meta.errors.join(", ")}</FieldError>
+                  </TextField>
+                )}
+              </form.Field>
+              <form.Subscribe selector={(state) => [state.values.name, state.canSubmit] as const}>
+                {([draft, canSubmit]) => (
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="primary"
+                    isPending={namePending}
+                    isDisabled={!canSubmit || draft.trim() === name || updateMutation.isPending}
+                  >
+                    {namePending ? m.node_manage_saving() : m.node_manage_save()}
+                  </Button>
+                )}
+              </form.Subscribe>
+            </form>
+          }
+        />
+
+        <div className="h-px bg-separator" />
+
+        <ActionRow
+          label={m.node_manage_status_label()}
+          description={
+            enabled ? m.node_manage_status_enabled_desc() : m.node_manage_status_disabled_desc()
+          }
+          action={
+            <Button
+              size="sm"
+              variant={enabled ? "danger-soft" : "primary"}
+              isPending={statusPending && !disableOpen}
+              isDisabled={updateMutation.isPending}
+              onPress={() => {
+                if (enabled) {
+                  updateMutation.reset();
+                  setDisableOpen(true);
+                } else {
+                  updateMutation.mutate({ enabled: true });
+                }
+              }}
+            >
+              {enabled ? m.node_manage_disable() : m.node_manage_enable()}
+            </Button>
+          }
+        />
+      </div>
+
+      <DisableNodeModal
+        isOpen={disableOpen}
+        name={name || m.node_fallback_title()}
+        pending={statusPending}
+        error={disableOpen ? error : ""}
+        onOpenChange={handleDisableOpenChange}
+        onConfirm={() => updateMutation.mutate({ enabled: false })}
+      />
+    </Section>
+  );
+}
+
+function DisableNodeModal({
+  isOpen,
+  name,
+  pending,
+  error,
+  onOpenChange,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  name: string;
+  pending: boolean;
+  error: string;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="sm" placement="auto">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{m.node_disable_confirm_title()}</Modal.Heading>
+            <p className="mt-1.5 text-sm leading-5 text-muted">
+              {m.node_disable_confirm_body({ name })}
+            </p>
+          </Modal.Header>
+          {error && (
+            <Modal.Body>
+              <p className="text-[13px] text-danger" role="alert">
+                {error}
+              </p>
+            </Modal.Body>
+          )}
+          <Modal.Footer>
+            <Button size="sm" variant="secondary" onPress={() => onOpenChange(false)}>
+              {m.common_cancel()}
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              isPending={pending}
+              onPress={onConfirm}
+              className="bg-danger text-danger-foreground hover:opacity-90"
+            >
+              {m.node_manage_disable()}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
 /* ── Danger zone ───────────────────────────────────────────────────────── */
 
-function DangerRow({
+function ActionRow({
   label,
   description,
   action,
@@ -532,7 +741,7 @@ function DangerRow({
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="text-[13px] font-medium text-foreground">{label}</p>
-        <p className="mt-0.5 text-xs leading-5 text-muted">{description}</p>
+        <p className="text-xs leading-5 text-muted">{description}</p>
       </div>
       <div className="shrink-0">{action}</div>
     </div>
@@ -553,7 +762,7 @@ function NodeDangerSection({
   return (
     <Section title={m.node_danger_section_title()}>
       <div className="flex flex-col gap-4 p-4">
-        <DangerRow
+        <ActionRow
           label={m.node_delete_title()}
           description={m.node_delete_hint()}
           action={
@@ -568,7 +777,7 @@ function NodeDangerSection({
           }
         />
         <div className="h-px bg-separator" />
-        <DangerRow
+        <ActionRow
           label={m.node_reset_api_secret_title()}
           description={m.node_reset_api_secret_desc()}
           action={
