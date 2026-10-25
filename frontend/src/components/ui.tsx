@@ -107,6 +107,26 @@ export function AuthShell({ children }: { children: ReactNode }) {
   );
 }
 
+// Icon button that reveals an explanatory tooltip next to a label.
+export function InfoHint({ hint, className }: { hint: string; className?: string }) {
+  return (
+    <Tooltip delay={0}>
+      <Button
+        isIconOnly
+        size="sm"
+        variant="ghost"
+        aria-label={hint}
+        className={cn("size-6 min-w-0 text-muted", className)}
+      >
+        <CircleInfo className="size-3.5" aria-hidden />
+      </Button>
+      <Tooltip.Content className="max-w-xs">
+        <p>{hint}</p>
+      </Tooltip.Content>
+    </Tooltip>
+  );
+}
+
 export function Section({
   title,
   hint,
@@ -128,22 +148,7 @@ export function Section({
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex shrink-0 items-center gap-1">
             <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
-            {hint && (
-              <Tooltip delay={0}>
-                <Button
-                  isIconOnly
-                  size="sm"
-                  variant="ghost"
-                  aria-label={hint}
-                  className="size-6 min-w-0 text-muted"
-                >
-                  <CircleInfo className="size-3.5" aria-hidden />
-                </Button>
-                <Tooltip.Content className="max-w-xs">
-                  <p>{hint}</p>
-                </Tooltip.Content>
-              </Tooltip>
-            )}
+            {hint && <InfoHint hint={hint} />}
           </div>
           {meta && <span className="min-w-0 truncate text-xs tabular-nums text-muted">{meta}</span>}
         </div>
