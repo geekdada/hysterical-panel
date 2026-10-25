@@ -44,6 +44,7 @@ import {
   CopyButton,
   Dot,
   ErrorAlert,
+  InfoHint,
   PageShell,
   PanelMessage,
   Section,
@@ -327,7 +328,10 @@ function AccountRail({
             <span className="text-muted">↓</span> {formatBytes(usedRx)}
           </span>
         </RailItem>
-        <RailItem label={m.user_rail_online_devices()}>
+        <RailItem
+          label={m.user_rail_online_connections()}
+          hint={m.user_rail_online_connections_hint()}
+        >
           <span className="text-[13px] tabular-nums">
             {user?.online_devices == null ? m.common_em_dash() : user.online_devices}
           </span>
@@ -410,16 +414,21 @@ function RailSkeletonCell({
 
 function RailItem({
   label,
+  hint,
   children,
   className = "",
 }: {
   label: string;
+  hint?: string;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <div className={cn("min-w-0 flex-1 px-4 py-3", className)}>
-      <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</div>
+      <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted">
+        {label}
+        {hint && <InfoHint hint={hint} className="-my-1 size-5" />}
+      </div>
       <div className="mt-1 min-w-0">{children}</div>
     </div>
   );
@@ -1187,7 +1196,7 @@ function ByConnectionTable({ rows }: { rows: NonNullable<UserLive["by_connection
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="border-y border-border bg-surface-secondary text-left">
-              <Th>{m.common_th_device()}</Th>
+              <Th>{m.common_th_connection()}</Th>
               <Th>{m.common_th_top_domain()}</Th>
               <Th className="text-right">{m.common_th_streams()}</Th>
               <Th className="text-right">{m.common_th_total()}</Th>

@@ -32,6 +32,7 @@ import {
   CopyButton,
   Dot,
   ErrorAlert,
+  InfoHint,
   PageShell,
   PanelMessage,
   Section,
@@ -377,7 +378,10 @@ function DetailRail({
         </RailItem>
       </div>
       <div className="grid divide-y divide-border border-t border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-        <RailItem label={m.node_rail_online_devices()}>
+        <RailItem
+          label={m.node_rail_online_connections()}
+          hint={m.node_rail_online_connections_hint()}
+        >
           <span className={cn(railValue, "tabular-nums")}>
             {node?.online_devices == null ? m.common_em_dash() : node.online_devices}
           </span>
@@ -397,10 +401,21 @@ function DetailRail({
   );
 }
 
-function RailItem({ label, children }: { label: string; children: ReactNode }) {
+function RailItem({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="min-w-0 flex-1 px-4 py-3">
-      <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</div>
+      <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted">
+        {label}
+        {hint && <InfoHint hint={hint} className="-my-1 size-5" />}
+      </div>
       <div className="mt-1 flex h-5 min-w-0 items-center">{children}</div>
     </div>
   );
@@ -932,7 +947,7 @@ function ByConnectionTable({ rows }: { rows: NonNullable<NodeLive["by_connection
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="border-y border-border bg-surface-secondary text-left">
-              <Th>{m.common_th_device()}</Th>
+              <Th>{m.common_th_connection()}</Th>
               <Th>{m.common_th_top_domain()}</Th>
               <Th className="text-right">{m.common_th_streams()}</Th>
               <Th className="text-right">{m.common_th_total()}</Th>
