@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@heroui/react";
 import { requireAdmin } from "~/api/guards";
@@ -17,6 +17,8 @@ import {
   ErrorAlert,
   PageShell,
   PanelMessage,
+  RailItem,
+  RailSkeletonCell,
   Section,
   TableSkeleton,
   Td,
@@ -200,69 +202,59 @@ function SummaryRail({
   pruneEligible: number;
   retentionDays: string;
 }) {
-  return (
-    <div className="flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0">
-      <RailItem
-        label={m.database_rail_storage()}
-        loading={loading}
-        value={formatBytes(storageBytes)}
-      >
-        {m.database_rail_storage_hint()}
-      </RailItem>
-      <RailItem
-        label={m.database_rail_hourly()}
-        loading={loading}
-        value={formatLocaleCount(hourly)}
-      >
-        {m.database_rail_hourly_hint()}
-      </RailItem>
-      <RailItem label={m.database_rail_daily()} loading={loading} value={formatLocaleCount(daily)}>
-        {m.database_rail_daily_hint()}
-      </RailItem>
-      <RailItem
-        label={m.database_rail_prune_eligible()}
-        loading={loading}
-        value={formatLocaleCount(pruneEligible)}
-        tone={pruneEligible > 0 ? "danger" : "muted"}
-      >
-        {m.database_rail_prune_eligible_hint({ days: retentionDays })}
-      </RailItem>
-    </div>
-  );
-}
+  const railClassName =
+    "flex flex-col divide-y divide-border rounded-lg border bg-surface sm:flex-row sm:divide-x sm:divide-y-0";
 
-function RailItem({
-  label,
-  loading,
-  value,
-  tone = "muted",
-  children,
-}: {
-  label: string;
-  loading: boolean;
-  value: string;
-  tone?: "danger" | "muted";
-  children: ReactNode;
-}) {
   if (loading) {
     return (
-      <div className="flex-1 px-4 py-3">
-        <div className="h-3 w-20 animate-pulse rounded bg-surface-secondary" />
-        <div className="mt-2 h-4 w-24 animate-pulse rounded bg-surface-secondary" />
+      <div className={railClassName}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <RailSkeletonCell key={i} labelClassName="max-w-20" valueClassName="max-w-24" />
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="flex-1 px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-muted">{label}</p>
+    <div className={railClassName}>
+      <RailItem label={m.database_rail_storage()}>
+        <RailStat value={formatBytes(storageBytes)} hint={m.database_rail_storage_hint()} />
+      </RailItem>
+      <RailItem label={m.database_rail_hourly()}>
+        <RailStat value={formatLocaleCount(hourly)} hint={m.database_rail_hourly_hint()} />
+      </RailItem>
+      <RailItem label={m.database_rail_daily()}>
+        <RailStat value={formatLocaleCount(daily)} hint={m.database_rail_daily_hint()} />
+      </RailItem>
+      <RailItem label={m.database_rail_prune_eligible()}>
+        <RailStat
+          value={formatLocaleCount(pruneEligible)}
+          hint={m.database_rail_prune_eligible_hint({ days: retentionDays })}
+          tone={pruneEligible > 0 ? "danger" : "muted"}
+        />
+      </RailItem>
+    </div>
+  );
+}
+
+function RailStat({
+  value,
+  hint,
+  tone = "muted",
+}: {
+  value: string;
+  hint: string;
+  tone?: "danger" | "muted";
+}) {
+  return (
+    <>
       <p
-        className={`mt-1 font-mono text-[15px] tabular-nums ${tone === "danger" ? "text-danger" : "text-foreground"}`}
+        className={`font-mono text-[15px] tabular-nums ${tone === "danger" ? "text-danger" : "text-foreground"}`}
       >
         {value}
       </p>
-      <p className="mt-0.5 truncate text-xs text-muted">{children}</p>
-    </div>
+      <p className="mt-0.5 truncate text-xs text-muted">{hint}</p>
+    </>
   );
 }
 

@@ -34,9 +34,9 @@ import {
   CopyButton,
   Dot,
   ErrorAlert,
-  InfoHint,
   PageShell,
   PanelMessage,
+  RailItem,
   Section,
   TableSkeleton,
   Td,
@@ -314,6 +314,7 @@ function NodeCurrentSpeedSection({ nodeId }: { nodeId: string }) {
 
 const railValue = "min-w-0 truncate text-[13px] leading-5 text-foreground";
 const railMono = cn(railValue, "font-mono tabular-nums");
+const railValueRow = "flex h-5 items-center";
 
 function DetailRail({
   node,
@@ -340,7 +341,7 @@ function DetailRail({
             {Array.from({ length: count }).map((_, i) => (
               <div key={i} className="min-w-0 px-4 py-3">
                 <div className="h-3 w-16 animate-pulse rounded bg-surface-secondary" />
-                <div className="mt-1 flex h-5 items-center">
+                <div className={cn("mt-1", railValueRow)}>
                   <div className="h-3.5 w-28 animate-pulse rounded bg-surface-secondary" />
                 </div>
               </div>
@@ -358,23 +359,23 @@ function DetailRail({
   return (
     <div className="overflow-hidden rounded-lg border bg-surface">
       <div className="grid divide-y divide-border sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] sm:divide-x sm:divide-y-0">
-        <RailItem label={m.node_rail_endpoint()}>
+        <RailItem label={m.node_rail_endpoint()} valueClassName={railValueRow}>
           <div className="group/key flex min-w-0 items-center gap-1.5">
             <span className={railMono}>{node?.api_url || m.common_em_dash()}</span>
             {node?.api_url && <CopyButton value={node.api_url} label={m.common_copy_endpoint()} />}
           </div>
         </RailItem>
-        <RailItem label={m.node_rail_poll_interval()}>
+        <RailItem label={m.node_rail_poll_interval()} valueClassName={railValueRow}>
           <span className={railMono}>
             {node?.poll_interval ? `${node.poll_interval}s` : m.common_em_dash()}
           </span>
         </RailItem>
-        <RailItem label={m.node_rail_last_poll()}>
+        <RailItem label={m.node_rail_last_poll()} valueClassName={railValueRow}>
           <span className={railValue}>
             {node?.last_polled_at ? relTimeFromISO(node.last_polled_at, now) : m.common_em_dash()}
           </span>
         </RailItem>
-        <RailItem label={m.node_rail_state()}>
+        <RailItem label={m.node_rail_state()} valueClassName={railValueRow}>
           <Chip size="sm" variant="soft" color={enabled ? "success" : "default"}>
             {enabled ? m.common_active() : m.common_disabled()}
           </Chip>
@@ -384,42 +385,23 @@ function DetailRail({
         <RailItem
           label={m.node_rail_online_connections()}
           hint={m.node_rail_online_connections_hint()}
+          valueClassName={railValueRow}
         >
           <span className={cn(railValue, "tabular-nums")}>
             {node?.online_devices == null ? m.common_em_dash() : node.online_devices}
           </span>
         </RailItem>
-        <RailItem label={m.node_rail_tx_speed()}>
+        <RailItem label={m.node_rail_tx_speed()} valueClassName={railValueRow}>
           <span className={railMono}>
             <span className="text-muted">↑</span> {formatBytesPerSecond(txSpeed)}
           </span>
         </RailItem>
-        <RailItem label={m.node_rail_rx_speed()}>
+        <RailItem label={m.node_rail_rx_speed()} valueClassName={railValueRow}>
           <span className={railMono}>
             <span className="text-muted">↓</span> {formatBytesPerSecond(rxSpeed)}
           </span>
         </RailItem>
       </div>
-    </div>
-  );
-}
-
-function RailItem({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="min-w-0 flex-1 px-4 py-3">
-      <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted">
-        {label}
-        {hint && <InfoHint hint={hint} className="-my-1 size-5" />}
-      </div>
-      <div className="mt-1 flex h-5 min-w-0 items-center">{children}</div>
     </div>
   );
 }

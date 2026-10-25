@@ -44,9 +44,10 @@ import {
   CopyButton,
   Dot,
   ErrorAlert,
-  InfoHint,
   PageShell,
   PanelMessage,
+  RailItem,
+  RailSkeletonCell,
   Section,
   TableSkeleton,
   Td,
@@ -389,47 +390,6 @@ function AccountRail({
           </span>
         </RailItem>
       </div>
-    </div>
-  );
-}
-
-function RailSkeletonCell({
-  labelClassName,
-  valueClassName,
-}: {
-  labelClassName: string;
-  valueClassName: string;
-}) {
-  return (
-    <div className="min-w-0 px-4 py-3">
-      <div
-        className={cn("h-3 w-full animate-pulse rounded bg-surface-secondary", labelClassName)}
-      />
-      <div
-        className={cn("mt-2 h-4 w-full animate-pulse rounded bg-surface-secondary", valueClassName)}
-      />
-    </div>
-  );
-}
-
-function RailItem({
-  label,
-  hint,
-  children,
-  className = "",
-}: {
-  label: string;
-  hint?: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn("min-w-0 flex-1 px-4 py-3", className)}>
-      <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted">
-        {label}
-        {hint && <InfoHint hint={hint} className="-my-1 size-5" />}
-      </div>
-      <div className="mt-1 min-w-0">{children}</div>
     </div>
   );
 }

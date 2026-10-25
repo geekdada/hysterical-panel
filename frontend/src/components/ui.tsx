@@ -159,6 +159,49 @@ export function Section({
   );
 }
 
+/* ── Rails ─────────────────────────────────────────────────────────────── */
+
+export function RailItem({
+  label,
+  hint,
+  valueClassName,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  valueClassName?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 flex-1 px-4 py-3">
+      <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted">
+        {label}
+        {hint && <InfoHint hint={hint} className="-my-1 size-5" />}
+      </div>
+      <div className={cn("mt-1 min-w-0", valueClassName)}>{children}</div>
+    </div>
+  );
+}
+
+export function RailSkeletonCell({
+  labelClassName,
+  valueClassName,
+}: {
+  labelClassName: string;
+  valueClassName: string;
+}) {
+  return (
+    <div className="min-w-0 flex-1 px-4 py-3">
+      <div
+        className={cn("h-3 w-full animate-pulse rounded bg-surface-secondary", labelClassName)}
+      />
+      <div
+        className={cn("mt-2 h-4 w-full animate-pulse rounded bg-surface-secondary", valueClassName)}
+      />
+    </div>
+  );
+}
+
 /* ── Form controls ─────────────────────────────────────────────────────── */
 
 // A boolean toggle laid out the HeroUI v3 way: the switch sits inline to the
