@@ -60,8 +60,6 @@
     "oxfmt": "^0.74.0",
     "oxlint": "^1.71.0",
     "tailwindcss": "^4.3.1",
-    "tsrs": "0.18.0-ts7.1.0-dev.20260929",
-    "typescript": "^6.0.2",
     "vite": "^8.1.0",
     "vite-tsconfig-paths": "^6.1.1"
   },

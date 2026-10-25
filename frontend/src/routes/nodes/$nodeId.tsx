@@ -119,9 +119,6 @@ function NodeDetailPage() {
   const notFound = isNotFoundError(overviewQuery.error);
   const error = overviewQuery.error && !notFound ? queryErrorMessage(overviewQuery.error) : "";
   const updatedAt = overviewQuery.dataUpdatedAt || null;
-  const health = node?.health ?? "never";
-  const enabled = node?.enabled ?? false;
-  const tone = !enabled ? "idle" : health === "ok" ? "ok" : health === "error" ? "error" : "idle";
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteNode(nodeId),
@@ -579,7 +576,6 @@ function NodeManageSection({ nodeId, node }: { nodeId: string; node: Node }) {
                 {(field) => (
                   <TextField
                     name="name"
-                    size="sm"
                     aria-label={m.nodes_add_name_label()}
                     value={field.state.value}
                     onChange={field.handleChange}

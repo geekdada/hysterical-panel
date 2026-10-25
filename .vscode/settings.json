@@ -8,8 +8,9 @@
   "oxc.tsConfigPath": "frontend/tsconfig.json",
   "oxc.typeAware": false,
 
-  "typescript.tsdk": "frontend/node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "js/ts.tsdk.path": "node_modules/@typescript/native/lib",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
+  "js/ts.experimental.useTsgo": true,
 
   "files.eol": "\n",
   "editor.tabSize": 2,

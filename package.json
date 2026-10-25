@@ -6,8 +6,11 @@
     "dev:backend": "make -C backend serve",
     "dev:frontend": "pnpm --filter hysterical-panel-frontend dev"
   },
-  "packageManager": "pnpm@12.6.0",
   "devDependencies": {
-    "npm-run-all2": "^9.0.3"
-  }
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "npm-run-all2": "^9.0.3",
+    "tsrs": "0.18.0-ts7.1.0-dev.20260929",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
+  },
+  "packageManager": "pnpm@12.6.0"
 }
