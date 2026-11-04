@@ -1,11 +1,14 @@
-import type { CSSProperties, ReactNode } from "react";
+import { Fragment, type CSSProperties, type ReactNode } from "react";
 import { Body, Container, Head, Hr, Html, Link, Section, Text } from "react-email";
 import * as m from "~/paraglide/messages.js";
 
 export type SendoutLanguage = "en" | "zh-cn";
 
+// Automatic emails go to Users of either language, so their frame shows both.
+export type FrameLanguage = SendoutLanguage | "bilingual";
+
 export type ServiceEmailFrameProps = {
-  language: SendoutLanguage;
+  language: FrameLanguage;
   appName: string;
   frontendUrl: string;
   showPanelLink: boolean;
@@ -36,9 +39,9 @@ export function ServiceEmailFrame({
   bodyStyle,
   children,
 }: ServiceEmailFrameProps & { bodyStyle?: CSSProperties; children: ReactNode }) {
-  const options = { locale: language };
+  const locales: SendoutLanguage[] = language === "bilingual" ? ["zh-cn", "en"] : [language];
   // react-email's Body sets lang="en" on body unless given one.
-  const lang = language === "zh-cn" ? "zh-CN" : "en";
+  const lang = locales[0] === "en" ? "en" : "zh-CN";
   return (
     <Html lang={lang}>
       <Head>
@@ -49,12 +52,18 @@ export function ServiceEmailFrame({
           <Text style={styles.brand}>{appName}</Text>
           <Section>{children}</Section>
           <Hr style={styles.rule} />
-          <Text style={styles.footer}>{m.email_frame_notice({ app: appName }, options)}</Text>
-          {showPanelLink && frontendUrl ? (
-            <Link href={frontendUrl} style={styles.link}>
-              {m.email_frame_open_panel({}, options)}
-            </Link>
-          ) : null}
+          {locales.map((locale) => (
+            <Fragment key={locale}>
+              <Text style={styles.footer}>
+                {m.email_frame_notice({ app: appName }, { locale })}
+              </Text>
+              {showPanelLink && frontendUrl ? (
+                <Link href={frontendUrl} style={styles.link}>
+                  {m.email_frame_open_panel({}, { locale })}
+                </Link>
+              ) : null}
+            </Fragment>
+          ))}
         </Container>
       </Body>
     </Html>

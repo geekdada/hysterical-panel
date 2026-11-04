@@ -118,10 +118,12 @@ export function SendoutEditor({
   frame,
   ref,
   onEmptyChange,
+  initialContent,
 }: {
   frame: ServiceEmailFrameProps;
   ref?: Ref<SendoutEditorHandle>;
   onEmptyChange?: (empty: boolean) => void;
+  initialContent?: Record<string, unknown>;
 }) {
   const frameRef = useRef(frame);
   frameRef.current = frame;
@@ -139,13 +141,15 @@ export function SendoutEditor({
     ],
     []
   );
-  const options = { locale: frame.language };
+  // The canvas footer previews one language; bilingual frames show Chinese first.
+  const options = { locale: frame.language === "bilingual" ? "zh-cn" : frame.language } as const;
 
   return (
     <div className="sendout-canvas">
       <p className="sendout-canvas-brand">{frame.appName}</p>
       <EditorProvider
         extensions={extensions}
+        content={initialContent}
         immediatelyRender={false}
         onUpdate={({ editor }) => onEmptyChange?.(isDocumentVisuallyEmpty(editor.state.doc))}
       >

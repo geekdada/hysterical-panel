@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchLoginMethods } from "./auth";
 import { apiClient } from "./client";
 import { writeAuthCookie } from "./cookie";
@@ -94,6 +94,12 @@ type EmailSendoutCandidate = components["schemas"]["EmailSendoutRecipientCandida
 type EmailSendoutContext = components["schemas"]["EmailSendoutContextResponse"];
 type EmailSendoutCreateRequest = components["schemas"]["EmailSendoutCreateRequest"];
 type EmailSendoutResendResponse = components["schemas"]["EmailSendoutResendResponse"];
+type AutomaticEmailsResponse = components["schemas"]["AutomaticEmailsResponse"];
+type AutomaticEmailDetail = components["schemas"]["AutomaticEmailKindDetail"];
+type AutomaticEmailTemplateRequest = components["schemas"]["AutomaticEmailTemplateRequest"];
+type AutomaticEmailKindUpdateRequest = components["schemas"]["AutomaticEmailKindUpdateRequest"];
+export type AutomaticEmailKind = NonNullable<EmailSendout["automatic_kind"]>;
+export type EmailSendoutSource = EmailSendout["source"];
 type RecipientStatus = NonNullable<EmailSendoutRecipient["status"]>;
 
 export type {
@@ -236,6 +242,10 @@ export const queryKeys = {
   oidcRequest: (handle: string) => [...queryKeys.all, "oidc-requests", handle] as const,
   userOIDCGrants: (userId: string) => [...queryKeys.all, "users", userId, "oidc-grants"] as const,
   emailSendouts: () => [...queryKeys.all, "email-sendouts"] as const,
+  emailSendoutsBySource: (source: EmailSendoutSource) =>
+    [...queryKeys.emailSendouts(), "source", source] as const,
+  automaticEmails: () => [...queryKeys.all, "automatic-emails"] as const,
+  automaticEmail: (kind: AutomaticEmailKind) => [...queryKeys.automaticEmails(), kind] as const,
   emailSendoutContext: () => [...queryKeys.emailSendouts(), "context"] as const,
   emailSendoutCandidates: (search: string) =>
     [...queryKeys.emailSendouts(), "candidates", search] as const,
@@ -1227,9 +1237,9 @@ export function fetchEmailSendoutCandidates(search: string): Promise<EmailSendou
   );
 }
 
-export function fetchEmailSendouts(): Promise<EmailSendout[]> {
+export function fetchEmailSendouts(source?: EmailSendoutSource): Promise<EmailSendout[]> {
   return apiRequest<EmailSendout[]>(
-    apiClient.GET("/api/panel/email-sendouts"),
+    apiClient.GET("/api/panel/email-sendouts", { params: { query: { source } } }),
     m.error_email_sendouts_load()
   );
 }
@@ -1262,10 +1272,10 @@ export function emailSendoutContextQueryOptions() {
   });
 }
 
-export function emailSendoutsQueryOptions() {
+export function emailSendoutsQueryOptions(source?: EmailSendoutSource) {
   return queryOptions({
-    queryKey: queryKeys.emailSendouts(),
-    queryFn: fetchEmailSendouts,
+    queryKey: source ? queryKeys.emailSendoutsBySource(source) : queryKeys.emailSendouts(),
+    queryFn: () => fetchEmailSendouts(source),
     enabled: canQueryPanelApi(),
     staleTime: REFRESH_MS,
   });
@@ -1315,6 +1325,88 @@ export function resendEmailSendout(
     }),
     m.error_email_sendout_resend()
   );
+}
+
+export function useEmailSendouts(source?: EmailSendoutSource) {
+  return useQuery(emailSendoutsQueryOptions(source));
+}
+
+export function fetchAutomaticEmails(): Promise<AutomaticEmailsResponse> {
+  return apiRequest<AutomaticEmailsResponse>(apiClient.GET("/api/panel/automatic-emails"));
+}
+
+export function fetchAutomaticEmail(kind: AutomaticEmailKind): Promise<AutomaticEmailDetail> {
+  return apiRequest<AutomaticEmailDetail>(
+    apiClient.GET("/api/panel/automatic-emails/{kind}", { params: { path: { kind } } })
+  );
+}
+
+export function automaticEmailsQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.automaticEmails(),
+    queryFn: fetchAutomaticEmails,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function automaticEmailQueryOptions(kind: AutomaticEmailKind) {
+  return queryOptions({
+    queryKey: queryKeys.automaticEmail(kind),
+    queryFn: () => fetchAutomaticEmail(kind),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function useAutomaticEmails() {
+  return useQuery(automaticEmailsQueryOptions());
+}
+
+export function useAutomaticEmail(kind: AutomaticEmailKind) {
+  return useQuery(automaticEmailQueryOptions(kind));
+}
+
+// Kind detail and list both carry enabled, subject and template state, so
+// any write refreshes the whole automatic-emails prefix.
+function useAutomaticEmailMutation<TBody>(
+  kind: AutomaticEmailKind,
+  send: (kind: AutomaticEmailKind, body: TBody) => Promise<AutomaticEmailDetail>
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: TBody) => send(kind, body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.automaticEmails() }),
+  });
+}
+
+export function saveAutomaticEmailTemplate(
+  kind: AutomaticEmailKind,
+  body: AutomaticEmailTemplateRequest
+): Promise<AutomaticEmailDetail> {
+  return apiRequest<AutomaticEmailDetail>(
+    apiClient.PUT("/api/panel/automatic-emails/{kind}/template", {
+      params: { path: { kind } },
+      body,
+    })
+  );
+}
+
+export function updateAutomaticEmailKind(
+  kind: AutomaticEmailKind,
+  body: AutomaticEmailKindUpdateRequest
+): Promise<AutomaticEmailDetail> {
+  return apiRequest<AutomaticEmailDetail>(
+    apiClient.PATCH("/api/panel/automatic-emails/{kind}", { params: { path: { kind } }, body })
+  );
+}
+
+export function useSaveAutomaticEmailTemplate(kind: AutomaticEmailKind) {
+  return useAutomaticEmailMutation(kind, saveAutomaticEmailTemplate);
+}
+
+export function useUpdateAutomaticEmailKind(kind: AutomaticEmailKind) {
+  return useAutomaticEmailMutation(kind, updateAutomaticEmailKind);
 }
 
 export function fetchMonitors(): Promise<Monitor[]> {
