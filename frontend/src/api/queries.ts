@@ -145,6 +145,8 @@ export type {
   EmailSendoutCreateRequest,
   EmailSendoutResendResponse,
   RecipientStatus,
+  AutomaticEmailsResponse,
+  AutomaticEmailDetail,
 };
 
 export const REFRESH_MS = 20_000;

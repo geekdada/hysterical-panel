@@ -1,6 +1,34 @@
 import { Chip } from "@heroui/react";
-import type { RecipientStatus } from "~/api/queries";
+import type { AutomaticEmailKind, RecipientStatus } from "~/api/queries";
 import * as m from "~/paraglide/messages.js";
+
+export const AUTOMATIC_EMAIL_KINDS: AutomaticEmailKind[] = [
+  "low_allowance",
+  "allowance_exhausted",
+  "allowance_restored",
+];
+
+export function isAutomaticEmailKind(value: string): value is AutomaticEmailKind {
+  return (AUTOMATIC_EMAIL_KINDS as string[]).includes(value);
+}
+
+export function automaticKindLabel(kind: AutomaticEmailKind): string {
+  const labels: Record<AutomaticEmailKind, () => string> = {
+    low_allowance: m.automatic_email_kind_low_allowance,
+    allowance_exhausted: m.automatic_email_kind_allowance_exhausted,
+    allowance_restored: m.automatic_email_kind_allowance_restored,
+  };
+  return labels[kind]();
+}
+
+export function automaticKindDescription(kind: AutomaticEmailKind): string {
+  const descriptions: Record<AutomaticEmailKind, () => string> = {
+    low_allowance: m.automatic_email_kind_low_allowance_desc,
+    allowance_exhausted: m.automatic_email_kind_allowance_exhausted_desc,
+    allowance_restored: m.automatic_email_kind_allowance_restored_desc,
+  };
+  return descriptions[kind]();
+}
 
 export const RECIPIENT_STATUSES: RecipientStatus[] = [
   "pending",
@@ -12,6 +40,7 @@ export const RECIPIENT_STATUSES: RecipientStatus[] = [
 ];
 
 export function languageLabel(language: string): string {
+  if (language === "bilingual") return m.email_language_bilingual();
   return language === "zh-cn" ? m.email_language_zh_cn() : m.email_language_en();
 }
 

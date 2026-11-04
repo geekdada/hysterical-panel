@@ -60,6 +60,13 @@ const API_ERROR_MAP: Record<string, () => string> = {
     m.error_oidc_unavailable(),
   "invalid url": () => m.error_resource_link_url_invalid(),
   "title is too long": () => m.error_resource_link_title_too_long(),
+  "unknown placeholder": () => m.error_automatic_email_unknown_placeholder(),
+  "a placeholder was split by formatting; retype it as plain text": () =>
+    m.error_automatic_email_split_placeholder(),
+  "placeholders cannot be used inside links": () => m.error_automatic_email_placeholder_in_link(),
+  "save a template before enabling": () => m.error_automatic_email_needs_template(),
+  "threshold_percent must be between 1 and 99": () => m.error_automatic_email_threshold_invalid(),
+  "automatic email not found": () => m.error_not_found(),
 };
 
 export function localizeApiError(message: string): string {

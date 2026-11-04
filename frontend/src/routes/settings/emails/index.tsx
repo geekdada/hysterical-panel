@@ -10,6 +10,7 @@ import {
   settingsQueryOptions,
   updateSettings,
   type EmailSendout,
+  type EmailSendoutSource,
 } from "~/api/queries";
 import { markResponsePrivate } from "~/api/ssr";
 import {
@@ -18,17 +19,25 @@ import {
   PageShell,
   PanelMessage,
   Section,
+  SelectField,
   TableSkeleton,
   Td,
   Th,
 } from "~/components/ui";
 import { UserMenu } from "~/components/user-menu";
-import { SendoutStatusChip, audienceLabel, languageLabel } from "~/components/email-sendouts";
+import {
+  SendoutStatusChip,
+  audienceLabel,
+  automaticKindLabel,
+  languageLabel,
+} from "~/components/email-sendouts";
 import { relTimeFromISO } from "~/lib/format";
 import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 const LIVE_REFRESH_MS = 5000;
+
+type SourceFilter = "all" | NonNullable<EmailSendoutSource>;
 
 export const Route = createFileRoute("/settings/emails/")({
   loader: ({ context }) => {
@@ -45,9 +54,10 @@ export const Route = createFileRoute("/settings/emails/")({
 function EmailSendoutsPage() {
   const { auth } = Route.useRouteContext();
   const now = useHydratedNow();
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const contextQuery = useQuery(emailSendoutContextQueryOptions());
   const sendoutsQuery = useQuery({
-    ...emailSendoutsQueryOptions(),
+    ...emailSendoutsQueryOptions(sourceFilter === "all" ? undefined : sourceFilter),
     refetchInterval: (query) =>
       query.state.data?.some((s) => s.status === "sending") ? LIVE_REFRESH_MS : false,
   });
@@ -69,7 +79,10 @@ function EmailSendoutsPage() {
 
       <RateSection />
 
-      <Section title={m.email_sendouts_history()}>
+      <Section
+        title={m.email_sendouts_history()}
+        action={<SourceFilterSelect value={sourceFilter} onChange={setSourceFilter} />}
+      >
         {sendoutsQuery.isPending ? (
           <TableSkeleton />
         ) : sendoutsQuery.error && sendouts.length === 0 ? null : sendouts.length === 0 ? (
@@ -119,7 +132,7 @@ function SendoutRow({ sendout, now }: { sendout: EmailSendout; now: number | nul
           {sendout.subject}
         </Link>
         <span className="block text-xs text-muted">
-          {languageLabel(sendout.language ?? "")} · {sendout.created_by_email || m.common_unknown()}
+          {languageLabel(sendout.language ?? "")} · {sendoutOrigin(sendout)}
         </span>
       </Td>
       <Td>
@@ -142,6 +155,35 @@ function SendoutRow({ sendout, now }: { sendout: EmailSendout; now: number | nul
       </Td>
     </tr>
   );
+}
+
+function SourceFilterSelect({
+  value,
+  onChange,
+}: {
+  value: SourceFilter;
+  onChange: (value: SourceFilter) => void;
+}) {
+  return (
+    <SelectField
+      label={m.email_sendouts_filter()}
+      value={value}
+      onChange={(next) => onChange(next === "manual" || next === "automatic" ? next : "all")}
+      options={[
+        { value: "all", label: m.email_sendouts_filter_all() },
+        { value: "manual", label: m.email_sendouts_filter_manual() },
+        { value: "automatic", label: m.email_sendouts_filter_automatic() },
+      ]}
+    />
+  );
+}
+
+// Automatic Sendouts have no admin author, so their row names the Kind instead.
+function sendoutOrigin(sendout: EmailSendout): string {
+  if (sendout.source === "automatic" && sendout.automatic_kind) {
+    return `${m.email_sendouts_filter_automatic()} · ${automaticKindLabel(sendout.automatic_kind)}`;
+  }
+  return sendout.created_by_email || m.common_unknown();
 }
 
 function RateSection() {

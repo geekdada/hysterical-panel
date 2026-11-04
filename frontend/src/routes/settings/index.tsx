@@ -13,6 +13,7 @@ import {
   Link as LinkIcon,
   PlugConnection,
   Pulse,
+  Thunderbolt,
   Xmark,
 } from "@gravity-ui/icons";
 import {
@@ -322,6 +323,22 @@ function SettingsPage() {
                 </span>
                 <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
                   {m.settings_email_manage()}
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+                  aria-hidden
+                />
+              </Link>
+
+              <Link
+                to="/settings/automatic-emails"
+                className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+                  <Thunderbolt className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
+                  {m.settings_email_automatic()}
                 </span>
                 <ChevronRight
                   className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"

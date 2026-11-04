@@ -36,10 +36,13 @@ import { Route as OidcAuthorizeRouteImport } from './routes/oidc/authorize'
 import { Route as NodesNewRouteImport } from './routes/nodes/new'
 import { Route as NodesNodeIdRouteImport } from './routes/nodes/$nodeId'
 import { Route as SettingsEmailsRouteRouteImport } from './routes/settings/emails/route'
+import { Route as SettingsAutomaticEmailsRouteRouteImport } from './routes/settings/automatic-emails/route'
 import { Route as SettingsEmailsIndexRouteImport } from './routes/settings/emails/index'
+import { Route as SettingsAutomaticEmailsIndexRouteImport } from './routes/settings/automatic-emails/index'
 import { Route as LIdIndexRouteImport } from './routes/l/$id/index'
 import { Route as SettingsEmailsNewRouteImport } from './routes/settings/emails/new'
 import { Route as SettingsEmailsSendoutIdRouteImport } from './routes/settings/emails/$sendoutId'
+import { Route as SettingsAutomaticEmailsKindRouteImport } from './routes/settings/automatic-emails/$kind'
 import { Route as LIdFaviconRouteImport } from './routes/l/$id/favicon'
 
 const VerifyRoute = VerifyRouteImport.update({
@@ -177,11 +180,23 @@ const SettingsEmailsRouteRoute = SettingsEmailsRouteRouteImport.update({
   path: '/emails',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsAutomaticEmailsRouteRoute =
+  SettingsAutomaticEmailsRouteRouteImport.update({
+    id: '/automatic-emails',
+    path: '/automatic-emails',
+    getParentRoute: () => SettingsRouteRoute,
+  } as any)
 const SettingsEmailsIndexRoute = SettingsEmailsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SettingsEmailsRouteRoute,
 } as any)
+const SettingsAutomaticEmailsIndexRoute =
+  SettingsAutomaticEmailsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => SettingsAutomaticEmailsRouteRoute,
+  } as any)
 const LIdIndexRoute = LIdIndexRouteImport.update({
   id: '/l/$id/',
   path: '/l/$id/',
@@ -197,6 +212,12 @@ const SettingsEmailsSendoutIdRoute = SettingsEmailsSendoutIdRouteImport.update({
   path: '/$sendoutId',
   getParentRoute: () => SettingsEmailsRouteRoute,
 } as any)
+const SettingsAutomaticEmailsKindRoute =
+  SettingsAutomaticEmailsKindRouteImport.update({
+    id: '/$kind',
+    path: '/$kind',
+    getParentRoute: () => SettingsAutomaticEmailsRouteRoute,
+  } as any)
 const LIdFaviconRoute = LIdFaviconRouteImport.update({
   id: '/l/$id/favicon',
   path: '/l/$id/favicon',
@@ -216,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify': typeof VerifyRoute
+  '/settings/automatic-emails': typeof SettingsAutomaticEmailsRouteRouteWithChildren
   '/settings/emails': typeof SettingsEmailsRouteRouteWithChildren
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
@@ -232,9 +254,11 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
   '/l/$id/favicon': typeof LIdFaviconRoute
+  '/settings/automatic-emails/$kind': typeof SettingsAutomaticEmailsKindRoute
   '/settings/emails/$sendoutId': typeof SettingsEmailsSendoutIdRoute
   '/settings/emails/new': typeof SettingsEmailsNewRoute
   '/l/$id/': typeof LIdIndexRoute
+  '/settings/automatic-emails/': typeof SettingsAutomaticEmailsIndexRoute
   '/settings/emails/': typeof SettingsEmailsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -263,9 +287,11 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsIndexRoute
   '/users': typeof UsersIndexRoute
   '/l/$id/favicon': typeof LIdFaviconRoute
+  '/settings/automatic-emails/$kind': typeof SettingsAutomaticEmailsKindRoute
   '/settings/emails/$sendoutId': typeof SettingsEmailsSendoutIdRoute
   '/settings/emails/new': typeof SettingsEmailsNewRoute
   '/l/$id': typeof LIdIndexRoute
+  '/settings/automatic-emails': typeof SettingsAutomaticEmailsIndexRoute
   '/settings/emails': typeof SettingsEmailsIndexRoute
 }
 export interface FileRoutesById {
@@ -282,6 +308,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify': typeof VerifyRoute
+  '/settings/automatic-emails': typeof SettingsAutomaticEmailsRouteRouteWithChildren
   '/settings/emails': typeof SettingsEmailsRouteRouteWithChildren
   '/nodes/$nodeId': typeof NodesNodeIdRoute
   '/nodes/new': typeof NodesNewRoute
@@ -298,9 +325,11 @@ export interface FileRoutesById {
   '/settings/': typeof SettingsIndexRoute
   '/users/': typeof UsersIndexRoute
   '/l/$id/favicon': typeof LIdFaviconRoute
+  '/settings/automatic-emails/$kind': typeof SettingsAutomaticEmailsKindRoute
   '/settings/emails/$sendoutId': typeof SettingsEmailsSendoutIdRoute
   '/settings/emails/new': typeof SettingsEmailsNewRoute
   '/l/$id/': typeof LIdIndexRoute
+  '/settings/automatic-emails/': typeof SettingsAutomaticEmailsIndexRoute
   '/settings/emails/': typeof SettingsEmailsIndexRoute
 }
 export interface FileRouteTypes {
@@ -318,6 +347,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/verify'
+    | '/settings/automatic-emails'
     | '/settings/emails'
     | '/nodes/$nodeId'
     | '/nodes/new'
@@ -334,9 +364,11 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/users/'
     | '/l/$id/favicon'
+    | '/settings/automatic-emails/$kind'
     | '/settings/emails/$sendoutId'
     | '/settings/emails/new'
     | '/l/$id/'
+    | '/settings/automatic-emails/'
     | '/settings/emails/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -365,9 +397,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/users'
     | '/l/$id/favicon'
+    | '/settings/automatic-emails/$kind'
     | '/settings/emails/$sendoutId'
     | '/settings/emails/new'
     | '/l/$id'
+    | '/settings/automatic-emails'
     | '/settings/emails'
   id:
     | '__root__'
@@ -383,6 +417,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/verify'
+    | '/settings/automatic-emails'
     | '/settings/emails'
     | '/nodes/$nodeId'
     | '/nodes/new'
@@ -399,9 +434,11 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/users/'
     | '/l/$id/favicon'
+    | '/settings/automatic-emails/$kind'
     | '/settings/emails/$sendoutId'
     | '/settings/emails/new'
     | '/l/$id/'
+    | '/settings/automatic-emails/'
     | '/settings/emails/'
   fileRoutesById: FileRoutesById
 }
@@ -615,12 +652,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsEmailsRouteRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/automatic-emails': {
+      id: '/settings/automatic-emails'
+      path: '/automatic-emails'
+      fullPath: '/settings/automatic-emails'
+      preLoaderRoute: typeof SettingsAutomaticEmailsRouteRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/emails/': {
       id: '/settings/emails/'
       path: '/'
       fullPath: '/settings/emails/'
       preLoaderRoute: typeof SettingsEmailsIndexRouteImport
       parentRoute: typeof SettingsEmailsRouteRoute
+    }
+    '/settings/automatic-emails/': {
+      id: '/settings/automatic-emails/'
+      path: '/'
+      fullPath: '/settings/automatic-emails/'
+      preLoaderRoute: typeof SettingsAutomaticEmailsIndexRouteImport
+      parentRoute: typeof SettingsAutomaticEmailsRouteRoute
     }
     '/l/$id/': {
       id: '/l/$id/'
@@ -642,6 +693,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/emails/$sendoutId'
       preLoaderRoute: typeof SettingsEmailsSendoutIdRouteImport
       parentRoute: typeof SettingsEmailsRouteRoute
+    }
+    '/settings/automatic-emails/$kind': {
+      id: '/settings/automatic-emails/$kind'
+      path: '/$kind'
+      fullPath: '/settings/automatic-emails/$kind'
+      preLoaderRoute: typeof SettingsAutomaticEmailsKindRouteImport
+      parentRoute: typeof SettingsAutomaticEmailsRouteRoute
     }
     '/l/$id/favicon': {
       id: '/l/$id/favicon'
@@ -667,6 +725,22 @@ const NodesRouteRouteWithChildren = NodesRouteRoute._addFileChildren(
   NodesRouteRouteChildren,
 )
 
+interface SettingsAutomaticEmailsRouteRouteChildren {
+  SettingsAutomaticEmailsKindRoute: typeof SettingsAutomaticEmailsKindRoute
+  SettingsAutomaticEmailsIndexRoute: typeof SettingsAutomaticEmailsIndexRoute
+}
+
+const SettingsAutomaticEmailsRouteRouteChildren: SettingsAutomaticEmailsRouteRouteChildren =
+  {
+    SettingsAutomaticEmailsKindRoute: SettingsAutomaticEmailsKindRoute,
+    SettingsAutomaticEmailsIndexRoute: SettingsAutomaticEmailsIndexRoute,
+  }
+
+const SettingsAutomaticEmailsRouteRouteWithChildren =
+  SettingsAutomaticEmailsRouteRoute._addFileChildren(
+    SettingsAutomaticEmailsRouteRouteChildren,
+  )
+
 interface SettingsEmailsRouteRouteChildren {
   SettingsEmailsSendoutIdRoute: typeof SettingsEmailsSendoutIdRoute
   SettingsEmailsNewRoute: typeof SettingsEmailsNewRoute
@@ -683,6 +757,7 @@ const SettingsEmailsRouteRouteWithChildren =
   SettingsEmailsRouteRoute._addFileChildren(SettingsEmailsRouteRouteChildren)
 
 interface SettingsRouteRouteChildren {
+  SettingsAutomaticEmailsRouteRoute: typeof SettingsAutomaticEmailsRouteRouteWithChildren
   SettingsEmailsRouteRoute: typeof SettingsEmailsRouteRouteWithChildren
   SettingsConnectedAppsRoute: typeof SettingsConnectedAppsRoute
   SettingsDatabaseRoute: typeof SettingsDatabaseRoute
@@ -695,6 +770,8 @@ interface SettingsRouteRouteChildren {
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsAutomaticEmailsRouteRoute:
+    SettingsAutomaticEmailsRouteRouteWithChildren,
   SettingsEmailsRouteRoute: SettingsEmailsRouteRouteWithChildren,
   SettingsConnectedAppsRoute: SettingsConnectedAppsRoute,
   SettingsDatabaseRoute: SettingsDatabaseRoute,
