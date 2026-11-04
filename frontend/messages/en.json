@@ -262,6 +262,7 @@
   "settings_social_logins_link_invalid": "This link attempt is invalid or has expired. Start again from Settings.",
   "settings_social_logins_link_session_expired": "Your session has expired. Sign in again, then link the account.",
   "settings_social_logins_back_to_settings": "Back to Settings",
+  "settings_nav_label": "Settings sections",
   "settings_general": "General",
   "settings_account": "Account",
   "settings_admin": "Administration",

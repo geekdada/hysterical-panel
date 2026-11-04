@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Button, Label, ListBox, Select, Separator } from "@heroui/react";
@@ -44,6 +44,11 @@ import {
   PageShell,
 } from "~/components/ui";
 import { AuthorizedAppsSection } from "~/components/authorized-apps";
+import {
+  SettingsNav,
+  SettingsSectionHeader,
+  type SettingsNavGroup,
+} from "~/components/settings-nav";
 import { ResetAuthKeyButton } from "~/components/reset-auth-key";
 import { SocialLoginsSection } from "~/components/social-logins";
 import { UserMenu } from "~/components/user-menu";
@@ -107,255 +112,300 @@ function SettingsPage() {
     );
   }
 
+  const navGroups = useMemo(() => settingsNavGroups(Boolean(auth), isAdmin), [auth, isAdmin]);
+  const contentRef = useRef<HTMLDivElement>(null);
+
   return (
     <PageShell
-      width="narrow"
+      width="medium"
       headerLeft={<BrandLink />}
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
       <h1 className="sr-only">{m.settings_title()}</h1>
 
-      <h2 className="text-lg font-semibold tracking-tight">{m.settings_general()}</h2>
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] lg:gap-10">
+        <SettingsNav groups={navGroups} contentRef={contentRef} />
 
-      <div className="mt-4 mb-5">
-        <h3 className="text-base font-semibold tracking-tight">{m.settings_timezone()}</h3>
-        <p className="mt-0.5 text-[13px] text-muted">{m.settings_timezone_desc()}</p>
-      </div>
+        <div ref={contentRef} className="min-w-0">
+          <h2 className="text-lg font-semibold tracking-tight">{m.settings_general()}</h2>
 
-      <div className="rounded-lg border bg-surface p-5">
-        <TimezoneSetting />
-      </div>
+          <SettingsSectionHeader
+            id="timezone"
+            title={m.settings_timezone()}
+            description={m.settings_timezone_desc()}
+            className="mt-4 mb-5"
+          />
 
-      {auth && (
-        <>
-          <Separator className="mt-10 bg-separator" />
-
-          <h2 className="mt-8 text-lg font-semibold tracking-tight">{m.settings_account()}</h2>
-
-          {/* Each section may render nothing. The first rendered one gets the tighter top margin. */}
-          <div className="[&>:first-child]:mt-4">
-            <PasskeysSection userId={auth.user.id} />
-            <SocialLoginsSection userId={auth.user.id} />
-            <AuthorizedAppsSection userId={auth.user.id} />
-            <AuthKeySection userId={auth.user.id} />
-          </div>
-        </>
-      )}
-
-      {isAdmin && (
-        <>
-          <Separator className="mt-10 bg-separator" />
-
-          <h2 className="mt-8 text-lg font-semibold tracking-tight">{m.settings_admin()}</h2>
-
-          <div className="mt-4 mb-5">
-            <h3 className="text-base font-semibold tracking-tight">{m.settings_users()}</h3>
-            <p className="mt-0.5 text-[13px] text-muted">{m.settings_users_desc()}</p>
+          <div className="rounded-lg border bg-surface p-5">
+            <TimezoneSetting />
           </div>
 
-          <ErrorAlert message={loadError} className="mb-4" />
+          {auth && (
+            <>
+              <Separator className="mt-10 bg-separator" />
 
-          <div className="flex flex-col gap-5 rounded-lg border bg-surface p-5">
-            <LabeledSwitch
-              label={m.settings_open_registration()}
-              description={m.settings_open_registration_desc()}
-              isSelected={settings?.open_registration ?? false}
-              isDisabled={!settings || mutation.isPending}
-              onChange={patchOpenRegistration}
-            />
-            <LabeledSwitch
-              label={m.settings_invitation_system()}
-              description={m.settings_invitation_system_desc()}
-              isSelected={settings?.invitations_enabled ?? false}
-              isDisabled={
-                !settings || mutation.isPending || !(settings?.open_registration ?? false)
-              }
-              onChange={patchInvitations}
-            />
-            <LabeledSwitch
-              label={m.settings_require_invite()}
-              description={m.settings_require_invite_desc()}
-              isSelected={settings?.require_invite_for_open ?? false}
-              isDisabled={
-                !settings || mutation.isPending || !(settings?.invitations_enabled ?? false)
-              }
-              onChange={(v) => patch("require_invite_for_open", v)}
-            />
-          </div>
+              <h2 className="mt-8 text-lg font-semibold tracking-tight">{m.settings_account()}</h2>
 
-          {settings?.open_registration && !settings.require_invite_for_open && (
-            <p className="mt-3 text-xs text-muted">{m.settings_smtp_note()}</p>
+              {/* Each section may render nothing. The first rendered one gets the tighter top margin. */}
+              <div className="[&>:first-child]:mt-4">
+                <PasskeysSection userId={auth.user.id} />
+                <SocialLoginsSection userId={auth.user.id} />
+                <AuthorizedAppsSection userId={auth.user.id} />
+                <AuthKeySection userId={auth.user.id} />
+              </div>
+            </>
           )}
 
-          <Link
-            to="/settings/subscriptions"
-            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <Calendar className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-foreground">
-                {m.settings_subscriptions_manage()}
-              </span>
-              <span className="block text-xs text-muted">{m.subscriptions_description()}</span>
-            </span>
-            <ChevronRight
-              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
-              aria-hidden
-            />
-          </Link>
+          {isAdmin && (
+            <>
+              <Separator className="mt-10 bg-separator" />
 
-          <Link
-            to="/settings/resource-links"
-            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <LinkIcon className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-foreground">
-                {m.settings_resource_links_manage()}
-              </span>
-              <span className="block text-xs text-muted">{m.resource_links_description()}</span>
-            </span>
-            <ChevronRight
-              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
-              aria-hidden
-            />
-          </Link>
+              <h2 className="mt-8 text-lg font-semibold tracking-tight">{m.settings_admin()}</h2>
 
-          <IgnoredConnectionIPsSection />
+              <SettingsSectionHeader
+                id="users"
+                title={m.settings_users()}
+                description={m.settings_users_desc()}
+                className="mt-4 mb-5"
+              />
 
-          <div className="mt-8 mb-5">
-            <h3 className="text-base font-semibold tracking-tight">
-              {m.settings_notification_channels()}
-            </h3>
-            <p className="mt-0.5 text-[13px] text-muted">
-              {m.settings_notification_channels_desc()}
-            </p>
-          </div>
+              <ErrorAlert message={loadError} className="mb-4" />
 
-          <Link
-            to="/settings/notifications"
-            className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <Bell className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-foreground">
-                {m.settings_notification_channels_manage()}
-              </span>
-              <span className="block text-xs text-muted">
-                {m.settings_notification_channels_manage_desc()}
-              </span>
-            </span>
-            <ChevronRight
-              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
-              aria-hidden
-            />
-          </Link>
+              <div className="flex flex-col gap-5 rounded-lg border bg-surface p-5">
+                <LabeledSwitch
+                  label={m.settings_open_registration()}
+                  description={m.settings_open_registration_desc()}
+                  isSelected={settings?.open_registration ?? false}
+                  isDisabled={!settings || mutation.isPending}
+                  onChange={patchOpenRegistration}
+                />
+                <LabeledSwitch
+                  label={m.settings_invitation_system()}
+                  description={m.settings_invitation_system_desc()}
+                  isSelected={settings?.invitations_enabled ?? false}
+                  isDisabled={
+                    !settings || mutation.isPending || !(settings?.open_registration ?? false)
+                  }
+                  onChange={patchInvitations}
+                />
+                <LabeledSwitch
+                  label={m.settings_require_invite()}
+                  description={m.settings_require_invite_desc()}
+                  isSelected={settings?.require_invite_for_open ?? false}
+                  isDisabled={
+                    !settings || mutation.isPending || !(settings?.invitations_enabled ?? false)
+                  }
+                  onChange={(v) => patch("require_invite_for_open", v)}
+                />
+              </div>
 
-          <Link
-            to="/settings/monitoring"
-            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <Pulse className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-foreground">
-                {m.monitoring_title()}
-              </span>
-              <span className="block text-xs text-muted">{m.monitoring_description()}</span>
-            </span>
-            <ChevronRight
-              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
-              aria-hidden
-            />
-          </Link>
+              {settings?.open_registration && !settings.require_invite_for_open && (
+                <p className="mt-3 text-xs text-muted">{m.settings_smtp_note()}</p>
+              )}
 
-          <div className="mt-8 mb-5">
-            <h3 className="text-base font-semibold tracking-tight">{m.settings_email()}</h3>
-            <p className="mt-0.5 text-[13px] text-muted">{m.settings_email_desc()}</p>
-          </div>
+              <Link
+                to="/settings/subscriptions"
+                className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+                  <Calendar className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-foreground">
+                    {m.settings_subscriptions_manage()}
+                  </span>
+                  <span className="block text-xs text-muted">{m.subscriptions_description()}</span>
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+                  aria-hidden
+                />
+              </Link>
 
-          <Link
-            to="/settings/emails/new"
-            className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <Envelope className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
-              {m.settings_email_new()}
-            </span>
-            <ChevronRight
-              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
-              aria-hidden
-            />
-          </Link>
+              <Link
+                to="/settings/resource-links"
+                className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+                  <LinkIcon className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-foreground">
+                    {m.settings_resource_links_manage()}
+                  </span>
+                  <span className="block text-xs text-muted">{m.resource_links_description()}</span>
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+                  aria-hidden
+                />
+              </Link>
 
-          <Link
-            to="/settings/emails"
-            className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <Gear className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
-              {m.settings_email_manage()}
-            </span>
-            <ChevronRight
-              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
-              aria-hidden
-            />
-          </Link>
+              <IgnoredConnectionIPsSection />
 
-          <div className="mt-8 mb-5">
-            <h3 className="text-base font-semibold tracking-tight">{m.settings_database()}</h3>
-            <p className="mt-0.5 text-[13px] text-muted">{m.settings_database_desc()}</p>
-          </div>
+              <SettingsSectionHeader
+                id="notifications"
+                title={m.settings_notification_channels()}
+                description={m.settings_notification_channels_desc()}
+              />
 
-          <Link
-            to="/settings/database"
-            className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
-              <Database className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-foreground">
-                {m.settings_database_management()}
-              </span>
-              <span className="block text-xs text-muted">
-                {m.settings_database_management_desc()}
-              </span>
-            </span>
-            <ChevronRight
-              className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
-              aria-hidden
-            />
-          </Link>
+              <Link
+                to="/settings/notifications"
+                className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+                  <Bell className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-foreground">
+                    {m.settings_notification_channels_manage()}
+                  </span>
+                  <span className="block text-xs text-muted">
+                    {m.settings_notification_channels_manage_desc()}
+                  </span>
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+                  aria-hidden
+                />
+              </Link>
 
-          <OIDCSection
-            settings={settings}
-            pending={mutation.isPending}
-            onSave={(patch) => mutation.mutate(patch)}
-          />
+              <Link
+                to="/settings/monitoring"
+                className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+                  <Pulse className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-foreground">
+                    {m.monitoring_title()}
+                  </span>
+                  <span className="block text-xs text-muted">{m.monitoring_description()}</span>
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+                  aria-hidden
+                />
+              </Link>
 
-          <ManagementApiSection
-            settings={settings}
-            pending={mutation.isPending}
-            onSave={(patch) => mutation.mutate(patch)}
-            error={saveError}
-            newToken={mutation.data?.management_api_token}
-          />
-        </>
-      )}
+              <SettingsSectionHeader
+                id="email"
+                title={m.settings_email()}
+                description={m.settings_email_desc()}
+              />
+
+              <Link
+                to="/settings/emails/new"
+                className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+                  <Envelope className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
+                  {m.settings_email_new()}
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+                  aria-hidden
+                />
+              </Link>
+
+              <Link
+                to="/settings/emails"
+                className="group mt-3 flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+                  <Gear className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
+                  {m.settings_email_manage()}
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+                  aria-hidden
+                />
+              </Link>
+
+              <SettingsSectionHeader
+                id="database"
+                title={m.settings_database()}
+                description={m.settings_database_desc()}
+              />
+
+              <Link
+                to="/settings/database"
+                className="group flex items-center gap-3 rounded-lg border bg-surface px-4 py-3.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-surface-secondary text-muted">
+                  <Database className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-foreground">
+                    {m.settings_database_management()}
+                  </span>
+                  <span className="block text-xs text-muted">
+                    {m.settings_database_management_desc()}
+                  </span>
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted transition-colors duration-150 group-hover:text-foreground"
+                  aria-hidden
+                />
+              </Link>
+
+              <OIDCSection
+                settings={settings}
+                pending={mutation.isPending}
+                onSave={(patch) => mutation.mutate(patch)}
+              />
+
+              <ManagementApiSection
+                settings={settings}
+                pending={mutation.isPending}
+                onSave={(patch) => mutation.mutate(patch)}
+                error={saveError}
+                newToken={mutation.data?.management_api_token}
+              />
+            </>
+          )}
+        </div>
+      </div>
     </PageShell>
   );
+}
+
+// Mirrors the section order below. Optional items belong to sections that can render nothing.
+function settingsNavGroups(signedIn: boolean, isAdmin: boolean): SettingsNavGroup[] {
+  const groups: SettingsNavGroup[] = [
+    { label: m.settings_general(), items: [{ id: "timezone", label: m.settings_timezone() }] },
+  ];
+  if (signedIn) {
+    groups.push({
+      label: m.settings_account(),
+      items: [
+        { id: "passkeys", label: m.user_passkeys_title(), optional: true },
+        { id: "social-sign-in", label: m.settings_social_logins_title(), optional: true },
+        { id: "authorized-apps", label: m.settings_authorized_apps_title(), optional: true },
+        { id: "auth-key", label: m.settings_auth_key_title() },
+      ],
+    });
+  }
+  if (isAdmin) {
+    groups.push({
+      label: m.settings_admin(),
+      items: [
+        { id: "users", label: m.settings_users() },
+        { id: "ignored-ips", label: m.settings_ignored_ips() },
+        { id: "notifications", label: m.settings_notification_channels() },
+        { id: "email", label: m.settings_email() },
+        { id: "database", label: m.settings_database() },
+        { id: "oidc", label: m.settings_oidc() },
+        { id: "management-api", label: m.settings_management_api() },
+      ],
+    });
+  }
+  return groups;
 }
 
 // Self-service passkey management for the signed-in user. Adding a passkey runs
@@ -501,10 +551,11 @@ function PasskeysSection({ userId }: { userId: string }) {
 
 function PasskeysSectionHeader() {
   return (
-    <div className="mt-8 mb-5">
-      <h3 className="text-base font-semibold tracking-tight">{m.user_passkeys_title()}</h3>
-      <p className="mt-0.5 text-[13px] text-muted">{m.settings_passkeys_desc()}</p>
-    </div>
+    <SettingsSectionHeader
+      id="passkeys"
+      title={m.user_passkeys_title()}
+      description={m.settings_passkeys_desc()}
+    />
   );
 }
 
@@ -589,10 +640,11 @@ function PasskeyRow({
 function AuthKeySection({ userId }: { userId: string }) {
   return (
     <>
-      <div className="mt-8 mb-5">
-        <h3 className="text-base font-semibold tracking-tight">{m.settings_auth_key_title()}</h3>
-        <p className="mt-0.5 text-[13px] text-muted">{m.settings_auth_key_desc()}</p>
-      </div>
+      <SettingsSectionHeader
+        id="auth-key"
+        title={m.settings_auth_key_title()}
+        description={m.settings_auth_key_desc()}
+      />
 
       <div className="flex flex-col gap-3 rounded-lg border bg-surface px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[13px] text-muted">{m.user_manage_reset_desc()}</p>
@@ -672,10 +724,11 @@ function IgnoredConnectionIPsSection() {
 
   return (
     <>
-      <div className="mt-8 mb-5">
-        <h3 className="text-base font-semibold tracking-tight">{m.settings_ignored_ips()}</h3>
-        <p className="mt-0.5 text-[13px] text-muted">{m.settings_ignored_ips_desc()}</p>
-      </div>
+      <SettingsSectionHeader
+        id="ignored-ips"
+        title={m.settings_ignored_ips()}
+        description={m.settings_ignored_ips_desc()}
+      />
 
       <div className="rounded-lg border bg-surface p-5">
         {ignoredQuery.isPending ? (
@@ -772,10 +825,11 @@ function ManagementApiSection({
 
   return (
     <>
-      <div className="mt-8 mb-5">
-        <h3 className="text-base font-semibold tracking-tight">{m.settings_management_api()}</h3>
-        <p className="mt-0.5 text-[13px] text-muted">{m.settings_management_api_desc()}</p>
-      </div>
+      <SettingsSectionHeader
+        id="management-api"
+        title={m.settings_management_api()}
+        description={m.settings_management_api_desc()}
+      />
 
       <div className="flex flex-col gap-4 rounded-lg border bg-surface p-5">
         <LabeledSwitch
@@ -874,10 +928,11 @@ function OIDCSection({
 
   return (
     <>
-      <div className="mt-8 mb-5">
-        <h3 className="text-base font-semibold tracking-tight">{m.settings_oidc()}</h3>
-        <p className="mt-0.5 text-[13px] text-muted">{m.settings_oidc_desc()}</p>
-      </div>
+      <SettingsSectionHeader
+        id="oidc"
+        title={m.settings_oidc()}
+        description={m.settings_oidc_desc()}
+      />
 
       <div className="flex flex-col gap-4 rounded-lg border bg-surface p-5">
         <LabeledSwitch

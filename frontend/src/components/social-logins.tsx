@@ -11,6 +11,7 @@ import {
   type OAuthLink,
 } from "~/api/queries";
 import { OAuthProviderIcon } from "~/components/oauth-provider-icon";
+import { SettingsSectionHeader } from "~/components/settings-nav";
 import {
   DestructiveConfirmModal,
   ErrorAlert,
@@ -257,10 +258,11 @@ function UnlinkModal({ state }: { state: OAuthLinksState }) {
 
 function SocialLoginsHeader() {
   return (
-    <div className="mt-8 mb-5">
-      <h3 className="text-base font-semibold tracking-tight">{m.settings_social_logins_title()}</h3>
-      <p className="mt-0.5 text-[13px] text-muted">{m.settings_social_logins_desc()}</p>
-    </div>
+    <SettingsSectionHeader
+      id="social-sign-in"
+      title={m.settings_social_logins_title()}
+      description={m.settings_social_logins_desc()}
+    />
   );
 }
 

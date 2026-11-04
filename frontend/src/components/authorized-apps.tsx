@@ -18,6 +18,7 @@ import {
   TableSkeleton,
   Teaching,
 } from "~/components/ui";
+import { SettingsSectionHeader } from "~/components/settings-nav";
 import { relTimeFromISO } from "~/lib/format";
 import { formatScopes } from "~/lib/oidc-scopes";
 import { useHydratedNow } from "~/lib/use-hydrated-now";
@@ -76,12 +77,11 @@ export function AuthorizedAppsSection({ userId }: { userId: string }) {
 
   return (
     <>
-      <div className="mt-8 mb-5">
-        <h3 className="text-base font-semibold tracking-tight">
-          {m.settings_authorized_apps_title()}
-        </h3>
-        <p className="mt-0.5 text-[13px] text-muted">{m.settings_authorized_apps_desc()}</p>
-      </div>
+      <SettingsSectionHeader
+        id="authorized-apps"
+        title={m.settings_authorized_apps_title()}
+        description={m.settings_authorized_apps_desc()}
+      />
       <div className="overflow-hidden rounded-lg border bg-surface">
         <ErrorAlert message={state.listError} className="m-3" />
         <GrantList state={state} />

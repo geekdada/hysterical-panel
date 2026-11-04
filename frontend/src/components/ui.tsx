@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Column } from "@tanstack/react-table";
 import { Check, CircleInfo, Copy } from "@gravity-ui/icons";
@@ -29,24 +29,29 @@ import * as m from "~/paraglide/messages.js";
 // Page chrome shared by every signed-in page: the full-height background, the
 // sticky header bar, and the content <main>. `width` is the single source of
 // truth for content width so the header and main always line up — "wide" for
-// data-dense pages (dashboards, detail views), "narrow" for focused forms and
-// settings. headerLeft/headerRight fill the standard justify-between header row.
+// data-dense pages (dashboards, detail views), "medium" for pages with a side
+// nav (settings), "narrow" for focused forms. headerLeft/headerRight fill the
+// standard justify-between header row. The header's live height is exposed as
+// `--page-header-h` so sticky content can sit right below it.
 export function PageShell({
   width = "wide",
   headerLeft,
   headerRight,
   children,
 }: {
-  width?: "wide" | "narrow";
+  width?: PageWidth;
   headerLeft: ReactNode;
   headerRight?: ReactNode;
   children: ReactNode;
 }) {
-  const max = width === "narrow" ? "max-w-3xl" : "max-w-7xl";
+  const max = PAGE_MAX_WIDTH[width];
+  const rootRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useHeaderHeightVar(rootRef, headerRef);
   return (
     <BreadcrumbTitleProvider>
-      <div className="min-h-svh bg-background text-foreground">
-        <header className="sticky top-0 z-20 border-b border-border bg-surface">
+      <div ref={rootRef} className="min-h-svh bg-background text-foreground">
+        <header ref={headerRef} className="sticky top-0 z-20 border-b border-border bg-surface">
           <div className={`mx-auto flex h-12 ${max} items-center justify-between px-4 sm:px-6`}>
             {headerLeft}
             {headerRight}
@@ -57,6 +62,31 @@ export function PageShell({
       </div>
     </BreadcrumbTitleProvider>
   );
+}
+
+type PageWidth = "wide" | "medium" | "narrow";
+
+const PAGE_MAX_WIDTH: Record<PageWidth, string> = {
+  wide: "max-w-7xl",
+  medium: "max-w-5xl",
+  narrow: "max-w-3xl",
+};
+
+// The breadcrumb bar comes and goes per route, so the header height is measured.
+function useHeaderHeightVar(
+  rootRef: RefObject<HTMLDivElement | null>,
+  headerRef: RefObject<HTMLElement | null>
+) {
+  useEffect(() => {
+    const root = rootRef.current;
+    const header = headerRef.current;
+    if (!root || !header) return;
+    const sync = () => root.style.setProperty("--page-header-h", `${header.offsetHeight}px`);
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [rootRef, headerRef]);
 }
 
 // The "H" badge + wordmark shown on the left of top-level pages.
