@@ -77,9 +77,9 @@ export function AuthorizedAppsSection({ userId }: { userId: string }) {
   return (
     <>
       <div className="mt-8 mb-5">
-        <h2 className="text-base font-semibold tracking-tight">
+        <h3 className="text-base font-semibold tracking-tight">
           {m.settings_authorized_apps_title()}
-        </h2>
+        </h3>
         <p className="mt-0.5 text-[13px] text-muted">{m.settings_authorized_apps_desc()}</p>
       </div>
       <div className="overflow-hidden rounded-lg border bg-surface">

@@ -115,8 +115,10 @@ function SettingsPage() {
     >
       <h1 className="sr-only">{m.settings_title()}</h1>
 
-      <div className="mb-5">
-        <h2 className="text-base font-semibold tracking-tight">{m.settings_timezone()}</h2>
+      <h2 className="text-lg font-semibold tracking-tight">{m.settings_general()}</h2>
+
+      <div className="mt-4 mb-5">
+        <h3 className="text-base font-semibold tracking-tight">{m.settings_timezone()}</h3>
         <p className="mt-0.5 text-[13px] text-muted">{m.settings_timezone_desc()}</p>
       </div>
 
@@ -124,19 +126,29 @@ function SettingsPage() {
         <TimezoneSetting />
       </div>
 
-      {auth && <PasskeysSection userId={auth.user.id} />}
+      {auth && (
+        <>
+          <Separator className="mt-10 bg-separator" />
 
-      {auth && <SocialLoginsSection userId={auth.user.id} />}
-      {auth && <AuthorizedAppsSection userId={auth.user.id} />}
-      {auth && <AuthKeySection userId={auth.user.id} />}
+          <h2 className="mt-8 text-lg font-semibold tracking-tight">{m.settings_account()}</h2>
+
+          {/* Each section may render nothing. The first rendered one gets the tighter top margin. */}
+          <div className="[&>:first-child]:mt-4">
+            <PasskeysSection userId={auth.user.id} />
+            <SocialLoginsSection userId={auth.user.id} />
+            <AuthorizedAppsSection userId={auth.user.id} />
+            <AuthKeySection userId={auth.user.id} />
+          </div>
+        </>
+      )}
 
       {isAdmin && (
         <>
           <Separator className="mt-10 bg-separator" />
 
-          <h2 className="mt-10 text-lg font-semibold tracking-tight">{m.settings_admin()}</h2>
+          <h2 className="mt-8 text-lg font-semibold tracking-tight">{m.settings_admin()}</h2>
 
-          <div className="mt-6 mb-5">
+          <div className="mt-4 mb-5">
             <h3 className="text-base font-semibold tracking-tight">{m.settings_users()}</h3>
             <p className="mt-0.5 text-[13px] text-muted">{m.settings_users_desc()}</p>
           </div>
@@ -490,7 +502,7 @@ function PasskeysSection({ userId }: { userId: string }) {
 function PasskeysSectionHeader() {
   return (
     <div className="mt-8 mb-5">
-      <h2 className="text-base font-semibold tracking-tight">{m.user_passkeys_title()}</h2>
+      <h3 className="text-base font-semibold tracking-tight">{m.user_passkeys_title()}</h3>
       <p className="mt-0.5 text-[13px] text-muted">{m.settings_passkeys_desc()}</p>
     </div>
   );
@@ -578,7 +590,7 @@ function AuthKeySection({ userId }: { userId: string }) {
   return (
     <>
       <div className="mt-8 mb-5">
-        <h2 className="text-base font-semibold tracking-tight">{m.settings_auth_key_title()}</h2>
+        <h3 className="text-base font-semibold tracking-tight">{m.settings_auth_key_title()}</h3>
         <p className="mt-0.5 text-[13px] text-muted">{m.settings_auth_key_desc()}</p>
       </div>
 
