@@ -64,14 +64,6 @@ func DecideCondition(firing, met bool) Decision {
 	return DecisionKeep
 }
 
-// IsLowAllowance reports whether remaining is below percent of allowance.
-// The threshold is rounded up so the comparison matches exact arithmetic
-// without overflowing on large allowances.
-func IsLowAllowance(remaining, allowance, percent int64) bool {
-	threshold := allowance/100*percent + (allowance%100*percent+99)/100
-	return remaining < threshold
-}
-
 // IsExpiring reports whether a grant with no queued successor ends within days.
 func IsExpiring(remaining time.Duration, days int64, queued bool) bool {
 	return !queued && remaining < time.Duration(days)*24*time.Hour

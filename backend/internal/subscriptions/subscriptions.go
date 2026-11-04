@@ -266,3 +266,11 @@ func moveGrant(grant *core.Record, shift time.Duration) {
 	grant.Set("starts_at", grant.GetDateTime("starts_at").Time().Add(shift))
 	grant.Set("ends_at", grant.GetDateTime("ends_at").Time().Add(shift))
 }
+
+// IsLowAllowance reports whether remaining is below percent of allowance.
+// The threshold is rounded up so the comparison matches exact arithmetic
+// without overflowing on large allowances.
+func IsLowAllowance(remaining, allowance, percent int64) bool {
+	threshold := allowance/100*percent + (allowance%100*percent+99)/100
+	return remaining < threshold
+}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"hysterical-panel/internal/bytesize"
 )
 
 type notificationCopy struct {
@@ -210,9 +211,9 @@ func addLowAllowanceFields(content *notificationContent, value map[string]any, c
 	used := notificationInt64(value["used_tx_bytes"]) + notificationInt64(value["used_rx_bytes"])
 	// An over-allowance window shows zero remaining, as on the User page.
 	remaining := max(notificationInt64(value["remaining_bytes"]), 0)
-	content.add(copy.used, formatNotificationBytes(used))
-	content.add(copy.allowance, formatNotificationBytes(allowance))
-	content.add(copy.remaining, fmt.Sprintf("%s (%s)", formatNotificationBytes(remaining), formatNotificationPercent(remaining, allowance)))
+	content.add(copy.used, bytesize.Format(used))
+	content.add(copy.allowance, bytesize.Format(allowance))
+	content.add(copy.remaining, fmt.Sprintf("%s (%s)", bytesize.Format(remaining), formatNotificationPercent(remaining, allowance)))
 	content.add(copy.threshold, fmt.Sprintf("%d%%", notificationInt64(value["threshold_percent"])))
 	content.add(copy.windowEnds, fmt.Sprint(value["window_ends_at"]))
 }
@@ -276,22 +277,6 @@ func formatNotificationRate(bytesPerSecond int64) string {
 	}
 	if unit == 0 {
 		return fmt.Sprintf("%d %s", bytesPerSecond, units[unit])
-	}
-	return fmt.Sprintf("%.1f %s", value, units[unit])
-}
-
-// formatNotificationBytes uses binary units like the panel's subscription pages.
-func formatNotificationBytes(bytes int64) string {
-	bytes = max(bytes, 0)
-	units := []string{"B", "KiB", "MiB", "GiB", "TiB", "PiB"}
-	value := float64(bytes)
-	unit := 0
-	for value >= 1024 && unit < len(units)-1 {
-		value /= 1024
-		unit++
-	}
-	if unit == 0 {
-		return fmt.Sprintf("%d %s", bytes, units[unit])
 	}
 	return fmt.Sprintf("%.1f %s", value, units[unit])
 }

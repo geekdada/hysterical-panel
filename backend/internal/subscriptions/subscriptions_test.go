@@ -308,3 +308,29 @@ func TestRescheduleMayOverlapTerminatedGrants(t *testing.T) {
 		t.Fatalf("start before terminated grants: %v", err)
 	}
 }
+
+func TestIsLowAllowance(t *testing.T) {
+	cases := []struct {
+		name      string
+		remaining int64
+		allowance int64
+		percent   int64
+		want      bool
+	}{
+		{"exactly at threshold is not low", 10, 100, 10, false},
+		{"one byte below threshold is low", 9, 100, 10, true},
+		{"rounds the threshold up", 10, 101, 10, true},
+		{"exhausted is low", 0, 100, 10, true},
+		{"over allowance is low", -5, 100, 10, true},
+		{"top-up restores", 105, 200, 10, false},
+		{"huge allowance does not overflow", math.MaxInt64 / 10, math.MaxInt64, 10, true},
+		{"huge allowance above threshold", math.MaxInt64/10 + 1, math.MaxInt64, 10, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := subscriptions.IsLowAllowance(tc.remaining, tc.allowance, tc.percent); got != tc.want {
+				t.Fatalf("IsLowAllowance(%d, %d, %d) = %v, want %v", tc.remaining, tc.allowance, tc.percent, got, tc.want)
+			}
+		})
+	}
+}

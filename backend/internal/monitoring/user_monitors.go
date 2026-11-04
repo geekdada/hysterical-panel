@@ -126,7 +126,7 @@ func lowAllowanceCondition(monitor *core.Record, state *subscriptions.State) (bo
 		"window_ends_at":       dateString(state.WindowEndsAt()),
 		"subscription_ends_at": dateString(state.Grant.GetDateTime("ends_at").Time()),
 	}
-	return IsLowAllowance(state.Remaining, state.Allowance, percent), value, nil
+	return subscriptions.IsLowAllowance(state.Remaining, state.Allowance, percent), value, nil
 }
 
 func (s *Service) expiringCondition(monitor *core.Record, userID string, state *subscriptions.State, now time.Time) (bool, map[string]any, error) {
