@@ -106,6 +106,11 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"EmailSendoutRecipient":             EmailSendoutRecipient{},
 		"EmailSendoutResendRequest":         EmailSendoutResendRequest{},
 		"EmailSendoutResendResponse":        EmailSendoutResendResponse{},
+		"AutomaticEmailsResponse":           AutomaticEmailsResponse{},
+		"AutomaticEmailKindSummary":         AutomaticEmailKindSummary{},
+		"AutomaticEmailKindDetail":          AutomaticEmailKindDetail{},
+		"AutomaticEmailTemplateRequest":     AutomaticEmailTemplateRequest{},
+		"AutomaticEmailKindUpdateRequest":   AutomaticEmailKindUpdateRequest{},
 	}
 
 	schemas, err := generateSchemas(schemaDefs)
@@ -155,8 +160,12 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"OAuthLink":                      {"id", "provider", "created"},
 		"EmailSendoutCreateRequest":      {"subject", "language", "audience", "html", "text", "content"},
 		"EmailSendoutCounts":             {"total", "pending", "sent", "failed", "skipped", "cancelled"},
-		"EmailSendout":                   {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created"},
-		"EmailSendoutDetail":             {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created", "html", "text"},
+		"EmailSendout":                   {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created", "source"},
+		"EmailSendoutDetail":             {"id", "subject", "language", "audience", "status", "counts", "created_by_email", "created", "source", "html", "text"},
+		"AutomaticEmailsResponse":        {"smtp_enabled", "app_name", "frontend_url", "kinds"},
+		"AutomaticEmailKindSummary":      {"kind", "enabled", "subject", "has_template", "updated"},
+		"AutomaticEmailKindDetail":       {"kind", "enabled", "subject", "has_template", "updated", "html", "text"},
+		"AutomaticEmailTemplateRequest":  {"subject", "html", "text", "content"},
 		"EmailSendoutRecipient":          {"id", "user_id", "email", "status", "attempts", "queued_at"},
 		"EmailSendoutResendResponse":     {"requeued"},
 		"SettingsResponse":               {"email_sendout_rate_per_minute", "oidc_enabled", "oidc_issuer", "oidc_unavailable_reason"},
@@ -238,6 +247,9 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	}
 	for _, name := range []string{"EmailSendout", "EmailSendoutDetail"} {
 		if s, ok := schemas[name]; ok && s.Value != nil {
+			setEnum(s.Value.Properties, "language", []any{"en", "zh-cn", "bilingual"})
+			setEnum(s.Value.Properties, "source", []any{"manual", "automatic"})
+			setEnum(s.Value.Properties, "automatic_kind", []any{"low_allowance", "allowance_exhausted", "allowance_restored"})
 			setEnum(s.Value.Properties, "status", []any{"sending", "completed", "cancelled"})
 			s.Value.Properties["counts"] = &openapi3.SchemaRef{Ref: "#/components/schemas/EmailSendoutCounts"}
 		}
@@ -2225,6 +2237,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	t.Paths.Set("/api/panel/email-sendouts/context", &openapi3.PathItem{
 		Get: sendoutOp("getEmailSendoutContext", "Get the template inputs, SMTP availability and audience size", ref("EmailSendoutContextResponse"), ""),
 	})
+	t.Paths.Find("/api/panel/email-sendouts").Get.Parameters = openapi3.Parameters{sendoutQueryParam("source", "Only Sendouts from this source: manual or automatic")}
 	candidates := sendoutOp("listEmailSendoutCandidates", "Search active and verified Users by email", arrayRef("EmailSendoutRecipientCandidate"), "")
 	candidates.Parameters = openapi3.Parameters{sendoutQueryParam("search", "Email substring")}
 	t.Paths.Set("/api/panel/email-sendouts/eligible-recipients", &openapi3.PathItem{Get: candidates})
@@ -2248,6 +2261,8 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	resendSendout.Responses.Set("404", notFound)
 	resendSendout.Responses.Set("503", smtpUnavailable)
 	t.Paths.Set("/api/panel/email-sendouts/{id}/resend", &openapi3.PathItem{Parameters: sendoutIDParams, Post: resendSendout})
+
+	addAutomaticEmailPaths(t, ref, withAuth, notFound, badRequest)
 
 	return t, nil
 }
@@ -2297,4 +2312,37 @@ func writeSpecJSON(e *core.RequestEvent, spec *openapi3.T) error {
 	e.Response.WriteHeader(http.StatusOK)
 	_, err = e.Response.Write(b)
 	return err
+}
+
+func addAutomaticEmailPaths(t *openapi3.T, ref func(string) *openapi3.SchemaRef, withAuth func(*openapi3.Operation), notFound, badRequest *openapi3.ResponseRef) {
+	op := func(id, summary, response, body string) *openapi3.Operation {
+		o := &openapi3.Operation{
+			OperationID: id, Summary: summary, Tags: []string{"automatic emails"},
+			Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{Value: &openapi3.Response{
+				Description: ptr(summary),
+				Content:     openapi3.NewContentWithJSONSchemaRef(ref(response)),
+			}})),
+		}
+		if body != "" {
+			o.RequestBody = &openapi3.RequestBodyRef{Value: openapi3.NewRequestBody().WithRequired(true).WithJSONSchemaRef(ref(body))}
+			o.Responses.Set("400", badRequest)
+		}
+		withAuth(o)
+		return o
+	}
+	kindParam := &openapi3.ParameterRef{Value: &openapi3.Parameter{
+		Name: "kind", In: "path", Required: true, Description: "Automatic Email Kind",
+		Schema: &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Enum: []any{"low_allowance", "allowance_exhausted", "allowance_restored"}}},
+	}}
+	t.Paths.Set("/api/panel/automatic-emails", &openapi3.PathItem{
+		Get: op("listAutomaticEmails", "List Automatic Email Kinds with their switch and template state", "AutomaticEmailsResponse", ""),
+	})
+	get := op("getAutomaticEmail", "Get one Automatic Email Kind with its template", "AutomaticEmailKindDetail", "")
+	get.Responses.Set("404", notFound)
+	patch := op("updateAutomaticEmail", "Enable or disable a Kind, or set the low allowance threshold", "AutomaticEmailKindDetail", "AutomaticEmailKindUpdateRequest")
+	patch.Responses.Set("404", notFound)
+	t.Paths.Set("/api/panel/automatic-emails/{kind}", &openapi3.PathItem{Parameters: openapi3.Parameters{kindParam}, Get: get, Patch: patch})
+	put := op("saveAutomaticEmailTemplate", "Save a Kind's template", "AutomaticEmailKindDetail", "AutomaticEmailTemplateRequest")
+	put.Responses.Set("404", notFound)
+	t.Paths.Set("/api/panel/automatic-emails/{kind}/template", &openapi3.PathItem{Parameters: openapi3.Parameters{kindParam}, Put: put})
 }

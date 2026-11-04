@@ -159,6 +159,12 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.POST("/email-sendouts/{id}/cancel", h.cancelEmailSendout).Bind(adminOnly)
 	g.POST("/email-sendouts/{id}/resend", h.resendEmailSendout).Bind(adminOnly)
 
+	// automatic emails (ADR 0014)
+	g.GET("/automatic-emails", h.listAutomaticEmails).Bind(adminOnly)
+	g.GET("/automatic-emails/{kind}", h.getAutomaticEmail).Bind(adminOnly)
+	g.PUT("/automatic-emails/{kind}/template", h.saveAutomaticEmailTemplate).Bind(adminOnly)
+	g.PATCH("/automatic-emails/{kind}", h.updateAutomaticEmail).Bind(adminOnly)
+
 	// users
 	g.GET("/subscription-types", h.listSubscriptionTypes).Bind(adminOnly)
 	g.POST("/subscription-types", h.createSubscriptionType).Bind(adminOnly)

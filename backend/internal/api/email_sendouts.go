@@ -179,6 +179,10 @@ func publicEmailSendout(rec *core.Record, counts sendouts.Counts) EmailSendout {
 	if value := rec.GetString("cancelled_at"); value != "" {
 		cancelledAt = &value
 	}
+	var automaticKind *string
+	if value := rec.GetString("automatic_kind"); value != "" {
+		automaticKind = &value
+	}
 	return EmailSendout{
 		ID:       rec.Id,
 		Subject:  rec.GetString("subject"),
@@ -192,6 +196,8 @@ func publicEmailSendout(rec *core.Record, counts sendouts.Counts) EmailSendout {
 		CreatedByEmail: rec.GetString("created_by_email"),
 		Created:        rec.GetString("created"),
 		CancelledAt:    cancelledAt,
+		Source:         rec.GetString("source"),
+		AutomaticKind:  automaticKind,
 	}
 }
 
@@ -206,12 +212,17 @@ func (h *Handlers) findEmailSendout(id string) (*core.Record, error) {
 // listEmailSendouts covers publicEmailSendout's fields only, so a history
 // page never pulls every Sendout's stored html/text/content off disk.
 func (h *Handlers) listEmailSendouts(e *core.RequestEvent) error {
+	query := h.app.RecordQuery(sendouts.SendoutsCollection).
+		Select("id", "subject", "language", "audience", "created_by_email", "cancelled_at", "created", "source", "automatic_kind").
+		OrderBy("created DESC")
+	if source := e.Request.URL.Query().Get("source"); source != "" {
+		if source != sendouts.SourceManual && source != sendouts.SourceAutomatic {
+			return apis.NewBadRequestError("source must be manual or automatic", nil)
+		}
+		query = query.AndWhere(dbx.HashExp{"source": source})
+	}
 	var records []*core.Record
-	err := h.app.RecordQuery(sendouts.SendoutsCollection).
-		Select("id", "subject", "language", "audience", "created_by_email", "cancelled_at", "created").
-		OrderBy("created DESC").
-		All(&records)
-	if err != nil {
+	if err := query.All(&records); err != nil {
 		return apis.NewBadRequestError("failed to list email sendouts", err)
 	}
 	counts, err := sendouts.CountRecipients(h.app, "")

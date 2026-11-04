@@ -133,12 +133,16 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 | DELETE | `/resource-links/{id}` | 删除 |
 | GET | `/email-sendouts/context` | 写信页所需：`app_name`、`frontend_url`、`smtp_enabled`、可用 User 数、发送速率 |
 | GET | `/email-sendouts/eligible-recipients?search=` | 按邮箱子串查可用 User（`status=active && verified=true`），最多 20 条 |
-| GET | `/email-sendouts` | Email Sendout 列表（新到旧，含各状态计数与推导出的 `status`） |
+| GET | `/email-sendouts?source=` | Email Sendout 列表（新到旧，含各状态计数与推导出的 `status`、`source`、`automatic_kind`）；`source=manual\|automatic` 过滤，其他值 400 |
 | POST | `/email-sendouts` | 创建 Sendout 并入队（SMTP 未启用 503） |
 | GET | `/email-sendouts/{id}` | Sendout 详情，含原样存储的 `html` / `text` |
 | GET | `/email-sendouts/{id}/recipients?status=` | Sendout Recipient 列表 |
 | POST | `/email-sendouts/{id}/cancel` | 取消尚未发出的收件人 |
 | POST | `/email-sendouts/{id}/resend` | 把失败的收件人重新排到队尾（body `{ "recipient_ids": [] }`，空 = 全部失败项；SMTP 未启用 503） |
+| GET | `/automatic-emails` | 三种 Automatic Email Kind（`low_allowance` / `allowance_exhausted` / `allowance_restored`）的开关、阈值、模板状态，以及 `smtp_enabled`、`app_name`、`frontend_url` |
+| GET | `/automatic-emails/{kind}` | 单个 Kind 详情，含 `html` / `text` / `content`；未知 Kind 404 |
+| PUT | `/automatic-emails/{kind}/template` | 保存模板（body `{ subject, html, text, content }`）；未知占位符、被格式拆开的占位符、链接内的占位符均 400 |
+| PATCH | `/automatic-emails/{kind}` | 开关与阈值（body `{ enabled?, threshold_percent? }`）；无模板时启用 400；`threshold_percent` 仅 `low_allowance`，范围 1–99 |
 
 所有返回 node 的接口都已剥除 `api_secret`。
 

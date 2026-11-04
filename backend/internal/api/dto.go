@@ -838,6 +838,8 @@ type EmailSendout struct {
 	CreatedByEmail string             `json:"created_by_email"`
 	Created        string             `json:"created"`
 	CancelledAt    *string            `json:"cancelled_at,omitempty"`
+	Source         string             `json:"source"`
+	AutomaticKind  *string            `json:"automatic_kind,omitempty"`
 }
 
 // EmailSendoutDetail adds the stored content to a Sendout.
@@ -988,4 +990,44 @@ type ResourceLinkOrderRequest struct {
 // ResourceLinkVisitResponse is the target a public visit resolves to.
 type ResourceLinkVisitResponse struct {
 	URL string `json:"url"`
+}
+
+// AutomaticEmailsResponse lists every Automatic Email Kind with the inputs the
+// template editor needs for its preview frame.
+type AutomaticEmailsResponse struct {
+	SMTPEnabled bool                        `json:"smtp_enabled"`
+	AppName     string                      `json:"app_name"`
+	FrontendURL string                      `json:"frontend_url"`
+	Kinds       []AutomaticEmailKindSummary `json:"kinds"`
+}
+
+// AutomaticEmailKindSummary is one Kind's switch and template state.
+// ThresholdPercent is only present for low_allowance.
+type AutomaticEmailKindSummary struct {
+	Kind             string `json:"kind"`
+	Enabled          bool   `json:"enabled"`
+	ThresholdPercent *int   `json:"threshold_percent,omitempty"`
+	Subject          string `json:"subject"`
+	HasTemplate      bool   `json:"has_template"`
+	Updated          string `json:"updated"`
+}
+
+// AutomaticEmailKindDetail adds the stored template body to a Kind.
+type AutomaticEmailKindDetail struct {
+	AutomaticEmailKindSummary
+	HTML    string         `json:"html"`
+	Text    string         `json:"text"`
+	Content map[string]any `json:"content"`
+}
+
+type AutomaticEmailTemplateRequest struct {
+	Subject string         `json:"subject"`
+	HTML    string         `json:"html"`
+	Text    string         `json:"text"`
+	Content map[string]any `json:"content"`
+}
+
+type AutomaticEmailKindUpdateRequest struct {
+	Enabled          *bool `json:"enabled,omitempty"`
+	ThresholdPercent *int  `json:"threshold_percent,omitempty"`
 }

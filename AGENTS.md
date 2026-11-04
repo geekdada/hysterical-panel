@@ -20,6 +20,7 @@
 - 面板登录支持密码 + passkey（WebAuthn）+ PocketBase 邮箱验证码 OTP（免密码，非 MFA）+ PocketBase OAuth2（只登录已有账号，不注册）；可选开启 Management API（Bearer token）供外部系统建号 / 查号、管理订阅与管理节点。
 - 可选的 OIDC Provider：admin 登记 Connected App 后，其他站点可用面板账号登录（Authorization Code + PKCE，见 ADR-0010）。只发 `sub` / `email` / `email_verified`，不发 Auth String。
 - 可选的 Email Sendout：admin 在面板里写事务邮件，经 PocketBase SMTP 发给一个或全部可用 User；持久化队列、只发一次、失败手动重发，见 ADR-0008。
+- 可选的 Automatic Emails：admin 为 low allowance / allowance exhausted / allowance restored 三种 Kind 各存一份模板并开关，面板每 60s 扫描并经 Email Sendout 队列发给触发状态变化的 User；失败可在 Sendout 历史手动重发，见 ADR-0014。
 - Resource Links：admin 维护一组对所有已登录 User 可见的有序外链；保存时抓取一次标题与 favicon，点击经公开端点计数后跳转，面板只保存元数据与图标副本。
 - **不做**：支付/账单、节点部署。订阅仅作为节点访问与流量额度门禁，见 `docs/subscriptions.md`。Monitoring 支持基于 Observation 的 Node Monitor（offline / high-traffic）和基于订阅状态的 User Monitor（low allowance / expiring subscription，ADR-0009），共用 Alert 生命周期与自动 Notification；投递异步且只尝试一次，不做重试队列、提醒、确认或审计日志。
 
@@ -150,6 +151,7 @@ hysterical-panel/
 │       ├── currentspeed/       User×Node Current Speed 的按节点清零
 │       ├── oidc/               OIDC Provider 核心：授权请求、同意、code / token、签名密钥、清理 cron、`oidc rotate-signing-key` CLI
 │       ├── sendouts/           Email Sendout 队列（创建/取消/重发/计数）+ 单 worker 限速投递
+│       ├── automaticemails/    Automatic Email Kind、状态转换判定、模板校验与渲染、扫描服务
 │       ├── linkmeta/           外链页面标题与 favicon 抓取（体积/重定向/超时上限）+ test
 │       └── api/                /api/panel 路由（+ /api/mgmt、公开回调）
 │           ├── api.go          路由注册 + 4 个鉴权守卫（含 verified / active 门禁）+ 脱敏辅助 + nodesForUser
@@ -264,6 +266,8 @@ hysterical-panel/
 
 `email_sendouts` / `email_sendout_recipients`：Email Sendout 与每个收件人一行。Sendout 保存浏览器生成、原样发送的 `html` / `text` 与 editor JSON `content`、`language`、`audience`（`single`/`all`）、`created_by` + `created_by_email` 快照、`cancelled_at`；状态不落库，由 Recipient 计数推导。Recipient 的 `status` 为 `pending`/`sending`/`sent`/`failed`/`skipped`/`cancelled`，`reason` 为安全错误码，`email` 记录最近一次投递的地址；User 删除后 `user` 置空而行保留。历史永久保留。
 
+`email_sendouts` 另有 `source`（`manual`/`automatic`，必填）与可选 `automatic_kind`；自动邮件的 `language` 为 `bilingual`。`automatic_email_templates`：每个 Kind 一行（迁移 seed 三行），`kind`、`enabled`、`threshold_percent`（`low_allowance` 默认 10，其余 0）、`subject`、`html`、`text`、`content`（json）；Kind 无模板（subject/html/text 任一为空）时不可启用。`automatic_email_states`：每个 User 一行，以 `low` / `exhausted` 布尔值记录上次扫描观察到的状态，用于判定转换。
+
 `oidc_clients`：Connected App。`client_id`（unique）、`name`、`secret_hash`（**Hidden**，sha256 hex）、`redirect_uris` / `allowed_scopes`（json）、`refresh_enabled`、`skip_consent`、`enabled`、`created_by`、`last_used_at`。
 `oidc_grants`：User 对 Connected App 的已记住同意（Authorized App）。`user` + `client` 在 `revoked_at = ''` 时唯一，`scopes`、`revoked_at`、`revoke_reason`、`last_used_at`。
 `oidc_auth_requests`（10min）/ `oidc_codes`（60s，单次）/ `oidc_tokens`（`kind` access 10min / refresh 闲置 30 天、最长 90 天，按 `family` 整条撤销）：handle、code、token 都只存 sha256（**Hidden**）。
@@ -320,6 +324,7 @@ hysterical-panel/
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts`、`GET /users/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段（含 kind、阈值）会静默 cancel 旧 Alert 并立即重评估。User Monitor 请求传 `evaluation_window_seconds` / `node_scope` / 非空 `node_ids` 返回 400。
 - OIDC 接口均进 OpenAPI：`GET|POST /oidc-clients`、`PATCH|DELETE /oidc-clients/{id}`、`POST /oidc-clients/{id}/rotate-secret` 仅 admin；同意页用的 `GET /oidc/requests/{handle}`、`POST /oidc/requests/{handle}/approve` 要求已登录且通过 `oidc.UserMayUse`，`deny` 只要求已登录；`POST /oidc/requests/{handle}/abort` 公开，持有 handle 即可结束请求（`prompt=none` 回 `login_required`，其余回 `access_denied`），与 `/authorize` 共用每 IP 60 次/分钟额度。这四个同意页接口在提供方关闭时 404。`GET /users/{id}/oidc-grants`、`DELETE /users/{id}/oidc-grants/{grantId}` 走 `requireActiveAdminOrSelf`。见决策 #11。
 - Email Sendout 接口 `GET /email-sendouts/context`、`GET /email-sendouts/eligible-recipients`、`GET|POST /email-sendouts`、`GET /email-sendouts/{id}`、`GET /email-sendouts/{id}/recipients`、`POST /email-sendouts/{id}/cancel|resend` 均仅 admin、进 OpenAPI。创建与重发在 SMTP 未启用时 503；worker 语义见 backend/README.md 与 ADR-0008。
+- Automatic Emails 接口 `GET /automatic-emails`、`GET /automatic-emails/{kind}`、`PUT /automatic-emails/{kind}/template`、`PATCH /automatic-emails/{kind}` 均仅 admin、进 OpenAPI；未知 Kind 404。保存模板时 `ValidateTemplate` 的错误映射为 400；无模板启用、`threshold_percent` 越界（1–99）或用于非 low Kind 均 400。`GET /email-sendouts?source=manual|automatic` 过滤历史，其他值 400，响应带 `source` 与 `automatic_kind`。
 - `GET /api/panel/config`（公开）回静态字段（`api_url` 来自 `PANEL_BACKEND_URL_BASE`、`frontend_url`、`version`、`passkeys_enabled`）+ **实时**读 `app_settings` 的 `registration_open` / `registration_require_invite` / `invitations_enabled`，供 `/login`、`/register` 渲染入口；`app_name` 实时取 PocketBase `Settings → Application Name`，前端品牌名、徽标首字母与 `<title>` 都用它（`src/lib/use-app-name.ts`，取不到时回退 `m.app_title()`）。迁移 `1730000031` 把 PocketBase 默认的 `Acme` 改为 `Hysterical Panel`，已自定义的名称不动。
 - `live` 接口（用户：`GET /users/{id}/live`；节点：`GET /nodes/{id}/live`）是实时 streams 诊断核心：并发拉可见节点的 `/dump/streams`（5s 超时），把稳定 `user.id` 与全部历史 Auth String 统一归属后，聚合出 `active_streams` / `by_node` / `top_domains`（按 hooked_req_addr 域名聚合）/ `by_connection`（按客户端连接分组）。单节点失败在 `by_node` 标 `error`，不阻塞整体。**不缓存、不入库。** 在线设备数来自 Collector 的最新 `/online` 投影，不属于 live 响应。Top domains 只对已是 IP 字面量的目标做本地 MMDB 查询（`internal/ipmeta`），补 ASN / 国家与 IPv4 的 ipinfo.io 链接，**不做 DNS 解析**。
 
