@@ -22,6 +22,10 @@ type Draft struct {
 	HTML     string
 	Text     string
 	Content  any
+
+	// Source defaults to SourceManual when empty.
+	Source        string
+	AutomaticKind string
 }
 
 // Create stores a Sendout and queues one pending Sendout Recipient per User in
@@ -51,11 +55,20 @@ func saveSendout(app core.App, draft Draft, createdBy *core.Record) (*core.Recor
 	rec.Set("html", draft.HTML)
 	rec.Set("text", draft.Text)
 	rec.Set("content", draft.Content)
+	rec.Set("source", sourceOrManual(draft.Source))
+	rec.Set("automatic_kind", draft.AutomaticKind)
 	if createdBy != nil {
 		rec.Set("created_by", createdBy.Id)
 		rec.Set("created_by_email", createdBy.Email())
 	}
 	return rec, app.Save(rec)
+}
+
+func sourceOrManual(source string) string {
+	if source == "" {
+		return SourceManual
+	}
+	return source
 }
 
 func queueRecipients(app core.App, sendoutID string, users []*core.Record, now time.Time) error {

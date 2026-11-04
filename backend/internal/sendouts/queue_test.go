@@ -201,3 +201,28 @@ func TestDeletingUsersKeepsSendoutHistory(t *testing.T) {
 		t.Fatalf("sendout after creator delete = %v, want cleared relation and kept email", kept)
 	}
 }
+
+func TestCreateStoresSource(t *testing.T) {
+	app := newTestApp(t)
+	user := newTestUser(t, app, "user@example.com", "active", true)
+
+	draft := testDraft()
+	draft.Source = SourceAutomatic
+	draft.AutomaticKind = "low_allowance"
+	draft.Language = LanguageBilingual
+	sendout, err := Create(app, draft, []*core.Record{user}, nil, testNow)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if sendout.GetString("source") != SourceAutomatic || sendout.GetString("automatic_kind") != "low_allowance" || sendout.GetString("language") != LanguageBilingual {
+		t.Fatalf("stored source/kind/language = %q/%q/%q", sendout.GetString("source"), sendout.GetString("automatic_kind"), sendout.GetString("language"))
+	}
+
+	manual, err := Create(app, testDraft(), []*core.Record{user}, nil, testNow)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if manual.GetString("source") != SourceManual {
+		t.Fatalf("empty Source stored %q, want manual", manual.GetString("source"))
+	}
+}

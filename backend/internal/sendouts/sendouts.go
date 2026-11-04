@@ -17,6 +17,13 @@ const (
 	AudienceSingle = "single"
 	AudienceAll    = "all"
 
+	SourceManual    = "manual"
+	SourceAutomatic = "automatic"
+
+	// LanguageBilingual is only used by Automatic Emails; manual Sendouts pick
+	// one of Languages.
+	LanguageBilingual = "bilingual"
+
 	StatusPending   = "pending"
 	StatusSending   = "sending"
 	StatusSent      = "sent"
