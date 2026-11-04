@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Button, Label, ListBox, Select } from "@heroui/react";
+import { Button, Label, ListBox, Select, Separator } from "@heroui/react";
 import {
   Bell,
   Calendar,
@@ -113,8 +113,10 @@ function SettingsPage() {
       headerLeft={<BrandLink />}
       headerRight={auth ? <UserMenu auth={auth} /> : undefined}
     >
+      <h1 className="sr-only">{m.settings_title()}</h1>
+
       <div className="mb-5">
-        <h1 className="text-base font-semibold tracking-tight">{m.settings_timezone()}</h1>
+        <h2 className="text-base font-semibold tracking-tight">{m.settings_timezone()}</h2>
         <p className="mt-0.5 text-[13px] text-muted">{m.settings_timezone_desc()}</p>
       </div>
 
@@ -130,8 +132,12 @@ function SettingsPage() {
 
       {isAdmin && (
         <>
-          <div className="mt-8 mb-5">
-            <h1 className="text-base font-semibold tracking-tight">{m.settings_users()}</h1>
+          <Separator className="mt-10 bg-separator" />
+
+          <h2 className="mt-10 text-lg font-semibold tracking-tight">{m.settings_admin()}</h2>
+
+          <div className="mt-6 mb-5">
+            <h3 className="text-base font-semibold tracking-tight">{m.settings_users()}</h3>
             <p className="mt-0.5 text-[13px] text-muted">{m.settings_users_desc()}</p>
           </div>
 
@@ -210,9 +216,9 @@ function SettingsPage() {
           <IgnoredConnectionIPsSection />
 
           <div className="mt-8 mb-5">
-            <h1 className="text-base font-semibold tracking-tight">
+            <h3 className="text-base font-semibold tracking-tight">
               {m.settings_notification_channels()}
-            </h1>
+            </h3>
             <p className="mt-0.5 text-[13px] text-muted">
               {m.settings_notification_channels_desc()}
             </p>
@@ -259,7 +265,7 @@ function SettingsPage() {
           </Link>
 
           <div className="mt-8 mb-5">
-            <h1 className="text-base font-semibold tracking-tight">{m.settings_email()}</h1>
+            <h3 className="text-base font-semibold tracking-tight">{m.settings_email()}</h3>
             <p className="mt-0.5 text-[13px] text-muted">{m.settings_email_desc()}</p>
           </div>
 
@@ -296,7 +302,7 @@ function SettingsPage() {
           </Link>
 
           <div className="mt-8 mb-5">
-            <h1 className="text-base font-semibold tracking-tight">{m.settings_database()}</h1>
+            <h3 className="text-base font-semibold tracking-tight">{m.settings_database()}</h3>
             <p className="mt-0.5 text-[13px] text-muted">{m.settings_database_desc()}</p>
           </div>
 
@@ -484,7 +490,7 @@ function PasskeysSection({ userId }: { userId: string }) {
 function PasskeysSectionHeader() {
   return (
     <div className="mt-8 mb-5">
-      <h1 className="text-base font-semibold tracking-tight">{m.user_passkeys_title()}</h1>
+      <h2 className="text-base font-semibold tracking-tight">{m.user_passkeys_title()}</h2>
       <p className="mt-0.5 text-[13px] text-muted">{m.settings_passkeys_desc()}</p>
     </div>
   );
@@ -572,7 +578,7 @@ function AuthKeySection({ userId }: { userId: string }) {
   return (
     <>
       <div className="mt-8 mb-5">
-        <h1 className="text-base font-semibold tracking-tight">{m.settings_auth_key_title()}</h1>
+        <h2 className="text-base font-semibold tracking-tight">{m.settings_auth_key_title()}</h2>
         <p className="mt-0.5 text-[13px] text-muted">{m.settings_auth_key_desc()}</p>
       </div>
 
@@ -655,7 +661,7 @@ function IgnoredConnectionIPsSection() {
   return (
     <>
       <div className="mt-8 mb-5">
-        <h1 className="text-base font-semibold tracking-tight">{m.settings_ignored_ips()}</h1>
+        <h3 className="text-base font-semibold tracking-tight">{m.settings_ignored_ips()}</h3>
         <p className="mt-0.5 text-[13px] text-muted">{m.settings_ignored_ips_desc()}</p>
       </div>
 
@@ -755,7 +761,7 @@ function ManagementApiSection({
   return (
     <>
       <div className="mt-8 mb-5">
-        <h1 className="text-base font-semibold tracking-tight">{m.settings_management_api()}</h1>
+        <h3 className="text-base font-semibold tracking-tight">{m.settings_management_api()}</h3>
         <p className="mt-0.5 text-[13px] text-muted">{m.settings_management_api_desc()}</p>
       </div>
 
@@ -857,7 +863,7 @@ function OIDCSection({
   return (
     <>
       <div className="mt-8 mb-5">
-        <h1 className="text-base font-semibold tracking-tight">{m.settings_oidc()}</h1>
+        <h3 className="text-base font-semibold tracking-tight">{m.settings_oidc()}</h3>
         <p className="mt-0.5 text-[13px] text-muted">{m.settings_oidc_desc()}</p>
       </div>
 
