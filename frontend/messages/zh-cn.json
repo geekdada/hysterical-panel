@@ -534,6 +534,7 @@
   "user_manage_reset_confirm_title": "重置认证密钥",
   "user_manage_reset_confirm_body": "这将替换当前的认证密钥，并断开仍在使用它的客户端。客户端需更新配置后才能重新连接。",
   "user_manage_reset_done": "认证密钥已重置",
+  "user_manage_reset_done_confirm": "确认",
   "user_manage_reset_new_key_hint": "请立即复制新密钥，客户端下次连接时需使用它。",
   "user_manage_reset_cancel": "取消",
   "user_manage_reset_submitting": "重置中...",

@@ -110,7 +110,7 @@ function ResetAuthKeyModal({
           </Modal.Body>
           <Modal.Footer>
             <Button slot="close" variant="secondary">
-              {result ? m.common_cancel() : m.user_manage_reset_cancel()}
+              {result ? m.user_manage_reset_done_confirm() : m.user_manage_reset_cancel()}
             </Button>
             {!result && (
               <Button variant="danger" isPending={pending} isDisabled={pending} onPress={onConfirm}>

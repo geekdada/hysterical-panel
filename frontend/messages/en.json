@@ -534,6 +534,7 @@
   "user_manage_reset_confirm_title": "Reset auth key",
   "user_manage_reset_confirm_body": "This replaces the current auth key and disconnects clients still using it. They must update their config to reconnect.",
   "user_manage_reset_done": "Auth key reset",
+  "user_manage_reset_done_confirm": "Confirm",
   "user_manage_reset_new_key_hint": "Copy the new key now. Clients must use it on the next connect.",
   "user_manage_reset_cancel": "Cancel",
   "user_manage_reset_submitting": "Resetting...",
