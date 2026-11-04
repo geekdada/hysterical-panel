@@ -110,6 +110,10 @@ func addSendoutSource(app core.App) error {
 }
 
 func removeSendoutSource(app core.App) error {
+	// Raw SQL bypasses cascade delete, so remove the recipients first.
+	if _, err := app.DB().NewQuery("DELETE FROM email_sendout_recipients WHERE sendout IN (SELECT id FROM email_sendouts WHERE source = 'automatic' OR language = 'bilingual')").Execute(); err != nil {
+		return err
+	}
 	// Automatic Sendouts cannot exist without the fields and value being removed.
 	if _, err := app.DB().NewQuery("DELETE FROM email_sendouts WHERE source = 'automatic' OR language = 'bilingual'").Execute(); err != nil {
 		return err

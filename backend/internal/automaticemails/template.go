@@ -6,8 +6,10 @@ import (
 	"math/big"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"hysterical-panel/internal/bytesize"
+	"hysterical-panel/internal/sendouts"
 	"hysterical-panel/internal/subscriptions"
 )
 
@@ -22,7 +24,8 @@ type Template struct{ Subject, HTML, Text string }
 
 const timeLayout = "2006-01-02 15:04 UTC"
 
-var placeholderPattern = regexp.MustCompile(`\{\{([a-z_]+)\}\}`)
+// Names match case-insensitively because plain-text conversion uppercases headings.
+var placeholderPattern = regexp.MustCompile(`\{\{([A-Za-z_]+)\}\}`)
 
 var knownPlaceholders = map[string]bool{
 	"email": true, "remaining": true, "allowance": true, "used": true,
@@ -33,7 +36,7 @@ var knownPlaceholders = map[string]bool{
 func placeholderNames(s string) map[string]bool {
 	names := map[string]bool{}
 	for _, match := range placeholderPattern.FindAllStringSubmatch(s, -1) {
-		names[match[1]] = true
+		names[strings.ToLower(match[1])] = true
 	}
 	return names
 }
@@ -94,15 +97,23 @@ func remainingPercent(remaining, allowance int64) string {
 // Render substitutes known placeholders. Unknown ones are left untouched.
 func Render(t Template, vars map[string]string) Template {
 	return Template{
-		Subject: substitute(t.Subject, vars, false),
+		Subject: truncateRunes(substitute(t.Subject, vars, false), sendouts.MaxSubjectRunes),
 		HTML:    substitute(t.HTML, vars, true),
 		Text:    substitute(t.Text, vars, false),
 	}
 }
 
+// truncateRunes keeps the subject within the sendout limit once values are filled in.
+func truncateRunes(s string, limit int) string {
+	if utf8.RuneCountInString(s) <= limit {
+		return s
+	}
+	return string([]rune(s)[:limit])
+}
+
 func substitute(s string, vars map[string]string, escape bool) string {
 	return placeholderPattern.ReplaceAllStringFunc(s, func(match string) string {
-		value, ok := vars[placeholderPattern.FindStringSubmatch(match)[1]]
+		value, ok := vars[strings.ToLower(placeholderPattern.FindStringSubmatch(match)[1])]
 		if !ok {
 			return match
 		}

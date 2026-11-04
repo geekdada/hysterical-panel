@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -311,5 +312,24 @@ func TestScanRendersRecipientAndSource(t *testing.T) {
 	}
 	if f.notifier.calls != 1 {
 		t.Fatalf("notify calls = %d, want 1", f.notifier.calls)
+	}
+}
+
+func TestScanTruncatesRenderedSubjectToSendoutLimit(t *testing.T) {
+	f := newFixture(t, 100)
+	f.user.SetEmail(strings.Repeat("a", 60) + "@example.com")
+	if err := f.app.Save(f.user); err != nil {
+		t.Fatalf("save user: %v", err)
+	}
+	f.setTemplate(KindLowAllowance, true, strings.Repeat("é", 190)+"{{email}}", "<p>{{email}}</p>", "{{email}}")
+	f.useWindow(95, 0)
+	f.scan(scanStart.Add(time.Hour))
+	f.wantKinds("low_allowance")
+	rows, err := f.app.FindAllRecords(sendouts.SendoutsCollection)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("sendouts = %d (%v)", len(rows), err)
+	}
+	if got := utf8.RuneCountInString(rows[0].GetString("subject")); got != sendouts.MaxSubjectRunes {
+		t.Fatalf("subject runes = %d, want %d", got, sendouts.MaxSubjectRunes)
 	}
 }

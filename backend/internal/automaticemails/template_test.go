@@ -75,3 +75,24 @@ func TestVariables(t *testing.T) {
 		t.Fatalf("vars = %v", vars)
 	}
 }
+
+func TestValidateTemplateIgnoresPlaceholderCase(t *testing.T) {
+	err := ValidateTemplate(Template{Subject: "s", HTML: "<h1>{{remaining}}</h1>", Text: "{{REMAINING}}"})
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+}
+
+func TestValidateTemplateRejectsUnknownPlaceholderInAnyCase(t *testing.T) {
+	err := ValidateTemplate(Template{Subject: "s", HTML: "<p>x</p>", Text: "{{BOGUS}}"})
+	if !errors.Is(err, ErrUnknownPlaceholder) {
+		t.Fatalf("err = %v, want ErrUnknownPlaceholder", err)
+	}
+}
+
+func TestRenderFillsUppercasePlaceholder(t *testing.T) {
+	got := Render(Template{Subject: "s", HTML: "<p>{{remaining}}</p>", Text: "{{REMAINING}}"}, map[string]string{"remaining": "1 KiB"})
+	if got.Text != "1 KiB" || got.HTML != "<p>1 KiB</p>" {
+		t.Fatalf("text %q html %q", got.Text, got.HTML)
+	}
+}

@@ -41,6 +41,9 @@ const (
 	SendoutStatusCompleted = "completed"
 	SendoutStatusCancelled = "cancelled"
 
+	// MaxSubjectRunes mirrors the Max of the email_sendouts subject field.
+	MaxSubjectRunes = 200
+
 	DefaultRatePerMinute = 30
 	MinRatePerMinute     = 1
 	MaxRatePerMinute     = 600

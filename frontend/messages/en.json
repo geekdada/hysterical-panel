@@ -994,7 +994,7 @@
   "automatic_email_placeholder_remaining": "Allowance left in the current window",
   "automatic_email_placeholder_allowance": "The current window's allowance, top-ups included",
   "automatic_email_placeholder_used": "Traffic used in the current window",
-  "automatic_email_placeholder_remaining_percent": "Allowance left as a whole percent",
+  "automatic_email_placeholder_remaining_percent": "Allowance left as a whole percent, including the % sign",
   "automatic_email_placeholder_window_starts_at": "When the current window started, in UTC",
   "automatic_email_placeholder_window_ends_at": "When the current window ends and the allowance resets, in UTC",
   "automatic_email_placeholder_subscription_ends_at": "When the user's subscription ends, in UTC",

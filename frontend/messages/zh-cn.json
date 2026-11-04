@@ -994,7 +994,7 @@
   "automatic_email_placeholder_remaining": "当前周期剩余流量",
   "automatic_email_placeholder_allowance": "当前周期额度，含加额",
   "automatic_email_placeholder_used": "当前周期已用流量",
-  "automatic_email_placeholder_remaining_percent": "剩余流量百分比，取整数",
+  "automatic_email_placeholder_remaining_percent": "剩余流量百分比，取整数，已含 % 符号",
   "automatic_email_placeholder_window_starts_at": "当前周期开始时间，UTC",
   "automatic_email_placeholder_window_ends_at": "当前周期结束、额度重置的时间，UTC",
   "automatic_email_placeholder_subscription_ends_at": "订阅结束时间，UTC",

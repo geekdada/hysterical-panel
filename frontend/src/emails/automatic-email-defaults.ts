@@ -23,12 +23,12 @@ export const automaticEmailDefaults: Record<
     content: bilingualDocument(
       [
         "你的当前订阅流量即将用完。",
-        "剩余 {{remaining}}（{{remaining_percent}}%），总额度 {{allowance}}。",
+        "剩余 {{remaining}}（{{remaining_percent}}），总额度 {{allowance}}。",
         "当前周期结束时间：{{window_ends_at}}。",
       ],
       [
         "Your traffic allowance is running low.",
-        "Remaining: {{remaining}} ({{remaining_percent}}%) of {{allowance}}.",
+        "Remaining: {{remaining}} ({{remaining_percent}}) of {{allowance}}.",
         "The current period ends at {{window_ends_at}}.",
       ]
     ),

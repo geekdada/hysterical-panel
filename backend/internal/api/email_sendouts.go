@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	maxSendoutSubjectRunes = 200
+	maxSendoutSubjectRunes = sendouts.MaxSubjectRunes
 	maxSendoutHTMLBytes    = 1_000_000
 	maxSendoutTextBytes    = 256_000
 	maxSendoutContentBytes = 1 << 20
