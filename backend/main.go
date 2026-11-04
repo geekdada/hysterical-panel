@@ -16,6 +16,7 @@ import (
 	_ "hysterical-panel/migrations"
 
 	"hysterical-panel/internal/api"
+	"hysterical-panel/internal/automaticemails"
 	"hysterical-panel/internal/collector"
 	"hysterical-panel/internal/config"
 	"hysterical-panel/internal/cryptobox"
@@ -114,6 +115,7 @@ func main() {
 		monitorService := monitoring.New(app, box, notifications.New(), frontendURL)
 		monitorService.BindHooks()
 		sendoutService := sendouts.New(app)
+		automaticEmails := automaticemails.New(app, sendoutService, frontendURL)
 
 		// register custom panel routes
 		handlers := api.Register(se, app, box, ipLookup, passkeys, monitorService, sendoutService, api.PanelConfigResponse{
@@ -130,6 +132,7 @@ func main() {
 		handlers.StartSubscriptionExpiry(ctx)
 		monitorService.Start(ctx)
 		sendoutService.Start(ctx)
+		automaticEmails.Start(ctx)
 		oidc.ScheduleCleanup(app)
 
 		// stop the collector when the app terminates
