@@ -516,7 +516,14 @@ type PasskeyFinishRequest struct {
 	Name        *string        `json:"name,omitempty"`
 }
 
-// PanelAuthResponse is the PocketBase-compatible auth response returned by passkey login.
+// PasswordChangeRequest sets a new panel password for the signed-in User.
+type PasswordChangeRequest struct {
+	Password        string `json:"password"`
+	PasswordConfirm string `json:"password_confirm"`
+}
+
+// PanelAuthResponse is the PocketBase-compatible auth response returned by
+// passkey login and password change.
 type PanelAuthResponse struct {
 	Token  string    `json:"token"`
 	Record PanelUser `json:"record"`

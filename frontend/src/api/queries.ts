@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { fetchLoginMethods } from "./auth";
 import { apiClient } from "./client";
+import { writeAuthCookie } from "./cookie";
 import { fetchPanelConfig } from "./panel-config";
 import {
   getSessionRecoveryFailed,
@@ -207,6 +208,7 @@ export const queryKeys = {
   config: () => [...queryKeys.all, "config"] as const,
   loginMethods: () => [...queryKeys.all, "login-methods"] as const,
   userOAuthLinks: (userId: string) => [...queryKeys.all, "users", userId, "oauth-links"] as const,
+  userPasskeys: (userId: string) => [...queryKeys.all, "users", userId, "passkeys"] as const,
   dashboardBase: () => [...queryKeys.all, "dashboard"] as const,
   dashboardNodes: () => [...queryKeys.dashboardBase(), "nodes"] as const,
   dashboardNodeTraffic: (range: TrafficRangeQuery | null) =>
@@ -557,6 +559,27 @@ export function resetUserAuthString(id: string): Promise<PanelUser> {
     m.error_user_reset_auth(),
     m.error_user_reset_auth_network()
   );
+}
+
+/**
+ * Sets a new password for the signed-in user. The backend signs out every other
+ * session and returns a replacement token, which keeps this one signed in.
+ */
+export async function changeOwnPassword(
+  id: string,
+  password: string,
+  passwordConfirm: string
+): Promise<void> {
+  const auth = await apiRequest<components["schemas"]["PanelAuthResponse"]>(
+    apiClient.POST("/api/panel/users/{id}/password", {
+      params: { path: { id } },
+      body: { password, password_confirm: passwordConfirm },
+    }),
+    m.error_password_change(),
+    m.error_password_change_network()
+  );
+  if (!auth.token) throw new Error(m.error_password_change());
+  writeAuthCookie(auth.token, auth.record);
 }
 
 export function fetchDashboardTraffic(range: TrafficRangeQuery): Promise<PanelTraffic | null> {

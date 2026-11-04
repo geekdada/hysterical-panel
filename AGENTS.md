@@ -156,6 +156,7 @@ hysterical-panel/
 │           ├── config.go       公开 GET /api/panel/config（静态字段 + 实时 app 名称与注册开关 + passkeys 标志）
 │           ├── nodes.go        节点 CRUD + 连通性测试 + 软删除（deleted_at）+ reset-api-secret
 │           ├── users.go        用户 CRUD + reset-auth-string
+│           ├── password.go     本人修改面板密码（不校验旧密码，返回新 token）
 │           ├── users_list.go   分页 / 排序 / 筛选的用户列表 + /users/stats
 │           ├── recent_connections.go 用户最近连接 IP 的派生与脱敏序列化
 │           ├── recent_logins.go 面板登录时间 / IP 记录（OnRecordAuthRequest，跳过 token 刷新）与序列化
@@ -306,6 +307,7 @@ hysterical-panel/
 - `PATCH /nodes/{id}` 的 `api_secret`：**缺省=不变，传空字符串=报错**（防止误清空）。
 - `GET /users/{id}`、`GET /users/{id}/traffic/*` 允许 admin 或本人访问；`GET /users/{id}/live` 仅 admin。用户列表、创建、修改、删除仍仅 admin。`PATCH /users/{id}` 在状态从 `active`→`disabled` 或 `auth_string` 变更时，**异步**对 `nodesForUser(userID)` 返回的每个节点扇出 `POST /kick [user.id]`（3 并发，5s/节点，best-effort，失败只记日志，不阻塞响应）；详见核心决策 #6。
 - `GET /users`（仅 admin）是**分页 / 排序 / 筛选**列表（`users_list.go`：`page`、`perPage`∈{25,50,100}、`search`、`sort` 白名单），`GET /users/stats` 给看板汇总。`POST /users/{id}/reset-auth-string`（`requireActiveAdminOrSelf`，设置页供所有人自助重置）、`POST /nodes/{id}/reset-api-secret`（仅 admin）重新随机生成对应凭据并返回（节点 secret 仍脱敏）；重置 Auth String 同样异步扇出 `/kick`。
+- `POST /users/{id}/password`（`requireActiveSelf`，`password.go`）：本人设置新面板密码，请求体 `{ password, password_confirm }`，**不要求旧密码**（明确接受的风险）。长度等规则沿用 users collection 的 password 字段，错误码映射为固定消息。保存会刷新 `tokenKey`，其他会话全部失效；响应以空 auth method 返回与登录同形的 `{token, record}` 以保留当前会话，因此不计入 `last_login_*`，OIDC `auth_time` 沿用原会话。不撤销 OIDC 授权、不 kick 节点。
 - **admin 全局看板**：`GET /traffic`、`GET /traffic/series`（`from`/`to` 必填，UTC）、`GET /nodes/traffic/summary` 是跨用户跨节点的全局聚合（`traffic_panel.go`），与下面单节点维度接口区分。
 - `GET /database/stats`、`POST /database/prune`（仅 admin，`database.go`）：查看库体量并按 **90 天 UTC 留存**裁剪 `traffic_hourly`；`traffic_daily` 不裁剪，超过 90 天的查询自动改读日汇总。
 - OAuth2 社交账号关联：`GET /users/{id}/oauth-links`、`DELETE /users/{id}/oauth-links/{linkId}`（`requireActiveAdminOrSelf`，`oauth2_links.go`），设置页（本人）与用户详情页（admin）共用。

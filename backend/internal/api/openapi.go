@@ -66,6 +66,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"OAuthLink":                         OAuthLink{},
 		"PasskeyOptionsResponse":            PasskeyOptionsResponse{},
 		"PasskeyFinishRequest":              PasskeyFinishRequest{},
+		"PasswordChangeRequest":             PasswordChangeRequest{},
 		"PanelAuthResponse":                 PanelAuthResponse{},
 		"PanelTrafficResponse":              PanelTrafficResponse{},
 		"PanelNodeTrafficResponse":          PanelNodeTrafficResponse{},
@@ -964,6 +965,34 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 					},
 				})),
 			}
+			op.Responses.Set("404", notFound)
+			withAuth(op)
+			return op
+		}(),
+	})
+
+	// ── /users/{id}/password ──────────────────────────────────────────────
+	t.Paths.Set("/api/panel/users/{id}/password", &openapi3.PathItem{
+		Parameters: openapi3.Parameters{idParam("User ID")},
+		Post: func() *openapi3.Operation {
+			op := &openapi3.Operation{
+				OperationID: "changeOwnPassword",
+				Summary:     "Set a new panel password and sign out other sessions (active self only)",
+				Tags:        []string{"users"},
+				RequestBody: &openapi3.RequestBodyRef{
+					Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchemaRef(ref("PasswordChangeRequest")),
+				},
+				Responses: openapi3.NewResponses(openapi3.WithStatus(200, &openapi3.ResponseRef{
+					Value: &openapi3.Response{
+						Description: ptr("Replacement session token for the caller"),
+						Content:     content(ref("PanelAuthResponse")),
+					},
+				})),
+			}
+			op.Responses.Set("400", badRequest)
+			op.Responses.Set("403", forbidden)
 			op.Responses.Set("404", notFound)
 			withAuth(op)
 			return op

@@ -44,6 +44,7 @@ import {
   PageShell,
 } from "~/components/ui";
 import { AuthorizedAppsSection } from "~/components/authorized-apps";
+import { PasswordSection } from "~/components/change-password";
 import {
   SettingsNav,
   SettingsSectionHeader,
@@ -148,10 +149,11 @@ function SettingsPage() {
 
               {/* Each section may render nothing. The first rendered one gets the tighter top margin. */}
               <div className="[&>:first-child]:mt-4">
+                <PasswordSection userId={auth.user.id} />
+                <AuthKeySection userId={auth.user.id} />
                 <PasskeysSection userId={auth.user.id} />
                 <SocialLoginsSection userId={auth.user.id} />
                 <AuthorizedAppsSection userId={auth.user.id} />
-                <AuthKeySection userId={auth.user.id} />
               </div>
             </>
           )}
@@ -384,10 +386,11 @@ function settingsNavGroups(signedIn: boolean, isAdmin: boolean): SettingsNavGrou
     groups.push({
       label: m.settings_account(),
       items: [
+        { id: "password", label: m.settings_password_title() },
+        { id: "auth-key", label: m.settings_auth_key_title() },
         { id: "passkeys", label: m.user_passkeys_title(), optional: true },
         { id: "social-sign-in", label: m.settings_social_logins_title(), optional: true },
         { id: "authorized-apps", label: m.settings_authorized_apps_title(), optional: true },
-        { id: "auth-key", label: m.settings_auth_key_title() },
       ],
     });
   }
@@ -416,7 +419,7 @@ function settingsNavGroups(signedIn: boolean, isAdmin: boolean): SettingsNavGrou
 function PasskeysSection({ userId }: { userId: string }) {
   const queryClient = useQueryClient();
   const now = useHydratedNow();
-  const passkeysKey = ["panel", "users", userId, "passkeys"] as const;
+  const passkeysKey = queryKeys.userPasskeys(userId);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingPasskey, setPendingPasskey] = useState<Passkey | null>(null);
 
@@ -640,11 +643,7 @@ function PasskeyRow({
 function AuthKeySection({ userId }: { userId: string }) {
   return (
     <>
-      <SettingsSectionHeader
-        id="auth-key"
-        title={m.settings_auth_key_title()}
-        description={m.settings_auth_key_desc()}
-      />
+      <SettingsSectionHeader id="auth-key" title={m.settings_auth_key_title()} />
 
       <div className="flex flex-col gap-3 rounded-lg border bg-surface px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[13px] text-muted">{m.user_manage_reset_desc()}</p>

@@ -99,6 +99,7 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 | POST | `/users/{id}/subscriptions/{subscriptionId}/reschedule` | 管理员改期当前订阅：`{ starts_at }`（UTC，不晚于 now，改期后仍覆盖 now，不早于上一份自然到期订阅的 `ends_at`，可与已终止的订阅重叠），排队订阅同步平移；本窗口用量、加额与额度随之保留；返回全部授予记录 |
 | PATCH/DELETE | `/users/{id}` | 改/删；停用或修改 `auth_string` 时异步 Kick |
 | POST | `/users/{id}/reset-auth-string` | 随机生成新的 Current Auth String 并返回，旧值转 Retired，异步 Kick（active 的 admin 或本人） |
+| POST | `/users/{id}/password` | 本人设置新面板密码 `{ password, password_confirm }`，不校验旧密码；其他会话失效，返回新的 `{token, record}` 保留当前会话，不计为登录（仅 active 的本人） |
 | GET | `/users/{id}/traffic/summary` | 当日（UTC）用量，按节点拆分（admin 或本人） |
 | GET | `/users/{id}/traffic/series` | 趋势 `?granularity=hourly\|daily&from=&to=&node=`（admin 或本人；`from`/`to`/`bucket` 均为 **UTC**） |
 | GET | `/users/{id}/live` | 实时 streams 诊断（admin；活跃流、域名榜、客户端连接维度） |
