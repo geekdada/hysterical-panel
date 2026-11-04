@@ -196,6 +196,30 @@ _Avoid_: Notification, Broadcast, Announcement, Campaign, newsletter
 One User addressed by an Email Sendout, carrying that User's own delivery outcome. A single-recipient Sendout has exactly one.
 _Avoid_: Delivery, Notification, subscriber
 
+**Automatic Email**:
+A transactional email the panel sends on its own to one User when that User's current Allowance Window meets the condition of an enabled Automatic Email Kind. It goes to the User's current email only while the User is active and Verified, appears in Sendout history next to Email Sendouts, and cannot be unsubscribed from. It is independent of Monitors and Alerts.
+_Avoid_: Notification, User Notification, Alert email, reminder
+
+**Automatic Email Kind**:
+One condition that triggers an Automatic Email, with its own on/off switch and Email Template. The kinds are Low Allowance Email, Allowance Exhausted Email and Allowance Restored Email.
+_Avoid_: Monitor, notification type, rule
+
+**Low Allowance Email**:
+The Automatic Email sent each time the current Allowance Window's remaining amount drops below a configured share of the window's allowance, top-ups included. It can be sent again only after the remaining amount has risen back to that share or above. A drop that also exhausts the window sends only the Allowance Exhausted Email. Distinct from the Low Allowance Monitor condition, which notifies admins.
+_Avoid_: quota warning, Low Allowance Alert
+
+**Allowance Exhausted Email**:
+The Automatic Email sent each time the current Allowance Window's remaining amount reaches zero or below.
+_Avoid_: blocked email, over-quota notice
+
+**Allowance Restored Email**:
+The Automatic Email sent when an exhausted User has a positive remaining amount again, because of an Allowance Top-up or because a new Allowance Window started.
+_Avoid_: renewal email, reset notice, available email
+
+**Email Template**:
+The administrator-edited subject and body of one Automatic Email Kind. It holds placeholders that the panel fills with the User's figures when it sends. A single template carries every language the email should show.
+_Avoid_: Sendout (that is one composed message), layout, frame
+
 **Resource Link**:
 An administrator-curated pointer to an off-panel web resource, shown in the same admin-defined order to every User on their user page. Opening one goes through the panel, which counts the visit before sending the visitor on; anyone holding the link can open it without signing in.
 _Avoid_: Bookmark, Shortcut, External Link, Quick Link
