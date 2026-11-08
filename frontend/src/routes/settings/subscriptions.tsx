@@ -120,7 +120,11 @@ function SubscriptionTypesPage() {
   });
 
   return (
-    <PageShell headerLeft={<BrandLink />} headerRight={auth ? <UserMenu auth={auth} /> : undefined}>
+    <PageShell
+      width="narrow"
+      headerLeft={<BrandLink />}
+      headerRight={auth ? <UserMenu auth={auth} /> : undefined}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold">{m.subscriptions_title()}</h1>
