@@ -63,7 +63,7 @@ export function EditorToolbar({
     <>
       <Toolbar
         aria-label={m.announcement_editor_toolbar()}
-        className="flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5"
+        className="flex w-full flex-wrap items-center gap-0.5 rounded-none border-b px-2 py-1.5"
       >
         <Tool
           icon={Heading2}
@@ -163,6 +163,8 @@ export function EditorToolbar({
 }
 
 // Commands like the divider are actions, so the toggle never stays pressed.
+// A pointer press must leave focus in the editor. Otherwise the button takes
+// focus after the command runs and the caret lands outside the new block.
 function Tool({
   icon: IconComponent,
   label,
@@ -182,6 +184,7 @@ function Tool({
         isIconOnly
         aria-label={label}
         isSelected={selected}
+        preventFocusOnPress
         onChange={onToggle}
       >
         <IconComponent className="size-4" />
