@@ -8,7 +8,7 @@ import { useHydratedNow } from "~/lib/use-hydrated-now";
 import * as m from "~/paraglide/messages.js";
 
 const ROW_CLASS =
-  "flex min-w-0 items-center gap-3 px-4 py-2.5 text-[13px] transition-colors duration-150 hover:bg-surface-secondary focus-visible:bg-surface-secondary focus-visible:outline-none";
+  "flex min-w-0 items-center px-4 py-2.5 transition-colors duration-150 hover:bg-surface-secondary focus-visible:bg-surface-secondary focus-visible:outline-none";
 
 /** Title-and-time rows shared by the user page and the announcements list. */
 export function AnnouncementRows({ items }: { items: AnnouncementSummary[] }) {
@@ -17,7 +17,11 @@ export function AnnouncementRows({ items }: { items: AnnouncementSummary[] }) {
     <ul className="divide-y divide-separator">
       {items.map((item) => (
         <li key={item.id}>
-          <Link to="/announcements/$id" params={{ id: item.id }} className={ROW_CLASS}>
+          <Link
+            to="/announcements/$id"
+            params={{ id: item.id }}
+            className={`${ROW_CLASS} gap-3 text-[13px]`}
+          >
             <span className="min-w-0 flex-1 truncate font-medium text-foreground">
               {item.title}
             </span>
@@ -45,10 +49,10 @@ export function PinnedAnnouncements() {
       {items.length > 0 ? <AnnouncementRows items={items} /> : null}
       <Link
         to="/announcements"
-        className={`${ROW_CLASS} text-muted hover:text-foreground ${items.length > 0 ? "border-t border-separator" : ""}`}
+        className={`${ROW_CLASS} justify-end gap-1 text-xs text-muted hover:text-foreground ${items.length > 0 ? "border-t border-separator" : ""}`}
       >
-        <span className="flex-1">{m.announcements_view_all()}</span>
-        <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+        <span>{m.announcements_view_all()}</span>
+        <ChevronRight className="size-3 shrink-0" aria-hidden />
       </Link>
     </Section>
   );
