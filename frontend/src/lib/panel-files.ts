@@ -42,3 +42,12 @@ export function isAllowedLinkTarget(href: string): boolean {
 export function panelFileUrl(path: string, origin: string): string {
   return path.startsWith("/") ? `${origin}${path}` : path;
 }
+
+// The backend sanitizer always writes double-quoted attributes, and quotes in
+// text are escaped, so only real src and href values match.
+const STORED_FILE_ATTRIBUTE = /(\s(?:src|href)=")(\/api\/files\/)/g;
+
+/** Points the stored file paths in sanitized announcement HTML at the panel API. */
+export function withPanelFileOrigin(html: string, origin: string): string {
+  return origin ? html.replace(STORED_FILE_ATTRIBUTE, `$1${origin}$2`) : html;
+}

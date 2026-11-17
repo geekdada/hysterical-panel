@@ -1,4 +1,10 @@
-import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { fetchLoginMethods } from "./auth";
 import { apiClient } from "./client";
 import { writeAuthCookie } from "./cookie";
@@ -74,6 +80,10 @@ type ManagedResourceLink = components["schemas"]["ManagedResourceLink"];
 type ResourceLinkCreateRequest = components["schemas"]["ResourceLinkCreateRequest"];
 type ResourceLinkUpdateRequest = components["schemas"]["ResourceLinkUpdateRequest"];
 type ResourceLinkVisitResponse = components["schemas"]["ResourceLinkVisitResponse"];
+type Announcement = components["schemas"]["Announcement"];
+type AnnouncementSummary = components["schemas"]["AnnouncementSummary"];
+type AnnouncementListResponse = components["schemas"]["AnnouncementListResponse"];
+type PinnedAnnouncementsResponse = components["schemas"]["PinnedAnnouncementsResponse"];
 type ManagedAnnouncement = components["schemas"]["ManagedAnnouncement"];
 type ManagedAnnouncementDetail = components["schemas"]["ManagedAnnouncementDetail"];
 type AnnouncementCreateRequest = components["schemas"]["AnnouncementCreateRequest"];
@@ -116,6 +126,10 @@ export type {
   ManagedResourceLink,
   ResourceLinkCreateRequest,
   ResourceLinkUpdateRequest,
+  Announcement,
+  AnnouncementSummary,
+  AnnouncementListResponse,
+  PinnedAnnouncementsResponse,
   ManagedAnnouncement,
   ManagedAnnouncementDetail,
   AnnouncementCreateRequest,
@@ -248,6 +262,9 @@ export const queryKeys = {
   resourceLinks: () => [...queryKeys.all, "resource-links"] as const,
   managedResourceLinks: () => [...queryKeys.all, "resource-links", "manage"] as const,
   announcements: () => [...queryKeys.all, "announcements"] as const,
+  pinnedAnnouncements: () => [...queryKeys.announcements(), "pinned"] as const,
+  announcementPage: (page: number) => [...queryKeys.announcements(), "page", page] as const,
+  announcement: (id: string) => [...queryKeys.announcements(), "detail", id] as const,
   managedAnnouncements: () => [...queryKeys.announcements(), "manage"] as const,
   managedAnnouncement: (id: string) => [...queryKeys.managedAnnouncements(), id] as const,
   notificationChannels: () => [...queryKeys.all, "notification-channels"] as const,
@@ -1032,6 +1049,46 @@ export async function reorderResourceLinks(ids: string[]): Promise<ManagedResour
     }
     throw error;
   }
+}
+
+export function pinnedAnnouncementsQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.pinnedAnnouncements(),
+    queryFn: () =>
+      apiRequest<PinnedAnnouncementsResponse>(
+        apiClient.GET("/api/panel/announcements/pinned"),
+        m.error_announcements_load()
+      ),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function announcementPageQueryOptions(page: number) {
+  return queryOptions({
+    queryKey: queryKeys.announcementPage(page),
+    queryFn: () =>
+      apiRequest<AnnouncementListResponse>(
+        apiClient.GET("/api/panel/announcements", { params: { query: { page } } }),
+        m.error_announcements_load()
+      ),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function announcementQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: queryKeys.announcement(id),
+    queryFn: () =>
+      apiRequest<Announcement>(
+        apiClient.GET("/api/panel/announcements/{id}", { params: { path: { id } } }),
+        m.error_announcement_load()
+      ),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
 }
 
 export function fetchManagedAnnouncements(): Promise<ManagedAnnouncement[]> {

@@ -212,8 +212,8 @@ hysterical-panel/
     ├── scripts/                i18n-check.mjs（校验翻译完整）等
     └── src/
         ├── api/                client.ts(openapi-fetch) / auth.ts(login/register/passkey/OTP/OAuth2/密码找回) / queries.ts + query-provider.tsx(react-query) / session.ts / cookie.ts / guards.ts / panel-config.ts / schema.d.ts(生成)
-        ├── routes/             文件式路由（index / login / oauth-callback / register / verify / forgot-password / reset-password / analytics / l/$id / settings / settings/emails / settings/automatic-emails / settings/connected-apps / settings/resource-links / settings/announcements / oidc/authorize / oidc/error / invitations / nodes / users）
-        ├── components/         traffic.tsx / traffic-range-picker.tsx / resource-links.tsx / social-logins.tsx / oauth-provider-icon.tsx / email-code-login.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx / authorized-apps.tsx / openapi-operation.tsx（按 OpenAPI 渲染单个接口）
+        ├── routes/             文件式路由（index / login / oauth-callback / register / verify / forgot-password / reset-password / analytics / l/$id / announcements / settings / settings/emails / settings/automatic-emails / settings/connected-apps / settings/resource-links / settings/announcements / oidc/authorize / oidc/error / invitations / nodes / users）
+        ├── components/         traffic.tsx / traffic-range-picker.tsx / resource-links.tsx / announcements.tsx / social-logins.tsx / oauth-provider-icon.tsx / email-code-login.tsx / ui.tsx / breadcrumbs.tsx / theme-toggle.tsx / locale-toggle.tsx / user-menu.tsx / email-sendouts.tsx / current-speed.tsx / authorized-apps.tsx / openapi-operation.tsx（按 OpenAPI 渲染单个接口）
         ├── announcements/      公告编辑器（TipTap StarterKit + 图片 / 附件上传，XHR 显示进度）与发布 / 编辑表单
         ├── emails/             Email Sendout 编辑器（@react-email/editor）+ 固定服务邮件外框（serializerPlugin.BaseTemplate）
         ├── paraglide/          Paraglide 编译产物（生成，gitignore，勿手改）
@@ -381,7 +381,7 @@ hysterical-panel/
 - **路由守卫**：`src/api/guards.ts`，在路由 `beforeLoad` 里用，与后端守卫对齐（非 admin 访问 admin 页 → 跳自己的账号页）。
 - 路径别名 `~/*` → `src/*`；`VITE_API_BASE_URL` 指向后端（dev 默认 `http://localhost:8090`，见 `.env.local`）；`__APP_VERSION__` 由 vite 从根 `VERSION` 注入。
 - `vite.config.ts` 有一条仅 dev 生效的 `server.proxy`：把 `/l/:id/favicon` 转到后端 `/api/resource-links/:id/favicon`。Nitro 的 dev 中间件把带 `Sec-Fetch-Dest: image` 的请求当静态资源处理、不进应用路由，不加代理图标在 `pnpm dev` 下 404；生产构建不受影响。
-- **公告编辑器**（`src/announcements/`）：文档里只存后端接受的相对路径 `/api/files/files/...`，画布经 node view 拼上面板 API origin 显示（前后端可能不同源）。图片类型插入 `img`，其他文件插入带 `download` 与 `?download=1` 的链接。上传走 `src/api/uploads.ts` 的 XHR（fetch 拿不到上传进度），插入位置随后续编辑映射。正文样式 `.announcement-body` 在 `globals.css`，编辑器与阅读页共用。
+- **公告编辑器**（`src/announcements/`）：文档里只存后端接受的相对路径 `/api/files/files/...`，画布经 node view 拼上面板 API origin 显示（前后端可能不同源）。图片类型插入 `img`，其他文件插入带 `download` 与 `?download=1` 的链接。上传走 `src/api/uploads.ts` 的 XHR（fetch 拿不到上传进度），插入位置随后续编辑映射。正文样式 `.announcement-body` 在 `globals.css`，编辑器与阅读页共用。阅读页 `/announcements/$id` 用 `withPanelFileOrigin` 给正文里的 `/api/files/` 路径补上 API origin 后直接渲染（后端已清洗）；用户页的置顶列表在 `components/announcements.tsx`。
 - 资源链接排序用 `react-aria-components` 的 `GridList` + `useDragAndDrop`（HeroUI 没有 GridList）；拖动只从左侧把手开始。`react-aria-components` 仍锁定为 HeroUI 依赖的同一版本，升级时两者一起升。
 
 ## 运行与安全
