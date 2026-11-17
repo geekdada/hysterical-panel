@@ -137,7 +137,7 @@ hysterical-panel/
 │   ├── Dockerfile / .dockerignore
 │   ├── go.mod / go.sum         module 名为 hysterical-panel
 │   ├── mmdb/                    ipinfo_lite.mmdb（ipmeta 读取）
-│   ├── migrations/             代码式迁移，启动自动应用（1730000001..38）
+│   ├── migrations/             代码式迁移，启动自动应用（1730000001..40）
 │   └── internal/
 │       ├── config/             环境变量（caarlos0/env）+ test
 │       ├── cryptobox/          AES-GCM 加解密节点 secret
@@ -153,6 +153,7 @@ hysterical-panel/
 │       ├── sendouts/           Email Sendout 队列（创建/取消/重发/计数）+ 单 worker 限速投递
 │       ├── automaticemails/    Automatic Email Kind、状态转换判定、模板校验与渲染、扫描服务
 │       ├── linkmeta/           外链页面标题与 favicon 抓取（体积/重定向/超时上限）+ test
+│       ├── announcements/      公告正文清洗（bluemonday 白名单）、置顶 / 隐藏规则与读者查询 + test
 │       └── api/                /api/panel 路由（+ /api/mgmt、公开回调）
 │           ├── api.go          路由注册 + 4 个鉴权守卫（含 verified / active 门禁）+ 脱敏辅助 + nodesForUser
 │           ├── config.go       公开 GET /api/panel/config（静态字段 + 实时 app 名称与注册开关 + passkeys 标志）
@@ -254,6 +255,10 @@ hysterical-panel/
 `ignored_connection_ips`：`ip` (text, unique, required) — 全局忽略的客户端 IP；命中后不再写入 `users.recent_connections`（`last_connected_at` 仍更新），API 返回时过滤历史记录。admin 通过 `GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 管理。
 
 `resource_links`：admin 维护、对所有已登录 User 可见的有序外链。`url` (text, required)、`title`（手动标题，优先）、`fetched_title`、`favicon_data`（base64 图标副本，**`Hidden`**）、`favicon_type`、`favicon_hash`（16 位，作 ETag 与前端缓存键）、`sort_order`、`visit_count`、`last_visited_at`、`created` / `updated`。新建与改 URL 时用 `internal/linkmeta` 同步抓取一次：页面 ≤512 KiB、图标 ≤100 KiB、最多 3 次重定向、整体 10s 上限，接受任意 `image/*`（含 SVG）；无图标时清空 favicon 三字段，抓取失败不阻止保存。展示标题为 `title` → `fetched_title` → hostname。
+
+`announcements`：admin 写的站内公告（ADR-0015）。`title`（≤200 字）、`html`（后端经 `internal/announcements` 的 bluemonday 白名单清洗后保存，≤256 KiB，清洗后须有文字或图片）、`content`（TipTap JSON，供再次编辑）、`pinned`、`hidden`、`created_by`、`created` / `updated`。发表时间即 `created`，读者一律按 `created` 倒序。隐藏会在同一次修改里取消置顶，隐藏状态下不能置顶，取消隐藏不恢复置顶。读者看不到隐藏的公告。删除是硬删除，不动已上传文件。正文里的 `img src` 只允许 `/api/files/files/{id}/{name}` 相对路径，`a href` 另外允许 `http(s):` / `mailto:`。
+
+`files`：通用上传文件。`file`（单文件、**不 protected**、`MaxSize` 1 GiB，任何拿到 URL 的人免登录可下载，便于 CDN 缓存）、`name`（原文件名）、`mime`、`size`、`uploaded_by`、`created`。不自动清理。
 
 `notification_channels`：admin 管理的一条出站目的地配置。`name` + 隐藏的大小写归一化 `name_key` 唯一；`service` 是非秘密的 Beszel-compatible Shoutrrr service；完整 URL 落在隐藏的 **AES-GCM 密文** `url_encrypted`，普通 API 永不返回。`enabled` 默认 false；`last_test_status`（`never`/`succeeded`/`failed`）及安全错误码记录显式测试结果。**一条 Channel 只含一个 URL；触发逻辑属于 Monitor。** 已保存 URL 只可经当前 admin 的新鲜、单次、Channel-scoped passkey assertion reveal。
 
