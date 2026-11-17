@@ -190,7 +190,7 @@ _Avoid_: interface language, Channel language, locale (as the domain noun)
 
 **Email Sendout**:
 An administrator-initiated transactional email, composed once from the fixed service template in a chosen language and addressed to one User or to every User who is active and Verified. Recipients cannot unsubscribe.
-_Avoid_: Notification, Broadcast, Announcement, Campaign, newsletter
+_Avoid_: Notification, Broadcast, Announcement (that is shown in the panel, not mailed), Campaign, newsletter
 
 **Sendout Recipient**:
 One User addressed by an Email Sendout, carrying that User's own delivery outcome. A single-recipient Sendout has exactly one.
@@ -223,3 +223,11 @@ _Avoid_: Sendout (that is one composed message), layout, frame
 **Resource Link**:
 An administrator-curated pointer to an off-panel web resource, shown in the same admin-defined order to every User on their user page. Opening one goes through the panel, which counts the visit before sending the visitor on; anyone holding the link can open it without signing in.
 _Avoid_: Bookmark, Shortcut, External Link, Quick Link
+
+**Announcement**:
+An administrator-written rich-text article published inside the panel for every User who can sign in to read. It is never mailed, and its publish time is when it was created.
+_Avoid_: Notice, Post, Bulletin, Email Sendout (that is mailed)
+
+**Pinned Announcement**:
+An Announcement the administrator has chosen to list on every User's user page, newest first. Several can be pinned at once, and a hidden Announcement can never be pinned.
+_Avoid_: Highlighted, Featured, Sticky
