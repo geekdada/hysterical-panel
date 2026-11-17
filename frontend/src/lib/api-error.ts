@@ -67,6 +67,19 @@ const API_ERROR_MAP: Record<string, () => string> = {
   "save a template before enabling": () => m.error_automatic_email_needs_template(),
   "threshold_percent must be between 1 and 99": () => m.error_automatic_email_threshold_invalid(),
   "automatic email not found": () => m.error_not_found(),
+  "title is required": () => m.error_announcement_title_required(),
+  "body is empty": () => m.error_announcement_body_empty(),
+  "body is too large": () => m.error_announcement_body_too_large(),
+  "editor content must be a json object": () => m.error_announcement_save(),
+  "html and content must be sent together": () => m.error_announcement_save(),
+  "a hidden announcement cannot be pinned": () => m.error_announcement_pinned_hidden(),
+  "announcement not found": () => m.error_not_found(),
+  "file is required": () => m.error_upload_failed(),
+  "invalid upload": () => m.error_upload_failed(),
+  "upload one file at a time": () => m.error_upload_failed(),
+  "failed to save file": () => m.error_upload_failed(),
+  "file is too large": () => m.error_upload_too_large(),
+  "request entity too large": () => m.error_upload_too_large(),
 };
 
 export function localizeApiError(message: string): string {

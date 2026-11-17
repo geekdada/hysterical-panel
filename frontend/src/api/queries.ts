@@ -74,6 +74,10 @@ type ManagedResourceLink = components["schemas"]["ManagedResourceLink"];
 type ResourceLinkCreateRequest = components["schemas"]["ResourceLinkCreateRequest"];
 type ResourceLinkUpdateRequest = components["schemas"]["ResourceLinkUpdateRequest"];
 type ResourceLinkVisitResponse = components["schemas"]["ResourceLinkVisitResponse"];
+type ManagedAnnouncement = components["schemas"]["ManagedAnnouncement"];
+type ManagedAnnouncementDetail = components["schemas"]["ManagedAnnouncementDetail"];
+type AnnouncementCreateRequest = components["schemas"]["AnnouncementCreateRequest"];
+type AnnouncementUpdateRequest = components["schemas"]["AnnouncementUpdateRequest"];
 type AppSettings = components["schemas"]["SettingsResponse"];
 type SettingsUpdateRequest = components["schemas"]["SettingsUpdateRequest"];
 type ManagementAPIToken = components["schemas"]["ManagementAPITokenResponse"];
@@ -112,6 +116,10 @@ export type {
   ManagedResourceLink,
   ResourceLinkCreateRequest,
   ResourceLinkUpdateRequest,
+  ManagedAnnouncement,
+  ManagedAnnouncementDetail,
+  AnnouncementCreateRequest,
+  AnnouncementUpdateRequest,
   AppSettings,
   SettingsUpdateRequest,
   ManagementAPIToken,
@@ -239,6 +247,9 @@ export const queryKeys = {
   ignoredConnectionIPs: () => [...queryKeys.all, "ignored-connection-ips"] as const,
   resourceLinks: () => [...queryKeys.all, "resource-links"] as const,
   managedResourceLinks: () => [...queryKeys.all, "resource-links", "manage"] as const,
+  announcements: () => [...queryKeys.all, "announcements"] as const,
+  managedAnnouncements: () => [...queryKeys.announcements(), "manage"] as const,
+  managedAnnouncement: (id: string) => [...queryKeys.managedAnnouncements(), id] as const,
   notificationChannels: () => [...queryKeys.all, "notification-channels"] as const,
   oidcClients: () => [...queryKeys.all, "oidc-clients"] as const,
   oidcRequest: (handle: string) => [...queryKeys.all, "oidc-requests", handle] as const,
@@ -1021,6 +1032,67 @@ export async function reorderResourceLinks(ids: string[]): Promise<ManagedResour
     }
     throw error;
   }
+}
+
+export function fetchManagedAnnouncements(): Promise<ManagedAnnouncement[]> {
+  return apiRequest<ManagedAnnouncement[]>(
+    apiClient.GET("/api/panel/announcements/manage"),
+    m.error_announcements_load()
+  );
+}
+
+export function fetchManagedAnnouncement(id: string): Promise<ManagedAnnouncementDetail> {
+  return apiRequest<ManagedAnnouncementDetail>(
+    apiClient.GET("/api/panel/announcements/manage/{id}", { params: { path: { id } } }),
+    m.error_announcements_load()
+  );
+}
+
+export function createAnnouncement(
+  body: AnnouncementCreateRequest
+): Promise<ManagedAnnouncementDetail> {
+  return apiRequest<ManagedAnnouncementDetail>(
+    apiClient.POST("/api/panel/announcements", { body }),
+    m.error_announcement_save(),
+    m.error_announcement_save_network()
+  );
+}
+
+export function updateAnnouncement(
+  id: string,
+  body: AnnouncementUpdateRequest
+): Promise<ManagedAnnouncementDetail> {
+  return apiRequest<ManagedAnnouncementDetail>(
+    apiClient.PATCH("/api/panel/announcements/{id}", { params: { path: { id } }, body }),
+    m.error_announcement_save(),
+    m.error_announcement_save_network()
+  );
+}
+
+export function managedAnnouncementsQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.managedAnnouncements(),
+    queryFn: fetchManagedAnnouncements,
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function managedAnnouncementQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: queryKeys.managedAnnouncement(id),
+    queryFn: () => fetchManagedAnnouncement(id),
+    enabled: canQueryPanelApi(),
+    staleTime: REFRESH_MS,
+  });
+}
+
+export function deleteAnnouncement(id: string): Promise<{ deleted: boolean }> {
+  return apiRequest<{ deleted: boolean }>(
+    apiClient.DELETE("/api/panel/announcements/{id}", { params: { path: { id } } }),
+    m.error_announcement_delete(),
+    m.error_announcement_delete_network()
+  );
 }
 
 // Used by the redirect route, so a missing link must not look like a failure.

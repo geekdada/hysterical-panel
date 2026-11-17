@@ -230,3 +230,102 @@ html[data-theme] {
   font-size: 12px;
   color: #71717a;
 }
+
+/* Announcement bodies. The editor canvas and the reader pages share these
+   rules so an announcement looks the same while it is written and read. */
+.announcement-body {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+.announcement-body > * + * {
+  margin-top: 0.75em;
+}
+.announcement-body h2 {
+  margin-top: 1.5em;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.announcement-body h3 {
+  margin-top: 1.25em;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.announcement-body > :first-child {
+  margin-top: 0;
+}
+.announcement-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.announcement-body ul,
+.announcement-body ol {
+  padding-left: 1.5em;
+}
+.announcement-body ul {
+  list-style: disc;
+}
+.announcement-body ol {
+  list-style: decimal;
+}
+.announcement-body li + li,
+.announcement-body li > * + * {
+  margin-top: 0.25em;
+}
+.announcement-body blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 1em;
+  color: var(--muted);
+}
+.announcement-body code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  background: var(--surface-secondary);
+}
+.announcement-body pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-secondary);
+  overflow-x: auto;
+}
+.announcement-body pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+.announcement-body hr {
+  border: 0;
+  border-top: 1px solid var(--separator);
+  margin: 1.5em 0;
+}
+.announcement-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+}
+
+.announcement-canvas {
+  min-height: 320px;
+  padding: 16px;
+  outline: none;
+}
+.announcement-canvas img.ProseMirror-selectednode {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.announcement-canvas p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--field-placeholder);
+  pointer-events: none;
+}
