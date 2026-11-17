@@ -1153,7 +1153,6 @@
   "announcement_not_found_hint": "It may have been removed or hidden.",
   "announcement_form_title": "Title",
   "announcement_form_body": "Body",
-  "announcement_form_upload_hint": "Paste or drop files into the body to upload them. Images show inline, other files become download links. Up to 1 GiB per file.",
   "announcement_form_pinned": "Pin to the user page",
   "announcement_form_pinned_hint": "Pinned announcements show on every user's page, newest first.",
   "announcement_form_pinned_hidden": "Hidden announcements cannot be pinned.",

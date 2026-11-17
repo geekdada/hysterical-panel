@@ -111,7 +111,6 @@ export function AnnouncementForm({
         ) : (
           <EditorSkeleton />
         )}
-        <p className="text-xs text-muted">{m.announcement_form_upload_hint()}</p>
       </div>
 
       {/* Hiding unpins, and a hidden announcement cannot be pinned. Unhiding

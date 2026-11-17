@@ -1153,7 +1153,6 @@
   "announcement_not_found_hint": "它可能已被删除或隐藏。",
   "announcement_form_title": "标题",
   "announcement_form_body": "正文",
-  "announcement_form_upload_hint": "把文件粘贴或拖入正文即可上传。图片直接显示，其他文件生成下载链接。单个文件最大 1 GiB。",
   "announcement_form_pinned": "置顶到用户页",
   "announcement_form_pinned_hint": "置顶的公告显示在每个用户的页面上，按发布时间倒序。",
   "announcement_form_pinned_hidden": "隐藏的公告不能置顶。",
