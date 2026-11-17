@@ -11,7 +11,10 @@ export type EditorUpload = {
   error: string | null;
 };
 
-type Pending = { position: number; controller: AbortController };
+type Pending = { position: number; order: number; controller: AbortController };
+
+// Marks the transaction that inserts a finished upload with that upload's order.
+const INSERTED_ORDER = "announcementUploadOrder";
 
 function uploadedContent(file: UploadedFile): JSONContent {
   if (isInlineImage(file.mime)) {
@@ -37,13 +40,17 @@ function uploadedContent(file: UploadedFile): JSONContent {
 export function useEditorUploads(editor: Editor | null) {
   const [uploads, setUploads] = useState<EditorUpload[]>([]);
   const pending = useRef(new Map<string, Pending>());
+  const nextOrder = useRef(0);
 
   useEffect(() => {
     if (!editor) return;
     const follow = ({ transaction }: EditorEvents["transaction"]) => {
+      const inserted = transaction.getMeta(INSERTED_ORDER) as number | undefined;
       for (const entry of pending.current.values()) {
-        // Mapping to the right keeps several files dropped together in order.
-        entry.position = transaction.mapping.map(entry.position, 1);
+        // Files dropped together finish in any order but keep the order they
+        // were picked in. Earlier files stay before the inserted one.
+        const side = inserted !== undefined && entry.order < inserted ? -1 : 1;
+        entry.position = transaction.mapping.map(entry.position, side);
       }
     };
     editor.on("transaction", follow);
@@ -67,7 +74,8 @@ export function useEditorUploads(editor: Editor | null) {
     async (file: File, position: number) => {
       const id = crypto.randomUUID();
       const controller = new AbortController();
-      pending.current.set(id, { position, controller });
+      const order = nextOrder.current++;
+      pending.current.set(id, { position, order, controller });
       setUploads((list) => [...list, { id, name: file.name, progress: 0, error: null }]);
       try {
         const stored = await uploadFile(file, {
@@ -76,7 +84,11 @@ export function useEditorUploads(editor: Editor | null) {
         });
         const at = pending.current.get(id)?.position ?? position;
         pending.current.delete(id);
-        editor?.chain().insertContentAt(at, uploadedContent(stored)).run();
+        editor
+          ?.chain()
+          .setMeta(INSERTED_ORDER, order)
+          .insertContentAt(at, uploadedContent(stored))
+          .run();
         setUploads((list) => list.filter((item) => item.id !== id));
       } catch (error) {
         pending.current.delete(id);
