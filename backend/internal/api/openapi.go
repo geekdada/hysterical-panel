@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -113,6 +114,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 		"AutomaticEmailKindUpdateRequest":   AutomaticEmailKindUpdateRequest{},
 	}
 
+	maps.Copy(schemaDefs, announcementSchemaDefs)
 	schemas, err := generateSchemas(schemaDefs)
 	if err != nil {
 		return nil, err
@@ -185,6 +187,12 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 			s.Value.Required = append(s.Value.Required, fields...)
 		}
 	}
+	for name, fields := range announcementRequiredFields {
+		if s := schemas[name]; s != nil && s.Value != nil {
+			s.Value.Required = append(s.Value.Required, fields...)
+		}
+	}
+	linkAnnouncementSchemas(schemas)
 	if s, ok := schemas["UserSubscription"]; ok && s.Value != nil {
 		setEnum(s.Value.Properties, "status", []any{"current", "queued", "expired", "terminated"})
 	}
@@ -2263,6 +2271,7 @@ func BuildOpenAPISpec() (*openapi3.T, error) {
 	t.Paths.Set("/api/panel/email-sendouts/{id}/resend", &openapi3.PathItem{Parameters: sendoutIDParams, Post: resendSendout})
 
 	addAutomaticEmailPaths(t, ref, withAuth, notFound, badRequest)
+	addAnnouncementPaths(t, announcementPathDeps{ref: ref, withAuth: withAuth, notFound: notFound, badRequest: badRequest})
 
 	return t, nil
 }

@@ -131,6 +131,15 @@ PocketBase 默认不信任这些头，此时所有请求的来源 IP 都是代�
 | PUT | `/resource-links/order` | 用 `{ ids }` 重排；须恰好覆盖全部链接各一次，集合已变化返回 409 `resource link order is out of date` |
 | PATCH | `/resource-links/{id}` | 修改 URL 或手动标题（传空标题 = 清除，回退到抓取标题）；URL 变化时重新抓取 |
 | DELETE | `/resource-links/{id}` | 删除 |
+| GET | `/announcements?page=` | 可见公告，新到旧，每页 20 条，只含标题与时间（`status=active && verified=true` 的 User，每次请求都检查） |
+| GET | `/announcements/pinned` | 用户页的置顶公告 + `has_published`（是否存在任何可见公告；可用 User） |
+| GET | `/announcements/{id}` | 可见公告详情，含清洗后的 `html`；隐藏或不存在一律 404（可用 User） |
+| GET | `/announcements/manage` | 管理员查看全部公告（含隐藏），不含正文 |
+| GET | `/announcements/manage/{id}` | 管理员读取公告，含 `html` 与编辑器 JSON `content` |
+| POST | `/announcements` | 发表（`{ title, html, content, pinned?, hidden? }`）；`html` 经 bluemonday 白名单清洗，清洗后无文字或图片 400；同时置顶与隐藏 400 |
+| PATCH | `/announcements/{id}` | 修改标题 / 正文（`html` 与 `content` 必须一起传）/ 置顶 / 隐藏；隐藏会取消置顶，隐藏状态下置顶 400 |
+| DELETE | `/announcements/{id}` | 硬删除，不删已上传文件 |
+| POST | `/files` | multipart 上传单个文件（字段 `file`，≤1 GiB，超过 413），返回相对路径 `/api/files/files/{id}/{name}`；文件不 protected，任何人凭路径免登录下载 |
 | GET | `/email-sendouts/context` | 写信页所需：`app_name`、`frontend_url`、`smtp_enabled`、可用 User 数、发送速率 |
 | GET | `/email-sendouts/eligible-recipients?search=` | 按邮箱子串查可用 User（`status=active && verified=true`），最多 20 条 |
 | GET | `/email-sendouts?source=` | Email Sendout 列表（新到旧，含各状态计数与推导出的 `status`、`source`、`automatic_kind`）；`source=manual\|automatic` 过滤，其他值 400 |
@@ -211,6 +220,13 @@ users collection 的 List / View / Create / Update / Delete API 规则由迁移 
 - `GET /api/resource-links/{id}/favicon`：返回保存的图标副本，不请求目标站点；`Cache-Control: public, max-age=86400`，`ETag` 为 `favicon_hash`，命中 `If-None-Match` 返回 304；未知 id 或无图标 404。
 - 抓取在保存时同步发生（`internal/linkmeta`）：页面 ≤512 KiB、图标 ≤100 KiB、最多 3 次重定向、整体 10s 上限，接受任意 `image/*`（含 SVG）；抓取失败不阻止保存。
 - **已接受的取舍**：图标从面板 origin 原样提供（含 SVG），这些公开路由没有 CSP，而面板 token cookie 不是 HttpOnly，恶意 SVG 可在面板 origin 执行脚本。链接由 admin 添加，但目标内容仍是外部输入，此风险是已知且有意的选择。
+
+### 公告与文件上传
+
+- 公告正文由前端 TipTap 编辑器生成，后端只保存清洗后的 HTML（`internal/announcements`，ADR-0015）。白名单只含编辑器能产出的元素；`img src` 只允许 `/api/files/files/{id}/{name}`，`a href` 另外允许 `http(s):` 与 `mailto:`。
+- `POST /api/panel/files` 只对这一条路由放开 PocketBase 默认的 32 MiB 请求体上限（改为 1 GiB + 1 MiB 的 multipart 余量）。上传先落到临时目录再写入存储，服务器需留出相应磁盘空间。
+- **部署需做一次配置**：前面的反向代理或 CDN 也要允许该路径的大请求体。仓库自带的 `deploy/nginx/default.conf` 对 `/api/panel/files` 单独设了 `client_max_body_size 1025m` 并关闭请求缓冲，其他路径仍是 10m。
+- 文件经 PocketBase 的 `/api/files/files/...` 提供，图片、音视频与 PDF 内联展示，其余类型以附件下载；响应都带 PocketBase 的 sandbox CSP。文件不自动清理。
 
 ### Hysteria 回调 `POST /api/hysteria/auth`（供 Hysteria 节点调用）
 

@@ -118,6 +118,20 @@ func Register(se *core.ServeEvent, app core.App, box *cryptobox.Box, ipLookup ip
 	g.PATCH("/resource-links/{id}", h.updateResourceLink).Bind(adminOnly)
 	g.DELETE("/resource-links/{id}", h.deleteResourceLink).Bind(adminOnly)
 
+	// announcements (admin-written posts shown to every usable account)
+	usable := requireUsableAccount()
+	g.GET("/announcements", h.listAnnouncements).Bind(usable)
+	g.GET("/announcements/pinned", h.listPinnedAnnouncements).Bind(usable)
+	g.GET("/announcements/{id}", h.getAnnouncement).Bind(usable)
+	g.GET("/announcements/manage", h.listManagedAnnouncements).Bind(adminOnly)
+	g.GET("/announcements/manage/{id}", h.getManagedAnnouncement).Bind(adminOnly)
+	g.POST("/announcements", h.createAnnouncement).Bind(adminOnly)
+	g.PATCH("/announcements/{id}", h.updateAnnouncement).Bind(adminOnly)
+	g.DELETE("/announcements/{id}", h.deleteAnnouncement).Bind(adminOnly)
+
+	// generic public file uploads used by the announcement editor (ADR-0015)
+	g.POST("/files", h.uploadFile).Bind(adminOnly, apis.BodyLimit(uploadBodyLimit))
+
 	// notification channels (global outbound destinations; no rules or automatic delivery)
 	g.GET("/notification-channels", h.listNotificationChannels).Bind(adminOnly)
 	g.POST("/notification-channels", h.createNotificationChannel).Bind(adminOnly)

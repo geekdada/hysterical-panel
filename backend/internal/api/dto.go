@@ -1031,3 +1031,81 @@ type AutomaticEmailKindUpdateRequest struct {
 	Enabled          *bool `json:"enabled,omitempty"`
 	ThresholdPercent *int  `json:"threshold_percent,omitempty"`
 }
+
+// AnnouncementSummary is the title-and-time view readers see in lists.
+type AnnouncementSummary struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Created string `json:"created"`
+}
+
+// PinnedAnnouncementsResponse feeds the user page. HasPublished tells the
+// page whether past announcements exist when nothing is pinned.
+type PinnedAnnouncementsResponse struct {
+	Items        []AnnouncementSummary `json:"items"`
+	HasPublished bool                  `json:"has_published"`
+}
+
+// AnnouncementListResponse is one page of visible Announcements, newest first.
+type AnnouncementListResponse struct {
+	Items   []AnnouncementSummary `json:"items"`
+	Total   int                   `json:"total"`
+	Page    int                   `json:"page"`
+	PerPage int                   `json:"per_page"`
+}
+
+// Announcement is the reader detail. HTML is sanitized on save.
+type Announcement struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	HTML    string `json:"html"`
+	Created string `json:"created"`
+	Updated string `json:"updated"`
+}
+
+// ManagedAnnouncement is a row of the admin list.
+type ManagedAnnouncement struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Pinned  bool   `json:"pinned"`
+	Hidden  bool   `json:"hidden"`
+	Created string `json:"created"`
+	Updated string `json:"updated"`
+}
+
+// ManagedAnnouncementDetail adds the editor document so the admin can keep
+// editing. Content is the TipTap JSON the HTML was rendered from.
+type ManagedAnnouncementDetail struct {
+	ManagedAnnouncement
+	HTML    string         `json:"html"`
+	Content map[string]any `json:"content"`
+}
+
+// AnnouncementCreateRequest is the body for POST /announcements.
+type AnnouncementCreateRequest struct {
+	Title   string         `json:"title"`
+	HTML    string         `json:"html"`
+	Content map[string]any `json:"content"`
+	Pinned  bool           `json:"pinned,omitzero"`
+	Hidden  bool           `json:"hidden,omitzero"`
+}
+
+// AnnouncementUpdateRequest is the body for PATCH /announcements/{id}. HTML
+// and Content must be sent together.
+type AnnouncementUpdateRequest struct {
+	Title   *string         `json:"title,omitempty"`
+	HTML    *string         `json:"html,omitempty"`
+	Content *map[string]any `json:"content,omitempty"`
+	Pinned  *bool           `json:"pinned,omitempty"`
+	Hidden  *bool           `json:"hidden,omitempty"`
+}
+
+// UploadedFile is a stored file. Path is relative and public, so anyone
+// holding it can download the file without signing in.
+type UploadedFile struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	MIME string `json:"mime"`
+	Size int64  `json:"size"`
+	Path string `json:"path"`
+}

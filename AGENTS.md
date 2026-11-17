@@ -154,6 +154,7 @@ hysterical-panel/
 │       ├── automaticemails/    Automatic Email Kind、状态转换判定、模板校验与渲染、扫描服务
 │       ├── linkmeta/           外链页面标题与 favicon 抓取（体积/重定向/超时上限）+ test
 │       ├── announcements/      公告正文清洗（bluemonday 白名单）、置顶 / 隐藏规则与读者查询 + test
+│       ├── uploads/            通用公开文件（`files` collection）保存与相对路径 + test
 │       └── api/                /api/panel 路由（+ /api/mgmt、公开回调）
 │           ├── api.go          路由注册 + 4 个鉴权守卫（含 verified / active 门禁）+ 脱敏辅助 + nodesForUser
 │           ├── config.go       公开 GET /api/panel/config（静态字段 + 实时 app 名称与注册开关 + passkeys 标志）
@@ -183,6 +184,8 @@ hysterical-panel/
 │           ├── invitations.go  邀请码 CRUD + inviteValid
 │           ├── ignored_connection_ips.go 全局忽略 IP CRUD
 │           ├── resource_links.go 外链 CRUD / 重排 / 公开访问计数与 favicon 服务
+│           ├── announcements.go 公告读者 / admin 接口 + requireUsableAccount（每次请求查 active + verified）
+│           ├── files.go        admin multipart 上传（只对该路由放开 PocketBase 32 MiB 请求体上限）
 │           ├── notification_channels.go 通知 Channel CRUD / 测试 / passkey URL reveal
 │           ├── email_sendouts.go Email Sendout 接口（校验、收件人展开、历史、取消/重发）
 │           ├── register.go     公开自助注册 + registrationDecision + auth_string 生成
@@ -325,6 +328,7 @@ hysterical-panel/
 - Current Speed：`GET /users/{id}/current-speed`（admin 或本人）返回该 User 在各可见 Node 上非零的速度与合计；`GET /nodes/{id}/current-speed`（admin）返回 Node 自身速度与速度最高的 10 个 User。两者直接读 `traffic_cursor`，不请求节点，与 Live 无关。
 - `GET|PATCH /settings`、`POST /management-api/rotate`、`GET /management-api/openapi.json`、`GET|POST /invitations`、`DELETE /invitations/{id}`、`GET|POST /ignored-connection-ips`、`DELETE /ignored-connection-ips/{id}` 均 admin。`PATCH /settings` 校验注册开关层级（`invitations_enabled` 依赖 `open_registration`；`require_invite_for_open` 依赖 `invitations_enabled`），并在首次置 `management_api_enabled=true` 时生成明文 token 回显一次（见决策 #10）；`POST /invitations` 在 `invitations_enabled=false` 时 400。邀请响应含 `link`（`frontend_url + /register?code=`，未设前端域名则相对路径）。
 - Resource Links 接口 `GET /resource-links`（任意已登录用户，只返回 `id` / `title` / `favicon_version`，**不含目标 URL**）；`GET /resource-links/manage`、`POST /resource-links`、`PUT /resource-links/order`、`PATCH|DELETE /resource-links/{id}` 仅 admin、进 OpenAPI。`PUT /order` 的 `{ ids }` 必须恰好覆盖全部链接各一次，否则 409 `resource link order is out of date`，不会半应用。新建与改 URL 时同步抓取标题与 favicon（`internal/linkmeta`，10s 上限）；`title` 缺省用抓取结果，再回退 hostname。
+- 公告接口 `GET /announcements`（`page`，每页 20）、`GET /announcements/pinned`、`GET /announcements/{id}` 走 `requireUsableAccount`：**每次请求**都查 `status=active && verified`，因为停用前签发的 token 仍有效；隐藏公告对读者 404。`GET /announcements/manage[/{id}]`、`POST /announcements`、`PATCH|DELETE /announcements/{id}`、`POST /files` 仅 admin。PATCH 的 `html` 与 `content` 必须一起传。`POST /files` 绑定 `apis.BodyLimit` 覆盖全局 32 MiB 上限，nginx 对该路径单独放到 1025m；改上限时三处（迁移 `MaxSize`、`uploads.MaxBytes`、nginx）一起改。
 - 通知 Channel 接口 `GET|POST /notification-channels`、`PATCH|DELETE /notification-channels/{id}`、`POST /notification-channels/{id}/test`、`POST /notification-channels/{id}/reveal/{options,finish}` 均仅 admin、进 OpenAPI。列表/CRUD 永不返回 URL 或密文；测试同步调用 pinned `github.com/nicholas-fedor/shoutrrr v0.16.1` 的单 URL 10s timeout，禁用 Channel 也可测试，失败仅返回 `timed_out`/`delivery_failed`。允许服务严格匹配 Beszel 通知指南；私网目标允许（admin 与 node API URL 同一信任边界）。`reveal` 要求已配置且至少一枚 passkey，并用 5min、用后即焚的 `passkey_sessions.kind=sensitive_field_reveal` + `scope=<channel id>` 绑定单一 URL；普通 edit 只能替换、不能预填已保存 URL。
 - Monitoring 接口 `GET|POST /monitors`、`GET|PATCH|DELETE /monitors/{id}`、`GET /alerts`、`GET /alerts/summary`、`GET /nodes/{id}/alerts`、`GET /users/{id}/alerts` 均仅 admin、进 OpenAPI。Monitor 可无 Channel；修改 evaluation 字段（含 kind、阈值）会静默 cancel 旧 Alert 并立即重评估。User Monitor 请求传 `evaluation_window_seconds` / `node_scope` / 非空 `node_ids` 返回 400。
 - OIDC 接口均进 OpenAPI：`GET|POST /oidc-clients`、`PATCH|DELETE /oidc-clients/{id}`、`POST /oidc-clients/{id}/rotate-secret` 仅 admin；同意页用的 `GET /oidc/requests/{handle}`、`POST /oidc/requests/{handle}/approve` 要求已登录且通过 `oidc.UserMayUse`，`deny` 只要求已登录；`POST /oidc/requests/{handle}/abort` 公开，持有 handle 即可结束请求（`prompt=none` 回 `login_required`，其余回 `access_denied`），与 `/authorize` 共用每 IP 60 次/分钟额度。这四个同意页接口在提供方关闭时 404。`GET /users/{id}/oidc-grants`、`DELETE /users/{id}/oidc-grants/{grantId}` 走 `requireActiveAdminOrSelf`。见决策 #11。
