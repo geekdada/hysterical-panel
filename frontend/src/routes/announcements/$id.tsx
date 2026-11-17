@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import {
@@ -72,6 +73,12 @@ function AnnouncementArticle({ announcement }: { announcement: Announcement }) {
   const now = useHydratedNow();
   const timeZone = useActiveTimeZone();
   const published = Date.parse(announcement.created);
+  // React compares this prop by identity and rewrites innerHTML for a new object.
+  // The clock re-renders every few seconds, so a fresh object would reload the body.
+  const body = useMemo(
+    () => ({ __html: withPanelFileOrigin(announcement.html, origin) }),
+    [announcement.html, origin]
+  );
 
   return (
     <article>
@@ -87,7 +94,7 @@ function AnnouncementArticle({ announcement }: { announcement: Announcement }) {
       <div
         className="announcement-body mt-6"
         // Sanitized by the backend allowlist on save (ADR-0015).
-        dangerouslySetInnerHTML={{ __html: withPanelFileOrigin(announcement.html, origin) }}
+        dangerouslySetInnerHTML={body}
       />
     </article>
   );
