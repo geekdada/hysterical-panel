@@ -318,9 +318,38 @@ html[data-theme] {
   padding: 16px;
   outline: none;
 }
-.announcement-canvas img.ProseMirror-selectednode {
+.announcement-canvas [data-resize-wrapper] {
+  max-width: 100%;
+}
+.announcement-canvas [data-resize-container] img {
+  display: block;
+  margin: 0;
+}
+.announcement-canvas .ProseMirror-selectednode img {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+.announcement-canvas [data-resize-handle] {
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin: -5px;
+  border: 1.5px solid var(--focus);
+  border-radius: 2px;
+  background: var(--background);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.announcement-canvas [data-resize-handle="top-right"] {
+  cursor: nesw-resize;
+}
+.announcement-canvas [data-resize-handle="bottom-right"] {
+  cursor: nwse-resize;
+}
+.announcement-canvas [data-resize-wrapper]:hover [data-resize-handle],
+.announcement-canvas .ProseMirror-selectednode [data-resize-handle],
+.announcement-canvas [data-resize-state="true"] [data-resize-handle] {
+  opacity: 1;
 }
 .announcement-canvas p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

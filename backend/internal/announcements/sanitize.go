@@ -18,6 +18,8 @@ var (
 	imageSourcePattern = regexp.MustCompile(`^` + storedFilePattern + `$`)
 	linkTargetPattern  = regexp.MustCompile(`^(?:https?://|mailto:|` + storedFilePattern + `(?:\?download=1)?$)`)
 	codeClassPattern   = regexp.MustCompile(`^language-[A-Za-z0-9_+-]+$`)
+	// The editor stores a resized image as a whole pixel width.
+	imageWidthPattern = regexp.MustCompile(`^[1-9][0-9]{0,3}$`)
 )
 
 // bodyPolicy mirrors what the announcement editor can produce. A bluemonday
@@ -37,6 +39,7 @@ func newBodyPolicy() *bluemonday.Policy {
 	p.AddTargetBlankToFullyQualifiedLinks(true)
 	p.AllowAttrs("src").Matching(imageSourcePattern).OnElements("img")
 	p.AllowAttrs("alt", "title").OnElements("img")
+	p.AllowAttrs("width").Matching(imageWidthPattern).OnElements("img")
 	p.AllowAttrs("start").Matching(bluemonday.Integer).OnElements("ol")
 	p.AllowAttrs("class").Matching(codeClassPattern).OnElements("code")
 	return p

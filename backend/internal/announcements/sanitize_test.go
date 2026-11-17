@@ -107,3 +107,20 @@ func TestHasVisibleContent(t *testing.T) {
 		}
 	}
 }
+
+func TestSanitizeHTMLImageWidth(t *testing.T) {
+	kept := SanitizeHTML(`<img src="` + storedImage + `" width="320">`)
+	if !strings.Contains(kept, `width="320"`) {
+		t.Errorf("pixel width dropped: %s", kept)
+	}
+
+	for _, width := range []string{"50%", "0", "-1", "12345", "320px", "auto"} {
+		got := SanitizeHTML(`<img src="` + storedImage + `" width="` + width + `">`)
+		if strings.Contains(got, "width=") {
+			t.Errorf("width %q kept: %s", width, got)
+		}
+	}
+	if got := SanitizeHTML(`<p width="320">x</p>`); strings.Contains(got, "width=") {
+		t.Errorf("width kept outside img: %s", got)
+	}
+}

@@ -1,4 +1,4 @@
-import { Extension, type Extensions } from "@tiptap/react";
+import { Extension, ResizableNodeView, type Extensions } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Image } from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extension-placeholder";
@@ -6,6 +6,14 @@ import { isAllowedLinkTarget, panelFileUrl, storedFilePath } from "~/lib/panel-f
 import * as m from "~/paraglide/messages.js";
 
 type OriginSource = () => string;
+
+// The backend keeps a resized width only as a whole number of pixels below 10000.
+const IMAGE_WIDTH_PATTERN = /^[1-9]\d{0,3}$/;
+const MIN_IMAGE_WIDTH = 48;
+
+function parseImageWidth(value: string | null): number | null {
+  return value !== null && IMAGE_WIDTH_PATTERN.test(value) ? Number(value) : null;
+}
 
 // The document keeps the relative path the backend accepts. Only the canvas
 // shows the absolute URL, because the panel API may live on another origin.
@@ -22,6 +30,10 @@ function panelImage(origin: OriginSource) {
         },
         alt: { default: null },
         title: { default: null },
+        width: {
+          default: null,
+          parseHTML: (element) => parseImageWidth(element.getAttribute("width")),
+        },
       };
     },
     parseHTML() {
@@ -38,21 +50,50 @@ function panelImage(origin: OriginSource) {
       return [];
     },
     addNodeView() {
-      return ({ node }) => {
+      return ({ node, getPos, editor }) => {
         const img = document.createElement("img");
         const sync = (attrs: Record<string, unknown>) => {
-          img.src = panelFileUrl(String(attrs.src ?? ""), origin());
+          const src = panelFileUrl(String(attrs.src ?? ""), origin());
+          if (img.getAttribute("src") !== src) img.src = src;
           img.alt = String(attrs.alt ?? "");
+          img.style.width = attrs.width ? `${attrs.width}px` : "";
+          img.style.height = "";
         };
         sync(node.attrs);
-        return {
-          dom: img,
-          update: (updated) => {
+
+        return new ResizableNodeView({
+          element: img,
+          editor,
+          node,
+          getPos,
+          // Only the width is stored. The height follows it through CSS, so a
+          // narrow screen scales the image down without stretching it.
+          onResize: (width) => {
+            img.style.width = `${width}px`;
+            img.style.height = "";
+          },
+          onCommit: (width) => {
+            const pos = getPos();
+            const rounded = Math.round(width);
+            if (pos === undefined || editor.state.doc.nodeAt(pos)?.attrs.width === rounded) return;
+            editor
+              .chain()
+              .setNodeSelection(pos)
+              .updateAttributes(this.name, { width: rounded })
+              .run();
+          },
+          onUpdate: (updated) => {
             if (updated.type !== node.type) return false;
             sync(updated.attrs);
             return true;
           },
-        };
+          options: {
+            // Images sit on the left edge, so only the right corners resize.
+            directions: ["top-right", "bottom-right"],
+            min: { width: MIN_IMAGE_WIDTH },
+            preserveAspectRatio: true,
+          },
+        });
       };
     },
   });

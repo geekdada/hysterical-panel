@@ -260,7 +260,7 @@ hysterical-panel/
 
 `resource_links`：admin 维护、对所有已登录 User 可见的有序外链。`url` (text, required)、`title`（手动标题，优先）、`fetched_title`、`favicon_data`（base64 图标副本，**`Hidden`**）、`favicon_type`、`favicon_hash`（16 位，作 ETag 与前端缓存键）、`sort_order`、`visit_count`、`last_visited_at`、`created` / `updated`。新建与改 URL 时用 `internal/linkmeta` 同步抓取一次：页面 ≤512 KiB、图标 ≤100 KiB、最多 3 次重定向、整体 10s 上限，接受任意 `image/*`（含 SVG）；无图标时清空 favicon 三字段，抓取失败不阻止保存。展示标题为 `title` → `fetched_title` → hostname。
 
-`announcements`：admin 写的站内公告（ADR-0015）。`title`（≤200 字）、`html`（后端经 `internal/announcements` 的 bluemonday 白名单清洗后保存，≤256 KiB，清洗后须有文字或图片）、`content`（TipTap JSON，供再次编辑）、`pinned`、`hidden`、`created_by`、`created` / `updated`。发表时间即 `created`，读者一律按 `created` 倒序。隐藏会在同一次修改里取消置顶，隐藏状态下不能置顶，取消隐藏不恢复置顶。读者看不到隐藏的公告。删除是硬删除，不动已上传文件。正文里的 `img src` 只允许 `/api/files/files/{id}/{name}` 相对路径，`a href` 另外允许 `http(s):` / `mailto:`。
+`announcements`：admin 写的站内公告（ADR-0015）。`title`（≤200 字）、`html`（后端经 `internal/announcements` 的 bluemonday 白名单清洗后保存，≤256 KiB，清洗后须有文字或图片）、`content`（TipTap JSON，供再次编辑）、`pinned`、`hidden`、`created_by`、`created` / `updated`。发表时间即 `created`，读者一律按 `created` 倒序。隐藏会在同一次修改里取消置顶，隐藏状态下不能置顶，取消隐藏不恢复置顶。读者看不到隐藏的公告。删除是硬删除，不动已上传文件。正文里的 `img src` 只允许 `/api/files/files/{id}/{name}` 相对路径，`img width` 只允许 1–9999 的整数像素（编辑器拖角等比缩放，只存宽度，高度由 CSS 跟随），`a href` 另外允许 `http(s):` / `mailto:`。
 
 `files`：通用上传文件。`file`（单文件、**不 protected**、`MaxSize` 1 GiB，任何拿到 URL 的人免登录可下载，便于 CDN 缓存）、`name`（原文件名）、`mime`、`size`、`uploaded_by`、`created`。不自动清理。
 

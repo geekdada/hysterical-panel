@@ -223,7 +223,7 @@ users collection 的 List / View / Create / Update / Delete API 规则由迁移 
 
 ### 公告与文件上传
 
-- 公告正文由前端 TipTap 编辑器生成，后端只保存清洗后的 HTML（`internal/announcements`，ADR-0015）。白名单只含编辑器能产出的元素；`img src` 只允许 `/api/files/files/{id}/{name}`，`a href` 另外允许 `http(s):` 与 `mailto:`。
+- 公告正文由前端 TipTap 编辑器生成，后端只保存清洗后的 HTML（`internal/announcements`，ADR-0015）。白名单只含编辑器能产出的元素；`img src` 只允许 `/api/files/files/{id}/{name}`，`img width` 只允许 1–9999 的整数像素（编辑器等比缩放只存宽度），`a href` 另外允许 `http(s):` 与 `mailto:`。
 - `POST /api/panel/files` 只对这一条路由放开 PocketBase 默认的 32 MiB 请求体上限（改为 1 GiB + 1 MiB 的 multipart 余量）。上传先落到临时目录再写入存储，服务器需留出相应磁盘空间。
 - **部署需做一次配置**：前面的反向代理或 CDN 也要允许该路径的大请求体。仓库自带的 `deploy/nginx/default.conf` 对 `/api/panel/files` 单独设了 `client_max_body_size 1025m` 并关闭请求缓冲，其他路径仍是 10m。
 - 文件经 PocketBase 的 `/api/files/files/...` 提供，图片、音视频与 PDF 内联展示，其余类型以附件下载；响应都带 PocketBase 的 sandbox CSP。文件不自动清理。
