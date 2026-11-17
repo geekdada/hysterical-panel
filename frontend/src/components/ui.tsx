@@ -162,6 +162,7 @@ export function Section({
   hint,
   meta,
   action,
+  compactAction = false,
   className,
   children,
 }: {
@@ -169,12 +170,21 @@ export function Section({
   hint?: string;
   meta?: ReactNode;
   action?: ReactNode;
+  /** Keeps a small action, such as a text link, beside the title on narrow screens. */
+  compactAction?: boolean;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <section className={cn("mt-6", className)}>
-      <div className="mb-2 flex flex-col gap-2 px-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      <div
+        className={cn(
+          "mb-2 flex gap-2 px-0.5 sm:gap-3",
+          compactAction
+            ? "items-center justify-between"
+            : "flex-col sm:flex-row sm:items-center sm:justify-between"
+        )}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex shrink-0 items-center gap-1">
             <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
@@ -182,7 +192,11 @@ export function Section({
           </div>
           {meta && <span className="min-w-0 truncate text-xs tabular-nums text-muted">{meta}</span>}
         </div>
-        {action && <div className="min-w-0 w-full sm:w-auto">{action}</div>}
+        {action && (
+          <div className={cn("min-w-0", compactAction ? "shrink-0" : "w-full sm:w-auto")}>
+            {action}
+          </div>
+        )}
       </div>
       <div className="overflow-hidden rounded-lg border bg-surface">{children}</div>
     </section>

@@ -44,16 +44,28 @@ export function PinnedAnnouncements() {
   if (!query.data?.has_published) return null;
 
   const items = query.data.items;
+  if (items.length === 0) {
+    return (
+      <Section title={m.announcements_title()}>
+        <ViewAllLink className={`${ROW_CLASS} justify-end`} />
+      </Section>
+    );
+  }
   return (
-    <Section title={m.announcements_title()}>
-      {items.length > 0 ? <AnnouncementRows items={items} /> : null}
-      <Link
-        to="/announcements"
-        className={`${ROW_CLASS} justify-end gap-1 text-xs text-muted hover:text-foreground ${items.length > 0 ? "border-t border-separator" : ""}`}
-      >
-        <span>{m.announcements_view_all()}</span>
-        <ChevronRight className="size-3 shrink-0" aria-hidden />
-      </Link>
+    <Section title={m.announcements_title()} action={<ViewAllLink />} compactAction>
+      <AnnouncementRows items={items} />
     </Section>
+  );
+}
+
+function ViewAllLink({ className = "" }: { className?: string }) {
+  return (
+    <Link
+      to="/announcements"
+      className={`flex items-center gap-1 text-xs text-muted transition-colors duration-150 hover:text-foreground ${className}`}
+    >
+      <span>{m.announcements_view_all()}</span>
+      <ChevronRight className="size-3 shrink-0" aria-hidden />
+    </Link>
   );
 }
