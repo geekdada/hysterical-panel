@@ -100,9 +100,10 @@ function EditAnnouncement({ announcement }: { announcement: ManagedAnnouncementD
         pending={saveMutation.isPending}
         footer={
           <div className="flex items-center gap-3">
+            {/* The negative margin lines the icon up with the form's left edge. */}
             <Button
               variant="ghost"
-              className="text-danger"
+              className="-ml-3.5 text-danger"
               onPress={() => {
                 deleteMutation.reset();
                 setConfirmingDelete(true);
