@@ -513,7 +513,6 @@
   "resource_links_visits": "{count} 次访问",
   "resource_links_last_visited": "上次访问 {time}",
   "resource_links_never_visited": "从未访问",
-  "resource_links_reorder_hint": "拖动一行即可调整顺序。也可以聚焦一行后按 Alt+Enter，用方向键移动，再按 Enter 放下。",
   "resource_links_delete": "删除链接",
   "resource_links_delete_confirm_title": "删除链接",
   "resource_links_delete_confirm_body": "链接及其访问次数将对所有人移除。",

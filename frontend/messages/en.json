@@ -513,7 +513,6 @@
   "resource_links_visits": "{count} visits",
   "resource_links_last_visited": "Last visit {time}",
   "resource_links_never_visited": "Never visited",
-  "resource_links_reorder_hint": "Drag a row to reorder. You can also focus a row and press Alt+Enter, move with the arrow keys, then press Enter to drop.",
   "resource_links_delete": "Delete link",
   "resource_links_delete_confirm_title": "Delete link",
   "resource_links_delete_confirm_body": "The link and its visit count are removed for everyone.",

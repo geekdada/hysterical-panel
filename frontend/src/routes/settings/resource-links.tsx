@@ -1,10 +1,18 @@
-import { useRef, useState } from "react";
+import { type DragEvent, type PointerEvent, useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Button, Input, Label, ListBox, Modal, TextField } from "@heroui/react";
-import { Plus, TrashBin } from "@gravity-ui/icons";
-import { DropIndicator, type DropPosition, type Key, useDragAndDrop } from "react-aria-components";
+import { Button, Input, Label, Modal, TextField } from "@heroui/react";
+import { Bars, Plus, TrashBin } from "@gravity-ui/icons";
+import {
+  Button as AriaButton,
+  DropIndicator,
+  type DropPosition,
+  GridList,
+  GridListItem,
+  type Key,
+  useDragAndDrop,
+} from "react-aria-components";
 import { requireAdmin } from "~/api/guards";
 import {
   createResourceLink,
@@ -75,6 +83,23 @@ function moveLinkOrder(
   const insertAt = dropPosition === "after" ? targetIndex + 1 : targetIndex;
   const next = [...remaining.slice(0, insertAt), ...moving, ...remaining.slice(insertAt)];
   return next.every((id, index) => id === ids[index]) ? null : next;
+}
+
+// React Aria makes the whole row natively draggable. Drags that start outside the
+// handle are cancelled so only the handle moves a row.
+function useHandleOnlyDrag() {
+  const pressedHandle = useRef(false);
+  return {
+    onPointerDownCapture: (event: PointerEvent) => {
+      pressedHandle.current =
+        event.target instanceof Element && event.target.closest("[data-drag-handle]") !== null;
+    },
+    onDragStartCapture: (event: DragEvent) => {
+      if (pressedHandle.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+  };
 }
 
 function linkHostname(url: string): string {
@@ -179,6 +204,7 @@ function ResourceLinksPage() {
   const loadError = linksQuery.error ? queryErrorMessage(linksQuery.error) : "";
   const reorderError = reorderMutation.error ? queryErrorMessage(reorderMutation.error) : "";
 
+  const handleOnlyDrag = useHandleOnlyDrag();
   const { dragAndDropHooks } = useDragAndDrop({
     getItems: (keys) => [...keys].map((key) => ({ "text/plain": String(key) })),
     onReorder: (event) => {
@@ -271,7 +297,7 @@ function ResourceLinksPage() {
         onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
       />
 
-      <section className="mt-6 overflow-hidden rounded-lg border bg-surface">
+      <section className="mt-6 overflow-hidden rounded-lg border bg-surface" {...handleOnlyDrag}>
         {linksQuery.isPending ? (
           <TableSkeleton />
         ) : links.length === 0 ? (
@@ -279,9 +305,9 @@ function ResourceLinksPage() {
             <span className="font-medium text-foreground">{m.resource_links_empty()}</span>
           </PanelMessage>
         ) : (
-          <ListBox
+          <GridList
             aria-label={m.resource_links_title()}
-            selectionMode="none"
+            className="-mb-px"
             dragAndDropHooks={dragAndDropHooks}
             onAction={(key) => {
               const link = links.find((item) => item.id === String(key));
@@ -289,7 +315,26 @@ function ResourceLinksPage() {
             }}
           >
             {links.map((link) => (
-              <ListBox.Item key={link.id} id={link.id} textValue={link.title} className="px-4 py-3">
+              <GridListItem
+                key={link.id}
+                id={link.id}
+                textValue={link.title}
+                className="flex cursor-pointer items-center gap-3 border-b border-separator py-3 pr-4 pl-2 outline-none select-none transition-colors duration-150 data-[dragging=true]:opacity-50 data-[focus-visible=true]:bg-surface-secondary data-[hovered=true]:bg-surface-secondary"
+              >
+                {/* React Aria sets pointer-events: none on the drag button, so this wrapper takes the pointer. It also keeps a click on the handle from opening the editor. */}
+                <span
+                  data-drag-handle
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                  className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-md text-muted hover:text-foreground active:cursor-grabbing"
+                >
+                  <AriaButton
+                    slot="drag"
+                    className="flex size-full items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                  >
+                    <Bars className="size-3.5" aria-hidden />
+                  </AriaButton>
+                </span>
                 <ResourceLinkFavicon id={link.id} version={link.favicon_version} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] font-medium">{link.title}</span>
@@ -309,15 +354,11 @@ function ResourceLinksPage() {
                       : m.resource_links_never_visited()}
                   </span>
                 </span>
-              </ListBox.Item>
+              </GridListItem>
             ))}
-          </ListBox>
+          </GridList>
         )}
       </section>
-
-      {links.length > 1 && (
-        <p className="mt-2 px-0.5 text-xs text-muted">{m.resource_links_reorder_hint()}</p>
-      )}
     </PageShell>
   );
 }

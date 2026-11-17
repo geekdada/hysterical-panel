@@ -371,7 +371,7 @@ hysterical-panel/
 - **路由守卫**：`src/api/guards.ts`，在路由 `beforeLoad` 里用，与后端守卫对齐（非 admin 访问 admin 页 → 跳自己的账号页）。
 - 路径别名 `~/*` → `src/*`；`VITE_API_BASE_URL` 指向后端（dev 默认 `http://localhost:8090`，见 `.env.local`）；`__APP_VERSION__` 由 vite 从根 `VERSION` 注入。
 - `vite.config.ts` 有一条仅 dev 生效的 `server.proxy`：把 `/l/:id/favicon` 转到后端 `/api/resource-links/:id/favicon`。Nitro 的 dev 中间件把带 `Sec-Fetch-Dest: image` 的请求当静态资源处理、不进应用路由，不加代理图标在 `pnpm dev` 下 404；生产构建不受影响。
-- `react-aria-components` 锁定为 HeroUI 依赖的同一版本：`useDragAndDrop` 必须与 HeroUI ListBox 来自同一份副本，升级时两者一起升。
+- 资源链接排序用 `react-aria-components` 的 `GridList` + `useDragAndDrop`（HeroUI 没有 GridList）；拖动只从左侧把手开始。`react-aria-components` 仍锁定为 HeroUI 依赖的同一版本，升级时两者一起升。
 
 ## 运行与安全
 
