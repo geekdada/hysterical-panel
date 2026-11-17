@@ -70,6 +70,11 @@ func TestSanitizeHTMLLinks(t *testing.T) {
 		t.Errorf("attachment link changed: %s", attachment)
 	}
 
+	encodedExt := SanitizeHTML(`<a href="/api/files/files/abcdefghij12345/notes_k3j2h1g0f9.c%2B%2B">notes</a>`)
+	if !strings.Contains(encodedExt, `href="/api/files/files/abcdefghij12345/notes_k3j2h1g0f9.c%2B%2B"`) {
+		t.Errorf("encoded extension dropped: %s", encodedExt)
+	}
+
 	for _, href := range []string{"/settings", "ftp://example.com", "/api/panel/users"} {
 		if got := SanitizeHTML(`<a href="` + href + `">x</a>`); strings.Contains(got, "href=") {
 			t.Errorf("href %q kept: %s", href, got)

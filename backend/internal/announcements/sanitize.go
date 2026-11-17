@@ -9,12 +9,10 @@ import (
 	"golang.org/x/net/html"
 )
 
-// FilePathPrefix is where PocketBase serves records of the generic files collection.
-const FilePathPrefix = "/api/files/files/"
-
-// Record ids are 15 lowercase alphanumerics. PocketBase normalizes stored names
-// to snake case plus an extension, so a strict pattern also rules out "..".
-const storedFilePattern = `/api/files/files/[a-z0-9]{15}/[A-Za-z0-9_-]+(\.[A-Za-z0-9]+)*`
+// Record ids are 15 lowercase alphanumerics. PocketBase stores names as a
+// snake case stem plus an extension that may hold * - + = #, which arrive
+// percent-encoded. The stem never starts with a dot, so ".." cannot match.
+const storedFilePattern = `/api/files/files/[a-z0-9]{15}/[A-Za-z0-9_-]+(\.[A-Za-z0-9_*+=%-]+)*`
 
 var (
 	imageSourcePattern = regexp.MustCompile(`^` + storedFilePattern + `$`)
